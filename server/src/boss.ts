@@ -1,0 +1,692 @@
+// The boss side of a map room (rules in shared/rules/mvp.ts, spawn lines in shared/rules/spawn.ts): what happens when a boss
+// spawns, summons its slaves, dies and leaves a tomb. MapRoom calls in at a few places (spawn, AI tick, death, NPC click):
+//   mob.cpp  mob_spawn          mvptomb_destroy (the tomb is removed when the boss is back), MSC_SPAWN skills (the first summon)
+//   mob.cpp  mob_dead           get_mvp_player, clif_mvp_effect, MvpExp (pc_gainexp), MvpDrops (pc_additem, else map_addflooritem),
+//                               rare_drop_announce (intif_broadcast), mob_deleteslave, mvptomb_create (boss_monster lines)
+//   mob.cpp  mob_ai_sub_hard_slavemob  (a slave dies with a missing master, follows it, takes the master's target)
+//   mob.cpp  mobskill_use / mob_summonslave / mobskill_delay  (NPC_SUMMONSLAVE: onspawn, then re-summon when the slaves are gone)
+//   npc.cpp  run_tomb           (the tomb's dialog: who, when, killed by)
+import { Msg, type AnnounceEvent, type BossAggroEvent, type BossHopEvent, type BossImpactEvent, type BossShape, type BossTeleEvent, type BossChargeEvent, type BossFormEvent, type BossSlamEvent, type BossSpitEvent, type BossSplitEvent, type DevBossMsg, type HitEvent, type ItemGetEvent, type MvpEvent, type MvpRewardEvent } from "../../shared/protocol.ts";
+import type { Client, Delayed } from "@colyseus/core";
+import { MOB_BY_ID, type Mob } from "../../shared/rules/data.ts";
+import { ITEMS } from "../../shared/rules/items.ts";
+import { lootOwners } from "../../shared/rules/dmglog.ts";
+import { floorLoot, mobDeadLootOwners } from "../../shared/rules/drops.ts";
+import { ATK, BL, mobAttack } from "../../shared/rules/battle.ts";
+import type { MobStatus } from "../../shared/rules/status.ts";
+import {
+  BOSS_MOVES, IDLE_MAX_MS, areaDue, chargeCooldown, chargeDue, chargeLane, headbuttDue, hopCell, inLaneReach, inShape, isEnraged, isRaged, knockbackCell, lineEnd,
+  ragedMs, rateDamage, ringCells, safeNearPlayers, safeSpots, spitDamage, spitDue, spitFlightMs, splitsDue,
+  type BossArea, type BossMoves, type Cell, type Shape,
+} from "../../shared/rules/bossmoves.ts";
+import { SCSTART } from "../../shared/rules/status_change.ts";
+import { MD, canReach, hasMode } from "../../shared/rules/mobai.ts";
+import { searchFreeCell, type SpawnData } from "../../shared/rules/spawn.ts";
+import { distance, pathSearchLong, walkable } from "../../shared/map.ts";
+import {
+  FREECELL_TRIES, MOB_SLAVEDISTANCE, MVP_CONF, SLAVE_MODE, attackerCount, skillCheckDue, mvpDropTable, mvpExpReward, mvpPlayer, pickSlaveSkill, rareDropAnnounced,
+  rollMvpPrizes, skillDelayAfter, summonList, tombKiller, tombLines, tombWanted, type SlaveSkill,
+} from "../../shared/rules/mvp.ts";
+import type { JobKey } from "../../shared/rules/data.ts";
+import { Npc, type Monster, type MapRoom, type Player } from "./rooms/MapRoom.ts";
+import { BOSS_KIND, TOMB_NAME, TOMB_SPRITE, Tombs, bossKindOf } from "./tombs.ts";
+import { miniStatus } from "./minibosses.ts";
+
+export { BOSS_KIND, TOMB_NAME, TOMB_SPRITE, Tombs, bossKindOf };
+export type { Tomb } from "./tombs.ts";
+
+/** Per boss monster: mob skill timers (md->skilldelay of its summon rows, md->last_skillcheck) and a running cast (ud->skilltimer). */
+type SkillClock = { readyAt: number; checkAt: number; casting: boolean };
+/** Per boss with our own floor-boss moves (shared/rules/bossmoves.ts): the next spit and the split rows already used. */
+type MoveClock = {
+  moves: BossMoves; spitAt: number; fired: Set<number>; shouted: Set<number>; chargeAt: number; headAt: number; busyUntil: number;
+  // 2.7.0 boss feel: area cooldowns by name, the gap between two moves, the reposition hop, what it was doing last and when
+  areaAt: Map<string, number>; gcdAt: number; hopAt: number; lastAct: number; actUntil: number; engaged?: string; roarAt: number; raged: boolean;
+  /** the species' own walk time / attack delay (mob_db), before the run and the enrage */
+  walkMs: number; delayMs: number;
+  /** fight numbers for the dev "stat" op and the report: the longest time it stood idle with a target, moves started by name */
+  idleMax: number; used: Record<string, number>;
+  /** 2.9.0 the phase change started */
+  transformed?: boolean;
+};
+type BossBrain = NonNullable<ReturnType<MapRoom["brains"]["get"]>>;
+
+export class BossSystem {
+  readonly tombs: Tombs;
+  /** slave id -> master id (md->master_id); only monsters summoned by NPC_SUMMONSLAVE are in here. */
+  private masterOf = new Map<string, string>();
+  /** Monsters with a summon skill, alive: id -> clock. */
+  private casters = new Map<string, SkillClock>();
+  /** Bosses with floor-boss moves (spit / split), alive: id -> clock. */
+  private movers = new Map<string, MoveClock>();
+  private nextSlave = 1;
+  private mvpTables = new Map<number, ReturnType<typeof mvpDropTable>>();
+
+  private room: MapRoom;
+  constructor(room: MapRoom) {
+    this.room = room;
+    this.tombs = new Tombs({
+      show: (t) => this.room.state.npcs.set(t.id, new Npc({ name: TOMB_NAME, sprite: TOMB_SPRITE, x: t.x, y: t.y, kind: "tomb" })),
+      hide: (t) => { this.room.state.npcs.delete(t.id); },
+      later: (fn, ms): Delayed => this.room.clock.setTimeout(fn, ms),
+    });
+  }
+
+  // ---------- spawn ----------
+  /** mob_spawn's tail (mob.cpp:1215, 1222): the monster is on the map. Its tomb goes (mvptomb_destroy), the wire flag is set, and
+   *  the MSC_SPAWN skills run (the first slaves). */
+  spawned(id: string, mon: Monster) {
+    const def = MOB_BY_ID.get(mon.mobId)!;
+    mon.boss = bossKindOf(def);
+    this.tombs.destroy(id);
+    this.room.tower.spawned(id, mon); // 2.7.0: the floor guardian rose (announce, hint)
+    this.casters.delete(id);
+    this.movers.delete(id);
+    const moves = BOSS_MOVES.get(mon.mobId);
+    if (moves) {
+      const t = this.room.exactNow();
+      this.movers.set(id, {
+        moves, spitAt: this.room.clock.currentTime + 1000, fired: new Set(), shouted: new Set(), chargeAt: t + 3000, headAt: t + 2000, busyUntil: 0,
+        areaAt: new Map((moves.areas ?? []).map((a, i) => [a.name, t + 2500 + i * 1500])), gcdAt: 0, hopAt: t + (moves.feel?.hopMs ?? 0), lastAct: t, actUntil: 0, roarAt: 0, raged: false,
+        walkMs: def.walkSpeed, delayMs: def.attackDelay, idleMax: 0, used: {},
+      });
+    }
+    if (def.slaves.length) {
+      this.casters.set(id, { readyAt: 0, checkAt: this.room.clock.currentTime, casting: false });
+      this.useSummon(id, "spawn");
+    }
+  }
+
+  // ---------- NPC_SUMMONSLAVE ----------
+  /** mob_countslave (mob.cpp:3946): slaves of `masterId` on the map. */
+  countSlaves(masterId: string) {
+    let n = 0;
+    for (const [sid, mid] of this.masterOf) if (mid === masterId && this.room.state.monsters.get(sid)?.dead === false) n++;
+    return n;
+  }
+
+  /** Every second a boss with a summon skill looks at its rows again (mobskill_use with event -1, once per MIN_MOBLINKTIME-ish). */
+  tick(now: number) {
+    for (const [id, c] of this.casters) {
+      const m = this.room.state.monsters.get(id), b = this.room.brains.get(id);
+      if (!m || m.dead || !b) { this.casters.delete(id); continue; }
+      // mob_ai_sub_hard (mob.cpp:1869-1887): no check while walking; attack state = once its attack delay is over, else every second
+      if (!skillCheckDue({ walking: this.room.walking(b), mobState: b.mobState ?? "idle", now, attackableAt: b.nextAttack, lastCheck: c.checkAt })) continue;
+      c.checkAt = now; // md->last_skillcheck
+      this.useSummon(id, "check");
+    }
+    for (const [id, c] of this.movers) {
+      const m = this.room.state.monsters.get(id), b = this.room.brains.get(id);
+      if (!m || m.dead || !b) { this.movers.delete(id); continue; }
+      if (this.transform(id, m, b, c)) continue;
+      this.split(id, m, c);
+      this.shout(id, m, c);
+      this.feel(id, m, b, c);
+      if (this.busy(id, c)) continue;
+      const t = this.room.exactNow();
+      if (c.moves.feel && t < c.gcdAt) continue; // the gap between two moves: it swings / chases meanwhile
+      const before = c.busyUntil, spat = c.spitAt;
+      this.areas(id, m, b, c);
+      if (!this.busy(id, c)) this.headbutt(id, m, b, c);
+      if (!this.busy(id, c)) this.charge(id, m, b, c);
+      if (!this.busy(id, c)) this.spit(id, m, b, c, now);
+      if (c.moves.feel && (c.busyUntil !== before || c.spitAt !== spat)) {
+        c.gcdAt = Math.max(t, c.busyUntil) + ragedMs(c.moves.feel.gcdMs, c.moves.rage, c.raged);
+        if (c.spitAt !== spat) { c.actUntil = Math.max(c.actUntil, t + 400); c.used.spit = (c.used.spit ?? 0) + 1; }
+      } else if (c.moves.feel) this.hop(id, m, b, c, false);
+    }
+  }
+
+  // ---------- 2.9.0 phase change ----------
+  /** Under its transform threshold the boss stops for `ms` (Msg.bossForm to the whole map: the client's collapse / swirl / rise), then a
+   *  monster of the next form takes its cell, HP, target and damage log (the mini-boss registry follows the new id). */
+  private transform(id: string, m: Monster, b: BossBrain, c: MoveClock): boolean {
+    const tr = c.moves.transform, room = this.room;
+    if (!tr || c.transformed || m.hp * 100 >= tr.hpBelow * m.maxHp) return !!c.transformed;
+    c.transformed = true;
+    const now = room.exactNow();
+    c.busyUntil = now + tr.ms + 500;
+    room.stopAttack(id, b);
+    room.haltWalk(m, room.walkOf(b, m));
+    c.used.transform = 1;
+    const all = (type: string, msg: unknown) => { for (const cl of room.clients) cl.send(type, msg); };
+    all(Msg.bossForm, { id, to: tr.to, ms: tr.ms, text: tr.text } satisfies BossFormEvent);
+    room.timeline.add(now + tr.ms, () => {
+      if (room.state.monsters.get(id) !== m || m.dead) return;
+      const cell = room.cell(m), slot = room.mobSpawns.get(id), ratio = m.hp / m.maxHp, target = b.target, log = b.dmglog;
+      const nid = `m${room.nextMonsterId++}`;
+      if (slot) room.mobSpawns.set(nid, { sd: { ...slot.sd, mobId: tr.to, x: cell.x, y: cell.y }, center: cell });
+      room.removeMonster(id);
+      const nm = room.addMonster(nid, tr.to, cell.x, cell.y), nb = room.brains.get(nid)!;
+      nm.hp = Math.max(1, Math.round(nm.maxHp * ratio));
+      nb.dmglog = log;
+      if (target) nb.target = target;
+      room.minis.replaced(id, nid);
+      all(Msg.bossForm, { id: nid, to: tr.to, ms: 0, from: id } satisfies BossFormEvent);
+    });
+    return true;
+  }
+
+  /** Everything this system keeps on a monster that leaves without dying (a dev remove, a phase change). */
+  forget(id: string) {
+    for (const [sid, mid] of this.masterOf) if (mid === id) { this.room.state.monsters.delete(sid); this.room.brains.delete(sid); this.masterOf.delete(sid); }
+    this.casters.delete(id);
+    this.movers.delete(id);
+    this.tombs.destroy(id);
+  }
+
+  // ---------- 2.7.0 boss feel: aggro on sight, run, opener, enrage, never idle ----------
+  /** After a boss's normal swing (MapRoom.mobSwung): it is busy for the attack motion (the idle watchdog's clock). */
+  swung(id: string, until: number) { const c = this.movers.get(id); if (c) c.actUntil = Math.max(c.actUntil, until); }
+
+  /** Each tick: see a player and turn on it (Msg.bossAggro, the opener ready at once), run while it has a target, enrage under the
+   *  rage threshold, and never stand idle longer than IDLE_MAX_MS with a target (it hops instead). */
+  private feel(id: string, m: Monster, b: BossBrain, c: MoveClock) {
+    const f = c.moves.feel, now = this.room.exactNow();
+    if (!f) return;
+    // enrage: once per life
+    if (!c.raged && isRaged(c.moves, m.hp, m.maxHp)) {
+      c.raged = true;
+      this.room.sendArea("AREA", id, Msg.bossAggro, { id, to: b.target ?? "", enrage: true } satisfies BossAggroEvent);
+    }
+    // aggro on sight: the nearest player it may target within `sight` cells that it can walk to
+    if (!b.target && !this.casting(id) && !this.room.status.cant(id, "attack")) {
+      const here = this.room.cell(m);
+      let best: string | undefined, bd = Infinity;
+      for (const p of this.room.aggroCandidates(this.room.clock.currentTime)) {
+        const d = distance(p.x - here.x, p.y - here.y);
+        if (d <= f.sight && d < bd && canReach(this.room.map, here, p, d + f.sight)) { best = p.id; bd = d; }
+      }
+      if (best) b.target = best;
+    }
+    // a new target: the cue (not more than once every 8 s) and the opener at once
+    if (b.target !== c.engaged) {
+      c.engaged = b.target;
+      if (b.target && this.room.state.players.has(b.target)) {
+        if (now >= c.roarAt) { c.roarAt = now + 8000; this.room.sendArea("AREA", id, Msg.bossAggro, { id, to: b.target } satisfies BossAggroEvent); }
+        c.gcdAt = now + 250;
+        if (f.opener === "charge") c.chargeAt = Math.min(c.chargeAt, now + 250); else if (f.opener) c.areaAt.set(f.opener, 0);
+        c.lastAct = now;
+      }
+    }
+    // run while it has a target; faster still, and swinging faster, once enraged
+    const r = c.raged ? c.moves.rage : undefined;
+    const walkMs = Math.round(c.walkMs * (b.target ? f.runPct / 100 : 1) * (r ? r.walkPct / 100 : 1));
+    const delayMs = Math.round(c.delayMs * (r ? r.aspdPct / 100 : 1));
+    if (b.status.walkMs !== walkMs || b.status.attackDelayMs !== delayMs) b.status = { ...b.status, walkMs, attackDelayMs: delayMs } as typeof b.status;
+    // the idle watchdog
+    if (!b.target || this.room.walking(b) || m.moving || this.busy(id, c) || now < c.actUntil || this.room.status.cant(id, "move")) { c.lastAct = now; return; }
+    const idle = now - c.lastAct;
+    if (idle > IDLE_MAX_MS && this.hop(id, m, b, c, true)) return;
+    if (idle > c.idleMax) c.idleMax = idle;
+  }
+
+  /** The telegraphed area moves (bossmoves.ts `areas`): the first one due starts. */
+  private areas(id: string, m: Monster, b: BossBrain, c: MoveClock, force?: string) {
+    const list = c.moves.areas, now = this.room.exactNow();
+    if (!list) return;
+    const t = this.targetOf(id, b, now);
+    if (!t) return;
+    const a = this.room.cell(m), tc = this.room.cell(t.tgt), dist = distance(tc.x - a.x, tc.y - a.y);
+    const clearLine = pathSearchLong(this.room.map, a.x, a.y, tc.x, tc.y);
+    for (const mv of list) {
+      if (force ? mv.name !== force : !areaDue(mv, { now, readyAt: c.areaAt.get(mv.name) ?? 0, dist, hp: m.hp, maxHp: m.maxHp, clearLine })) continue;
+      this.startArea(id, m, b, c, mv, a, tc, now);
+      return;
+    }
+  }
+
+  /** One area move: the warning(s) to the area now, the boss winding up for castMs, the impact(s) after windMs. */
+  private startArea(id: string, m: Monster, b: BossBrain, c: MoveClock, mv: BossArea, a: Cell, tc: Cell, now: number) {
+    const room = this.room, ok = (x: number, y: number) => walkable(room.map, x, y);
+    c.areaAt.set(mv.name, now + mv.windMs + ragedMs(mv.cooldownMs + this.rnd() % (mv.jitterMs + 1), c.moves.rage, c.raged));
+    c.busyUntil = now + (mv.castMs ?? mv.windMs) + 150;
+    c.used[mv.name] = (c.used[mv.name] ?? 0) + 1;
+    room.stopAttack(id, b);
+    room.haltWalk(m, room.walkOf(b, m));
+    // 2.9.0 a move wider than the view range (the Long Harvest) is told to the whole map
+    const say = (type: string, msg: unknown) => { if (mv.r > 14) { for (const cl of room.clients) cl.send(type, msg); } else room.sendArea("AREA", id, type, msg); };
+    if (mv.text) say(Msg.bossSplit, { id, text: mv.text, kind: "roar" } satisfies BossSplitEvent);
+    const shapes: { s: Shape & { shape: BossShape }; at: number }[] = [];
+    if (mv.shape === "line") {
+      const e = lineEnd(a, tc, mv.length ?? 8);
+      shapes.push({ s: { shape: "line", x: a.x, y: a.y, r: mv.r, ex: e.x, ey: e.y }, at: now + mv.windMs });
+    } else if (mv.shape === "sweep") {
+      const under = [...room.state.players.values()].filter((p) => !p.dead).map((p) => room.cell(p)).filter((p) => Math.hypot(p.x - a.x, p.y - a.y) <= mv.r);
+      const safe = mv.safeNear ? safeNearPlayers(ok, a, mv.r, under, mv.safeNear, mv.safe ?? 3, mv.safeR ?? 2, (n) => this.rnd() % n)
+        : safeSpots(ok, a, mv.r, mv.safe ?? 3, mv.safeR ?? 2, (n) => this.rnd() % n);
+      shapes.push({ s: { shape: "sweep", x: a.x, y: a.y, r: mv.r, safe }, at: now + mv.windMs });
+    } else if (mv.ring) { // 2.9.0 a ring of circles around the boss, one every stepMs
+      ringCells(a, mv.ring, mv.count ?? 8).forEach((p, i) => shapes.push({ s: { shape: "circle", x: p.x, y: p.y, r: mv.r }, at: now + mv.windMs + i * (mv.stepMs ?? 150) }));
+    } else {
+      const centre = mv.at === "self" ? a : tc;
+      shapes.push({ s: { shape: "circle", x: centre.x, y: centre.y, r: mv.r }, at: now + mv.windMs });
+      for (let i = 1; i < (mv.count ?? 1); i++) { // the rest of a rain: scattered around the target, one every stepMs
+        const sp = mv.spread ?? 3, x = tc.x - sp + this.rnd() % (2 * sp + 1), y = tc.y - sp + this.rnd() % (2 * sp + 1);
+        shapes.push({ s: { shape: "circle", x, y, r: mv.r }, at: now + mv.windMs + i * (mv.stepMs ?? 200) });
+      }
+    }
+    for (const { s, at } of shapes) {
+      const geo = { shape: s.shape, x: s.x, y: s.y, r: s.r, ...(s.ex !== undefined ? { ex: s.ex, ey: s.ey } : {}), ...(s.safe ? { safe: [...s.safe] } : {}) };
+      say(Msg.bossTele, { id, move: mv.name, ...geo, ms: at - now, ...(mv.leap ? { leap: true } : {}) } satisfies BossTeleEvent);
+      room.timeline.add(at, (t) => {
+        if (room.state.monsters.get(id) !== m || m.dead) return;
+        if (mv.leap) { // it lands on the centre (or the nearest free cell to it)
+          const land = ok(s.x, s.y) ? { x: s.x, y: s.y } : searchFreeCell(room.map, s.x, s.y, 1, 1, FREECELL_TRIES, this.rndValue);
+          if (land) room.warpUnit(m, b, land.x, land.y);
+        }
+        say(Msg.bossImpact, { id, move: mv.name, ...geo } satisfies BossImpactEvent);
+        for (const [sid, p] of room.state.players) {
+          if (p.dead || !inShape(s, room.cell(p))) continue;
+          this.areaHit(id, b, sid, mv, { x: s.x, y: s.y }, t);
+        }
+      });
+    }
+  }
+
+  /** An area move's hit on one player: the normal attack's damage x rate, never dodged by Flee (walking out is the dodge), then the
+   *  knockback away from the centre, the stun and the slow. */
+  private areaHit(id: string, b: BossBrain, tid: string, mv: BossArea, centre: Cell, at: number) {
+    const room = this.room, p = room.state.players.get(tid), pb = room.brains.get(tid);
+    if (!p || !pb || p.dead || room.invincible(tid, at)) return;
+    const res = mobAttack(b.status as MobStatus, { ...pb.status, noFlee: true, flee2: 0 } as typeof pb.status, { type: BL.PC, targeted: room.targetedCount(tid) });
+    const dmg = rateDamage(mv.dmgRate, res.dmg);
+    room.sendArea("AREA", tid, Msg.hit, { from: id, to: tid, dmg, crit: false, miss: res.miss, lucky: res.lucky, amotion: 0, dmotion: res.miss ? 0 : room.motions(tid).dmotion } satisfies HitEvent);
+    room.applyDamage(id, tid, dmg, at, res.dmgLv);
+    if (p.dead || res.dmgLv <= ATK.BLOCK) return;
+    if (mv.knockback) {
+      const land = knockbackCell((x, y) => walkable(room.map, x, y), centre, room.cell(p), mv.knockback);
+      room.warpUnit(p, pb, land.x, land.y);
+      room.sendArea("AREA", tid, Msg.bossSlam, { from: id, to: tid, kind: "head", kx: land.x, ky: land.y, stunMs: mv.stunMs ?? 0 } satisfies BossSlamEvent);
+    }
+    if (mv.stunMs) room.status.start(id, tid, "Stun", { rate: 10000, val1: 1, duration: mv.stunMs, flag: SCSTART.NOAVOID });
+    if (mv.slowMs && mv.slowLv) room.status.start(id, tid, "DecreaseAgi", { rate: 10000, val1: mv.slowLv, duration: mv.slowMs });
+  }
+
+  /** A reposition hop around the target (in melee reach): every feel.hopMs, and at once (`forced`) when it would stand idle. */
+  private hop(id: string, m: Monster, b: BossBrain, c: MoveClock, forced: boolean): boolean {
+    const f = c.moves.feel, now = this.room.exactNow(), room = this.room;
+    if (!f || (!forced && now < c.hopAt) || room.status.cant(id, "move")) return false;
+    const t = this.targetOf(id, b, now);
+    if (!t) return false;
+    const here = room.cell(m), tc = room.cell(t.tgt), reach = MOB_BY_ID.get(m.mobId)!.range;
+    if (distance(tc.x - here.x, tc.y - here.y) > reach + 1) return false; // not in melee: the chase is the motion
+    const ok = (x: number, y: number) => walkable(room.map, x, y);
+    const to = hopCell(ok, here, tc, (n) => this.rnd() % n, reach);
+    if (!to) return false;
+    const lane = chargeLane(ok, here, to, 0);
+    if (lane.length === 0) return false;
+    const ms = lane.length * 45 + 60;
+    c.hopAt = now + ragedMs(f.hopMs, c.moves.rage, c.raged) + this.rnd() % 800;
+    c.busyUntil = now + ms + 80;
+    c.used.hop = (c.used.hop ?? 0) + 1;
+    room.stopAttack(id, b);
+    room.haltWalk(m, room.walkOf(b, m));
+    const end = lane[lane.length - 1];
+    room.sendArea("AREA", id, Msg.bossHop, { id, x: end.x, y: end.y, ms } satisfies BossHopEvent);
+    lane.forEach((step, i) => room.timeline.add(now + 60 + i * 45, () => { if (room.state.monsters.get(id) === m && !m.dead) room.warpUnit(m, b, step.x, step.y); }));
+    return true;
+  }
+
+  // ---------- floor-boss moves (shared/rules/bossmoves.ts; our own, not rAthena) ----------
+  /** Below each HP threshold once: the cue to the area, then the slaves through mob_summonslave (they follow and die with it). */
+  private split(id: string, m: Monster, c: MoveClock) {
+    const rows = c.moves.split;
+    if (!rows) return;
+    for (const i of splitsDue(rows, m.hp, m.maxHp, c.fired)) {
+      c.fired.add(i);
+      const r = rows[i];
+      this.room.sendArea("AREA", id, Msg.bossSplit, { id, text: r.text, key: r.key, kind: r.kind } satisfies BossSplitEvent);
+      this.summon(id, m, { state: "any", amount: r.amount, rate: 10000, castTime: 0, delay: 0, cancelable: false, cond: "always", condValue: 0, ids: r.ids });
+    }
+  }
+
+  /** A glob at the boss's player target when it is beyond melee reach, in range and in sight: the normal attack's damage (mobAttack)
+   *  lands after the flight, plus a short Decrease AGI. Not while the boss casts, can't attack, or the target is gone / protected. */
+  private spit(id: string, m: Monster, b: NonNullable<ReturnType<MapRoom["brains"]["get"]>>, c: MoveClock, now: number) {
+    const s = c.moves.spit, tid = b.target;
+    if (!s || !tid || now < c.spitAt || this.casting(id) || this.room.status.cant(id, "attack")) return;
+    const tgt = this.room.state.players.get(tid), tb = this.room.brains.get(tid);
+    if (!tgt || tgt.dead || !tb || this.room.invincible(tid, now)) return;
+    const a = this.room.cell(m), t = this.room.cell(tgt), dist = distance(t.x - a.x, t.y - a.y);
+    if (!spitDue(s, { now, readyAt: c.spitAt, dist, clearLine: pathSearchLong(this.room.map, a.x, a.y, t.x, t.y) })) return;
+    c.spitAt = now + s.cooldownMs + this.rnd() % (s.jitterMs + 1);
+    const ms = spitFlightMs(s, dist);
+    this.room.sendArea("AREA", id, Msg.bossSpit, { from: id, to: tid, ms } satisfies BossSpitEvent);
+    const res = mobAttack(b.status as MobStatus, tb.status, { type: BL.PC, targeted: this.room.targetedCount(tid) });
+    this.room.timeline.add(now + ms, (at) => {
+      const p = this.room.state.players.get(tid);
+      if (p !== tgt || p.dead || this.room.state.monsters.get(id) !== m || m.dead || this.room.invincible(tid, at)) return;
+      const dmg = spitDamage(s, res.dmg);
+      this.room.sendArea("AREA", tid, Msg.hit, { from: id, to: tid, dmg, crit: false, miss: res.miss, lucky: res.lucky, amotion: 0, dmotion: res.miss ? 0 : this.room.motions(tid).dmotion } satisfies HitEvent);
+      this.room.applyDamage(id, tid, dmg, at, res.dmgLv);
+      if (s.slowMs > 0 && res.dmgLv > ATK.BLOCK && !p.dead) this.room.status.start(id, tid, "DecreaseAgi", { rate: 10000, val1: s.slowLv, duration: s.slowMs });
+    });
+  }
+
+  /** The boss is winding up or dashing (a charge / headbutt in progress): the AI leaves it alone (casting()). */
+  private busy(id: string, c: MoveClock) { return this.room.exactNow() < c.busyUntil; }
+
+  /** A chat line + cue once per HP threshold (the enrage shout). */
+  private shout(id: string, m: Monster, c: MoveClock) {
+    const rows = c.moves.shouts;
+    if (!rows) return;
+    for (const i of splitsDue(rows, m.hp, m.maxHp, c.shouted)) {
+      c.shouted.add(i);
+      const r = rows[i];
+      this.room.sendArea("AREA", id, Msg.bossSplit, { id, text: r.text, key: r.key, kind: r.kind } satisfies BossSplitEvent);
+    }
+  }
+
+  /** The boss's player target and the distance to it, if it may act now (not stunned / casting, target alive and not protected). */
+  private targetOf(id: string, b: NonNullable<ReturnType<MapRoom["brains"]["get"]>>, now: number) {
+    const tid = b.target;
+    if (!tid || this.casting(id) || this.room.status.cant(id, "attack")) return undefined;
+    const tgt = this.room.state.players.get(tid), tb = this.room.brains.get(tid);
+    if (!tgt || tgt.dead || !tb || this.room.invincible(tid, now)) return undefined;
+    return { tid, tgt, tb };
+  }
+
+  /** One hit of a charge / headbutt on a player: the normal attack's damage x rate, then the knockback and the stun. */
+  private slam(id: string, m: Monster, b: NonNullable<ReturnType<MapRoom["brains"]["get"]>>, tid: string, kind: "charge" | "head", ratePct: number, knock: number, stunMs: number, at: number) {
+    const p = this.room.state.players.get(tid), pb = this.room.brains.get(tid);
+    if (!p || !pb || p.dead || this.room.invincible(tid, at)) return;
+    const res = mobAttack(b.status as MobStatus, pb.status, { type: BL.PC, targeted: this.room.targetedCount(tid) });
+    const dmg = rateDamage(ratePct, res.dmg);
+    this.room.sendArea("AREA", tid, Msg.hit, { from: id, to: tid, dmg, crit: false, miss: res.miss, lucky: res.lucky, amotion: 0, dmotion: res.miss ? 0 : this.room.motions(tid).dmotion } satisfies HitEvent);
+    this.room.applyDamage(id, tid, dmg, at, res.dmgLv);
+    if (p.dead || res.dmgLv <= ATK.BLOCK) return;
+    const land = knockbackCell((x, y) => walkable(this.room.map, x, y), this.room.cell(m), this.room.cell(p), knock);
+    this.room.warpUnit(p, pb, land.x, land.y); // unit_movepos: thrown, any walk is over
+    if (stunMs > 0) this.room.status.start(id, tid, "Stun", { rate: 10000, val1: 1, duration: stunMs, flag: SCSTART.NOAVOID });
+    this.room.sendArea("AREA", tid, Msg.bossSlam, { from: id, to: tid, kind, kx: land.x, ky: land.y, stunMs } satisfies BossSlamEvent);
+  }
+
+  /** Melee headbutt every few seconds on an adjacent target: a short wind-up, then a heavy hit and a knockback. */
+  private headbutt(id: string, m: Monster, b: NonNullable<ReturnType<MapRoom["brains"]["get"]>>, c: MoveClock) {
+    const h = c.moves.headbutt, now = this.room.exactNow();
+    if (!h || now < c.headAt) return;
+    const t = this.targetOf(id, b, now);
+    if (!t) return;
+    const a = this.room.cell(m), cell = this.room.cell(t.tgt);
+    if (!headbuttDue(h, { now, readyAt: c.headAt, dist: distance(cell.x - a.x, cell.y - a.y) })) return;
+    c.headAt = now + ragedMs(h.cooldownMs, c.moves.rage, c.raged);
+    c.used.head = (c.used.head ?? 0) + 1;
+    c.busyUntil = now + h.windMs;
+    this.room.haltWalk(m, this.room.walkOf(b, m));
+    this.room.sendArea("AREA", id, Msg.bossCharge, { id, kind: "head", ex: a.x, ey: a.y, windMs: h.windMs, dashMs: 0 } satisfies BossChargeEvent);
+    const tid = t.tid;
+    this.room.timeline.add(now + h.windMs, (at) => {
+      if (this.room.state.monsters.get(id) !== m || m.dead) return;
+      const p = this.room.state.players.get(tid);
+      if (p && !p.dead) {
+        const q = this.room.cell(p), me = this.room.cell(m);
+        if (distance(q.x - me.x, q.y - me.y) <= 2) this.slam(id, m, b, tid, "head", h.dmgRate, h.knockback, 0, at); // a step away in the wind-up is still caught at 2
+      }
+    });
+  }
+
+  /** The charge: a locked lane shown for windMs, then a straight dash along it; every player the boss passes is slammed once. */
+  private charge(id: string, m: Monster, b: NonNullable<ReturnType<MapRoom["brains"]["get"]>>, c: MoveClock) {
+    const ch = c.moves.charge, now = this.room.exactNow();
+    if (!ch || now < c.chargeAt) return;
+    const t = this.targetOf(id, b, now);
+    if (!t) return;
+    const a = this.room.cell(m), cell = this.room.cell(t.tgt), dist = distance(cell.x - a.x, cell.y - a.y);
+    const ok = (x: number, y: number) => walkable(this.room.map, x, y);
+    const clear = pathSearchLong(this.room.map, a.x, a.y, cell.x, cell.y);
+    if (dist < ch.minRange && dist >= 1 && clear) { // too close for a run-up (a tank in melee): the goat backs off first, then charges
+      const land = knockbackCell(ok, cell, a, ch.minRange + 1 - dist), back = chargeLane(ok, a, land, 0);
+      if (back.length === 0 || distance(land.x - cell.x, land.y - cell.y) < ch.minRange) { c.chargeAt = now + 2000; return; }
+      c.busyUntil = now + back.length * 40 + 150;
+      this.room.stopAttack(id, b);
+      this.room.haltWalk(m, this.room.walkOf(b, m));
+      this.room.sendArea("AREA", id, Msg.bossCharge, { id, kind: "head", ex: a.x, ey: a.y, windMs: 300, dashMs: 0 } satisfies BossChargeEvent);
+      back.forEach((step, i) => this.room.timeline.add(now + 100 + i * 40, () => { if (this.room.state.monsters.get(id) === m && !m.dead) this.room.warpUnit(m, b, step.x, step.y); }));
+      return;
+    }
+    if (!chargeDue(ch, { now, readyAt: c.chargeAt, dist, clearLine: clear })) return;
+    const lane = chargeLane(ok, a, cell, 0); // ends on the target's cell: whoever is hit is thrown past it, never under the goat
+    if (lane.length < 2) { c.chargeAt = now + 1500; return; }
+    const end = lane[lane.length - 1], dashMs = lane.length * ch.dashMsPerCell;
+    c.chargeAt = now + ch.windMs + dashMs + chargeCooldown(ch, this.rnd() % (ch.jitterMs + 1), isEnraged(c.moves, m.hp, m.maxHp));
+    c.busyUntil = now + ch.windMs + dashMs + 250;
+    c.used.charge = (c.used.charge ?? 0) + 1;
+    this.room.stopAttack(id, b);
+    this.room.haltWalk(m, this.room.walkOf(b, m));
+    this.room.sendArea("AREA", id, Msg.bossCharge, { id, kind: "charge", ex: end.x, ey: end.y, windMs: ch.windMs, dashMs } satisfies BossChargeEvent);
+    const hit = new Set<string>(), t0 = now + ch.windMs;
+    lane.forEach((step, i) => this.room.timeline.add(t0 + i * ch.dashMsPerCell, (at) => {
+      if (this.room.state.monsters.get(id) !== m || m.dead) return;
+      this.room.warpUnit(m, b, step.x, step.y);
+      for (const [sid, p] of this.room.state.players) {
+        if (hit.has(sid) || p.dead || !inLaneReach(step, this.room.cell(p))) continue;
+        hit.add(sid);
+        this.slam(id, m, b, sid, "charge", ch.dmgRate, ch.knockback, ch.stunMs, at);
+      }
+    }));
+  }
+
+  /** ud->skilltimer is set: the summon is being cast (the boss neither walks nor thinks). */
+  casting(id: string) { const c = this.movers.get(id); return this.casters.get(id)?.casting === true || (!!c && this.room.exactNow() < c.busyUntil); }
+
+  /** mobskill_use for the summon rows: pick a row, cast it (castTime ms), then mob_summonslave and the skill delay (mobskill_delay). */
+  private useSummon(id: string, event: "spawn" | "check") {
+    const m = this.room.state.monsters.get(id), b = this.room.brains.get(id), c = this.casters.get(id);
+    if (!m || m.dead || !b || !c || c.casting) return;
+    const def = MOB_BY_ID.get(m.mobId)!, rows = def.slaves as unknown as SlaveSkill[], now = this.room.clock.currentTime;
+    const state = b.mobState ?? "idle", hasTarget = !!b.target;
+    const skill = pickSlaveSkill(rows, { mobState: state, hasTarget, slaves: this.countSlaves(id), event, now, readyAt: c.readyAt, roll: () => this.rnd() % 10000 });
+    if (!skill) return;
+    const finish = () => {
+      c.casting = false;
+      if (this.room.state.monsters.get(id) !== m || m.dead) return;
+      this.summon(id, m, skill);
+      c.readyAt = this.room.clock.currentTime + skillDelayAfter(rows, b.mobState ?? "idle", !!b.target);
+    };
+    if (skill.castTime > 0) { c.casting = true; this.room.clock.setTimeout(finish, skill.castTime); } else finish();
+  }
+
+  /** mob_summonslave (mob.cpp:3981): `amount` slaves round-robin over the row's ids, each on a free cell within MOB_SLAVEDISTANCE of
+   *  the master (map_search_freecell, else the master's own cell), with master_id set. */
+  private summon(masterId: string, master: Monster, skill: SlaveSkill) {
+    const at = this.room.cell(master);
+    for (const mobId of summonList(skill.ids, skill.amount, (n) => this.rnd() % n)) {
+      if (!MOB_BY_ID.has(mobId)) continue;
+      const cell = searchFreeCell(this.room.map, at.x, at.y, MOB_SLAVEDISTANCE, MOB_SLAVEDISTANCE, FREECELL_TRIES, this.rndValue) ?? at;
+      const sid = `b${this.nextSlave++}`;
+      this.masterOf.set(sid, masterId);
+      this.room.addMonster(sid, mobId, cell.x, cell.y);
+      // slaves_inherit_mode 4 (status_calc_slave_mode): the mode is exactly CANMOVE | NORANDOMWALK | CANATTACK; slaves_inherit_speed 3: the master's walk speed
+      const sb = this.room.brains.get(sid)!, mb = this.room.brains.get(masterId);
+      sb.mode = SLAVE_MODE;
+      if (mb) sb.status = { ...sb.status, walkMs: mb.status.walkMs } as typeof sb.status;
+    }
+  }
+
+  /** A monster that is somebody's slave (it has no spawn line: it is removed after dying instead of respawning). */
+  isSlave(id: string) { return this.masterOf.has(id); }
+
+  /**
+   * mob_ai_sub_hard_slavemob (mob.cpp:1526-1623) for a slave, at the top of its AI step: a missing or dead master kills the slave
+   * (status_kill); otherwise it walks back to within MOB_SLAVEDISTANCE of the master when it has no target of its own, and takes the
+   * master's target. True = this step is done (the C++ returns 1).
+   */
+  slaveAi(id: string, m: Monster, now: number): boolean {
+    const mid = this.masterOf.get(id);
+    if (!mid) return false;
+    const master = this.room.state.monsters.get(mid), b = this.room.brains.get(id)!;
+    if (!master || master.dead) { this.killSlave(id); return true; }
+    const mb = this.room.brains.get(mid);
+    if (hasMode(b.mode ?? MOB_BY_ID.get(m.mobId)!.mode, MD.CANMOVE)) {
+      if (b.target) return false; // busy with a target (a monster master never calls it back)
+      const here = this.room.cell(m), mc = this.room.cell(master), dist = distance(mc.x - here.x, mc.y - here.y);
+      if ((dist > MOB_SLAVEDISTANCE || dist === 0) && this.room.canMove(id, m, b, now)) {
+        const to = searchFreeCell(this.room.map, mc.x, mc.y, MOB_SLAVEDISTANCE, MOB_SLAVEDISTANCE, FREECELL_TRIES, this.rndValue);
+        if (to && this.room.walkToXY(id, m, b, to.x, to.y, 0, now)) { this.room.stopAttack(id, b); b.mobState = "walk"; return true; }
+      }
+    }
+    // lock the master's target (not more than once per MIN_MOBLINKTIME)
+    if (!b.target && mb?.target && now - (b.lastLink ?? -Infinity) >= 1000) {
+      const t = this.room.actor(mb.target);
+      if (t && !t.dead) { b.lastLink = now; b.target = mb.target; return true; }
+    }
+    return false;
+  }
+
+  /** status_kill (type 3: no drops, no EXP): the slave dies where it stands and leaves the map a moment later (md->spawn == null). */
+  private killSlave(id: string) {
+    const m = this.room.state.monsters.get(id), b = this.room.brains.get(id);
+    if (!m || !b || m.dead) return;
+    m.dead = true; m.hp = 0;
+    this.room.haltWalk(m, this.room.walkOf(b, m));
+    b.target = undefined;
+    for (const o of this.room.brains.values()) if (o.target === id) o.target = undefined;
+    this.room.sendArea("AREA", id, Msg.die, { id });
+    this.removeSlaveLater(id, m);
+  }
+  /** A slave never respawns: its corpse goes after the death animation. */
+  removeSlaveLater(id: string, m: Monster) {
+    this.room.clock.setTimeout(() => {
+      if (this.room.state.monsters.get(id) !== m) return;
+      this.room.state.monsters.delete(id);
+      this.room.brains.delete(id);
+      this.masterOf.delete(id);
+    }, 2000);
+  }
+
+  // ---------- death ----------
+  /**
+   * mob_dead's boss part, after the EXP share and the drops: the MVP reward, the slaves going with their master, the tomb. `lineBoss`
+   * = the spawn line was `boss_monster` (md->spawn->state.boss); `killer` = the killing unit's id.
+   */
+  dead(id: string, mon: Monster, killer: string | undefined, lineBoss: boolean) {
+    const def = MOB_BY_ID.get(mon.mobId)!, room = this.room;
+    this.casters.delete(id);
+    this.movers.delete(id);
+    for (const [sid, mid] of this.masterOf) if (mid === id) this.killSlave(sid); // mob_deleteslave
+    const log = room.dmgLogOf(id);
+    const owners = mobDeadLootOwners(lootOwners(log, room.receiver), killer === undefined ? undefined : room.charIdOf(killer));
+    const mvpChar = mvpPlayer(log, def.bossType, room.receiver, owners[0]);
+    const mvpSid = mvpChar === undefined ? undefined : room.sessionOfChar(mvpChar);
+    const mvp = mvpSid === undefined ? undefined : room.state.players.get(mvpSid);
+    if (mvp && mvpSid !== undefined) this.reward(id, def, mvpSid, mvp, mvpChar!, owners, attackerCount(log, room.receiver));
+    room.minis.dead(id, mon.mobId); // 2.9.0 a roaming mini-boss: rolled onto a random floor
+    room.tower.dead(id, mon, [mvpSid, killer, ...owners.map((c) => room.sessionOfChar(c))]); // 2.7.0 the Tower rule: the floor is cleared for their parties
+
+    if (tombWanted(lineBoss)) {
+      const nameOf = (c: number | undefined) => { const s = c === undefined ? undefined : room.sessionOfChar(c); return s ? room.state.players.get(s)?.name : undefined; };
+      const at = room.cell(mon);
+      this.tombs.create(id, { mobName: def.name, x: at.x, y: at.y, killedAt: new Date(), killer: tombKiller(mvp?.name, nameOf(owners[0])) });
+    }
+  }
+
+  /** The MVP's reward (mob.cpp:3437-3537): the effect to the area, MvpExp, one prize from MvpDrops (inventory, else the floor). */
+  private reward(monsterId: string, def: Mob, sid: string, p: Player, charId: number, owners: number[], attackers: number) {
+    const room = this.room, b = room.brains.get(sid)!, client = room.clients.getById(sid);
+    room.sendArea("AREA", sid, Msg.mvp, { id: sid, boss: def.name } satisfies MvpEvent); // clif_mvp_effect
+    const exp = mvpExpReward(def, p.level, attackers);
+    if (exp > 0) room.reward(sid, p, exp, 0); // clif_mvp_exp then pc_gainexp(sd, md, exp, 0, 0)
+    let itemId = 0, onFloor = false;
+    let table = this.mvpTables.get(def.id);
+    if (!table) this.mvpTables.set(def.id, table = mvpDropTable(def.mvpDrops));
+    for (const prize of rollMvpPrizes(table, p.level, def)) {
+      const item = ITEMS.get(prize.item)!;
+      itemId = item.id;
+      if (rareDropAnnounced(prize.rate)) room.announce(`'${p.name}' won ${def.name}'s ${item.name} (chance: ${(prize.rate / 100).toFixed(2)}%)`); // msg 541
+      const why = b.inv?.canAdd(item, 1, p.job as JobKey, p.str);
+      if (b.inv && !why) {
+        b.inv.add(item.id, 1);
+        client?.send(Msg.itemGet, { itemId: item.id, amount: 1 } satisfies ItemGetEvent);
+        room.sendInv(client!, p);
+      } else {
+        // pc_additem failed: map_addflooritem under the MVP, owned by the MVP, then the 2nd and 3rd of the loot ranking
+        onFloor = true;
+        room.addFloorItem(item.id, 1, room.cell(p), null, floorLoot(room.clock.currentTime, [charId, owners[1] ?? 0, owners[2] ?? 0].filter((c, i) => i === 0 || c), "Mvp", true));
+      }
+    }
+    client?.send(Msg.mvpReward, { boss: def.name, exp, itemId, floor: onFloor } satisfies MvpRewardEvent);
+  }
+
+  // ---------- tomb dialog ----------
+  /** The tomb the player clicked (npc_click -> run_tomb), if `id` is one on this map. */
+  clickTomb(client: Client, id: string): boolean {
+    const t = this.tombs.visible(id);
+    if (!t) return false;
+    const room = this.room, p = room.state.players.get(client.sessionId);
+    if (!p || !room.nearNpc(p, id)) return true; // npc_checknear
+    // run_tomb (npc.cpp:2184): clif_scriptmes lines + clif_scriptclose, no script session (sd->npc_id stays 0): the player is not locked
+    for (const text of tombLines(t.mobName, t.killedAt, t.killer)) client.send(Msg.npcMes, { npc: t.id, text });
+    client.send(Msg.npcCloseBtn, { npc: t.id });
+    return true;
+  }
+
+  // ---------- dev shortcuts (never in production) ----------
+  /** The boss bot's GM shortcut: spawn a boss line, hurt / kill a monster as the sender, remove a test boss. NODE_ENV=production refuses. */
+  register() {
+    if (process.env.NODE_ENV === "production") return;
+    const room = this.room;
+    room.onMessage(Msg.devBoss, (client: Client, m: DevBossMsg) => {
+      const p = room.state.players.get(client.sessionId);
+      if (!p || p.dead || !m) return;
+      const id = String(m.id), mon = room.state.monsters.get(id);
+      switch (m.op) {
+        case "spawn": { // a `boss_monster` line with this mob at (x, y), respawn 15-20 s
+          const mobId = Number(m.mobId);
+          const def = MOB_BY_ID.get(mobId);
+          if (!def) return;
+          const c = room.cell(p), x = Number.isInteger(m.x) ? Number(m.x) : c.x, y = Number.isInteger(m.y) ? Number(m.y) : c.y + 2;
+          // xs/ys 1: on that very cell (0 would be mob_spawn's "anywhere on the map" and land the test monster out of reach)
+          const sd: SpawnData = { map: room.mapName, x, y, xs: 1, ys: 1, boss: true, name: def.name, mobId, num: 1, delay1: 15000, delay2: 5000 };
+          const sidm = `m${room.nextMonsterId++}`;
+          room.mobSpawns.set(sidm, { sd, center: { x, y } });
+          room.spawnMonster(sidm);
+          client.send(Msg.notice, { text: `[dev] spawned ${def.name} as ${sidm}` });
+          return;
+        }
+        case "hurt": case "kill": {
+          if (!mon || mon.dead) return;
+          const dmg = m.op === "kill" ? mon.hp : Math.max(0, Math.min(mon.hp - 1, Number(m.dmg ?? mon.hp - 1)));
+          if (dmg > 0) room.applyDamage(client.sessionId, id, dmg, room.exactNow(), ATK.DEF);
+          return;
+        }
+        case "tower": { // 2.7.0: the floor guardian rises now, at a random spot or 8 cells east of the sender (x = 1): footage / the floor3 bot
+          const c = room.cell(p);
+          room.tower.rise(Number(m.x) === 1 ? { x: c.x + 8, y: c.y } : room.tower.pickSpot(c)); // a random spot 25+ cells from the sender
+          client.send(Msg.notice, { text: `[dev] tower: guardian ${room.tower.guardianId ?? "none"} is ${room.tower.where(c.x, c.y)}` });
+          return;
+        }
+        case "var": { // set a permanent character variable of the sender (move = its name, dmg = the value): unlock flags for bots / footage
+          room.npcEngine.setCharVar(client.sessionId, String(m.move), Number(m.dmg ?? 1));
+          return;
+        }
+        case "stat": { // the fight numbers of a boss with moves
+          const c = this.movers.get(id);
+          client.send(Msg.notice, { text: `[dev] stat ${id} ${JSON.stringify(c ? { idleMax: Math.round(c.idleMax), used: c.used, raged: c.raged, hp: mon?.hp, target: room.brains.get(id)?.target ?? null } : null)}` });
+          return;
+        }
+        case "move": { // force an area move by name now
+          const c = this.movers.get(id), b = room.brains.get(id);
+          if (c && b && mon && !mon.dead) { c.busyUntil = 0; this.areas(id, mon, b, c, String(m.move)); }
+          return;
+        }
+        case "remove": { // a test boss and everything of it
+          if (!room.mobSpawns.get(id)) return;
+          room.removeMonster(id);
+          return;
+        }
+        case "mini": { // 2.9.0 a roaming mini-boss (move = "ashgrim" | "ceruleen") here now: 8 cells east of the sender (x = 1) or a random spot
+          const c = room.cell(p), nid = room.minis.force(String(m.move), Number(m.x) === 1 ? { x: c.x + 8, y: c.y } : undefined);
+          const where = miniStatus().map((s) => `${s.key} ${s.alive ? `on floor ${s.floor} (${s.id})` : `due on floor ${s.floor}`}`).join(", ");
+          client.send(Msg.notice, { text: `[dev] mini ${m.move}: ${nid ?? "not on a floor map"} · ${where}` });
+          return;
+        }
+      }
+    });
+  }
+
+  private rnd = () => Math.floor(Math.random() * 0x80000000);
+  private rndValue = (min: number, max: number) => { if (min > max) [min, max] = [max, min]; return min + Math.floor(Math.random() * (max - min + 1)); };
+}
+
+export type { AnnounceEvent };
