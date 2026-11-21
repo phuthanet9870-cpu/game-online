@@ -389,7 +389,7 @@ export function setMinimapQuestSource(f: (npcId: string) => string | undefined) 
 
 /** One pixel per tile: tile colour, a hill shade from the height field (light from the upper left), a little grain, a darker
  *  tree line on the map's border cells (they are blocked, not shown as props) and a darker rim of water along the shore. */
-function terrainTiles(m: GameMap) {
+export function terrainTiles(m: GameMap) {
   const cv = document.createElement("canvas");
   cv.width = m.w; cv.height = m.h;
   const g = cv.getContext("2d")!, img = g.createImageData(m.w, m.h), px = img.data;
@@ -414,7 +414,7 @@ function terrainTiles(m: GameMap) {
 
 /** The map painted at `s` canvas pixels per tile: the tile pixels scaled up smooth (soft edges between ground types, like a
  *  painted map), then the props on top. */
-function terrainImage(m: GameMap, tiles: HTMLCanvasElement, s: number, warps: readonly { x: number; y: number }[]) {
+export function terrainImage(m: GameMap, tiles: HTMLCanvasElement, s: number, warps: readonly { x: number; y: number }[]) {
   const cv = document.createElement("canvas");
   cv.width = Math.round(m.w * s); cv.height = Math.round(m.h * s);
   const g = cv.getContext("2d")!;

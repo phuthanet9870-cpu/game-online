@@ -91,6 +91,8 @@ export function removeThing(scene: THREE.Scene, id: string) {
   things.delete(id);
 }
 export function clearThings(scene: THREE.Scene) { for (const id of [...things.keys()]) removeThing(scene, id); }
+/** An NPC's name (its label), for the map window. */
+export const thingName = (id: string) => things.get(id)?.label.textContent ?? "";
 /** Where the NPCs stand (world x, z = map x, y), for the minimap's town-info marks. */
 export const npcSpots = () => [...things.values()].filter((t) => t.kind === "npc").map((t) => ({ id: t.id, x: t.pos.x, y: t.pos.z }));
 

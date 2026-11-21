@@ -24,6 +24,8 @@ import { autoOn, setAuto } from "./autoplay.ts";
 import { MOB_BY_ID, type JobKey, type Mob, type StatKey } from "../../shared/rules/data.ts";
 import { playerStatus } from "../../shared/rules/status.ts";
 import { ITEMS, gearOf } from "../../shared/rules/items.ts";
+import { initWorldMap, setWorldMapMap, updateWorldMap } from "./ui/worldmap.ts";
+import { thingName } from "./worldItems.ts";
 import { addFloor, addNpc, clearThings, nearestFloor, npcSeeUnits, pickThing, removeThing, updateThings } from "./worldItems.ts";
 import { cardAck, closeShop, getInventory, initItems, openCardList, openShop, setHotkeys, setInventory, setWeight } from "./ui/items.ts";
 import { AnimSprite, drawStill, preloadLook } from "./animSprite.ts";
@@ -148,6 +150,7 @@ function loadMap(seed: number, name: MapName = FIELD) {
   refreshDoors();
   scene.add(world);
   setMinimapMap(map, MAP_INFO[name].title, WARPS.filter((wp) => wp.map === name));
+  setWorldMapMap(map, name);
 }
 /** W01 r2: a scripted door (the sealed stair) glows faintly once it is open for this character (quest 1018 done, f1_seal). */
 let doorMap: MapName | undefined;
@@ -1016,6 +1019,7 @@ renderer.setAnimationLoop(() => {
       for (const [id, e] of entities) if (!e.pet && (e.isMonster || id === room?.sessionId || !partyMemberByName(e.name)?.online)) dots.push({ x: e.pos.x, y: e.pos.z, self: id === room?.sessionId, mob: e.isMonster });
       for (const d of partyDots()) dots.push({ ...d, self: false, party: true });
       drawMinimap(dots, { x: view.x, y: view.y }, cam.yaw);
+      updateWorldMap(dots, { x: view.x, y: view.y });
       updateStatusWindow(view, myStatus(view));
     }
   }
@@ -1029,6 +1033,18 @@ renderer.setAnimationLoop(() => {
   updateSeeThrough(fight);
   updatePops(camera, now);
   renderer.render(scene, camera);
+});
+
+// ---------- map window (M) ----------
+initWorldMap({
+  inGame: () => document.body.dataset.screen === "game" && !!room,
+  npcName: thingName,
+  walkTo: (x, y) => {
+    if (!room || !map || me?.dead) return;
+    stopNavi(); attackTarget = undefined;
+    room.send(Msg.move, { x, y });
+    setWalkGoal({ x, y });
+  },
 });
 
 // ---------- boot: saved session -> character select, otherwise login ----------

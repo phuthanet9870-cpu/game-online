@@ -1,0 +1,47 @@
+/* Map window (ui/worldmap.ts): a centred panel over a dimmed screen. Colours come from the UI tokens (style.css :root). */
+#worldmap { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(10, 14, 24, 0.5); backdrop-filter: blur(2px); }
+#worldmap[hidden] { display: none; }
+#worldmap .wm-panel {
+  max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); display: flex; flex-direction: column;
+  background: var(--ui-surface, #f7f8fb); color: var(--ui-text, #1d2433); border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(8, 12, 24, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06); overflow: hidden;
+  font: 13px/1.4 var(--ui-font, Inter, system-ui, sans-serif);
+}
+#worldmap .wm-head { display: flex; align-items: center; gap: 16px; padding: 14px 16px 12px 20px; border-bottom: 1px solid var(--ui-line, #e3e7ef); }
+#worldmap .wm-titles { display: flex; align-items: baseline; gap: 10px; flex: 1; min-width: 0; }
+#worldmap .wm-title { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; }
+#worldmap .wm-sub { color: var(--ui-muted, #6b7487); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#worldmap .wm-tabs { display: flex; gap: 2px; padding: 3px; background: var(--ui-sunken, #eceff5); border-radius: 10px; }
+#worldmap .wm-tabs button { border: 0; background: none; padding: 6px 14px; border-radius: 8px; font: inherit; font-weight: 600; color: var(--ui-muted, #6b7487); cursor: pointer; }
+#worldmap .wm-tabs button.on { background: var(--ui-surface, #fff); color: var(--ui-text, #1d2433); box-shadow: 0 1px 3px rgba(20, 28, 48, 0.15); }
+#worldmap .wm-close { border: 0; background: none; width: 32px; height: 32px; border-radius: 8px; font-size: 15px; color: var(--ui-muted, #6b7487); cursor: pointer; }
+#worldmap .wm-close:hover, #worldmap .wm-tabs button:hover:not(.on) { background: var(--ui-sunken, #eceff5); color: var(--ui-text, #1d2433); }
+#worldmap button:focus-visible { outline: 2px solid var(--ui-accent, #3b82f6); outline-offset: 1px; }
+#worldmap .wm-body { padding: 16px 20px 18px; overflow: auto; }
+#worldmap .wm-local canvas { display: block; max-width: min(620px, calc(100vw - 72px)); max-height: calc(100vh - 210px); border-radius: 10px; cursor: crosshair; background: #2a3a2c; }
+#worldmap .wm-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 12px; color: var(--ui-muted, #6b7487); font-size: 12px; align-items: center; }
+#worldmap .wm-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; box-shadow: 0 0 0 1.5px rgba(15, 18, 28, 0.6); }
+#worldmap .wm-pos { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--ui-text, #1d2433); font-weight: 600; }
+#worldmap .wm-hint { margin: 6px 0 0; color: var(--ui-muted, #6b7487); font-size: 12px; }
+.k-me { background: #5dd6ff; } .k-pc { background: #fff; } .k-mob { background: #ff5a4c; } .k-npc { background: #ffc54a; }
+.k-warp { background: #bfe6ff; } .k-town { background: #f2b84b; } .k-field { background: #5fb36a; } .k-dun { background: #7b6fd1; }
+.k-stair { background: none; border-radius: 0 !important; width: 16px !important; height: 0 !important; border-top: 2px dashed #8a93a8; box-shadow: none !important; }
+
+/* world chart */
+#worldmap .wm-world { width: min(1090px, calc(100vw - 72px)); }
+#worldmap .wm-world svg { display: block; height: auto; }
+#worldmap .floor rect { fill: var(--ui-sunken, #eef1f6); }
+#worldmap .floor-n { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; fill: var(--ui-muted, #6b7487); }
+#worldmap .floor-name { font-size: 12px; font-weight: 600; fill: var(--ui-text, #1d2433); }
+#worldmap .edge { stroke: #b3bccd; stroke-width: 2.5; }
+#worldmap .edge.stair { stroke: #8a93a8; stroke-dasharray: 6 5; }
+#worldmap .node rect { fill: var(--ui-surface, #fff); stroke: #d5dbe6; stroke-width: 1.5; }
+#worldmap .node .pip { fill: #5fb36a; }
+#worldmap .node.town .pip { fill: #f2b84b; }
+#worldmap .node.dungeon .pip { fill: #7b6fd1; }
+#worldmap .node .n-title { font-size: 12px; font-weight: 700; fill: var(--ui-text, #1d2433); }
+#worldmap .node .n-sub { font-size: 11px; fill: var(--ui-muted, #6b7487); font-variant-numeric: tabular-nums; }
+#worldmap .node.here rect { stroke: var(--ui-accent, #3b82f6); stroke-width: 2.5; fill: var(--ui-accent-soft, #e8f0ff); }
+#worldmap .node .you { font-size: 10px; font-weight: 700; fill: var(--ui-accent, #3b82f6); letter-spacing: 0.04em; }
+@media (prefers-reduced-motion: no-preference) { #worldmap .wm-panel { animation: wm-in 140ms ease-out; } }
+@keyframes wm-in { from { transform: translateY(6px) scale(0.99); opacity: 0; } }
