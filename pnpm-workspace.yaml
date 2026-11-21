@@ -1,5 +1,6 @@
 packages:
   - client
   - server
+  - web
 allowBuilds:
   msgpackr-extract: false

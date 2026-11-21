@@ -69,6 +69,21 @@ Open <http://localhost:5173>, register an account, create a character and play. 
 automatically on first start (`server/migrations`). If you prefer not to use Docker, install PostgreSQL and
 Redis natively and point `DATABASE_URL` / `REDIS_URL` in `.env` at them.
 
+## Browser build (single player)
+
+`web/` builds a version that runs entirely in one browser tab: the real game server (`server/src`) is bundled into the
+page with PGlite as its database, and the client talks to it through an in-page WebSocket/fetch bridge. No install, no
+server, but one player only (no parties or duels with other people). Progress is saved in the browser's IndexedDB.
+
+```bash
+pnpm --filter web build      # -> web/dist (index.html for any static host, game-online.html for claude.ai Artifacts)
+pnpm --filter web preview
+```
+
+Checks: `SELFTEST=1 pnpm --filter web exec vite build`, serve `web/dist-selftest`, open
+`/selftest.html?script=grind` (also `smoke`, `items`, `auto`, `duel`, `friends`, `pets`, `boss`) to run the upstream bot
+scripts against the in-page server.
+
 ## Docker (one-command self-host)
 
 ```bash

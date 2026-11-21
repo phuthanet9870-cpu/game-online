@@ -1,0 +1,21 @@
+{
+  "name": "web",
+  "private": true,
+  "type": "module",
+  "description": "Single-player browser build: the game server runs inside the page (PGlite + in-page Colyseus), assets packed into a few files.",
+  "scripts": {
+    "build": "vite build && node scripts/pack.mjs && node scripts/artifact-page.mjs",
+    "preview": "vite preview --outDir dist",
+    "typecheck": "tsc -p .",
+    "selftest:build": "SELFTEST=1 vite build"
+  },
+  "devDependencies": {
+    "@colyseus/core": "0.18.19",
+    "@electric-sql/pglite": "0.5.13",
+    "@types/node": "26.6.5",
+    "buffer": "6.0.3",
+    "events": "3.3.0",
+    "typescript": "5.9.3",
+    "vite": "8.3.4"
+  }
+}
