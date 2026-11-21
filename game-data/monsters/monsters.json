@@ -1,0 +1,14 @@
+{
+  "_status": "[TUNING] Phase 1 has exactly one monster type. Loot/EXP arrive in Phase 2 (server-side).",
+  "monsters": [
+    { "monster_id": "MON-0001", "name": "Ashfang Wolf", "tier": "Normal", "level": 1, "faction": "WILD",
+      "spawnBiome": "TEST", "graphics": "placeholder:wolf", "loot_table_id": null, "xp": 0,
+      "stats": { "maxHp": 150, "physAtk": 18, "physDef": 6, "critChance": 0.03, "critDamage": 1.5 },
+      "collisionRadius": 6, "hurtboxRadius": 8,
+      "patrolSpeed": 30, "chaseSpeed": 64, "returnSpeed": 90,
+      "patrolRadius": 44, "aggroRadius": 92, "leashRadius": 210, "alertTime": 0.45,
+      "idleTime": [1.0, 2.6], "respawnTime": 5, "resetRegenPerSec": 120,
+      "attack": { "range": 22, "windup": 0.55, "active": 0.08, "recovery": 0.55, "cooldown": 1.1,
+                  "shape": "arc", "hitRange": 28, "halfAngleDeg": 50, "multiplier": 1.0, "lunge": 10 } }
+  ]
+}

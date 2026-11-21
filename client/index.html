@@ -1,0 +1,272 @@
+<title>THE POWER: ECLIPSE</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Silkscreen&family=IBM+Plex+Sans+Thai:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one column. Masthead → play area (canvas + world HUD overlay) → hotbar dock → briefing.
+   Single deliberate dark theme: an eclipse — a void-violet ground with an amber corona as the only accent. */
+:root {
+  color-scheme: dark;
+  --void: #0c0911;        /* page ground */
+  --panel: #16111f;       /* HUD panels */
+  --edge: #352a45;        /* hairlines, slot borders */
+  --ink: #ece6f3;         /* primary text */
+  --muted: #9c92ad;       /* secondary text */
+  --corona: #f0a23c;      /* accent: eclipse corona */
+  --blood: #e0443a;       /* HP */
+  --stam: #4fc7a0;        /* stamina */
+  --cool: #8fc0ff;        /* own-skill / info */
+  --danger: #ff5a4d;
+  --f-display: "Pixelify Sans", "Silkscreen", "Courier New", monospace;
+  --f-body: "IBM Plex Sans Thai", "Noto Sans Thai", system-ui, sans-serif;
+  --f-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+[hidden] { display: none !important; }
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; }
+body { background: var(--void); color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.5; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--void); }
+.wrap { max-width: 1240px; margin-inline: auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 12px 32px; display: grid; gap: 12px; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--corona); outline-offset: 2px; }
+
+/* masthead */
+.mast { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; justify-content: space-between; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.eclipse { width: 22px; height: 22px; border-radius: 50%; background: var(--void); box-shadow: 0 0 0 2px var(--corona), 0 0 12px 2px rgba(240,162,60,.45); flex: none; }
+.brand h1 { margin: 0; font-family: var(--f-display); font-weight: 700; font-size: 20px; letter-spacing: .06em; text-wrap: balance; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { font-family: var(--f-data); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; padding: 2px 8px; border: 1px solid var(--edge); color: var(--muted); }
+.tag.demo { color: var(--corona); border-color: var(--corona); }
+.tools { display: flex; gap: 6px; flex-wrap: wrap; }
+.tbtn { background: var(--panel); border: 1px solid var(--edge); padding: 4px 10px; font-size: 12px; cursor: pointer; }
+.tbtn[aria-pressed="true"] { border-color: var(--corona); color: var(--corona); }
+.tbtn kbd { font-family: var(--f-data); color: var(--muted); margin-left: 4px; font-size: 11px; }
+
+/* play area */
+/* width solved so stage (w·9/16) + hotbar dock (~0.13w) + masthead fit one screen */
+.play { container-type: inline-size; display: grid; gap: 8px; width: min(100%, calc((100dvh - 150px) / 0.7)); min-width: min(100%, 360px); margin-inline: auto; }
+.stage { position: relative; aspect-ratio: 16 / 9; max-width: 100%; background: #000; border: 1px solid var(--edge); overflow: hidden; outline: none; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#game { image-rendering: pixelated; image-rendering: crisp-edges; }
+#overlay { pointer-events: none; }
+.hud { position: absolute; inset: 0; pointer-events: none; font-size: clamp(10px, 1.25cqw, 14px); }
+.hud > * { pointer-events: auto; }
+
+.unit { position: absolute; top: 1.4cqw; background: rgba(14,10,20,.82); border: 1px solid var(--edge); padding: .5em .7em; display: grid; gap: .3em; width: clamp(150px, 24cqw, 300px); }
+.unit.player { left: 1.4cqw; }
+.unit.target { right: 1.4cqw; }
+.uhead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.uname { font-family: var(--f-display); font-size: 1.05em; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.life { font-family: var(--f-data); font-size: .78em; letter-spacing: .06em; color: var(--stam); }
+.life[data-state="IN_COMBAT"] { color: var(--corona); }
+.life[data-state="DEAD"], .life[data-state="RESPAWNING"] { color: var(--danger); }
+.bar { position: relative; height: 1.05em; background: #241a2e; border: 1px solid #07040a; overflow: hidden; }
+.bar.thin { height: .7em; }
+.bar i { position: absolute; inset: 0; transform-origin: left; background: var(--blood); transition: transform .12s linear; }
+.bar.st i { background: var(--stam); }
+.bar span { position: relative; display: block; text-align: center; font-family: var(--f-data); font-size: .74em; line-height: 1.45em; text-shadow: 0 1px 0 #000; font-variant-numeric: tabular-nums; }
+.bar.thin span { line-height: .95em; font-size: .62em; }
+.chips { display: flex; flex-wrap: wrap; gap: 3px; min-height: 0; }
+.chip { font-family: var(--f-data); font-size: .7em; padding: 0 .4em; border: 1px solid var(--edge); font-variant-numeric: tabular-nums; }
+.chip.cc, .chip.debuff { color: var(--corona); border-color: rgba(240,162,60,.6); }
+.chip.buff { color: var(--cool); border-color: rgba(143,192,255,.5); }
+.session { position: absolute; top: 1.4cqw; left: 50%; transform: translateX(-50%); font-family: var(--f-data); font-size: .8em; color: var(--muted); background: rgba(14,10,20,.7); padding: .15em .7em; border: 1px solid var(--edge); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.session b { color: var(--ink); font-weight: 600; }
+.toast { position: absolute; left: 50%; bottom: 6cqw; transform: translateX(-50%); background: rgba(14,10,20,.9); border: 1px solid var(--danger); color: #ffd6d2; padding: .3em 1em; font-size: 1em; white-space: nowrap; }
+.log { position: absolute; left: 1.4cqw; bottom: 1.4cqw; margin: 0; padding: .4em .6em; list-style: none; width: clamp(180px, 30cqw, 360px); background: rgba(14,10,20,.62); border: 1px solid rgba(53,42,69,.7); font-size: .82em; display: grid; gap: 1px; }
+.log li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+.log li em { font-style: normal; font-family: var(--f-data); color: var(--ink); }
+.log li.in em { color: var(--danger); } .log li.out em { color: #fff; } .log li.good { color: var(--stam); } .log small { color: var(--muted); }
+.log:empty { display: none; }
+
+.debug { position: absolute; right: 1.4cqw; top: 9cqw; width: clamp(220px, 32cqw, 400px); max-height: calc(100% - 11cqw); overflow: auto; background: rgba(6,10,8,.88); border: 1px solid #2b5a3c; color: #b8ffcf; font-family: var(--f-data); font-size: .74em; padding: .5em .7em; }
+.debug h2 { margin: 0 0 .3em; font-size: 1.05em; letter-spacing: .08em; color: #7dffa8; }
+.debug dl { display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; margin: 0 0 .5em; }
+.debug dt { color: #6fb98a; } .debug dd { margin: 0; min-width: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.debug table, .recap { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.debug th, .debug td { text-align: left; padding: 0 4px; border-bottom: 1px solid rgba(43,90,60,.6); }
+.num { text-align: right !important; }
+.trace { margin: .5em 0 0; line-height: 1.6; overflow-wrap: anywhere; }
+.trace span b { color: #fff; } .trace i { color: #4f8a64; font-style: normal; margin: 0 3px; }
+
+.veil { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(8,5,12,.72); padding: 16px; }
+.card { background: var(--panel); border: 1px solid var(--edge); padding: 1.2em 1.4em; max-width: min(92%, 560px); display: grid; gap: .6em; max-height: 100%; overflow: auto; }
+.death .card { border-color: var(--danger); }
+.card h2 { margin: 0; font-family: var(--f-display); font-size: 1.9em; letter-spacing: .06em; text-wrap: balance; }
+.death h2 { color: var(--danger); }
+.card p { margin: 0; color: var(--muted); }
+.recap { font-size: .85em; }
+.recap th, .recap td { padding: .15em .4em; border-bottom: 1px solid var(--edge); text-align: left; }
+.recap th { color: var(--muted); font-weight: 400; }
+.big { font-family: var(--f-data); color: var(--ink); }
+
+/* start screen */
+.start { background: radial-gradient(circle at 50% 42%, rgba(12,9,17,0) 0 11cqw, rgba(240,162,60,.55) 11.3cqw, rgba(240,162,60,.12) 13cqw, rgba(12,9,17,0) 22cqw), rgba(8,5,12,.86); }
+.start .card { background: rgba(22,17,31,.94); text-align: left; }
+.start h2 { font-size: clamp(1.6em, 4.4cqw, 3em); line-height: 1.05; }
+.start h2 span { color: var(--corona); }
+.go { justify-self: start; background: var(--corona); color: #1a0f05; border: 0; padding: .55em 1.4em; font-family: var(--f-display); font-weight: 700; font-size: 1.1em; letter-spacing: .05em; cursor: pointer; }
+.go:hover { filter: brightness(1.08); }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; font-size: .95em; }
+.keys dt { font-family: var(--f-data); color: var(--corona); white-space: nowrap; }
+.keys dd { margin: 0; color: var(--ink); }
+
+/* hotbar dock: 2 rows × 10, always fully visible */
+.dock { display: grid; gap: 6px; }
+@container (min-width: 700px) { .dock { width: 66%; margin-inline: auto; } }
+.hotbar { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; }
+.slot { position: relative; aspect-ratio: 1; min-width: 0; background: var(--panel); border: 1px solid var(--edge); padding: 0; cursor: pointer; overflow: hidden; display: grid; place-items: center; }
+.slot img { width: 58%; height: 58%; image-rendering: pixelated; }
+.slot .key { position: absolute; top: 1px; left: 3px; font-family: var(--f-data); font-size: clamp(8px, 1.1cqw, 12px); color: var(--muted); z-index: 2; }
+.slot .cost { position: absolute; bottom: 1px; right: 3px; font-family: var(--f-data); font-size: clamp(8px, 1cqw, 11px); color: var(--stam); z-index: 2; }
+.slot .lk { position: absolute; bottom: 1px; right: 3px; font-family: var(--f-data); font-size: clamp(7px, .95cqw, 10px); color: var(--muted); }
+.slot .cd { position: absolute; inset: 0; background: conic-gradient(rgba(5,3,8,.78) calc(var(--p, 0) * 360deg), transparent 0); z-index: 1; }
+.slot .cdt { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--f-data); font-weight: 600; font-size: clamp(10px, 1.6cqw, 18px); z-index: 2; text-shadow: 0 1px 0 #000; font-variant-numeric: tabular-nums; }
+.slot.locked { cursor: not-allowed; background: #110d17; border-style: dashed; }
+.slot.locked img { opacity: .35; }
+.slot.nost .cost { color: var(--danger); }
+.slot.nost img, .slot.off img { opacity: .45; }
+.slot.active { border-color: var(--corona); box-shadow: inset 0 0 0 1px var(--corona); }
+.slot:not(.locked):hover { border-color: var(--muted); }
+.dockmeta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: 12px; color: var(--muted); }
+.dockmeta b { color: var(--ink); font-weight: 600; }
+
+/* touch pad: only for coarse pointers */
+.touch { display: none; justify-content: space-between; align-items: center; gap: 16px; touch-action: none; user-select: none; -webkit-user-select: none; }
+@media (pointer: coarse) { .touch { display: flex; } }
+.stick { width: 120px; height: 120px; border-radius: 50%; border: 1px solid var(--edge); background: var(--panel); position: relative; touch-action: none; flex: none; }
+.knob { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%; background: var(--edge); border: 1px solid var(--muted); }
+.tbtns { display: grid; grid-template-columns: repeat(3, 56px); gap: 8px; }
+.tb { height: 56px; background: var(--panel); border: 1px solid var(--edge); font-family: var(--f-data); font-size: 11px; touch-action: none; }
+.tb.main { border-color: var(--corona); color: var(--corona); }
+
+/* briefing below the game */
+.brief { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px 28px; margin-top: 8px; border-top: 1px solid var(--edge); padding-top: 14px; }
+.brief section { min-width: 0; }
+.brief h3 { margin: 0 0 6px; font-family: var(--f-display); font-size: 15px; letter-spacing: .05em; color: var(--corona); }
+.brief ul { margin: 0; padding-left: 18px; color: var(--muted); display: grid; gap: 2px; }
+.brief li b { color: var(--ink); font-weight: 600; }
+.brief code { font-family: var(--f-data); font-size: 12px; color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+/* narrow play area (phones): keep the world readable, drop keyboard-only help */
+@container (max-width: 560px) {
+  .hud { font-size: 9px; }
+  .unit { width: 42cqw; padding: .3em .45em; gap: .2em; }
+  .log, .session { display: none; }
+  .start .keys { display: none; }
+  .card { padding: .8em 1em; gap: .45em; }
+  .start h2 { font-size: 2em; }
+  .debug { top: auto; bottom: 1.4cqw; right: 1.4cqw; left: 1.4cqw; width: auto; max-height: 60%; }
+}
+</style>
+
+<div class="wrap">
+  <header class="mast">
+    <div class="brand"><span class="eclipse" aria-hidden="true"></span><h1>THE POWER: ECLIPSE</h1></div>
+    <div class="tags">
+      <span class="tag">Phase 1 · Core Combat Prototype</span>
+      <span class="tag">Offline</span>
+      <span class="tag demo">Placeholder art</span>
+    </div>
+    <div class="tools">
+      <button class="tbtn" id="btnDebug" type="button" aria-pressed="false">Debug<kbd>F1</kbd></button>
+      <button class="tbtn" id="btnSound" type="button" aria-pressed="true">เสียง: เปิด</button>
+      <button class="tbtn" id="btnPause" type="button" aria-pressed="false">พัก<kbd>P</kbd></button>
+    </div>
+  </header>
+
+  <div class="play">
+    <div class="stage" id="stage" tabindex="0" aria-label="Game view">
+      <canvas id="game" width="384" height="216"></canvas>
+      <canvas id="overlay"></canvas>
+      <div class="hud">
+        <div class="unit player">
+          <div class="uhead"><span class="uname">Tester · Sword</span><span class="life" id="lifeState">IN WORLD</span></div>
+          <div class="bar"><i id="hpFill"></i><span id="hpText">200 / 200</span></div>
+          <div class="bar thin st"><i id="stFill"></i><span id="stText">100 / 100</span></div>
+          <div class="chips" id="pStatus"></div>
+        </div>
+        <div class="session">Kills <b id="kills">0</b> · Deaths <b id="deaths">0</b></div>
+        <div class="unit target" id="target" hidden>
+          <div class="uhead"><span class="uname" id="tName">—</span></div>
+          <div class="bar"><i id="tFill"></i><span id="tText"></span></div>
+          <div class="chips" id="tStatus"></div>
+        </div>
+        <div class="toast" id="toast" role="status" hidden></div>
+        <ul class="log" id="log" aria-live="polite"></ul>
+        <div class="debug" id="debugPanel" hidden><h2>DEBUG · PHASE 1 OFFLINE</h2><div id="debugBody"></div></div>
+
+        <div class="veil death" id="death" hidden>
+          <div class="card">
+            <h2>คุณพ่ายแพ้</h2>
+            <p>ล้มโดย <span class="big" id="deathKiller">—</span> · เกิดใหม่ใน <span class="big" id="respawnIn">3.0</span>s</p>
+            <table class="recap" id="deathRecap"></table>
+            <p>PvE death ใน Phase 1 ไม่มีบทลงโทษ (ไอเทม/EXP เริ่มใน Phase 2)</p>
+          </div>
+        </div>
+        <div class="veil" id="pause" hidden>
+          <div class="card"><h2>พักเกม</h2><p>การจำลองหยุดชั่วคราว ไม่มีอะไรเปลี่ยนจนกว่าจะเล่นต่อ</p><button class="go" id="btnResume" type="button">เล่นต่อ</button></div>
+        </div>
+        <div class="veil start" id="start">
+          <div class="card">
+            <h2>THE POWER:<br><span>ECLIPSE</span></h2>
+            <p>ต้นแบบระบบต่อสู้ (Phase 1) · ดาบ 1 เล่ม · Ashfang Wolf 3 ตัว · สนามทดสอบนอก 32 แมพหลัก</p>
+            <dl class="keys">
+              <dt>WASD / ลูกศร</dt><dd>เดิน 8 ทิศ</dd>
+              <dt>1 · J · คลิกซ้าย</dt><dd>โจมตีปกติ (คลิกเล็งตามเมาส์ · กดค้างได้)</dd>
+              <dt>2 · K</dt><dd>Triple Slash ฟัน 3 ครั้ง</dd>
+              <dt>3 · L</dt><dd>Guard Break สตันและลดเกราะ</dd>
+              <dt>4 · I</dt><dd>Counter Slash ตั้งท่ารับ แล้วสวนกลับแรงพิเศษ</dd>
+              <dt>Space</dt><dd>Dodge ใช้ Stamina 30 · หลบโจมตีได้ระหว่างพุ่ง</dd>
+              <dt>F1 · P · M · C</dt><dd>Debug · พัก · เสียง · ซ่อน log</dd>
+            </dl>
+            <button class="go" id="btnStart" type="button">เริ่มทดสอบ</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dock">
+      <div class="hotbar" id="hotbar" aria-label="Hotbar 20 slots"></div>
+      <div class="dockmeta"><span>Hotbar <b>20 ช่อง (2×10)</b> · ช่องเส้นประ = เปิดใน Phase ที่ระบุ</span><span>วงสีแดงบนพื้น = หมาป่ากำลังจะกัด ให้ถอยหรือ Dodge</span></div>
+    </div>
+
+    <div class="touch" id="touch" aria-label="Touch controls (experimental)">
+      <div class="stick" id="stick"><div class="knob" id="knob"></div></div>
+      <div class="tbtns">
+        <button class="tb" data-slot="2" type="button">2 Triple</button>
+        <button class="tb" data-slot="3" type="button">3 Break</button>
+        <button class="tb" data-slot="4" type="button">4 Counter</button>
+        <button class="tb main" data-slot="1" type="button">Attack</button>
+        <button class="tb" data-slot="12" type="button">Dodge</button>
+        <span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="brief">
+    <section>
+      <h3>สิ่งที่ทดสอบได้ใน Phase 1</h3>
+      <ul>
+        <li>เดิน 8 ทิศ ชนกำแพง หิน ต้นไม้ และบ่อน้ำ</li>
+        <li>ดาบโจมตีตาม hitbox รูปพัด และตีทะลุกำแพงไม่ได้ (เช็ก line of sight)</li>
+        <li>หมาป่า: IDLE → PATROL → ALERT → CHASE → ATTACK → RESET → ตาย → เกิดใหม่ใน 5s</li>
+        <li>Dodge ใช้ Stamina, มีคูลดาวน์ และอมตะระหว่างพุ่ง</li>
+        <li>ตาย → Death Recap → เกิดใหม่ใน 3s → Spawn Protection 2s</li>
+      </ul>
+    </section>
+    <section>
+      <h3>ยังไม่มีใน Phase นี้</h3>
+      <ul>
+        <li>ออนไลน์, บัญชี, การบันทึก (Phase 2)</li>
+        <li>อาวุธอื่น 5 ชนิด, The Power, Auto Farm, GM HUD (Phase 3)</li>
+        <li>เมือง, แมพฟาร์ม, Dungeon, PvP (Phase 4 เป็นต้นไป)</li>
+        <li>ค่าดาเมจทั้งหมดเป็นค่าทดลอง <code>[TUNING]</code></li>
+      </ul>
+    </section>
+  </div>
+</div>
+<!-- BUNDLE -->

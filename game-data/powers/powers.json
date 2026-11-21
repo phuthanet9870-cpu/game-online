@@ -1,0 +1,892 @@
+{
+ "_status": "[LOCKED] names/compatibility from Master Prompt \u00a77. DATA ONLY in Phase 1: no balance values, no runtime. Implementation starts Phase 3.",
+ "loadoutLimits": {
+  "active": 5,
+  "ultimate": 1,
+  "passive": 2
+ },
+ "proficiencyUnlocks": {
+  "1": {
+   "active": 5,
+   "ultimate": 1,
+   "passive": 1
+  },
+  "2": {
+   "active": 10,
+   "ultimate": 3,
+   "passive": 3
+  },
+  "3": {
+   "active": 15,
+   "ultimate": 5,
+   "passive": 5
+  }
+ },
+ "powers": [
+  {
+   "power_id": "PWR-0001",
+   "name": "Inferno",
+   "theme": "Fire / Burn / AoE",
+   "allowedWeapons": [
+    "Staff",
+    "Sword",
+    "Dagger",
+    "Bow",
+    "Grimoire",
+    "Gauntlet"
+   ],
+   "awakening": false,
+   "evolution": false,
+   "activeSkills": [
+    {
+     "skill_id": "SKL-PWR-INFERNO-A01",
+     "name": "Flame Shot",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-A02",
+     "name": "Burning Slash",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-A03",
+     "name": "Fire Step",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-A04",
+     "name": "Flame Ring",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-A05",
+     "name": "Heat Wave",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-A06",
+     "name": "Lava Burst",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-A07",
+     "name": "Blazing Chain",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-A08",
+     "name": "Fire Mine",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-A09",
+     "name": "Flame Spear",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-A10",
+     "name": "Ember Rain",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-A11",
+     "name": "Magma Wall",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-A12",
+     "name": "Combustion",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-A13",
+     "name": "Phoenix Dash",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-A14",
+     "name": "Hellfire Field",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-A15",
+     "name": "Infernal Eruption",
+     "kind": "ACTIVE"
+    }
+   ],
+   "ultimateSkills": [
+    {
+     "skill_id": "SKL-PWR-INFERNO-U01",
+     "name": "Meteor Fall",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-U02",
+     "name": "Phoenix Rebirth",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-U03",
+     "name": "Hellfire Dragon",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-U04",
+     "name": "Volcanic Cataclysm",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-U05",
+     "name": "World Ignition",
+     "kind": "ULTIMATE"
+    }
+   ],
+   "passiveSkills": [
+    {
+     "skill_id": "SKL-PWR-INFERNO-P01",
+     "name": "Pyromancer",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-P02",
+     "name": "Heat Mastery",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-P03",
+     "name": "Burning Soul",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-P04",
+     "name": "Ash Guard",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-INFERNO-P05",
+     "name": "Last Ember",
+     "kind": "PASSIVE"
+    }
+   ]
+  },
+  {
+   "power_id": "PWR-0002",
+   "name": "Tempest",
+   "theme": "Lightning / Mobility / Burst",
+   "allowedWeapons": [
+    "Staff",
+    "Sword",
+    "Dagger",
+    "Bow",
+    "Grimoire",
+    "Gauntlet"
+   ],
+   "awakening": false,
+   "evolution": false,
+   "activeSkills": [
+    {
+     "skill_id": "SKL-PWR-TEMPEST-A01",
+     "name": "Lightning Bolt",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-A02",
+     "name": "Thunder Kick",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-A03",
+     "name": "Volt Dash",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-A04",
+     "name": "Static Field",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-A05",
+     "name": "Chain Lightning",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-A06",
+     "name": "Thunder Spear",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-A07",
+     "name": "Flash Strike",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-A08",
+     "name": "Overcharge",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-A09",
+     "name": "Storm Pull",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-A10",
+     "name": "Lightning Trap",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-A11",
+     "name": "Volt Counter",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-A12",
+     "name": "Thunder Crash",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-A13",
+     "name": "Arc Step",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-A14",
+     "name": "Storm Barrage",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-A15",
+     "name": "Discharge",
+     "kind": "ACTIVE"
+    }
+   ],
+   "ultimateSkills": [
+    {
+     "skill_id": "SKL-PWR-TEMPEST-U01",
+     "name": "Thunder God Descent",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-U02",
+     "name": "Heaven's Judgment",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-U03",
+     "name": "Storm Apocalypse",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-U04",
+     "name": "Lightning Overdrive",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-U05",
+     "name": "Thousand Bolts",
+     "kind": "ULTIMATE"
+    }
+   ],
+   "passiveSkills": [
+    {
+     "skill_id": "SKL-PWR-TEMPEST-P01",
+     "name": "Static Charge",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-P02",
+     "name": "Lightning Reflex",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-P03",
+     "name": "Volt Recovery",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-P04",
+     "name": "Chain Mastery",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-TEMPEST-P05",
+     "name": "Storm Hunter",
+     "kind": "PASSIVE"
+    }
+   ]
+  },
+  {
+   "power_id": "PWR-0003",
+   "name": "Abyss Shadow",
+   "theme": "Shadow / Stealth / Assassin",
+   "allowedWeapons": [
+    "Dagger"
+   ],
+   "awakening": false,
+   "evolution": false,
+   "activeSkills": [
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-A01",
+     "name": "Shadow Cut",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-A02",
+     "name": "Dark Shuriken",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-A03",
+     "name": "Smoke Veil",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-A04",
+     "name": "Shadow Blink",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-A05",
+     "name": "Night Fang",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-A06",
+     "name": "Dark Clone",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-A07",
+     "name": "Silent Mark",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-A08",
+     "name": "Shadow Bind",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-A09",
+     "name": "Assassin Rush",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-A10",
+     "name": "Nightfall",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-A11",
+     "name": "Backstab Curse",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-A12",
+     "name": "Shadow Swap",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-A13",
+     "name": "Dark Needle",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-A14",
+     "name": "Execution Mark",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-A15",
+     "name": "Phantom Dance",
+     "kind": "ACTIVE"
+    }
+   ],
+   "ultimateSkills": [
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-U01",
+     "name": "Eternal Night",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-U02",
+     "name": "Shadow Execution",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-U03",
+     "name": "Thousand Shadows",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-U04",
+     "name": "Void Assassination",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-U05",
+     "name": "Demon Ninja",
+     "kind": "ULTIMATE"
+    }
+   ],
+   "passiveSkills": [
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-P01",
+     "name": "Silent Killer",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-P02",
+     "name": "Back Attack",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-P03",
+     "name": "Shadow Escape",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-P04",
+     "name": "Dark Instinct",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ABYSS_SHADOW-P05",
+     "name": "Executioner",
+     "kind": "PASSIVE"
+    }
+   ]
+  },
+  {
+   "power_id": "PWR-0004",
+   "name": "Eternal Frost",
+   "theme": "Ice / Control / Defense",
+   "allowedWeapons": [
+    "Staff",
+    "Sword",
+    "Grimoire"
+   ],
+   "awakening": false,
+   "evolution": false,
+   "activeSkills": [
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-A01",
+     "name": "Ice Shard",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-A02",
+     "name": "Frost Slash",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-A03",
+     "name": "Snow Step",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-A04",
+     "name": "Ice Wall",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-A05",
+     "name": "Frost Nova",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-A06",
+     "name": "Glacial Spear",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-A07",
+     "name": "Frozen Trap",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-A08",
+     "name": "Crystal Shield",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-A09",
+     "name": "Blizzard",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-A10",
+     "name": "Winter Chains",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-A11",
+     "name": "Ice Prison",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-A12",
+     "name": "Frost Wave",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-A13",
+     "name": "Crystal Lance",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-A14",
+     "name": "Permafrost",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-A15",
+     "name": "Shatter",
+     "kind": "ACTIVE"
+    }
+   ],
+   "ultimateSkills": [
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-U01",
+     "name": "Absolute Zero",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-U02",
+     "name": "Frozen Kingdom",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-U03",
+     "name": "Glacier Fall",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-U04",
+     "name": "Winter Guardian",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-U05",
+     "name": "Eternal Blizzard",
+     "kind": "ULTIMATE"
+    }
+   ],
+   "passiveSkills": [
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-P01",
+     "name": "Cold Blood",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-P02",
+     "name": "Frostbite",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-P03",
+     "name": "Crystal Armor",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-P04",
+     "name": "Winter's Gift",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-ETERNAL_FROST-P05",
+     "name": "Shatter Expert",
+     "kind": "PASSIVE"
+    }
+   ]
+  },
+  {
+   "power_id": "PWR-0005",
+   "name": "Genesis",
+   "theme": "Nature / Heal / Support",
+   "allowedWeapons": [
+    "Staff",
+    "Sword",
+    "Dagger",
+    "Bow",
+    "Grimoire",
+    "Gauntlet"
+   ],
+   "awakening": false,
+   "evolution": false,
+   "activeSkills": [
+    {
+     "skill_id": "SKL-PWR-GENESIS-A01",
+     "name": "Vine Whip",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-A02",
+     "name": "Healing Seed",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-A03",
+     "name": "Root Trap",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-A04",
+     "name": "Thorn Shot",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-A05",
+     "name": "Nature Pulse",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-A06",
+     "name": "Bloom Shield",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-A07",
+     "name": "Poison Thorn",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-A08",
+     "name": "Vine Pull",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-A09",
+     "name": "Life Spring",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-A10",
+     "name": "Forest Step",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-A11",
+     "name": "Seed Bomb",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-A12",
+     "name": "Ancient Roots",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-A13",
+     "name": "Nature Cleanse",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-A14",
+     "name": "Thorn Barrage",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-A15",
+     "name": "Guardian Sapling",
+     "kind": "ACTIVE"
+    }
+   ],
+   "ultimateSkills": [
+    {
+     "skill_id": "SKL-PWR-GENESIS-U01",
+     "name": "World Tree",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-U02",
+     "name": "Nature's Wrath",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-U03",
+     "name": "Forest Guardian",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-U04",
+     "name": "Rebirth Bloom",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-U05",
+     "name": "Garden of Eternity",
+     "kind": "ULTIMATE"
+    }
+   ],
+   "passiveSkills": [
+    {
+     "skill_id": "SKL-PWR-GENESIS-P01",
+     "name": "Life Bloom",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-P02",
+     "name": "Regeneration",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-P03",
+     "name": "Nature's Bond",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-P04",
+     "name": "Thorn Armor",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-GENESIS-P05",
+     "name": "Forest Wisdom",
+     "kind": "PASSIVE"
+    }
+   ]
+  },
+  {
+   "power_id": "PWR-0006",
+   "name": "Void Dominion",
+   "theme": "Void / Gravity / Space",
+   "allowedWeapons": [
+    "Staff",
+    "Grimoire",
+    "Gauntlet"
+   ],
+   "awakening": false,
+   "evolution": false,
+   "activeSkills": [
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-A01",
+     "name": "Void Orb",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-A02",
+     "name": "Gravity Push",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-A03",
+     "name": "Void Step",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-A04",
+     "name": "Dimensional Cut",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-A05",
+     "name": "Gravity Well",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-A06",
+     "name": "Rift Trap",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-A07",
+     "name": "Spatial Swap",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-A08",
+     "name": "Abyss Spike",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-A09",
+     "name": "Null Pulse",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-A10",
+     "name": "Void Shield",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-A11",
+     "name": "Rift Walk",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-A12",
+     "name": "Gravity Crush",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-A13",
+     "name": "Void Chains",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-A14",
+     "name": "Distortion Field",
+     "kind": "ACTIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-A15",
+     "name": "Rift Collapse",
+     "kind": "ACTIVE"
+    }
+   ],
+   "ultimateSkills": [
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-U01",
+     "name": "Black Hole",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-U02",
+     "name": "Dimensional Prison",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-U03",
+     "name": "Reality Break",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-U04",
+     "name": "Void Catastrophe",
+     "kind": "ULTIMATE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-U05",
+     "name": "Dominion Collapse",
+     "kind": "ULTIMATE"
+    }
+   ],
+   "passiveSkills": [
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-P01",
+     "name": "Void Affinity",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-P02",
+     "name": "Spatial Sense",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-P03",
+     "name": "Gravity Master",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-P04",
+     "name": "Rift Recovery",
+     "kind": "PASSIVE"
+    },
+    {
+     "skill_id": "SKL-PWR-VOID_DOMINION-P05",
+     "name": "Null Resistance",
+     "kind": "PASSIVE"
+    }
+   ]
+  }
+ ]
+}

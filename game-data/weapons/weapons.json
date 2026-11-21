@@ -1,0 +1,13 @@
+{
+  "_status": "[LOCKED] 6 weapon types, 3 active skills each (18 total). Only Sword is implemented in Phase 1; others are data-only until Phase 3.",
+  "weapons": [
+    { "weapon_type_id": "WPN-TYPE-STAFF",    "name": "Staff",    "role": "Mid-range magic",       "implemented": false, "basicAttack": null, "skills": ["SKL-WPN-STAFF-01","SKL-WPN-STAFF-02","SKL-WPN-STAFF-03"] },
+    { "weapon_type_id": "WPN-TYPE-SWORD",    "name": "Sword",    "role": "Melee / Counter",       "implemented": true,
+      "baseDamage": 22, "coefficient": 1.0, "strScaling": 1.0,
+      "basicAttack": "SKL-WPN-SWORD-BA", "skills": ["SKL-WPN-SWORD-01","SKL-WPN-SWORD-02","SKL-WPN-SWORD-03"] },
+    { "weapon_type_id": "WPN-TYPE-DAGGER",   "name": "Dagger",   "role": "Stealth / Mobility",    "implemented": false, "basicAttack": null, "skills": ["SKL-WPN-DAGGER-01","SKL-WPN-DAGGER-02","SKL-WPN-DAGGER-03"] },
+    { "weapon_type_id": "WPN-TYPE-BOW",      "name": "Bow",      "role": "Long range / Kiting",   "implemented": false, "basicAttack": null, "skills": ["SKL-WPN-BOW-01","SKL-WPN-BOW-02","SKL-WPN-BOW-03"] },
+    { "weapon_type_id": "WPN-TYPE-GRIMOIRE", "name": "Grimoire", "role": "Status magic / Support","implemented": false, "basicAttack": null, "skills": ["SKL-WPN-GRIMOIRE-01","SKL-WPN-GRIMOIRE-02","SKL-WPN-GRIMOIRE-03"] },
+    { "weapon_type_id": "WPN-TYPE-GAUNTLET", "name": "Gauntlet", "role": "Combo / Melee",         "implemented": false, "basicAttack": null, "skills": ["SKL-WPN-GAUNTLET-01","SKL-WPN-GAUNTLET-02","SKL-WPN-GAUNTLET-03"] }
+  ]
+}

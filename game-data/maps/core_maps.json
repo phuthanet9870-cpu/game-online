@@ -1,0 +1,353 @@
+{
+ "_status": "[LOCKED] 32 core maps = 30 farms + 2 cities. Data only in Phase 1 (no map is playable yet).",
+ "maps": [
+  {
+   "map_id": "MAP-CITY-01",
+   "type": "CITY",
+   "name": "Aetheria Capital",
+   "pvpPolicy": "OFF",
+   "safeZone": true,
+   "hasDungeonGatekeeper": true,
+   "worldBossPortalEligible": false
+  },
+  {
+   "map_id": "MAP-CITY-02",
+   "type": "CITY",
+   "name": "Nocturne Citadel",
+   "pvpPolicy": "OFF",
+   "safeZone": true,
+   "hasDungeonGatekeeper": true,
+   "worldBossPortalEligible": false
+  },
+  {
+   "map_id": "MAP-FARM-01",
+   "farm_code": "FARM-01",
+   "type": "FARM",
+   "region": "Verdant Frontier",
+   "name": "Greenfield Plains",
+   "pvpPolicy": "SAFE_FARM",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-02",
+   "farm_code": "FARM-02",
+   "type": "FARM",
+   "region": "Verdant Frontier",
+   "name": "Whispering Forest",
+   "pvpPolicy": "SAFE_FARM",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-03",
+   "farm_code": "FARM-03",
+   "type": "FARM",
+   "region": "Verdant Frontier",
+   "name": "Wolf Fang Valley",
+   "pvpPolicy": "SAFE_FARM",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-04",
+   "farm_code": "FARM-04",
+   "type": "FARM",
+   "region": "Verdant Frontier",
+   "name": "Ancient Ruins",
+   "pvpPolicy": "SAFE_FARM",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-05",
+   "farm_code": "FARM-05",
+   "type": "FARM",
+   "region": "Verdant Frontier",
+   "name": "Fallen Temple",
+   "pvpPolicy": "SAFE_FARM",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-06",
+   "farm_code": "FARM-06",
+   "type": "FARM",
+   "region": "Crimson Wasteland",
+   "name": "Red Sand Desert",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-07",
+   "farm_code": "FARM-07",
+   "type": "FARM",
+   "region": "Crimson Wasteland",
+   "name": "Scorpion Nest",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-08",
+   "farm_code": "FARM-08",
+   "type": "FARM",
+   "region": "Crimson Wasteland",
+   "name": "Burning Canyon",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-09",
+   "farm_code": "FARM-09",
+   "type": "FARM",
+   "region": "Crimson Wasteland",
+   "name": "Magma Depths",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-10",
+   "farm_code": "FARM-10",
+   "type": "FARM",
+   "region": "Crimson Wasteland",
+   "name": "Ashen Fortress",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-11",
+   "farm_code": "FARM-11",
+   "type": "FARM",
+   "region": "Storm Dominion",
+   "name": "Thunder Plains",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-12",
+   "farm_code": "FARM-12",
+   "type": "FARM",
+   "region": "Storm Dominion",
+   "name": "Skyfall Cliffs",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-13",
+   "farm_code": "FARM-13",
+   "type": "FARM",
+   "region": "Storm Dominion",
+   "name": "Stormwatch Tower",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-14",
+   "farm_code": "FARM-14",
+   "type": "FARM",
+   "region": "Storm Dominion",
+   "name": "Electric Marsh",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-15",
+   "farm_code": "FARM-15",
+   "type": "FARM",
+   "region": "Storm Dominion",
+   "name": "Celestial Arena",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-16",
+   "farm_code": "FARM-16",
+   "type": "FARM",
+   "region": "Frozen Kingdom",
+   "name": "Snowfall Tundra",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-17",
+   "farm_code": "FARM-17",
+   "type": "FARM",
+   "region": "Frozen Kingdom",
+   "name": "Icebound Forest",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-18",
+   "farm_code": "FARM-18",
+   "type": "FARM",
+   "region": "Frozen Kingdom",
+   "name": "Frozen Lake",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-19",
+   "farm_code": "FARM-19",
+   "type": "FARM",
+   "region": "Frozen Kingdom",
+   "name": "Crystal Cavern",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-20",
+   "farm_code": "FARM-20",
+   "type": "FARM",
+   "region": "Frozen Kingdom",
+   "name": "Eternal Palace",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-21",
+   "farm_code": "FARM-21",
+   "type": "FARM",
+   "region": "Shadowlands",
+   "name": "Darkwood Forest",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-22",
+   "farm_code": "FARM-22",
+   "type": "FARM",
+   "region": "Shadowlands",
+   "name": "Forgotten Graveyard",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-23",
+   "farm_code": "FARM-23",
+   "type": "FARM",
+   "region": "Shadowlands",
+   "name": "Phantom Village",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-24",
+   "farm_code": "FARM-24",
+   "type": "FARM",
+   "region": "Shadowlands",
+   "name": "Shadow Shrine",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-25",
+   "farm_code": "FARM-25",
+   "type": "FARM",
+   "region": "Shadowlands",
+   "name": "Assassin's Sanctuary",
+   "pvpPolicy": "CONTESTED",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-26",
+   "farm_code": "FARM-26",
+   "type": "FARM",
+   "region": "Abyss Realm",
+   "name": "Void Entrance",
+   "pvpPolicy": "WAR_ZONE",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-27",
+   "farm_code": "FARM-27",
+   "type": "FARM",
+   "region": "Abyss Realm",
+   "name": "Ruined Dimension",
+   "pvpPolicy": "WAR_ZONE",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-28",
+   "farm_code": "FARM-28",
+   "type": "FARM",
+   "region": "Abyss Realm",
+   "name": "Chaos Battlefield",
+   "pvpPolicy": "WAR_ZONE",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-29",
+   "farm_code": "FARM-29",
+   "type": "FARM",
+   "region": "Abyss Realm",
+   "name": "Abyssal Citadel",
+   "pvpPolicy": "WAR_ZONE",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  },
+  {
+   "map_id": "MAP-FARM-30",
+   "farm_code": "FARM-30",
+   "type": "FARM",
+   "region": "Abyss Realm",
+   "name": "Throne of Eternity",
+   "pvpPolicy": "WAR_ZONE",
+   "safeZone": false,
+   "worldBossPortalEligible": true,
+   "implemented": false
+  }
+ ]
+}

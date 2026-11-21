@@ -1,0 +1,44 @@
+{
+  "_status": "Names [LOCKED] from Master Prompt §6. Sword timings/multipliers are [TUNING] Phase 1 values; other weapons are PLANNED (Phase 3).",
+  "_timeline": "t = seconds after the action starts. Each hit is active from t to t+active; a target can be hit once per hit entry.",
+  "skills": [
+    { "skill_id": "SKL-WPN-SWORD-BA", "name": "Sword Basic Attack", "weaponType": "WPN-TYPE-SWORD", "slot": "basic",
+      "cooldown": 0, "staminaCost": 0, "duration": 0.4, "cancelableAfter": 0.24,
+      "hits": [ { "t": 0.1, "active": 0.08, "shape": "arc", "range": 30, "halfAngleDeg": 65, "multiplier": 1.0, "vfx": "slash" } ] },
+    { "skill_id": "SKL-WPN-SWORD-01", "name": "Triple Slash", "weaponType": "WPN-TYPE-SWORD", "slot": "active",
+      "description": "Three fast slashes; each steps forward slightly. The last cut hits hardest.",
+      "cooldown": 5, "staminaCost": 15, "duration": 0.78, "cancelableAfter": 0.64,
+      "hits": [
+        { "t": 0.08, "active": 0.07, "shape": "arc", "range": 31, "halfAngleDeg": 70, "multiplier": 0.7, "lunge": 7, "vfx": "slash" },
+        { "t": 0.3,  "active": 0.07, "shape": "arc", "range": 31, "halfAngleDeg": 70, "multiplier": 0.7, "lunge": 7, "vfx": "slash_rev" },
+        { "t": 0.54, "active": 0.08, "shape": "arc", "range": 34, "halfAngleDeg": 80, "multiplier": 1.1, "lunge": 9, "vfx": "slash_big" }
+      ] },
+    { "skill_id": "SKL-WPN-SWORD-02", "name": "Guard Break", "weaponType": "WPN-TYPE-SWORD", "slot": "active",
+      "description": "Charged overhead strike. Stuns and breaks the target's guard (lower defense).",
+      "cooldown": 9, "staminaCost": 20, "duration": 0.7, "cancelableAfter": 0.55, "telegraph": { "from": 0, "to": 0.32 },
+      "hits": [ { "t": 0.32, "active": 0.08, "shape": "arc", "range": 36, "halfAngleDeg": 45, "multiplier": 1.6, "lunge": 4, "vfx": "smash",
+                  "applyStatus": [ { "status": "GUARD_BROKEN", "duration": 5 }, { "status": "STUN", "duration": 0.9 } ] } ] },
+    { "skill_id": "SKL-WPN-SWORD-03", "name": "Counter Slash", "weaponType": "WPN-TYPE-SWORD", "slot": "active",
+      "description": "Take a counter stance. If an enemy hits you during the stance, block that hit and strike back with a guaranteed critical.",
+      "cooldown": 10, "staminaCost": 10, "duration": 1.1, "cancelableAfter": 0.9,
+      "counter": { "windowStart": 0.05, "windowEnd": 0.85, "strikeDuration": 0.38, "invulnerableAfter": 0.38,
+                   "hit": { "t": 0.06, "active": 0.08, "shape": "arc", "range": 42, "halfAngleDeg": 110, "multiplier": 2.4, "forceCrit": true, "vfx": "counter" } },
+      "hits": [] },
+
+    { "skill_id": "SKL-WPN-STAFF-01", "name": "Arcane Bolt", "weaponType": "WPN-TYPE-STAFF", "slot": "active", "status": "PLANNED_PHASE_3" },
+    { "skill_id": "SKL-WPN-STAFF-02", "name": "Magic Pulse", "weaponType": "WPN-TYPE-STAFF", "slot": "active", "status": "PLANNED_PHASE_3" },
+    { "skill_id": "SKL-WPN-STAFF-03", "name": "Mana Channel", "weaponType": "WPN-TYPE-STAFF", "slot": "active", "status": "PLANNED_PHASE_3" },
+    { "skill_id": "SKL-WPN-DAGGER-01", "name": "Shadow Step", "weaponType": "WPN-TYPE-DAGGER", "slot": "active", "status": "PLANNED_PHASE_3" },
+    { "skill_id": "SKL-WPN-DAGGER-02", "name": "Backstab", "weaponType": "WPN-TYPE-DAGGER", "slot": "active", "status": "PLANNED_PHASE_3" },
+    { "skill_id": "SKL-WPN-DAGGER-03", "name": "Blade Flurry", "weaponType": "WPN-TYPE-DAGGER", "slot": "active", "status": "PLANNED_PHASE_3" },
+    { "skill_id": "SKL-WPN-BOW-01", "name": "Piercing Arrow", "weaponType": "WPN-TYPE-BOW", "slot": "active", "status": "PLANNED_PHASE_3" },
+    { "skill_id": "SKL-WPN-BOW-02", "name": "Rapid Shot", "weaponType": "WPN-TYPE-BOW", "slot": "active", "status": "PLANNED_PHASE_3" },
+    { "skill_id": "SKL-WPN-BOW-03", "name": "Evasive Shot", "weaponType": "WPN-TYPE-BOW", "slot": "active", "status": "PLANNED_PHASE_3" },
+    { "skill_id": "SKL-WPN-GRIMOIRE-01", "name": "Rune Burst", "weaponType": "WPN-TYPE-GRIMOIRE", "slot": "active", "status": "PLANNED_PHASE_3" },
+    { "skill_id": "SKL-WPN-GRIMOIRE-02", "name": "Magic Seal", "weaponType": "WPN-TYPE-GRIMOIRE", "slot": "active", "status": "PLANNED_PHASE_3" },
+    { "skill_id": "SKL-WPN-GRIMOIRE-03", "name": "Mystic Ward", "weaponType": "WPN-TYPE-GRIMOIRE", "slot": "active", "status": "PLANNED_PHASE_3" },
+    { "skill_id": "SKL-WPN-GAUNTLET-01", "name": "Rising Fist", "weaponType": "WPN-TYPE-GAUNTLET", "slot": "active", "status": "PLANNED_PHASE_3" },
+    { "skill_id": "SKL-WPN-GAUNTLET-02", "name": "Iron Combo", "weaponType": "WPN-TYPE-GAUNTLET", "slot": "active", "status": "PLANNED_PHASE_3" },
+    { "skill_id": "SKL-WPN-GAUNTLET-03", "name": "Impact Smash", "weaponType": "WPN-TYPE-GAUNTLET", "slot": "active", "status": "PLANNED_PHASE_3" }
+  ]
+}

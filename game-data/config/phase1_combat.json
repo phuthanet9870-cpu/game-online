@@ -1,0 +1,43 @@
+{
+  "_status": "[TUNING] Prototype values for Phase 1. TODO: BALANCE — none of these are owner-confirmed.",
+  "version": 1,
+  "tickRate": 60,
+  "seed": 20261121,
+  "player": {
+    "baseMoveSpeed": 84,
+    "collisionRadius": 5,
+    "hurtboxRadius": 7,
+    "starterWeapon": "WPN-TYPE-SWORD",
+    "primaryStats": { "STR": 12, "DEX": 8, "INT": 5, "VIT": 10, "AGI": 8, "WIS": 5 },
+    "staminaMax": 100,
+    "staminaRegenPerSec": 28,
+    "staminaRegenDelay": 0.6,
+    "inCombatTimeout": 5,
+    "respawnDelay": 3,
+    "respawningDuration": 0.8,
+    "spawnProtection": 2,
+    "hitStun": 0.12,
+    "deathRecapSize": 6
+  },
+  "dash": { "staminaCost": 30, "cooldown": 0.45, "duration": 0.18, "distance": 56, "invulnerable": true },
+  "statFormula": {
+    "_note": "[TUNING] secondary = base + sum(primary * coefficient). Deterministic, server-portable.",
+    "maxHp": { "base": 100, "VIT": 10 },
+    "physAtk": { "base": 0, "STR": 1.5 },
+    "physDef": { "base": 2, "VIT": 0.6 },
+    "critChance": { "base": 0.05, "DEX": 0.005, "cap": 0.6 },
+    "critDamage": { "base": 1.5, "DEX": 0.01, "cap": 3.0 }
+  },
+  "damage": {
+    "defenseConstant": 50,
+    "minDamage": 1,
+    "maxDamage": 99999,
+    "pveModifier": 1.0,
+    "pvpModifier": 0.7
+  },
+  "cc": {
+    "_note": "[TUNING] diminishing returns for repeated CC of the same type within drWindow seconds",
+    "drWindow": 15,
+    "drFactors": [1, 0.5, 0.25, 0]
+  }
+}

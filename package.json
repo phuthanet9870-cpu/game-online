@@ -1,0 +1,17 @@
+{
+  "name": "the-power-eclipse",
+  "version": "0.1.0-phase1",
+  "private": true,
+  "type": "module",
+  "description": "THE POWER: ECLIPSE — Phase 1 Core Combat Prototype (web client, offline simulation)",
+  "scripts": {
+    "validate": "node tools/validators/validate-data.mjs",
+    "test": "node --test \"tests/unit/*.test.mjs\"",
+    "build": "node tools/build/build.mjs",
+    "smoke": "node tests/smoke/browser-smoke.mjs",
+    "check": "npm run validate && npm test && npm run build && npm run smoke"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2"
+  }
+}

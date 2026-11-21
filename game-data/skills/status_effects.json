@@ -1,0 +1,11 @@
+{
+  "_status": "[DESIGN] Phase 1 subset. Full list (Burn, Poison, Slow, Root, Freeze, Silence, ...) arrives with the skill engine in Phase 3.",
+  "statusEffects": [
+    { "status_id": "STUN", "name": "Stun", "category": "CC", "ccType": "stun", "maxStacks": 1, "stacking": "refresh_longer", "dispellable": true,
+      "blocksMovement": true, "blocksActions": true, "diminishingReturns": true },
+    { "status_id": "GUARD_BROKEN", "name": "Guard Broken", "category": "DEBUFF", "maxStacks": 1, "stacking": "refresh", "dispellable": true,
+      "modifiers": { "physDefMultiplier": 0.4 } },
+    { "status_id": "SPAWN_PROTECTION", "name": "Spawn Protection", "category": "BUFF", "maxStacks": 1, "stacking": "refresh", "dispellable": false,
+      "invulnerable": true, "endsOnAction": true }
+  ]
+}
