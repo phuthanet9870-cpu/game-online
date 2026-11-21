@@ -11,6 +11,7 @@ npm workspaces monorepo, Node 22. Run everything from the repository root.
 - Database: set `DATABASE_URL` (PostgreSQL) for real deployments. Without it the server uses PGlite (Postgres in WASM) stored in `.data/pglite` (override with `PGLITE_DIR`), so dev needs no database server. Migrations run automatically at startup.
 - `npm run build`: build the client into `packages/client/dist`.
 - `npm start`: production mode. One process on `PORT` (default 2567) serves both the built client and the game server. Run `npm run build` first.
+- `npm run build:artifact`: build the world game as one self-contained HTML page (`games/world/dist-artifact/lumen-realm.html`) for the claude.ai artifact "Lumen Realm" (https://claude.ai/artifact/G4z2SoQ5MWcg6ywfJDk2VD). Republish that file to the same artifact with `capabilities: {room: {topics: {chat: "interact"}}}`.
 - `npm run typecheck`: `tsc --noEmit` over every workspace. There is no linter.
 - `npm test`: all Vitest tests.
 - One file: `npx vitest run games/world/src/shared/pathfinding.test.ts`. One test: add `-t "routes around walls"`.
@@ -37,6 +38,10 @@ The repository is a host for many games. The host knows nothing about any partic
 - The client is Three.js, not Phaser: the map is 3D and characters are camera-facing sprites. `view.ts` owns the renderer and input and has no network code. `index.ts` connects room state to the view. Each frame it reads schema values directly; Colyseus callbacks are used only for add and remove.
 - Coordinate conventions: state positions are in cell units, with a cell's centre at an integer. Cell `(x, y)` covers world X `x..x+1` and world Z `y..y+1`. `toWorld` adds 0.5. Facing `dir` is 0–7, clockwise from south (RO sprite order).
 - To place an offset above or below a sprite (name label, chat bubble), use `sprite.center`, not `position.y`. The tilted camera foreshortens world Y but does not foreshorten the sprites.
+
+### Artifact build (`games/world/src/artifact`)
+
+A playable single-page version for claude.ai. It has no game server: each page walks its own character with the same `findPath`/`advance` code. Multiplayer uses the artifact `room` capability: presence carries `{n, c, x, y, d, m}` (name, colour, position, facing, moving), and chat goes out as a `chat` event. Every peer's presence is clamped and validated as untrusted input. The character is saved in localStorage. With no room (outside claude.ai), the page plays solo. Because clients are authoritative here, this build is a demo; the real game is the Colyseus server. `tools/build-artifact.mjs` runs Vite in IIFE lib mode (`vite.artifact.config.ts`) and inlines the JS and CSS into `page.html`.
 
 ### Colyseus 0.18 specifics (newer than most examples online)
 
