@@ -12,7 +12,7 @@ function saveAutoCfg(c: AutoSettings) { try { localStorage.setItem(AUTO_KEY, JSO
 import { ITEMS } from '../../shared/config/items.ts';
 import { ZONES } from '../../shared/config/zones.ts';
 import { PERCENT_STATS, STAT_KEYS, STAT_LABELS, type StatKey } from '../../shared/config/stats.ts';
-import { WEAPON_DISPLAY } from '../../shared/config/weapons.ts';
+import { WEAPON_DISPLAY, WEAPON_TYPES } from '../../shared/config/weapons.ts';
 import type { SkillDef } from '../../shared/config/skills.ts';
 import type { ServerMessage } from '../../shared/protocol.ts';
 import type { GameClient } from '../game.ts';
@@ -302,11 +302,12 @@ export class Hud {
         h('div', { class: 'gmsec' }, 'สถานะ'),
         h('div', { class: 'row' }, toggle('อมตะ', g.god, 'god'), toggle('ล่องหน', g.invis, 'invis'), toggle('ไม่มีคูลดาวน์', g.nocd, 'nocd')),
         h('div', { class: 'row' }, 'ความเร็ว ×', ...[1, 1.5, 2, 3].map((v) => btn(String(v), () => cmd(`speed ${v}`), g.speed === v ? 'primary' : ''))),
-        h('div', { class: 'row' }, btn('ฟื้นฟูเต็ม', () => cmd('heal')), btn('ชุบชีวิต', () => cmd('revive')), btn('ถือดาบ', () => cmd('weapon sword')), btn('ถือคทา', () => cmd('weapon staff'))),
+        h('div', { class: 'row' }, btn('ฟื้นฟูเต็ม', () => cmd('heal')), btn('ชุบชีวิต', () => cmd('revive')), ),
+        h('div', { class: 'row' }, 'ถืออาวุธ:', ...WEAPON_TYPES.map((t) => btn(WEAPON_DISPLAY[t].nameTh, () => cmd(`weapon ${t}`), this.g.weapon?.type === t ? 'primary' : ''))),
         h('div', { class: 'gmsec' }, 'ความก้าวหน้า (ตัวเอง)'),
         h('div', { class: 'row' }, 'เลเวล', input('gm-level', '1-100', 60), btn('ตั้ง', () => cmd(`level ${val('gm-level') || 1}`)), ...[10, 30, 50, 100].map((v) => btn(`Lv${v}`, () => cmd(`level ${v}`)))),
         h('div', { class: 'row' }, 'EXP', input('gm-exp', 'จำนวน', 80), btn('ให้', () => cmd(`exp ${val('gm-exp') || 0}`))),
-        h('div', { class: 'row' }, 'Mastery', h('select', { id: 'gm-mw' }, h('option', { value: 'sword' }, 'ดาบ'), h('option', { value: 'staff' }, 'คทา')), input('gm-ml', 'Lv 0-20', 60),
+        h('div', { class: 'row' }, 'Mastery', h('select', { id: 'gm-mw' }, ...WEAPON_TYPES.map((t) => h('option', { value: t, selected: this.g.weapon?.type === t }, WEAPON_DISPLAY[t].nameTh))), input('gm-ml', 'Lv 0-20', 60),
           btn('ตั้ง', () => cmd(`mastery ${val('gm-mw')} ${val('gm-ml') || 0}`))),
         h('div', { class: 'row' }, 'ทอง', input('gm-gold', '+/- จำนวน', 90), btn('เสก', () => cmd(`gold ${val('gm-gold') || 0}`)), ...[1000, 100000, 1000000].map((v) => btn(`+${v.toLocaleString()}`, () => cmd(`gold ${v}`)))),
       );
@@ -471,7 +472,7 @@ export class Hud {
   update() {
     const g = this.g, s = g.self, c = g.char;
     if (!s || !c) return;
-    if ((g.weapon?.type ?? '') !== this.lastWeapon || !this.skillEls.size) { this.lastWeapon = g.weapon?.type ?? ''; this.buildSkills(); }
+    if ((g.weapon?.type ?? '') !== this.lastWeapon || !this.skillEls.size) { this.lastWeapon = g.weapon?.type ?? ''; this.buildSkills(); if (this.isOpen('auto')) this.renderAuto(); }
     const setBar = (k: keyof Hud['bars'], v: number, max: number, text: string) => {
       this.bars[k].fill.style.width = `${Math.max(0, Math.min(100, (v / Math.max(1, max)) * 100))}%`;
       this.bars[k].text.textContent = text;
@@ -501,6 +502,7 @@ export class Hud {
     // buffs
     const b: string[] = [];
     if (s.shield > 0) b.push('🛡 โล่');
+    if (s.dr > 0) b.push(`🪨 กายเหล็ก ${s.dr.toFixed(0)}s`);
     if (s.rootT > 0) b.push('💫 มึน');
     if (s.slowT > 0) b.push('🐌 ช้า');
     if (s.dodgeT > 0) b.push('✨ อมตะ');

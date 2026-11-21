@@ -17,7 +17,7 @@ export const EQUIP_SLOTS = ['weapon', 'armor', 'helmet', 'gloves', 'boots', 'acc
 export type EquipSlot = typeof EQUIP_SLOTS[number];
 
 export type ItemCategory = 'weapon' | 'armor' | 'helmet' | 'gloves' | 'boots' | 'accessory' | 'consumable' | 'material' | 'rune';
-export type ItemIcon = 'sword' | 'staff' | 'armor' | 'helmet' | 'gloves' | 'boots' | 'ring' | 'necklace' | 'potion' | 'ore' | 'gel' | 'hide' | 'essence' | 'fragment' | 'herb' | 'rune' | 'dust' | 'cap';
+export type ItemIcon = 'sword' | 'staff' | 'dagger' | 'bow' | 'grimoire' | 'gauntlet' | 'armor' | 'helmet' | 'gloves' | 'boots' | 'ring' | 'necklace' | 'potion' | 'ore' | 'gel' | 'hide' | 'essence' | 'fragment' | 'herb' | 'rune' | 'dust' | 'cap';
 
 export type ItemUse =
   | { kind: 'heal'; flat: number; hpFraction: number; cooldown: number }
@@ -54,6 +54,14 @@ export const ITEMS: Record<string, ItemDef> = Object.fromEntries(([
   eq({ id: 'wpn_oak_staff', name: 'Oak Staff', nameTh: 'คทาไม้โอ๊ค', description: 'คทาไม้โอ๊คที่สะสมมานา', category: 'weapon', rarity: 'common', levelReq: 5, weaponType: 'staff', baseStats: { matk: 14 }, sellPrice: 40, icon: 'staff', color: '#8a5a2b' }),
   eq({ id: 'wpn_wolfbane_blade', name: 'Wolfbane Blade', nameTh: 'ดาบล่าหมาป่า', description: 'ดาบคมกริบจากเขี้ยวหมาป่าจ่าฝูง', category: 'weapon', rarity: 'uncommon', levelReq: 9, weaponType: 'sword', baseStats: { patk: 24, critRate: 0.03 }, sellPrice: 120, icon: 'sword', color: '#e0e6ff' }),
   eq({ id: 'wpn_sylvan_staff', name: 'Sylvan Staff', nameTh: 'คทาพงไพร', description: 'คทาที่เติบโตจากรากไม้โบราณ', category: 'weapon', rarity: 'uncommon', levelReq: 9, weaponType: 'staff', baseStats: { matk: 24, cdr: 0.03 }, sellPrice: 120, icon: 'staff', color: '#6fbf5a' }),
+  eq({ id: 'wpn_rusty_dagger', name: 'Rusty Dagger', nameTh: 'มีดสั้นขึ้นสนิม', description: 'มีดสั้นเริ่มต้น', category: 'weapon', rarity: 'common', levelReq: 1, weaponType: 'dagger', baseStats: { patk: 5, critRate: 0.03 }, sellPrice: 5, icon: 'dagger', color: '#a08a70', bind: 'on_pickup' }),
+  eq({ id: 'wpn_short_bow', name: 'Short Bow', nameTh: 'ธนูสั้น', description: 'ธนูเริ่มต้น', category: 'weapon', rarity: 'common', levelReq: 1, weaponType: 'bow', baseStats: { patk: 6 }, sellPrice: 5, icon: 'bow', color: '#9a6a3a', bind: 'on_pickup' }),
+  eq({ id: 'wpn_worn_grimoire', name: 'Worn Grimoire', nameTh: 'สมุดเวทเก่า', description: 'สมุดเวทเริ่มต้น', category: 'weapon', rarity: 'common', levelReq: 1, weaponType: 'grimoire', baseStats: { matk: 6 }, sellPrice: 5, icon: 'grimoire', color: '#7a4a9a', bind: 'on_pickup' }),
+  eq({ id: 'wpn_leather_gauntlet', name: 'Leather Gauntlet', nameTh: 'ถุงมือหนังต่อสู้', description: 'ถุงมือต่อสู้เริ่มต้น', category: 'weapon', rarity: 'common', levelReq: 1, weaponType: 'gauntlet', baseStats: { patk: 5, pdef: 2 }, sellPrice: 5, icon: 'gauntlet', color: '#8b5a3c', bind: 'on_pickup' }),
+  eq({ id: 'wpn_iron_dagger', name: 'Iron Dagger', nameTh: 'มีดสั้นเหล็ก', description: 'มีดสั้นคมกริบ', category: 'weapon', rarity: 'common', levelReq: 5, weaponType: 'dagger', baseStats: { patk: 12, critRate: 0.04 }, sellPrice: 40, icon: 'dagger', color: '#c9d1d9' }),
+  eq({ id: 'wpn_hunter_bow', name: 'Hunter Bow', nameTh: 'ธนูนักล่า', description: 'ธนูไม้ยูที่ยิงได้ไกล', category: 'weapon', rarity: 'common', levelReq: 5, weaponType: 'bow', baseStats: { patk: 13 }, sellPrice: 40, icon: 'bow', color: '#6b4a2c' }),
+  eq({ id: 'wpn_scribe_grimoire', name: "Scribe's Grimoire", nameTh: 'สมุดเวทนักจาร', description: 'บันทึกอักขระเวทชั้นต้น', category: 'weapon', rarity: 'common', levelReq: 5, weaponType: 'grimoire', baseStats: { matk: 13 }, sellPrice: 40, icon: 'grimoire', color: '#3a6ab0' }),
+  eq({ id: 'wpn_iron_gauntlet', name: 'Iron Gauntlet', nameTh: 'ถุงมือเหล็ก', description: 'ถุงมือหุ้มเหล็กหนัก', category: 'weapon', rarity: 'common', levelReq: 5, weaponType: 'gauntlet', baseStats: { patk: 12, pdef: 4 }, sellPrice: 40, icon: 'gauntlet', color: '#9aa4ad' }),
   eq({ id: 'arm_cloth_tunic', name: 'Cloth Tunic', nameTh: 'เสื้อผ้าฝ้าย', description: 'ชุดเริ่มต้น', category: 'armor', rarity: 'common', levelReq: 1, baseStats: { pdef: 4, mdef: 4, hp: 20 }, sellPrice: 4, icon: 'armor', color: '#b7a58a', bind: 'on_pickup' }),
   eq({ id: 'arm_leather_vest', name: 'Leather Vest', nameTh: 'เสื้อหนัง', description: 'เสื้อหนังหมูป่าทนทาน', category: 'armor', rarity: 'common', levelReq: 4, baseStats: { pdef: 10, mdef: 6, hp: 45 }, sellPrice: 30, icon: 'armor', color: '#8b5a3c' }),
   eq({ id: 'helm_leather_cap', name: 'Leather Cap', nameTh: 'หมวกหนัง', description: 'หมวกหนังเบา', category: 'helmet', rarity: 'common', levelReq: 3, baseStats: { pdef: 4, hp: 20 }, sellPrice: 18, icon: 'helmet', color: '#8b5a3c' }),
@@ -135,6 +143,10 @@ export const SHOPS: Record<string, ShopDef> = {
       { itemId: 'pot_energy_small', price: 20 },
       { itemId: 'wpn_rusty_sword', price: 40 },
       { itemId: 'wpn_apprentice_staff', price: 40 },
+      { itemId: 'wpn_rusty_dagger', price: 40 },
+      { itemId: 'wpn_short_bow', price: 40 },
+      { itemId: 'wpn_worn_grimoire', price: 40 },
+      { itemId: 'wpn_leather_gauntlet', price: 40 },
       { itemId: 'arm_cloth_tunic', price: 30 },
     ],
   },

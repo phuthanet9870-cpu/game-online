@@ -65,3 +65,14 @@ export function shapeHits(shape: HitShape, ox: number, oy: number, ax: number, a
       return false;
   }
 }
+
+/** Distance band [min, max] at which a basic attack of this shape connects with a target of radius r. */
+export function attackBand(shape: HitShape, r = 0.35): [number, number] {
+  switch (shape.kind) {
+    case 'projectile': return [0, shape.range * 0.75];
+    case 'arc': return [0, shape.range * 0.8 + r];
+    case 'circle': return [Math.max(0, shape.forward - shape.radius * 0.7), shape.forward + shape.radius * 0.7];
+    case 'line': return [0, shape.length * 0.8];
+    default: return [0, 1.4];
+  }
+}

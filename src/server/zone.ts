@@ -11,7 +11,8 @@ import { STAT_CONFIG } from '../shared/config/stats.ts';
 import { getItem } from '../shared/config/items.ts';
 import { moveParamsFor, stepMove, TICK_DT, type MoveParams } from '../shared/movement.ts';
 import { ANIM, BTN, FLAG, type EntityMeta, type EntityState, type GameEvent, type SelfState } from '../shared/protocol.ts';
-import type { AnyEntity, DropEntity, MonsterEntity, NodeEntity, NpcEntity, PlayerEntity, Projectile } from './entities.ts';
+import type { AnyEntity, DropEntity, MonsterEntity, NodeEntity, NpcEntity, PlayerEntity, Projectile, TrapEntity } from './entities.ts';
+import type { SkillDef, SkillEffect } from '../shared/config/skills.ts';
 import { dealDamage, resolveMonsterAttack, tryCast, killPlayer } from './combat.ts';
 import { updateMonster } from './ai.ts';
 import { autoTick, stopAuto } from './autofarm.ts';
@@ -61,6 +62,7 @@ export class Zone {
   readonly npcs = new Map<number, NpcEntity>();
   readonly nodes = new Map<number, NodeEntity>();
   readonly projectiles: Projectile[] = [];
+  readonly traps: TrapEntity[] = [];
   private grid = new SpatialGrid(SC.spatialCellSize);
   private history: { tick: number; pos: Map<number, [number, number]> }[] = [];
   private events: { ev: GameEvent; x: number; y: number }[] = [];
@@ -96,7 +98,7 @@ export class Zone {
       kind: 2, id, def, group: g, level, x: pos.x, y: pos.y, homeX: pos.x, homeY: pos.y, facingX: 1, facingY: 0,
       radius: def.radius, hp: s.maxHp, maxHp: s.maxHp, atk: s.atk, defense: s.def, exp: s.exp,
       state: 'idle', stateUntil: this.time + this.rng() * 3, wanderX: pos.x, wanderY: pos.y, targetId: null,
-      attackReady: def.attacks.map(() => 0), windup: null, threat: new Map(), stunUntil: 0, slowUntil: 0, slowMult: 1,
+      attackReady: def.attacks.map(() => 0), windup: null, threat: new Map(), stunUntil: 0, rootUntil: 0, slowUntil: 0, slowMult: 1,
       forceUntil: 0, fvx: 0, fvy: 0, respawnAt: 0, anim: ANIM.IDLE, animUntil: 0, lastHitAt: -999,
     };
     this.monsters.set(id, m);
@@ -109,7 +111,7 @@ export class Zone {
     const s = monsterStatsAt(m.def, level);
     Object.assign(m, {
       level, x: pos.x, y: pos.y, homeX: pos.x, homeY: pos.y, hp: s.maxHp, maxHp: s.maxHp, atk: s.atk, defense: s.def, exp: s.exp,
-      state: 'idle', stateUntil: this.time + 1, targetId: null, windup: null, stunUntil: 0, slowUntil: 0, forceUntil: 0,
+      state: 'idle', stateUntil: this.time + 1, targetId: null, windup: null, stunUntil: 0, rootUntil: 0, slowUntil: 0, forceUntil: 0,
       anim: ANIM.IDLE, animUntil: 0,
     });
     m.threat.clear();
@@ -185,6 +187,7 @@ export class Zone {
 
     for (const m of this.monsters.values()) updateMonster(this, m);
     this.updateProjectiles();
+    this.updateTraps();
 
     for (const d of this.drops.values()) if (t >= d.despawnAt) this.drops.delete(d.id);
     for (const n of this.nodes.values()) {
@@ -401,6 +404,42 @@ export class Zone {
     }
   }
 
+  placeTrap(p: PlayerEntity, x: number, y: number, ef: Extract<SkillEffect, { kind: 'trap' }>, skill: SkillDef, mult: number) {
+    const mine = this.traps.filter((tr) => tr.ownerId === p.id);
+    while (mine.length >= ef.maxActive) {
+      const old = mine.shift()!;
+      this.traps.splice(this.traps.indexOf(old), 1);
+      this.emit({ e: 'trap', id: old.id, x: old.x, y: old.y, r: old.radius, arm: 0, on: false, owner: p.id }, old.x, old.y);
+    }
+    const tr: TrapEntity = { id: this.host.nextId(), ownerId: p.id, x, y, radius: ef.radius, armAt: this.time + ef.armSec, expireAt: this.time + ef.lifeSec, skill, damageMult: mult };
+    this.traps.push(tr);
+    this.emit({ e: 'trap', id: tr.id, x, y, r: ef.radius, arm: ef.armSec, on: true, owner: p.id }, x, y);
+  }
+
+  private updateTraps() {
+    for (let i = this.traps.length - 1; i >= 0; i--) {
+      const tr = this.traps[i];
+      const owner = this.players.get(tr.ownerId);
+      let fire = false;
+      if (this.time >= tr.armAt && owner) {
+        for (const e of this.grid.query(tr.x, tr.y, tr.radius + 1)) {
+          if (e.kind === 2 && e.state !== 'dead' && e.state !== 'return' && (e.x - tr.x) ** 2 + (e.y - tr.y) ** 2 <= (tr.radius + e.radius) ** 2) { fire = true; break; }
+        }
+      }
+      if (fire && owner) {
+        const effects = tr.skill.effects.filter((e) => e.kind !== 'trap');
+        for (const e of this.grid.query(tr.x, tr.y, tr.radius + 1)) {
+          if (e.kind !== 2 || e.state === 'dead' || (e.x - tr.x) ** 2 + (e.y - tr.y) ** 2 > (tr.radius + e.radius) ** 2) continue;
+          dealDamage(this, owner, e, { mult: tr.damageMult, flat: tr.skill.damage?.flat ?? 0, stat: tr.skill.damage?.stat ?? 'matk', element: tr.skill.element, effects, skill: tr.skill });
+        }
+      }
+      if (fire || !owner || this.time >= tr.expireAt) {
+        this.traps.splice(i, 1);
+        this.emit({ e: 'trap', id: tr.id, x: tr.x, y: tr.y, r: tr.radius, arm: 0, on: false, owner: tr.ownerId }, tr.x, tr.y);
+      }
+    }
+  }
+
   private recordHistory() {
     const pos = new Map<number, [number, number]>();
     for (const p of this.players.values()) pos.set(p.id, [p.ms.x, p.ms.y]);
@@ -470,7 +509,7 @@ export class Zone {
       dodgeCd: ms.dodgeCd, slowT: ms.slowT, slowMult: ms.slowMult,
       hp: Math.ceil(p.hp), mhp: p.stats.hp, en: Math.floor(p.energy), men: p.stats.energy, mst: p.stats.stamina,
       shield: Math.ceil(p.shield), dead: p.dead, cd, combo: p.combo, potCd: Math.max(0, Math.round((p.potCdUntil - t) * 10) / 10),
-      auto: p.auto !== null, autoKills: p.auto?.kills ?? 0, fx: Math.round(p.facingX * 1000) / 1000, fy: Math.round(p.facingY * 1000) / 1000,
+      auto: p.auto !== null, autoKills: p.auto?.kills ?? 0, fx: Math.round(p.facingX * 1000) / 1000, fy: Math.round(p.facingY * 1000) / 1000, dr: Math.max(0, Math.round((p.drUntil - t) * 10) / 10),
     };
   }
 

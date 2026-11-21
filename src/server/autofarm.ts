@@ -7,6 +7,7 @@
 import { AUTO_CONFIG, type AutoSettings } from '../shared/config/auto.ts';
 import { RARITIES, getItem } from '../shared/config/items.ts';
 import { findPath, lineClear } from '../shared/pathfind.ts';
+import { attackBand } from '../shared/combat.ts';
 import { BTN } from '../shared/protocol.ts';
 import type { DropEntity, MonsterEntity, PlayerEntity } from './entities.ts';
 import type { Zone } from './zone.ts';
@@ -170,11 +171,11 @@ export function autoTick(z: Zone, p: PlayerEntity): Controls | null {
   const w = p.weapon!;
   const d = Math.hypot(target.x - p.ms.x, target.y - p.ms.y);
   const ax = target.x - p.ms.x, ay = target.y - p.ms.y;
-  const shape = w.normal.shape;
-  const range = shape.kind === 'projectile' ? shape.range * 0.75 : shape.kind === 'arc' ? shape.range * 0.8 + target.radius : 1.4;
-  if (d > range || !lineClear(z.map, p.ms.x, p.ms.y, target.x, target.y, 0.1)) {
+  const [minR, maxR] = attackBand(w.normal.shape, target.radius);
+  if (d > maxR || !lineClear(z.map, p.ms.x, p.ms.y, target.x, target.y, 0.1)) {
     return { ...steer(z, p, a, target.x, target.y), ax, ay, b: 0 };
   }
+  if (d < minR) { a.path = []; return { mx: -ax / (d || 1), my: -ay / (d || 1), ax, ay, b: 0 }; } // step back into the sweet spot
   a.path = [];
   let b: number = BTN.ATTACK;
   const ready = (id: string, cost: number) => (p.cooldowns.get(id) ?? 0) <= t && p.energy >= cost;

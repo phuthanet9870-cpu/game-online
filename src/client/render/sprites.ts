@@ -106,7 +106,15 @@ export function npcPalette(color: string, seed: number): CharPalette {
 export function weaponSprite(type: string): HTMLCanvasElement {
   return cached(`wpn|${type}`, () => {
     const [c, ctx] = makeCanvas(16, 16);
-    if (type === 'staff') {
+    if (type === 'dagger') {
+      paint(ctx, ['............', '..........WW', '.........WLW', '........WLW.', '.......WLW..', '....G.WLW...', '.....GLW....', '.....HG.....', '....H..G....', '...P........'], { W: '#e8eef4', L: '#9aa8b8', G: '#c9a35a', H: '#3a2a1e', P: '#c9a35a' }, 2, 4);
+    } else if (type === 'bow') {
+      paint(ctx, ['......BB.....', '.....B..S....', '....B....S...', '...B.....S...', '..B......S...', '..B......S...', '..B......S...', '...B.....S...', '....B....S...', '.....B..S....', '......BB.....'], { B: '#8a5a2b', S: '#e8e0c8' }, 1, 2);
+    } else if (type === 'grimoire') {
+      paint(ctx, ['.DDDDDDDD.', 'DCCCCCCCCW', 'DCWWCCCCCW', 'DCCCLLCCCW', 'DCCCLLCCCW', 'DCCCCCWWCW', 'DCCCCCCCCW', '.DDDDDDDD.'], { D: '#3a2050', C: '#7a4a9a', W: '#f0e6d0', L: '#ffd27a' }, 3, 6);
+    } else if (type === 'gauntlet') {
+      paint(ctx, ['.CC.CC.', 'CCCCCCC', 'CLCCLCC', 'CCCCCCC', '.CCCCC.', '.SSSSS.'], { C: '#9aa4ad', L: '#e0e6ee', S: '#5a3a22' }, 6, 8);
+    } else if (type === 'staff') {
       paint(ctx, [
         '............OO..',
         '...........OWWO.',
@@ -364,6 +372,10 @@ export function nodeSprite(kind: string, ready: boolean): HTMLCanvasElement {
 
 // ---------------------------------------------------------------- icons
 const ICONS: Record<ItemIcon, string[]> = {
+  dagger: ['........WW', '.......WLW', '......WLW.', '.....WLW..', '..G.WLW...', '...GLW....', '...HG.....', '..H..G....', '.P........'],
+  bow: ['....BBS...', '...B..S...', '..B...S...', '.B....S...', '.B..LLSL>.', '.B....S...', '..B...S...', '...B..S...', '....BBS...'],
+  grimoire: ['.DDDDDDD.', 'DCCCCCCCW', 'DCWWCCCCW', 'DCCLLCCCW', 'DCCLLCCCW', 'DCCCCWWCW', 'DCCCCCCCW', '.DDDDDDD.'],
+  gauntlet: ['.CC.CC.CC', 'CCCCCCCCC', 'CLCCLCCLC', 'CCCCCCCCC', '.CCCCCCC.', '.SSSSSS..', '.DDDDDD..'],
   sword: ['..........WW', '.........WLW', '........WLW.', '.......WLW..', '......WLW...', '..G..WLW....', '...GWLW.....', '...HG.......', '..H..G......', '.H..........', 'P...........'],
   staff: ['.........OO.', '........OWWO', '........OLLO', '.........OO.', '........B...', '.......B....', '......B.....', '.....B......', '....B.......', '...B........', '..B.........'],
   armor: ['.CC....CC.', 'CCCCCCCCCC', 'CCCCDDCCCC', '.CCCCCCCC.', '.CCCDDCCC.', '.CCCCCCCC.', '.CCCCCCCC.', '.DDDDDDDD.'],

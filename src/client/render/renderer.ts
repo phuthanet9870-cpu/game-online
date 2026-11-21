@@ -119,6 +119,14 @@ export class Renderer {
       this.groundEllipse(ctx, c, Math.max(p.w, p.h) * 0.6, `rgba(120,200,255,${0.25 + pulse * 0.25})`, true);
       this.groundEllipse(ctx, c, Math.max(p.w, p.h) * 0.35 * (0.8 + pulse * 0.2), 'rgba(220,250,255,0.6)', false);
     }
+    for (const tr of g.traps.values()) {
+      const armed = now >= tr.armAt;
+      const c = sp(tr.x, tr.y);
+      const pulse = 0.5 + 0.5 * Math.sin(now / 200 + tr.id);
+      this.groundEllipse(ctx, c, tr.r, `rgba(190,120,255,${armed ? 0.12 + 0.1 * pulse : 0.06})`, true);
+      this.groundEllipse(ctx, c, tr.r, `rgba(210,150,255,${armed ? 0.7 : 0.3})`, false);
+      this.groundEllipse(ctx, c, tr.r * 0.45, `rgba(255,220,120,${armed ? 0.5 + 0.4 * pulse : 0.2})`, false);
+    }
     for (const t of g.telegraphs) {
       const k = Math.min(1, (now - t.start) / t.dur);
       const c = sp(t.x, t.y);
@@ -180,7 +188,8 @@ export class Renderer {
       const age = (now - p.born) / 1000;
       const x = p.x + p.vx * age, y = p.y + p.vy * age;
       const c = sp(x, y);
-      list.push({ depth: x + y + 0.3, draw: () => this.drawProjectile(ctx, p.fx, c, p.r, now) });
+      const sd = screenDir(p.vx, p.vy);
+      list.push({ depth: x + y + 0.3, draw: () => this.drawProjectile(ctx, p.fx, c, p.r, now, sd.dx, sd.dy) });
     }
     list.sort((a, b) => a.depth - b.depth);
     for (const d of list) d.draw();
@@ -411,12 +420,23 @@ export class Renderer {
     }
   }
 
-  private drawProjectile(ctx: CanvasRenderingContext2D, fx: string, c: { x: number; y: number }, r: number, now: number) {
+  private drawProjectile(ctx: CanvasRenderingContext2D, fx: string, c: { x: number; y: number }, r: number, now: number, vx = 1, vy = 0) {
     const size = Math.max(2, Math.round(r * 9));
     const colors: Record<string, [string, string]> = {
       orb_small: ['#b090ff', '#ffffff'], orb_large: ['#8060ff', '#e0d8ff'], arcane_bolt: ['#60c0ff', '#ffffff'],
-      wisp_bolt: ['#fff080', '#ffffff'],
+      wisp_bolt: ['#fff080', '#ffffff'], binding: ['#c080ff', '#ffe0ff'],
     };
+    if (fx.startsWith('arrow')) {
+      // arrows are drawn as short shafts along their velocity
+      const ang = Math.atan2(vy, vx);
+      const ex = Math.cos(ang) * 6, ey = Math.sin(ang) * 3;
+      ctx.strokeStyle = fx === 'arrow_pierce' ? '#a0e0ff' : '#e8d8b0';
+      ctx.lineWidth = fx === 'arrow' ? 1 : 2;
+      ctx.beginPath(); ctx.moveTo(c.x - ex, c.y - 9 - ey); ctx.lineTo(c.x + ex, c.y - 9 + ey); ctx.stroke();
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(c.x + ex) - 1, Math.round(c.y - 9 + ey) - 1, 2, 2);
+      this.shadow(ctx, c, 2);
+      return;
+    }
     const [a, b] = colors[fx] ?? ['#ff8060', '#fff0c0'];
     const y = c.y - 9;
     ctx.fillStyle = a; ctx.globalAlpha = 0.35;
@@ -431,7 +451,7 @@ export class Renderer {
     const k = Math.min(1, (now - f.start) / f.dur);
     // follow the caster for self-centred effects
     let ox = f.x, oy = f.y;
-    if (f.owner === g.selfId) { ox = g.ms.x; oy = g.ms.y; } else { const e = g.ents.get(f.owner); if (e && (f.kind === 'barrier' || f.kind === 'guard')) { ox = e.x; oy = e.y; } }
+    if (f.owner === g.selfId) { ox = g.ms.x; oy = g.ms.y; } else { const e = g.ents.get(f.owner); if (e && ['barrier', 'guard', 'stab', 'stab2', 'punch', 'rapid', 'iron'].includes(f.kind)) { ox = e.x; oy = e.y; } }
     const c = sp(ox, oy);
     const ang = Math.atan2(f.ay, f.ax);
     ctx.save();
@@ -463,6 +483,40 @@ export class Renderer {
         const r = (f.kind === 'wave' ? 2.6 : 2.2) * k;
         this.groundEllipse(ctx, c, r, `rgba(${f.kind === 'wave' ? '140,170,255' : '255,140,90'},${0.8 * (1 - k)})`, false);
         this.groundEllipse(ctx, c, r, `rgba(${f.kind === 'wave' ? '140,170,255' : '255,140,90'},${0.2 * (1 - k)})`, true);
+        break;
+      }
+      case 'stab': case 'stab2': case 'punch': case 'rapid': {
+        const n = f.kind === 'rapid' ? 5 : f.kind === 'stab2' ? 2 : 1;
+        const idx = Math.min(n - 1, Math.floor(k * n));
+        const reach = f.kind === 'punch' || f.kind === 'rapid' ? 1.2 : 1.3;
+        const off = (idx % 2 === 0 ? 1 : -1) * 0.25 * (n > 1 ? 1 : 0);
+        const p2 = sp(ox + f.ax * reach - f.ay * off, oy + f.ay * reach + f.ax * off);
+        ctx.fillStyle = f.kind === 'stab' || f.kind === 'stab2' ? `rgba(230,240,255,${1 - k})` : `rgba(255,220,150,${1 - k})`;
+        ctx.fillRect(p2.x - 2, p2.y - 10, 4, 3);
+        break;
+      }
+      case 'shadow': {
+        ctx.fillStyle = `rgba(80,40,120,${0.6 * (1 - k)})`;
+        ctx.beginPath(); ctx.ellipse(c.x, c.y - 8, 8 + k * 6, 11 + k * 4, 0, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case 'glyph': case 'glyph_big': case 'burstzone': {
+        const fwd = f.kind === 'glyph' ? 3 : f.kind === 'glyph_big' ? 3.5 : 4.5;
+        const r = f.kind === 'glyph' ? 1 : f.kind === 'glyph_big' ? 1.8 : 2.6;
+        const at = sp(f.x + f.ax * fwd, f.y + f.ay * fwd);
+        this.groundEllipse(ctx, at, r * (0.3 + 0.7 * k), `rgba(200,140,255,${1 - k})`, false);
+        this.groundEllipse(ctx, at, r, `rgba(200,140,255,${0.25 * (1 - k)})`, true);
+        break;
+      }
+      case 'trapfire': {
+        this.groundEllipse(ctx, c, f.ax * (0.5 + k), `rgba(255,200,120,${1 - k})`, false);
+        this.groundEllipse(ctx, c, f.ax, `rgba(200,120,255,${0.35 * (1 - k)})`, true);
+        break;
+      }
+      case 'iron': {
+        ctx.strokeStyle = `rgba(200,210,230,${1 - k})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(c.x, c.y - 9, 9, 12, 0, 0, Math.PI * 2); ctx.stroke();
         break;
       }
       case 'barrier': {

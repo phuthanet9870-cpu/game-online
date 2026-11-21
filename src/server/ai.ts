@@ -26,6 +26,7 @@ function stepToward(z: Zone, m: MonsterEntity, tx: number, ty: number, speedMult
   const dx = tx - m.x, dy = ty - m.y;
   const d = Math.hypot(dx, dy);
   if (d < 0.05) return true;
+  if (z.time < m.rootUntil) { m.facingX = dx / d; m.facingY = dy / d; return false; } // rooted: can turn and attack, not move
   const slow = z.time < m.slowUntil ? m.slowMult : 1;
   const step = Math.min(d, m.def.moveSpeed * speedMult * slow * TICK_DT);
   const n = normalize(dx, dy);

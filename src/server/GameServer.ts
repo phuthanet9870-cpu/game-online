@@ -377,7 +377,7 @@ export class GameServer implements ZoneHost {
       kind: 1, id: this.nextId(), rec, inv, session: null, disconnectedAt: null,
       ms: newMoveState(rec.x, rec.y, stats.stamina), facingX: 1, facingY: 0, radius: 0.3, stats, weapon: null,
       hp: Math.min(rec.hp, stats.hp), energy: Math.min(rec.energy, stats.energy), shield: 0, shieldUntil: 0,
-      cooldowns: new Map(), actionLockUntil: 0, iframesUntil: 0, counterUntil: 0, blocking: false, combo: 0, lastNormalAt: -99,
+      cooldowns: new Map(), actionLockUntil: 0, iframesUntil: 0, counterUntil: 0, drAmount: 0, drUntil: 0, superArmorUntil: 0, blocking: false, combo: 0, lastNormalAt: -99,
       dead: false, lastCombatAt: -99, potCdUntil: 0, inputQueue: [], lastSeq: -1, inputBudget: SC.inputBudgetMax, ticksWithoutInput: 0,
       known: new Set(), anim: ANIM.IDLE, animUntil: 0, killTimes: [], dirty: false, invDirty: false, charDirty: false,
       lastSaveAt: 0, saving: Promise.resolve(), hazardTickAt: 0,

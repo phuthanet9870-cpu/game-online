@@ -8,6 +8,7 @@ import { PROGRESSION, levelDiffMult } from '../shared/config/progression.ts';
 import type { MonsterAttack } from '../shared/config/monsters.ts';
 import { STAT_CONFIG } from '../shared/config/stats.ts';
 import { angleBetween, normalize } from '../shared/math.ts';
+import { isBlocked } from '../shared/mapgen.ts';
 import { moveWithCollision } from '../shared/movement.ts';
 import { ANIM } from '../shared/protocol.ts';
 import type { Combatant, MonsterEntity, PlayerEntity } from './entities.ts';
@@ -46,6 +47,8 @@ export function tryCast(z: Zone, p: PlayerEntity, skill: SkillDef, aimX: number,
   if (!free && (p.energy < skill.energyCost || p.ms.stamina < skill.staminaCost)) return false;
   const aim = normalize(aimX, aimY);
   if (aim.x === 0 && aim.y === 0) return false;
+  const blink = skill.effects.find((e): e is Extract<SkillEffect, { kind: 'blink_behind' }> => e.kind === 'blink_behind');
+  if (blink && !blinkTarget(z, p, aim.x, aim.y, blink)) return false; // no valid target: nothing is spent
 
   if (!free) p.energy -= skill.energyCost;
   if (skill.staminaCost > 0 && !free) {
@@ -83,6 +86,22 @@ export function tryCast(z: Zone, p: PlayerEntity, skill: SkillDef, aimX: number,
   return true;
 }
 
+type Eff<K extends SkillEffect['kind']> = Extract<SkillEffect, { kind: K }>;
+const findEff = <K extends SkillEffect['kind']>(skill: SkillDef, k: K) => skill.effects.find((e): e is Eff<K> => e.kind === k);
+
+/** Nearest living monster inside the aim cone (for Shadow Step). */
+export function blinkTarget(z: Zone, p: PlayerEntity, ax: number, ay: number, ef: Eff<'blink_behind'>): MonsterEntity | null {
+  let best: MonsterEntity | null = null, bd = Infinity;
+  for (const e of z.nearby(p.ms.x, p.ms.y, ef.range + 1)) {
+    if (e.kind !== 2 || e.state === 'dead' || e.state === 'return') continue;
+    const d = Math.hypot(e.x - p.ms.x, e.y - p.ms.y);
+    if (d > ef.range || d < 0.05) continue;
+    if (angleBetween(ax, ay, e.x - p.ms.x, e.y - p.ms.y) > (ef.coneDeg * Math.PI) / 360) continue;
+    if (d < bd) { bd = d; best = e; }
+  }
+  return best;
+}
+
 function resolveSkill(z: Zone, p: PlayerEntity, skill: SkillDef, ax: number, ay: number, mult: number, viewTick: number | null) {
   const t = z.time;
   const shape = skill.shape;
@@ -97,25 +116,69 @@ function resolveSkill(z: Zone, p: PlayerEntity, skill: SkillDef, ax: number, ay:
         p.shieldUntil = t + ef.duration;
       } else if (ef.kind === 'counter') {
         p.counterUntil = t + ef.window;
+      } else if (ef.kind === 'buff_dr') {
+        p.drAmount = ef.amount;
+        p.drUntil = t + ef.duration;
+        p.superArmorUntil = ef.superArmor ? t + ef.duration : p.superArmorUntil;
       }
     }
     return;
   }
 
+  const backdash = findEff(skill, 'backdash');
+  if (backdash) {
+    const probe = { x: p.ms.x, y: p.ms.y };
+    moveWithCollision(z.map, probe, -ax * backdash.distance, -ay * backdash.distance, p.radius);
+    const d = Math.hypot(probe.x - p.ms.x, probe.y - p.ms.y);
+    p.ms.forceT = backdash.duration;
+    p.ms.fvx = (-ax * d) / backdash.duration;
+    p.ms.fvy = (-ay * d) / backdash.duration;
+    p.iframesUntil = Math.max(p.iframesUntil, t + backdash.duration);
+  }
+
   if (shape.kind === 'projectile') {
-    z.projectiles.push({
-      id: z.host.nextId(), ownerId: p.id, ownerKind: 1, x: p.ms.x + ax * 0.4, y: p.ms.y + ay * 0.4,
-      vx: ax * shape.speed, vy: ay * shape.speed, radius: shape.radius, remaining: shape.range, pierce: shape.pierce,
-      hit: new Set(), hits: 'monsters', skill, damageMult: mult, element: skill.element, effects: skill.effects,
-    });
-    const pr = z.projectiles[z.projectiles.length - 1];
-    z.emit({ e: 'proj', id: pr.id, s: p.id, x: pr.x, y: pr.y, vx: pr.vx, vy: pr.vy, r: pr.radius, life: shape.range / shape.speed, fx: skill.vfx }, p.ms.x, p.ms.y);
+    const spread = findEff(skill, 'spread');
+    const n = spread ? spread.count : 1;
+    const step = spread && n > 1 ? (spread.angleDeg * Math.PI) / 180 / (n - 1) : 0;
+    const base = Math.atan2(ay, ax) - (step * (n - 1)) / 2;
+    for (let i = 0; i < n; i++) {
+      const a = base + step * i, dx = Math.cos(a), dy = Math.sin(a);
+      const pr = {
+        id: z.host.nextId(), ownerId: p.id, ownerKind: 1 as const, x: p.ms.x + dx * 0.4, y: p.ms.y + dy * 0.4,
+        vx: dx * shape.speed, vy: dy * shape.speed, radius: shape.radius, remaining: shape.range, pierce: shape.pierce,
+        hit: new Set<number>(), hits: 'monsters' as const, skill, damageMult: mult, element: skill.element, effects: skill.effects,
+      };
+      z.projectiles.push(pr);
+      z.emit({ e: 'proj', id: pr.id, s: p.id, x: pr.x, y: pr.y, vx: pr.vx, vy: pr.vy, r: pr.radius, life: shape.range / shape.speed, fx: skill.vfx }, p.ms.x, p.ms.y);
+    }
     return;
+  }
+
+  const trap = findEff(skill, 'trap');
+  if (trap && shape.kind === 'circle') {
+    const probe = { x: p.ms.x, y: p.ms.y };
+    moveWithCollision(z.map, probe, ax * shape.forward, ay * shape.forward, 0.2); // traps can't be placed through walls
+    z.placeTrap(p, probe.x, probe.y, trap, skill, mult);
+    return;
+  }
+
+  const blink = findEff(skill, 'blink_behind');
+  if (blink) {
+    const target = blinkTarget(z, p, ax, ay, blink);
+    if (!target) return;
+    const dir = normalize(target.x - p.ms.x, target.y - p.ms.y);
+    const behind = { x: target.x + dir.x * (target.radius + 0.6), y: target.y + dir.y * (target.radius + 0.6) };
+    const free = (x: number, y: number) => !isBlocked(z.map, x - p.radius, y - p.radius) && !isBlocked(z.map, x + p.radius, y - p.radius) && !isBlocked(z.map, x - p.radius, y + p.radius) && !isBlocked(z.map, x + p.radius, y + p.radius);
+    if (free(behind.x, behind.y)) { p.ms.x = behind.x; p.ms.y = behind.y; }
+    ax = -dir.x; ay = -dir.y;
+    p.facingX = ax; p.facingY = ay;
+    p.iframesUntil = Math.max(p.iframesUntil, t + 0.2);
+    viewTick = null; // we moved: use current positions
   }
 
   const ox = p.ms.x, oy = p.ms.y;
   let effShape = shape;
-  const dash = skill.effects.find((e): e is Extract<SkillEffect, { kind: 'dash' }> => e.kind === 'dash');
+  const dash = findEff(skill, 'dash');
   if (dash) {
     // collision-checked dash: the hit line only covers the distance actually travelled
     const probe = { x: ox, y: oy };
@@ -128,11 +191,13 @@ function resolveSkill(z: Zone, p: PlayerEntity, skill: SkillDef, ax: number, ay:
     p.iframesUntil = Math.max(p.iframesUntil, t + dash.duration);
   }
 
+  const hits = findEff(skill, 'multi')?.hits ?? 1;
   const reach = effShape.kind === 'arc' ? effShape.range : effShape.kind === 'circle' ? effShape.radius + effShape.forward : effShape.kind === 'line' ? effShape.length : 0;
   for (const e of z.nearby(ox, oy, reach + 2)) {
     if (e.kind !== 2 || e.state === 'dead') continue;
     const pos = viewTick !== null ? z.rewoundPos(e.id, viewTick) ?? [e.x, e.y] : [e.x, e.y];
-    if (shapeHits(effShape, ox, oy, ax, ay, pos[0], pos[1], e.radius)) dealDamage(z, p, e, hitOpts(mult));
+    if (!shapeHits(effShape, ox, oy, ax, ay, pos[0], pos[1], e.radius)) continue;
+    for (let h = 0; h < hits && (e.state as string) !== 'dead'; h++) dealDamage(z, p, e, hitOpts(mult));
   }
 }
 
@@ -186,9 +251,16 @@ export function dealDamage(z: Zone, src: Combatant, tgt: Combatant, o: HitOption
     const facing = angleBetween(tgt.facingX, tgt.facingY, spos.x - tpos.x, spos.y - tpos.y);
     if (facing <= (tgt.weapon.defensive.arcDeg * Math.PI) / 360) reduction = tgt.weapon.defensive.damageReduction;
   }
+  if (tgt.kind === 1 && t < tgt.drUntil) reduction += tgt.drAmount;
   d.damageReduction = reduction;
+  let mult = o.mult;
+  const bs = o.effects.find((e): e is Extract<SkillEffect, { kind: 'backstab' }> => e.kind === 'backstab');
+  if (bs) {
+    const tf = tgt.kind === 1 ? { x: tgt.facingX, y: tgt.facingY } : { x: tgt.facingX, y: tgt.facingY };
+    if (angleBetween(tf.x, tf.y, spos.x - tpos.x, spos.y - tpos.y) > (110 * Math.PI) / 180) mult *= bs.mult;
+  }
 
-  const roll = rollDamage(a, d, o.mult, o.flat, o.element, 'pve', () => z.rng());
+  const roll = rollDamage(a, d, mult, o.flat, o.element, 'pve', () => z.rng());
   if (roll.miss) {
     z.emit({ e: 'hit', s: src.id, t: tgt.id, d: 0, c: 0, m: 1 }, tpos.x, tpos.y);
     return 0;
@@ -231,7 +303,11 @@ function applyEffects(z: Zone, src: Combatant, tgt: Combatant, effects: SkillEff
   const spos = src.kind === 1 ? src.ms : src;
   const tpos = tgt.kind === 1 ? tgt.ms : tgt;
   for (const ef of effects) {
-    if (ef.kind === 'stun') {
+    if (tgt.kind === 1 && t < tgt.superArmorUntil && (ef.kind === 'stun' || ef.kind === 'knockback' || ef.kind === 'root')) continue;
+    if (ef.kind === 'root') {
+      if (tgt.kind === 2) tgt.rootUntil = Math.max(tgt.rootUntil, t + ef.duration * (tgt.def.tier === 'normal' ? 1 : 0.4));
+      else tgt.ms.rootT = Math.max(tgt.ms.rootT, ef.duration * (1 - tgt.stats.ccRes));
+    } else if (ef.kind === 'stun') {
       if (tgt.kind === 2) {
         const resist = tgt.def.tier === 'normal' ? 1 : 0.4; // elites shrug off CC faster
         tgt.stunUntil = Math.max(tgt.stunUntil, t + ef.duration * resist);

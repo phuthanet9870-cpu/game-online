@@ -38,6 +38,8 @@ export interface PlayerEntity {
   actionLockUntil: number;
   iframesUntil: number;
   counterUntil: number;
+  /** Iron Body style damage reduction buff. */
+  drAmount: number; drUntil: number; superArmorUntil: number;
   blocking: boolean;
   combo: number; lastNormalAt: number;
   dead: boolean;
@@ -87,6 +89,7 @@ export interface MonsterEntity {
   /** player id -> damage dealt (threat & contribution) */
   threat: Map<number, number>;
   stunUntil: number;
+  rootUntil: number;
   slowUntil: number; slowMult: number;
   forceUntil: number; fvx: number; fvy: number;
   respawnAt: number;
@@ -127,6 +130,17 @@ export interface Projectile {
   element: Element;
   effects: SkillEffect[];
   monsterAtkMult?: number;
+}
+
+export interface TrapEntity {
+  id: number;
+  ownerId: number;
+  x: number; y: number;
+  radius: number;
+  armAt: number;
+  expireAt: number;
+  skill: SkillDef;
+  damageMult: number;
 }
 
 export type Combatant = PlayerEntity | MonsterEntity;

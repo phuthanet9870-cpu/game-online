@@ -202,7 +202,7 @@ export async function runGm(srv: GameServer, gm: PlayerEntity, line: string): Pr
     }
     case 'weapon': {
       const w = getWeapon(a[0]);
-      if (!w) return ['อาวุธที่ใช้ได้: sword, staff'];
+      if (!w) return ['อาวุธที่ใช้ได้: ' + WEAPON_TYPES.join(', ')];
       let it = gm.inv.bagItems().find((i) => getItem(i.defId)?.weaponType === w.type);
       if (!it) {
         const inst = createItem(w.starterItem, 1, { bound: false });

@@ -100,6 +100,17 @@ await page.click('#auto-stop');
 await page.waitForTimeout(300);
 checks.autoStopped = (await st()).self.auto === false;
 
+// 7) every weapon fires its skills in the browser without errors
+for (const w of ['dagger', 'bow', 'grimoire', 'gauntlet']) {
+  await gm(`/gm weapon ${w}`);
+  await page.waitForTimeout(300);
+  const t = await page.evaluate(() => window.__tpew().nearestMonsterScreen);
+  if (t) await page.mouse.move(t.x, t.y);
+  for (const k of ['Digit1', 'Digit2', 'Digit3']) { await page.keyboard.press(k); await page.waitForTimeout(250); }
+  await page.screenshot({ path: join(out, `6-${w}.png`) });
+  checks[`weapon_${w}`] = (await st()).char.weapon === w;
+}
+
 console.log(JSON.stringify({ checks, errors }, null, 2));
 await browser.close();
 process.exit(errors.length || Object.values(checks).some((v) => !v) ? 1 : 0);

@@ -65,7 +65,8 @@ export type GameEvent =
   | { e: 'heal'; t: number; v: number }
   | { e: 'lvl'; id: number; lvl: number }
   | { e: 'node'; id: number; ready: boolean }
-  | { e: 'counter'; id: number };
+  | { e: 'counter'; id: number }
+  | { e: 'trap'; id: number; x: number; y: number; r: number; arm: number; on: boolean; owner: number };
 
 export interface SelfState {
   x: number; y: number;
@@ -85,6 +86,8 @@ export interface SelfState {
   autoKills: number;
   /** Server-side facing (used to render self while auto drives the character). */
   fx: number; fy: number;
+  /** Damage-reduction buff remaining (s). */
+  dr: number;
 }
 
 export interface CharacterView {

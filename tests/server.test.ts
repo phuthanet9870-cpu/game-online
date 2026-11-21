@@ -39,7 +39,7 @@ test('weapon not yet implemented cannot be chosen; invalid names rejected', asyn
   c.send({ t: 'register', user: 'carl', pass: 'secret123' });
   await c.waitFor('auth_ok');
   const app = { gender: 'male', skin: 0, hairStyle: 0, hairColor: 0, face: 0, outfit: 0 };
-  c.send({ t: 'char_create', name: 'Carl', weapon: 'bow', app });
+  c.send({ t: 'char_create', name: 'Carl', weapon: 'spear', app });
   assert.equal((await c.waitFor('error')).code, 'weapon_unavailable');
   c.send({ t: 'char_create', name: 'a<b>', weapon: 'sword', app });
   assert.equal((await c.waitFor('error')).code, 'bad_name');

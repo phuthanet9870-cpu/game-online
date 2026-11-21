@@ -31,6 +31,7 @@ export interface ClientEntity {
 export interface ClientProjectile { id: number; x: number; y: number; vx: number; vy: number; r: number; born: number; life: number; fx: string; owner: number }
 export interface Telegraph { x: number; y: number; r: number; ang: number; arc: number; shape: 'circle' | 'arc'; start: number; dur: number }
 export interface Floater { x: number; y: number; text: string; color: string; start: number; big: boolean }
+export interface ClientTrap { id: number; x: number; y: number; r: number; armAt: number; owner: number }
 export interface Fx { kind: string; x: number; y: number; ax: number; ay: number; start: number; dur: number; owner: number }
 
 interface PendingInput { s: number; mx: number; my: number; dodge: boolean; block: boolean }
@@ -51,6 +52,7 @@ export class GameClient {
   seq = 0;
   ents = new Map<number, ClientEntity>();
   projectiles = new Map<number, ClientProjectile>();
+  traps = new Map<number, ClientTrap>();
   telegraphs: Telegraph[] = [];
   floaters: Floater[] = [];
   fx: Fx[] = [];
@@ -92,6 +94,7 @@ export class GameClient {
         this.selfId = m.selfId;
         this.ents.clear();
         this.projectiles.clear();
+        this.traps.clear();
         this.telegraphs = [];
         this.fx = [];
         this.pending = [];
@@ -247,6 +250,10 @@ export class GameClient {
         }
         break;
       }
+      case 'trap':
+        if (ev.on) this.traps.set(ev.id, { id: ev.id, x: ev.x, y: ev.y, r: ev.r, armAt: now + ev.arm * 1000, owner: ev.owner });
+        else if (this.traps.delete(ev.id)) this.fx.push({ kind: 'trapfire', x: ev.x, y: ev.y, ax: ev.r, ay: 0, start: now, dur: 400, owner: ev.owner });
+        break;
       case 'node': {
         const e = this.ents.get(ev.id);
         if (e && e.meta.k === 5) e.meta = { ...e.meta, ready: ev.ready };
@@ -261,6 +268,10 @@ export class GameClient {
       sword_normal: ['slash', 200], sword_heavy: ['cleave', 300], sword_blade_rush: ['rush', 300], sword_rising_slash: ['rising', 350],
       sword_guard_counter: ['guard', 900], staff_normal: ['cast', 200], staff_heavy: ['cast', 300], staff_arcane_bolt: ['cast', 200],
       staff_mana_wave: ['wave', 450], staff_mystic_barrier: ['barrier', 500], dodge: ['dodge', 250],
+      dagger_normal: ['stab', 150], dagger_heavy: ['slash', 220], dagger_shadow_step: ['shadow', 350], dagger_double_fang: ['stab2', 300], dagger_backstab: ['stab', 250],
+      bow_normal: ['cast', 150], bow_heavy: ['cast', 250], bow_triple_shot: ['cast', 200], bow_piercing_arrow: ['cast', 250], bow_evasive_shot: ['dodge', 250],
+      grimoire_normal: ['glyph', 300], grimoire_heavy: ['glyph_big', 420], grimoire_rune_trap: ['cast', 200], grimoire_binding_script: ['cast', 200], grimoire_mana_burst: ['burstzone', 600],
+      gauntlet_normal: ['punch', 150], gauntlet_heavy: ['cleave', 280], gauntlet_rapid_fist: ['rapid', 600], gauntlet_meteor_punch: ['rush', 300], gauntlet_iron_body: ['iron', 600],
     };
     const k = kinds[id];
     if (k) this.fx.push({ kind: k[0], x, y, ax, ay, start: now, dur: k[1], owner });

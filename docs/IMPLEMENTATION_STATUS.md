@@ -24,7 +24,9 @@
 | Client prediction + reconciliation + interpolation | Functional | e2e (corr 0 ใน local); ยังไม่มีเทสต์อัตโนมัติภายใต้ jitter |
 | Lag compensation (rewind ≤300ms) | Tested | server.test: attack range/cooldown |
 | Combat: normal (คอมโบ 3), heavy, dodge, block, CC (stun/knockback/slow), shields, counter | Tested | server.test: combat |
-| Sword 3 skills, Staff 3 skills (spec ครบตาม 5.7) | Functional | ทุกสกิลรันบนเซิร์ฟเวอร์; เทสต์ตรง: Blade Rush |
+| อาวุธครบ 6 ชนิด × 3 สกิล (spec ครบตาม 5.7) | Tested | `tests/weapons.test.ts` + e2e ทุกอาวุธ |
+| Point-and-click (เดิน/โจมตี/คุย/เก็บ/คลิกสกิล, A* pathfinding) | Tested | `tests/pathfind.test.ts`, e2e |
+| Auto Farm (เซิร์ฟเวอร์ควบคุม) | Tested | `tests/auto.test.ts`, e2e |
 | Monster AI (idle/patrol/detect/chase/attack windup/cast/retreat-keep-distance/leash/return/death/respawn) | Tested | server.test: AI leash |
 | Telegraphed monster attacks (หลบได้) | Tested | server.test: dodge i-frames |
 | Dynamic spawn (ตามจำนวนผู้เล่น) + farming soft cap (anti-bot) | Functional | soft cap มี unit test ของ loot multiplier |
@@ -48,7 +50,6 @@
 
 | ระบบ | สถานะ | Milestone |
 |---|---|---|
-| Dagger, Bow, Grimoire, Gauntlet | Designed (ชื่อ/บทบาท/สกิล) | M2 |
 | The Power (6 ผล, 150 ความสามารถ) | Designed (ชื่อ, schema) — **ยังไม่มีสเปกตัวเลขรายสกิล** | M3 |
 | Skill Loadout / Power Mastery / Awakening | Designed | M3 |
 | Power Rebirth Ritual | Designed | M3 |
@@ -59,5 +60,4 @@
 | Party, Guild, Trading, Marketplace | Designed | M6 |
 | Duel/Arena/Battleground/Open PvP/Guild War/Castle Siege | Designed | M7 |
 | Quest system | Designed | M5–M6 |
-| Auto Farm | Designed | M5 |
 | Load test, horizontal scaling | Not Started | M8 |

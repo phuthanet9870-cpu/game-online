@@ -6,6 +6,7 @@
 import { BTN } from '../shared/protocol.ts';
 import { SERVER_CONFIG } from '../shared/config/server.ts';
 import { findPath, lineClear } from '../shared/pathfind.ts';
+import { attackBand } from '../shared/combat.ts';
 import type { GameClient } from './game.ts';
 
 export type Order =
@@ -51,14 +52,6 @@ export class ClickController {
     this.path = findPath(g.map, g.ms.x, g.ms.y, x, y) ?? [];
   }
 
-  /** Attack range for the current weapon's basic attack. */
-  private attackRange(): number {
-    const s = this.g.weapon?.normal.shape;
-    if (!s) return 1.2;
-    if (s.kind === 'projectile') return s.range * 0.8;
-    if (s.kind === 'arc') return s.range * 0.85;
-    return 1.5;
-  }
 
   private follow(): { mx: number; my: number } {
     const g = this.g;
@@ -93,9 +86,10 @@ export class ClickController {
 
     if (o.kind === 'attack') {
       out.aimX = e.x - g.ms.x; out.aimY = e.y - g.ms.y;
-      const range = this.attackRange();
+      const [minR, maxR] = this.g.weapon ? attackBand(this.g.weapon.normal.shape) : [0, 1.2];
       const clear = lineClear(g.map, g.ms.x, g.ms.y, e.x, e.y, 0.1);
-      if (d <= range && clear) {
+      if (d < minR) { this.path = []; out.mx = -(e.x - g.ms.x) / (d || 1); out.my = -(e.y - g.ms.y) / (d || 1); }
+      else if (d <= maxR && clear) {
         out.buttons |= BTN.ATTACK;
         this.path = [];
       } else {

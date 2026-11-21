@@ -21,7 +21,23 @@ export type SkillEffect =
   | { kind: 'slow'; mult: number; duration: number }
   | { kind: 'dash'; distance: number; duration: number }
   | { kind: 'shield'; hpFraction: number; stat: DamageStat; statMult: number; duration: number }
-  | { kind: 'counter'; window: number; damageMult: number; range: number; stunDuration: number };
+  | { kind: 'counter'; window: number; damageMult: number; range: number; stunDuration: number }
+  /** Target cannot move (can still attack). */
+  | { kind: 'root'; duration: number }
+  /** Hit the same targets N times (damage per hit = mult). */
+  | { kind: 'multi'; hits: number }
+  /** Fire `count` projectiles fanned over `angleDeg`. */
+  | { kind: 'spread'; count: number; angleDeg: number }
+  /** Teleport behind the nearest enemy within range in the aim cone, then strike. */
+  | { kind: 'blink_behind'; range: number; coneDeg: number }
+  /** Damage multiplier when hitting a target from behind. */
+  | { kind: 'backstab'; mult: number }
+  /** Leave a trap that arms after `armSec`, triggers on the first enemy in radius. */
+  | { kind: 'trap'; radius: number; armSec: number; lifeSec: number; maxActive: number }
+  /** Self buff: flat damage reduction (and optional immunity to stun/knockback). */
+  | { kind: 'buff_dr'; amount: number; duration: number; superArmor: boolean }
+  /** Dash opposite to the aim before the attack resolves. */
+  | { kind: 'backdash'; distance: number; duration: number };
 
 export interface SkillDef {
   id: string;
