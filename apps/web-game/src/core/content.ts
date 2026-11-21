@@ -1,0 +1,236 @@
+import weaponsJson from '@data/weapons/weapons.json';
+import monstersJson from '@data/monsters/phase1-monsters.json';
+import playerJson from '@data/weapons/player-base.json';
+import mapJson from '@data/maps/training-ground.json';
+
+export type WeaponType = 'staff' | 'sword' | 'dagger' | 'bow' | 'grimoire' | 'gauntlet';
+export const WEAPON_TYPES: readonly WeaponType[] = [
+  'staff',
+  'sword',
+  'dagger',
+  'bow',
+  'grimoire',
+  'gauntlet',
+];
+
+export interface StatusDef {
+  id: string;
+  durationMs: number;
+  defenseMultiplier?: number;
+}
+
+export interface HitDef {
+  atMs: number;
+  shape: 'arc';
+  radius: number;
+  arcDeg: number;
+  modifier: number;
+  knockback: number;
+  applyStatus?: StatusDef;
+  interrupt?: boolean;
+}
+
+export interface CounterDef {
+  stanceMs: number;
+  radius: number;
+  arcDeg: number;
+  modifier: number;
+  knockback: number;
+}
+
+export interface ActionDef {
+  id: string;
+  name: string;
+  kind: string;
+  description?: string;
+  cooldownMs: number;
+  staminaCost: number;
+  windupMs: number;
+  activeMs: number;
+  recoveryMs: number;
+  hits?: HitDef[];
+  counter?: CounterDef;
+}
+
+export interface WeaponSkillRef {
+  id: string;
+  name: string;
+}
+
+export interface WeaponDef {
+  id: WeaponType;
+  name: string;
+  role: string;
+  implemented: boolean;
+  weaponCoefficient?: number;
+  basicAttack?: ActionDef;
+  skills: Array<WeaponSkillRef | ActionDef>;
+}
+
+export interface MonsterDef {
+  id: string;
+  name: string;
+  tier: string;
+  level: number;
+  sprite: 'slime' | 'wolf';
+  maxHp: number;
+  attack: number;
+  defense: number;
+  critChance: number;
+  moveSpeed: number;
+  chaseSpeed: number;
+  radius: number;
+  aggroRadius: number;
+  leashRadius: number;
+  attackRange: number;
+  attackWindupMs: number;
+  attackRecoveryMs: number;
+  attackCooldownMs: number;
+  alertMs: number;
+  patrolRadius: number;
+  respawnMs: number;
+  corpseMs: number;
+}
+
+export interface PlayerBaseDef {
+  level: number;
+  maxHp: number;
+  attack: number;
+  defense: number;
+  critChance: number;
+  critMultiplier: number;
+  moveSpeed: number;
+  radius: number;
+  stamina: { max: number; regenPerSec: number; regenDelayMs: number };
+  dash: {
+    staminaCost: number;
+    distance: number;
+    durationMs: number;
+    cooldownMs: number;
+    invulnerable: boolean;
+  };
+  outOfCombatMs: number;
+  outOfCombatRegenPctPerSec: number;
+  respawnDelayMs: number;
+  spawnProtectionMs: number;
+  defenseK: number;
+  maxDamage: number;
+}
+
+export interface TiledObject {
+  id: number;
+  name: string;
+  type: string;
+  x: number;
+  y: number;
+  properties?: Array<{ name: string; type: string; value: string | number | boolean }>;
+}
+
+export interface MapData {
+  mapId: string;
+  displayName: string;
+  width: number;
+  height: number;
+  tileSize: number;
+  ground: number[]; // 0-based tile ids
+  collision: number[];
+  playerSpawn: { x: number; y: number };
+  monsterSpawns: Array<{ id: string; monsterId: string; x: number; y: number }>;
+}
+
+interface RawLayer {
+  name: string;
+  type: string;
+  data?: number[];
+  objects?: TiledObject[];
+}
+
+export function parseTiledMap(raw: {
+  width: number;
+  height: number;
+  tilewidth: number;
+  properties?: Array<{ name: string; value: unknown }>;
+  layers: RawLayer[];
+}): MapData {
+  const prop = (n: string) => raw.properties?.find((p) => p.name === n)?.value;
+  const layer = (n: string) => {
+    const l = raw.layers.find((x) => x.name === n);
+    if (!l) throw new Error(`map layer '${n}' missing`);
+    return l;
+  };
+  const ground = (layer('ground').data ?? []).map((gid) => gid - 1);
+  const collision = layer('collision').data ?? [];
+  const objects = layer('objects').objects ?? [];
+  const ps = objects.find((o) => o.type === 'player_spawn');
+  if (!ps) throw new Error('player_spawn missing');
+  const monsterSpawns = objects
+    .filter((o) => o.type === 'monster_spawn')
+    .map((o) => ({
+      id: o.name,
+      monsterId: String(o.properties?.find((p) => p.name === 'monsterId')?.value ?? ''),
+      x: o.x,
+      y: o.y,
+    }));
+  return {
+    mapId: String(prop('mapId') ?? 'unknown'),
+    displayName: String(prop('displayName') ?? 'Unknown'),
+    width: raw.width,
+    height: raw.height,
+    tileSize: raw.tilewidth,
+    ground,
+    collision,
+    playerSpawn: { x: ps.x, y: ps.y },
+    monsterSpawns,
+  };
+}
+
+export const isActionDef = (s: WeaponSkillRef | ActionDef): s is ActionDef => 'cooldownMs' in s;
+
+export const CONTENT = {
+  weapons: weaponsJson.weapons as unknown as WeaponDef[],
+  monsters: monstersJson.monsters as unknown as MonsterDef[],
+  player: playerJson as unknown as PlayerBaseDef,
+  trainingMap: parseTiledMap(mapJson as unknown as Parameters<typeof parseTiledMap>[0]),
+};
+
+export function getWeapon(id: WeaponType): WeaponDef {
+  const w = CONTENT.weapons.find((x) => x.id === id);
+  if (!w) throw new Error(`weapon ${id} not found`);
+  return w;
+}
+
+/** Content integrity checks (spec §21.4 subset relevant to Phase 1). Returns a list of errors. */
+export function validateContent(c: typeof CONTENT): string[] {
+  const errors: string[] = [];
+  const ids = new Set<string>();
+  const seen = (id: string) => {
+    if (ids.has(id)) errors.push(`duplicate id ${id}`);
+    ids.add(id);
+  };
+  const types = c.weapons.map((w) => w.id).sort();
+  if (JSON.stringify(types) !== JSON.stringify([...WEAPON_TYPES].sort()))
+    errors.push(`weapon types must be exactly ${WEAPON_TYPES.join(',')}, got ${types.join(',')}`);
+  for (const w of c.weapons) {
+    seen(w.id);
+    if (w.skills.length !== 3)
+      errors.push(`${w.id} must have exactly 3 active skills, has ${w.skills.length}`);
+    for (const s of w.skills) seen(s.id);
+    if (w.implemented) {
+      if (!w.basicAttack) errors.push(`${w.id} implemented but missing basicAttack`);
+      for (const s of w.skills)
+        if (!isActionDef(s)) errors.push(`${w.id}.${s.id} implemented weapon skill lacks numbers`);
+    }
+  }
+  for (const m of c.monsters) {
+    seen(m.id);
+    if (m.maxHp <= 0 || m.attack < 0 || m.leashRadius <= m.aggroRadius)
+      errors.push(`${m.id} invalid stats (hp>0, leash>aggro required)`);
+  }
+  const map = c.trainingMap;
+  if (map.ground.length !== map.width * map.height) errors.push('map ground size mismatch');
+  if (map.collision.length !== map.width * map.height) errors.push('map collision size mismatch');
+  for (const s of map.monsterSpawns)
+    if (!c.monsters.some((m) => m.id === s.monsterId))
+      errors.push(`spawn ${s.id} references unknown ${s.monsterId}`);
+  return errors;
+}

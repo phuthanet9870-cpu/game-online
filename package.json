@@ -1,0 +1,28 @@
+{
+  "name": "the-power-eclipse",
+  "private": true,
+  "version": "0.1.0",
+  "description": "THE POWER: ECLIPSE — HTML5 Web MMORPG (Phaser + TypeScript). Phase 1: HTML5 Combat Prototype.",
+  "workspaces": [
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "npm -w @tpe/web-game run dev",
+    "build": "npm -w @tpe/web-game run build",
+    "build:single": "npm -w @tpe/web-game run build:single",
+    "preview": "npm -w @tpe/web-game run preview",
+    "typecheck": "npm -w @tpe/web-game run typecheck",
+    "lint": "npm -w @tpe/web-game run lint",
+    "format": "prettier --write .",
+    "test": "npm -w @tpe/web-game run test",
+    "test:e2e": "npm -w @tpe/web-game run test:e2e",
+    "validate:data": "node tools/content-validation/validate-phase1.mjs",
+    "check": "npm run validate:data && npm run typecheck && npm run lint && npm run test && npm run build"
+  },
+  "devDependencies": {
+    "prettier": "3.6.2"
+  }
+}

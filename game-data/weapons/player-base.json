@@ -1,0 +1,12 @@
+{
+  "contentVersion": "phase1-0.1.0",
+  "_note": "[TUNING] Phase 1 single-player placeholder character stats (Level 1). Real values come from server StatCalculationService in Phase 2+.",
+  "level": 1,
+  "maxHp": 220, "attack": 20, "defense": 5, "critChance": 0.1, "critMultiplier": 1.5,
+  "moveSpeed": 92, "radius": 6,
+  "stamina": { "max": 100, "regenPerSec": 28, "regenDelayMs": 650 },
+  "dash": { "staminaCost": 25, "distance": 58, "durationMs": 170, "cooldownMs": 450, "invulnerable": true },
+  "outOfCombatMs": 5000, "outOfCombatRegenPctPerSec": 0.03,
+  "respawnDelayMs": 3000, "spawnProtectionMs": 2000,
+  "defenseK": 50, "maxDamage": 999999
+}

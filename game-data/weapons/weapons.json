@@ -1,0 +1,60 @@
+{
+  "contentVersion": "phase1-0.1.0",
+  "_note": "All numbers are [TUNING] placeholders for Phase 1. Only 'sword' is implemented in Phase 1; other weapons are listed for data integrity (exactly 3 skills each) and become playable in Phase 3.",
+  "weapons": [
+    {
+      "id": "staff", "name": "Staff", "role": "เวทระยะกลาง", "implemented": false,
+      "skills": [{ "id": "staff_arcane_bolt", "name": "Arcane Bolt" }, { "id": "staff_magic_pulse", "name": "Magic Pulse" }, { "id": "staff_mana_channel", "name": "Mana Channel" }]
+    },
+    {
+      "id": "sword", "name": "Sword", "role": "ระยะประชิด/Counter", "implemented": true,
+      "weaponCoefficient": 1.0,
+      "basicAttack": {
+        "id": "sword_basic", "name": "Basic Attack", "kind": "basic",
+        "cooldownMs": 420, "staminaCost": 0, "windupMs": 70, "activeMs": 90, "recoveryMs": 140,
+        "hits": [{ "atMs": 70, "shape": "arc", "radius": 30, "arcDeg": 120, "modifier": 1.0, "knockback": 36 }]
+      },
+      "skills": [
+        {
+          "id": "sword_triple_slash", "name": "Triple Slash", "kind": "multi-hit",
+          "description": "ฟัน 3 ครั้งต่อเนื่องด้านหน้า ครั้งสุดท้ายแรงขึ้น",
+          "cooldownMs": 4000, "staminaCost": 15, "windupMs": 90, "activeMs": 380, "recoveryMs": 180,
+          "hits": [
+            { "atMs": 90, "shape": "arc", "radius": 32, "arcDeg": 130, "modifier": 0.7, "knockback": 10 },
+            { "atMs": 230, "shape": "arc", "radius": 32, "arcDeg": 130, "modifier": 0.7, "knockback": 10 },
+            { "atMs": 380, "shape": "arc", "radius": 36, "arcDeg": 150, "modifier": 1.2, "knockback": 60 }
+          ]
+        },
+        {
+          "id": "sword_guard_break", "name": "Guard Break", "kind": "debuff",
+          "description": "ฟันหนัก ทำลายการ์ด: ลดเกราะเป้าหมาย 50% 4 วิ และขัดจังหวะท่าโจมตี",
+          "cooldownMs": 6000, "staminaCost": 20, "windupMs": 240, "activeMs": 100, "recoveryMs": 220,
+          "hits": [{ "atMs": 240, "shape": "arc", "radius": 34, "arcDeg": 90, "modifier": 1.6, "knockback": 80,
+                     "applyStatus": { "id": "guard_break", "durationMs": 4000, "defenseMultiplier": 0.5 }, "interrupt": true }]
+        },
+        {
+          "id": "sword_counter_slash", "name": "Counter Slash", "kind": "counter",
+          "description": "ตั้งท่ารับ 0.7 วิ หากถูกโจมตีระหว่างนั้น จะไม่รับดาเมจและสวนกลับแรง 2.5 เท่า",
+          "cooldownMs": 8000, "staminaCost": 10, "windupMs": 0, "activeMs": 700, "recoveryMs": 300,
+          "counter": { "stanceMs": 700, "radius": 40, "arcDeg": 200, "modifier": 2.5, "knockback": 90 }
+        }
+      ]
+    },
+    {
+      "id": "dagger", "name": "Dagger", "role": "ลอบโจมตี/เคลื่อนที่", "implemented": false,
+      "skills": [{ "id": "dagger_shadow_step", "name": "Shadow Step" }, { "id": "dagger_backstab", "name": "Backstab" }, { "id": "dagger_blade_flurry", "name": "Blade Flurry" }]
+    },
+    {
+      "id": "bow", "name": "Bow", "role": "ยิงไกล/เว้นระยะ", "implemented": false,
+      "skills": [{ "id": "bow_piercing_arrow", "name": "Piercing Arrow" }, { "id": "bow_rapid_shot", "name": "Rapid Shot" }, { "id": "bow_evasive_shot", "name": "Evasive Shot" }]
+    },
+    {
+      "id": "grimoire", "name": "Grimoire", "role": "เวทสถานะ/สนับสนุน", "implemented": false,
+      "skills": [{ "id": "grimoire_rune_burst", "name": "Rune Burst" }, { "id": "grimoire_magic_seal", "name": "Magic Seal" }, { "id": "grimoire_mystic_ward", "name": "Mystic Ward" }]
+    },
+    {
+      "id": "gauntlet", "name": "Gauntlet", "role": "คอมโบ/ประชิด", "implemented": false,
+      "skills": [{ "id": "gauntlet_rising_fist", "name": "Rising Fist" }, { "id": "gauntlet_iron_combo", "name": "Iron Combo" }, { "id": "gauntlet_impact_smash", "name": "Impact Smash" }]
+    }
+  ]
+}
