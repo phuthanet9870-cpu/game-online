@@ -79,7 +79,17 @@ export const ITEMS: Record<string, ItemDef> = Object.fromEntries(([
   mat('mat_spore_cap', 'Spore Cap', 'หมวกเห็ดสปอร์', 'cap', '#d9534f', 2, 'วัตถุดิบคราฟต์ยา'),
   mat('mat_wisp_dust', 'Wisp Dust', 'ผงภูตแสง', 'dust', '#fff3a0', 3, 'วัตถุดิบรูน'),
   mat('mat_nature_herb', 'Verdant Herb', 'สมุนไพรเขียวขจี', 'herb', '#4fbf4f', 2, 'วัตถุดิบธรรมชาติ'),
-  mat('mat_power_fragment', 'Power Fragment', 'เศษพลัง', 'fragment', '#ff66ff', 25, 'เศษของ The Power ใช้แลกพลังได้ใน Milestone 3', 'rare'),
+  mat('mat_power_fragment', 'Power Fragment', 'เศษพลัง', 'fragment', '#ff66ff', 25, 'เศษของ The Power — 30 ชิ้น + 5,000 ทอง แลกพลังที่ปราชญ์อิลยา (Aether Capital) และใช้ปลุกพลัง', 'rare'),
+  mat('mat_ancient_rune_dust', 'Ancient Rune Dust', 'ผงรูนโบราณ', 'dust', '#c9b6ff', 12, 'วัตถุดิบ Awakening และ Rebirth Ritual (ดรอปจาก Elite)', 'uncommon'),
+  mat('mat_ritual_crystal', 'Ritual Crystal', 'คริสตัลพิธีกรรม', 'essence', '#80e0ff', 60, 'วัตถุดิบพิธีกรรม (ดรอปจาก Map Boss — ยังไม่เปิด)', 'rare'),
+  mat('mat_power_soul_fragment', 'Power Soul Fragment', 'เศษวิญญาณพลัง', 'fragment', '#ffd060', 120, 'วัตถุดิบ Rebirth Ritual (ดรอปจาก World Boss — ยังไม่เปิด)', 'epic'),
+  mat('mat_rebirth_core', 'Rebirth Core', 'แกนกำเนิดใหม่', 'essence', '#ff9060', 300, 'แกนหลักของ Rebirth Ritual (ดรอปจาก Dungeon Boss — ยังไม่เปิด)', 'epic'),
+  mat('mat_shadow_fang', 'Shadow Fang', 'เขี้ยวเงา', 'cap', '#5a3a8a', 40, 'วัตถุดิบพิธีเฉพาะ Shadow of Abyss (Shadowlands)', 'rare'),
+  mat('mat_solar_ember', 'Solar Ember', 'ถ่านสุริยะ', 'essence', '#ff8030', 40, 'วัตถุดิบพิธีเฉพาะ Solar Inferno (Sunscar Desert)', 'rare'),
+  mat('mat_thunder_heart', 'Thunder Heart', 'หัวใจอสนี', 'essence', '#ffe040', 40, 'วัตถุดิบพิธีเฉพาะ Thunder Sovereign (Stormreach)', 'rare'),
+  mat('mat_frozen_tear', 'Frozen Tear', 'น้ำตาเยือกแข็ง', 'gel', '#90e0ff', 40, 'วัตถุดิบพิธีเฉพาะ Eternal Frost (Frostbound North)', 'rare'),
+  mat('mat_gravity_stone', 'Gravity Stone', 'หินโน้มถ่วง', 'ore', '#9a7aff', 40, 'วัตถุดิบพิธีเฉพาะ Gravity Dominion (Voidfall)', 'rare'),
+  mat('mat_life_seed', 'Life Seed', 'เมล็ดชีวิต', 'herb', '#60e060', 40, 'วัตถุดิบพิธีเฉพาะ Genesis Bloom (ดรอปจาก Elder Sapling)', 'rare'),
   { id: 'rune_vitality_basic', name: 'Rune of Vitality (Basic)', nameTh: 'รูนแห่งชีวิต (พื้นฐาน)', description: 'เพิ่ม HP เมื่อฝังในช่องรูน (ระบบฝังรูน: Milestone 4)', category: 'rune', rarity: 'uncommon', stackMax: 99, levelReq: 1, sellPrice: 30, bind: 'none', icon: 'rune', color: '#58e07a' },
 ] as ItemDef[]).map((d) => [d.id, d]));
 

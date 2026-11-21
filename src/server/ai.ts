@@ -15,7 +15,7 @@ import { attackEffects, resolveMonsterAttack } from './combat.ts';
 function findTarget(z: Zone, m: MonsterEntity): PlayerEntity | null {
   let best: PlayerEntity | null = null, bestD = Infinity;
   for (const e of z.nearby(m.x, m.y, m.def.aggroRange + 1)) {
-    if (e.kind !== 1 || e.dead || (e.gm && e.gmFlags.invis)) continue;
+    if (e.kind !== 1 || e.dead || (e.gm && e.gmFlags.invis) || z.time < e.stealthUntil) continue;
     const d = dist(m.x, m.y, e.ms.x, e.ms.y);
     if (d <= m.def.aggroRange && d < bestD) { best = e; bestD = d; }
   }
@@ -86,7 +86,8 @@ export function updateMonster(z: Zone, m: MonsterEntity) {
       break;
     }
     case 'chase': {
-      if (!target || target.dead || dist(m.x, m.y, m.homeX, m.homeY) > m.def.leashRange) {
+      if (target && z.time < target.stealthUntil) { m.threat.delete(target.id); m.targetId = null; }
+      if (!target || target.dead || z.time < target.stealthUntil || dist(m.x, m.y, m.homeX, m.homeY) > m.def.leashRange) {
         // switch to next threat holder if any
         let next: PlayerEntity | null = null, best = 0;
         for (const [pid, dmg] of m.threat) {

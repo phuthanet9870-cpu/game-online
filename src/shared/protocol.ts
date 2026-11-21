@@ -11,7 +11,7 @@ import { isFiniteNum } from './math.ts';
 
 export const PROTOCOL_VERSION = 1;
 
-export const BTN = { ATTACK: 1, HEAVY: 2, DODGE: 4, BLOCK: 8, SKILL1: 16, SKILL2: 32, SKILL3: 64 } as const;
+export const BTN = { ATTACK: 1, HEAVY: 2, DODGE: 4, BLOCK: 8, SKILL1: 16, SKILL2: 32, SKILL3: 64, P1: 128, P2: 256, P3: 512, P4: 1024, P5: 2048, ULT: 4096 } as const;
 
 export type ClientMessage =
   | { t: 'hello'; v: number }
@@ -36,7 +36,11 @@ export type ClientMessage =
   | { t: 'ping'; c: number }
   | { t: 'logout' }
   | { t: 'auto_start'; cfg: unknown }
-  | { t: 'auto_stop' };
+  | { t: 'auto_stop' }
+  | { t: 'power_exchange'; npc: number; power: string }
+  | { t: 'power_awaken'; power: string }
+  | { t: 'power_loadout'; power: string; actives: (string | null)[]; ult: string | null; passives: (string | null)[] }
+  | { t: 'power_ritual'; npc: number; power: string }
 
 export const ENTITY_KIND = { PLAYER: 1, MONSTER: 2, DROP: 3, NPC: 4, NODE: 5 } as const;
 export const ANIM = { IDLE: 0, MOVE: 1, ATTACK: 2, HEAVY: 3, SKILL: 4, DODGE: 5, BLOCK: 6, HURT: 7, DEAD: 8, WINDUP: 9, CAST: 10, RETURN: 11 } as const;
@@ -53,7 +57,7 @@ export type EntityMeta =
 
 /** Compact per-tick entity state: [id, x*100, y*100, facing*100, hp%, anim, flags] */
 export type EntityState = [number, number, number, number, number, number, number];
-export const FLAG = { BLOCKING: 1, SHIELDED: 2, STUNNED: 4, INVULN: 8, SLOWED: 16, ELITE: 32 } as const;
+export const FLAG = { BLOCKING: 1, SHIELDED: 2, STUNNED: 4, INVULN: 8, SLOWED: 16, ELITE: 32, FROZEN: 64, STEALTH: 128, BURNING: 256, POISONED: 512, ROOTED: 1024 } as const;
 
 export type GameEvent =
   | { e: 'hit'; s: number; t: number; d: number; c: 0 | 1; m: 0 | 1 }
@@ -66,7 +70,12 @@ export type GameEvent =
   | { e: 'lvl'; id: number; lvl: number }
   | { e: 'node'; id: number; ready: boolean }
   | { e: 'counter'; id: number }
-  | { e: 'trap'; id: number; x: number; y: number; r: number; arm: number; on: boolean; owner: number };
+  | { e: 'trap'; id: number; x: number; y: number; r: number; arm: number; on: boolean; owner: number }
+  | { e: 'zone'; id: number; owner: number; x: number; y: number; r: number; dur: number; follow: boolean; fx: string; heal: boolean; on: boolean }
+  | { e: 'summon'; owner: number; kind: string; count: number; dur: number }
+  | { e: 'sact'; owner: number; kind: string; t: number }
+  | { e: 'frozen'; id: number }
+  | { e: 'chain'; a: number; b: number }
 
 export interface SelfState {
   x: number; y: number;
@@ -88,6 +97,11 @@ export interface SelfState {
   fx: number; fy: number;
   /** Damage-reduction buff remaining (s). */
   dr: number;
+  charges: number;
+  stealth: boolean;
+  /** active buff sources with seconds left */
+  buffs: [string, number][];
+  cheat: boolean;
 }
 
 export interface CharacterView {
@@ -112,6 +126,8 @@ export type ServerMessage =
   | { t: 'pong'; c: number; s: number }
   | { t: 'logged_out' }
   | { t: 'auto'; on: boolean; kills: number; reason: string }
+  | { t: 'powers'; owned: { id: string; awakening: number; masteryLevel: number; masteryXp: number; next: number }[]; active: string | null; loadouts: Record<string, { actives: (string | null)[]; ult: string | null; passives: (string | null)[] }>; ritualIn: number; usable: boolean }
+  | { t: 'power_npc'; npc: number; role: 'power' | 'ritual' }
   | { t: 'gm'; on: boolean; god: boolean; invis: boolean; nocd: boolean; speed: number; rates: { exp: number; drop: number; gold: number } };
 
 // ---------------------------------------------------------------- validation
@@ -143,7 +159,7 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
     case 'char_select': return isStr(o.id, 1, 64) ? { t: 'char_select', id: o.id } : null;
     case 'in':
       return isInt(o.s, 0, 2 ** 31) && inRange(o.mx, 1.5) && inRange(o.my, 1.5) && inRange(o.ax, 1.5) && inRange(o.ay, 1.5)
-        && isInt(o.b, 0, 255) && isInt(o.vt, 0, 2 ** 31)
+        && isInt(o.b, 0, 8191) && isInt(o.vt, 0, 2 ** 31)
         ? { t: 'in', s: o.s, mx: o.mx, my: o.my, ax: o.ax, ay: o.ay, b: o.b, vt: o.vt } : null;
     case 'pickup': case 'gather': case 'talk': return isInt(o.id, 0, 2 ** 31) ? { t: o.t, id: o.id } : null;
     case 'equip': case 'use': return isStr(o.uid, 1, 64) ? { t: o.t, uid: o.uid } : null;
@@ -157,6 +173,14 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
     case 'logout': return { t: 'logout' };
     case 'auto_start': return o.cfg && typeof o.cfg === 'object' ? { t: 'auto_start', cfg: o.cfg } : null;
     case 'auto_stop': return { t: 'auto_stop' };
+    case 'power_exchange': case 'power_ritual':
+      return isInt(o.npc, 0, 2 ** 31) && isStr(o.power, 1, 32) ? { t: o.t, npc: o.npc, power: o.power } : null;
+    case 'power_awaken': return isStr(o.power, 1, 32) ? { t: 'power_awaken', power: o.power } : null;
+    case 'power_loadout': {
+      const ids = (v: unknown, n: number) => Array.isArray(v) && v.length === n && v.every((x) => x === null || isStr(x, 1, 64));
+      return isStr(o.power, 1, 32) && ids(o.actives, 5) && ids(o.passives, 3) && (o.ult === null || isStr(o.ult, 1, 64))
+        ? { t: 'power_loadout', power: o.power, actives: o.actives as (string | null)[], ult: o.ult as string | null, passives: o.passives as (string | null)[] } : null;
+    }
     default: return null;
   }
 }

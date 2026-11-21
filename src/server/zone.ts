@@ -11,7 +11,8 @@ import { STAT_CONFIG } from '../shared/config/stats.ts';
 import { getItem } from '../shared/config/items.ts';
 import { moveParamsFor, stepMove, TICK_DT, type MoveParams } from '../shared/movement.ts';
 import { ANIM, BTN, FLAG, type EntityMeta, type EntityState, type GameEvent, type SelfState } from '../shared/protocol.ts';
-import type { AnyEntity, DropEntity, MonsterEntity, NodeEntity, NpcEntity, PlayerEntity, Projectile, TrapEntity } from './entities.ts';
+import type { AnyEntity, DropEntity, MonsterEntity, NodeEntity, NpcEntity, PlayerEntity, PowerZone, Projectile, TrapEntity } from './entities.ts';
+import { POWER_BITS, ULT_BIT, chainFrom, powerSkillFor, tickMonsterPower, tickPlayerPower, tickZones } from './powers.ts';
 import type { SkillDef, SkillEffect } from '../shared/config/skills.ts';
 import { dealDamage, resolveMonsterAttack, tryCast, killPlayer } from './combat.ts';
 import { updateMonster } from './ai.ts';
@@ -21,6 +22,10 @@ import type { Logger } from './util.ts';
 export interface ZoneHost {
   readonly time: number;
   readonly rates: { exp: number; drop: number; gold: number };
+  /** Stats changed (buff gained/expired): recompute and resend character view. */
+  onStatsChanged(p: PlayerEntity): void;
+  /** Power collection/mastery changed: resend powers view. */
+  onPowersChanged(p: PlayerEntity): void;
   rng(): number;
   nextId(): number;
   logger: Logger;
@@ -63,6 +68,7 @@ export class Zone {
   readonly nodes = new Map<number, NodeEntity>();
   readonly projectiles: Projectile[] = [];
   readonly traps: TrapEntity[] = [];
+  readonly powerZones: PowerZone[] = [];
   private grid = new SpatialGrid(SC.spatialCellSize);
   private history: { tick: number; pos: Map<number, [number, number]> }[] = [];
   private events: { ev: GameEvent; x: number; y: number }[] = [];
@@ -99,6 +105,7 @@ export class Zone {
       radius: def.radius, hp: s.maxHp, maxHp: s.maxHp, atk: s.atk, defense: s.def, exp: s.exp,
       state: 'idle', stateUntil: this.time + this.rng() * 3, wanderX: pos.x, wanderY: pos.y, targetId: null,
       attackReady: def.attacks.map(() => 0), windup: null, threat: new Map(), stunUntil: 0, rootUntil: 0, slowUntil: 0, slowMult: 1,
+      dots: [], frost: 0, frostUntil: 0, vulnAmount: 0, vulnUntil: 0,
       forceUntil: 0, fvx: 0, fvy: 0, respawnAt: 0, anim: ANIM.IDLE, animUntil: 0, lastHitAt: -999,
     };
     this.monsters.set(id, m);
@@ -112,6 +119,7 @@ export class Zone {
     Object.assign(m, {
       level, x: pos.x, y: pos.y, homeX: pos.x, homeY: pos.y, hp: s.maxHp, maxHp: s.maxHp, atk: s.atk, defense: s.def, exp: s.exp,
       state: 'idle', stateUntil: this.time + 1, targetId: null, windup: null, stunUntil: 0, rootUntil: 0, slowUntil: 0, forceUntil: 0,
+      dots: [], frost: 0, frostUntil: 0, vulnAmount: 0, vulnUntil: 0,
       anim: ANIM.IDLE, animUntil: 0,
     });
     m.threat.clear();
@@ -185,7 +193,8 @@ export class Zone {
       for (const s of due) s.fn();
     }
 
-    for (const m of this.monsters.values()) updateMonster(this, m);
+    for (const m of this.monsters.values()) { tickMonsterPower(this, m); updateMonster(this, m); }
+    tickZones(this);
     this.updateProjectiles();
     this.updateTraps();
 
@@ -231,11 +240,13 @@ export class Zone {
       }
     } else p.ticksWithoutInput = 0;
 
+    p.buffsNow = t;
+    tickPlayerPower(this, p);
     if (p.dead) { p.anim = ANIM.DEAD; return; }
 
     // regen
     const cfg = STAT_CONFIG.regen;
-    if (!p.blocking || p.weapon?.defensive.kind !== 'mana_guard') p.energy = Math.min(p.stats.energy, p.energy + cfg.energyPerSec * TICK_DT);
+    if (!p.blocking || p.weapon?.defensive.kind !== 'mana_guard') p.energy = Math.min(p.stats.energy, p.energy + cfg.energyPerSec * (1 + (p.powerMods.energyRegenPct ?? 0)) * TICK_DT);
     if (t - p.lastCombatAt > cfg.outOfCombatAfterSec && p.hp < p.stats.hp) {
       p.hp = Math.min(p.stats.hp, p.hp + p.stats.hp * cfg.hpOutOfCombatPerSec * TICK_DT);
     }
@@ -312,6 +323,10 @@ export class Zone {
     if (!p.weapon || p.blocking) return;
     const aimX = p.facingX, aimY = p.facingY;
     const w = p.weapon;
+    if (input.b & ULT_BIT) { const s = powerSkillFor(p, -1); if (s) tryCast(this, p, s, aimX, aimY, input.vt); return; }
+    for (let i = 0; i < POWER_BITS.length; i++) {
+      if (input.b & POWER_BITS[i]) { const s = powerSkillFor(p, i); if (s) tryCast(this, p, s, aimX, aimY, input.vt); return; }
+    }
     if (input.b & BTN.SKILL1) tryCast(this, p, w.skills[0], aimX, aimY, input.vt);
     else if (input.b & BTN.SKILL2) tryCast(this, p, w.skills[1], aimX, aimY, input.vt);
     else if (input.b & BTN.SKILL3) tryCast(this, p, w.skills[2], aimX, aimY, input.vt);
@@ -392,6 +407,8 @@ export class Zone {
             if (src.kind === 2 && tgt.kind === 1) resolveMonsterAttack(this, src, [tgt], pr.monsterAtkMult ?? 1, []);
             else if (src.kind === 1 && pr.skill) {
               dealDamage(this, src, tgt, { mult: pr.damageMult, flat: pr.skill.damage?.flat ?? 0, stat: pr.skill.damage?.stat ?? 'matk', element: pr.element, effects: pr.effects, skill: pr.skill });
+              const ch = pr.effects.find((e) => e.kind === 'chain');
+              if (ch && ch.kind === 'chain' && tgt.kind === 2) chainFrom(this, src, tgt, pr.skill, pr.damageMult, ch.jumps, ch.range);
             }
           }
           if (!pr.pierce) { done = true; break; }
@@ -463,6 +480,7 @@ export class Zone {
     return this.grid.query(p.ms.x, p.ms.y, r).filter((e) => {
       if (e === p) return false; // the client predicts itself; never replicate self as a remote entity
       if (e.kind === 1 && e.gm && e.gmFlags.invis && !p.gm) return false;
+      if (e.kind === 1 && this.time < e.stealthUntil && !p.gm) return false; // stealthed players are hidden from others
       const pos = e.kind === 1 ? e.ms : e;
       return (pos.x - p.ms.x) ** 2 + (pos.y - p.ms.y) ** 2 <= r * r;
     });
@@ -486,12 +504,16 @@ export class Zone {
       if (e.ms.rootT > 0) flags |= FLAG.STUNNED;
       if (this.time < e.iframesUntil) flags |= FLAG.INVULN;
       if (e.ms.slowT > 0) flags |= FLAG.SLOWED;
+      if (this.time < e.stealthUntil) flags |= FLAG.STEALTH;
       return [e.id, Math.round(e.ms.x * 100), Math.round(e.ms.y * 100), Math.round(Math.atan2(e.facingY, e.facingX) * 100),
         Math.max(0, Math.round((e.hp / e.stats.hp) * 100)), e.anim, flags];
     }
     let flags = 0;
     if (this.time < e.stunUntil) flags |= FLAG.STUNNED;
     if (this.time < e.slowUntil) flags |= FLAG.SLOWED;
+    if (this.time < e.rootUntil) flags |= FLAG.ROOTED;
+    if (e.frost > 0 && this.time < e.frostUntil) flags |= FLAG.FROZEN;
+    for (const d of e.dots) flags |= d.label === 'burn' ? FLAG.BURNING : FLAG.POISONED;
     if (e.state === 'return') flags |= FLAG.INVULN;
     if (e.def.tier !== 'normal') flags |= FLAG.ELITE;
     return [e.id, Math.round(e.x * 100), Math.round(e.y * 100), Math.round(Math.atan2(e.facingY, e.facingX) * 100),
@@ -510,6 +532,8 @@ export class Zone {
       hp: Math.ceil(p.hp), mhp: p.stats.hp, en: Math.floor(p.energy), men: p.stats.energy, mst: p.stats.stamina,
       shield: Math.ceil(p.shield), dead: p.dead, cd, combo: p.combo, potCd: Math.max(0, Math.round((p.potCdUntil - t) * 10) / 10),
       auto: p.auto !== null, autoKills: p.auto?.kills ?? 0, fx: Math.round(p.facingX * 1000) / 1000, fy: Math.round(p.facingY * 1000) / 1000, dr: Math.max(0, Math.round((p.drUntil - t) * 10) / 10),
+      charges: p.charges, stealth: t < p.stealthUntil, cheat: !!p.cheatDeath,
+      buffs: p.buffs.filter((b) => b.until > t).map((b) => [b.src, Math.round((b.until - t) * 10) / 10] as [string, number]),
     };
   }
 

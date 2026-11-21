@@ -10,6 +10,7 @@ import type { CharacterRecord } from './storage/types.ts';
 import type { Inventory } from './inventory.ts';
 import type { GmFlags } from './gm.ts';
 import type { AutoState } from './autofarm.ts';
+import type { PassiveMods, PowerDef } from '../shared/config/powers.ts';
 
 export type InputMsg = Extract<ClientMessage, { t: 'in' }>;
 
@@ -64,6 +65,19 @@ export interface PlayerEntity {
   gmFlags: GmFlags;
   mutedUntil: number;
   auto: AutoState | null;
+  // ---- The Power runtime (derived from rec.powers + timers)
+  power: PowerDef | null;
+  powersDirty: boolean;
+  powerMods: PassiveMods;
+  powerOnHit: { chance: number; effects: SkillEffect[] }[];
+  buffs: { until: number; stats?: Partial<Record<string, number>>; statsPct?: Partial<Record<string, number>>; src: string }[];
+  stealthUntil: number;
+  /** Server time used when recomputing buffs (set by the zone). */
+  buffsNow?: number;
+  charges: number;
+  cheatDeath: { until: number; hpPct: number } | null;
+  reflect: { until: number; fraction: number } | null;
+  summons: { kind: string; until: number; nextAt: number; atkMult: number; interval: number; range: number }[];
   /** Server times of kills made under auto (rolling hourly cap). */
   autoKillTimes: number[];
 }
@@ -91,6 +105,9 @@ export interface MonsterEntity {
   stunUntil: number;
   rootUntil: number;
   slowUntil: number; slowMult: number;
+  dots: { dps: number; until: number; nextAt: number; srcId: number; label: string }[];
+  frost: number; frostUntil: number;
+  vulnAmount: number; vulnUntil: number;
   forceUntil: number; fvx: number; fvy: number;
   respawnAt: number;
   anim: number; animUntil: number;
@@ -130,6 +147,20 @@ export interface Projectile {
   element: Element;
   effects: SkillEffect[];
   monsterAtkMult?: number;
+}
+
+export interface PowerZone {
+  id: number;
+  ownerId: number;
+  x: number; y: number;
+  radius: number;
+  until: number;
+  nextTick: number;
+  tick: number;
+  follow: boolean;
+  skill: SkillDef;
+  damageMult: number;
+  healPct: number;
 }
 
 export interface TrapEntity {

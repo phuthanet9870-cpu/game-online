@@ -108,6 +108,7 @@ export const MONSTERS: Record<string, MonsterDef> = Object.fromEntries(([
       { itemId: 'wpn_wolfbane_blade', chance: 0.12, min: 1, max: 1, rarityWeights: { uncommon: 70, rare: 25, epic: 5 } },
       { itemId: 'acc_wolf_fang_necklace', chance: 0.15, min: 1, max: 1, rarityWeights: { uncommon: 75, rare: 22, epic: 3 } },
       { itemId: 'rune_vitality_basic', chance: 0.1, min: 1, max: 1 },
+      { itemId: 'mat_ancient_rune_dust', chance: 0.35, min: 1, max: 3 },
       { itemId: 'mat_power_fragment', chance: POWER_FRAGMENT_ELITE, min: 1, max: 2 }],
     palette: { body: '#6e5a52', dark: '#3a2a26', light: '#c9b8a8', eye: '#ff3a3a' } },
 
@@ -165,6 +166,8 @@ export const MONSTERS: Record<string, MonsterDef> = Object.fromEntries(([
     loot: [{ itemId: 'mat_nature_herb', chance: 1, min: 3, max: 6 }, { itemId: 'mat_soul_essence', chance: 0.7, min: 3, max: 5 },
       { itemId: 'wpn_sylvan_staff', chance: 0.12, min: 1, max: 1, rarityWeights: { uncommon: 70, rare: 25, epic: 5 } },
       { itemId: 'rune_vitality_basic', chance: 0.18, min: 1, max: 1 },
+      { itemId: 'mat_ancient_rune_dust', chance: 0.5, min: 2, max: 4 },
+      { itemId: 'mat_life_seed', chance: 0.12, min: 1, max: 1 },
       { itemId: 'mat_power_fragment', chance: POWER_FRAGMENT_ELITE, min: 1, max: 2 }],
     palette: { body: '#5a3e24', dark: '#2e1e10', light: '#6fd36f', eye: '#ffe066' } },
 ] as MonsterDef[]).map((m) => [m.id, m]));

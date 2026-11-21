@@ -65,6 +65,10 @@ export const MIGRATIONS: { id: number; name: string; sql: string }[] = [
     id: 2, name: 'account_bans',
     sql: `ALTER TABLE accounts ADD COLUMN banned_until INTEGER NOT NULL DEFAULT 0;`,
   },
+  {
+    id: 3, name: 'the_power',
+    sql: `ALTER TABLE characters ADD COLUMN powers TEXT NOT NULL DEFAULT '{"owned":[],"active":null,"loadouts":{},"ritualReadyAt":0}';`,
+  },
 ];
 
 type Row = Record<string, unknown>;
@@ -132,7 +136,7 @@ export class SqliteStorage implements Storage {
     return {
       id: String(r.id), accountId: String(r.account_id), name: String(r.name), app: JSON.parse(String(r.appearance)),
       level: Number(r.level), exp: Number(r.exp), restedExp: Number(r.rested_exp), gold: Number(r.gold), zoneId: String(r.zone_id),
-      x: Number(r.x), y: Number(r.y), hp: Number(r.hp), energy: Number(r.energy), mastery: JSON.parse(String(r.mastery)),
+      x: Number(r.x), y: Number(r.y), hp: Number(r.hp), energy: Number(r.energy), mastery: JSON.parse(String(r.mastery)), powers: JSON.parse(String(r.powers ?? '{}')),
       items, createdAt: Number(r.created_at), lastSeen: Number(r.last_seen), version: Number(r.version),
     };
   }
@@ -150,10 +154,10 @@ export class SqliteStorage implements Storage {
   async createCharacter(c: CharacterRecord) {
     try {
       this.tx(() => {
-        this.db.prepare(`INSERT INTO characters (id, account_id, name, name_lower, appearance, level, exp, rested_exp, gold, zone_id, x, y, hp, energy, mastery, created_at, last_seen, version)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        this.db.prepare(`INSERT INTO characters (id, account_id, name, name_lower, appearance, level, exp, rested_exp, gold, zone_id, x, y, hp, energy, mastery, created_at, last_seen, version, powers)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
           .run(c.id, c.accountId, c.name, c.name.toLowerCase(), JSON.stringify(c.app), c.level, c.exp, c.restedExp, c.gold, c.zoneId, c.x, c.y, c.hp, c.energy,
-            JSON.stringify(c.mastery), c.createdAt, c.lastSeen, c.version);
+            JSON.stringify(c.mastery), c.createdAt, c.lastSeen, c.version, JSON.stringify(c.powers));
         this.writeItems(c);
       });
     } catch (e) {
@@ -171,8 +175,8 @@ export class SqliteStorage implements Storage {
   async saveCharacter(c: CharacterRecord) {
     return this.tx(() => {
       const res = this.db.prepare(`UPDATE characters SET level = ?, exp = ?, rested_exp = ?, gold = ?, zone_id = ?, x = ?, y = ?, hp = ?, energy = ?,
-          mastery = ?, last_seen = ?, version = ? WHERE id = ? AND version = ?`)
-        .run(c.level, c.exp, c.restedExp, c.gold, c.zoneId, c.x, c.y, c.hp, c.energy, JSON.stringify(c.mastery), c.lastSeen, c.version, c.id, c.version - 1);
+          mastery = ?, powers = ?, last_seen = ?, version = ? WHERE id = ? AND version = ?`)
+        .run(c.level, c.exp, c.restedExp, c.gold, c.zoneId, c.x, c.y, c.hp, c.energy, JSON.stringify(c.mastery), JSON.stringify(c.powers), c.lastSeen, c.version, c.id, c.version - 1);
       if (Number(res.changes) !== 1) return 'stale' as const;
       this.writeItems(c);
       return 'ok' as const;

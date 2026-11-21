@@ -3,7 +3,7 @@
  * compensation for instant attacks), damage, status effects, kills, rewards.
  */
 import { shapeHits, rollDamage, type AttackerStats, type DefenderStats } from '../shared/combat.ts';
-import type { DamageStat, Element, SkillDef, SkillEffect } from '../shared/config/skills.ts';
+import type { DamageStat, Element, SkillDef, SkillEffect, SkillStat } from '../shared/config/skills.ts';
 import { PROGRESSION, levelDiffMult } from '../shared/config/progression.ts';
 import type { MonsterAttack } from '../shared/config/monsters.ts';
 import { STAT_CONFIG } from '../shared/config/stats.ts';
@@ -18,13 +18,15 @@ import { rollLoot } from './loot.ts';
 import { recomputeStats } from './playerStats.ts';
 import { AUTO_CONFIG } from '../shared/config/auto.ts';
 import { stopAuto } from './autofarm.ts';
+import { addPowerMastery, applyCasterEffects, applyPowerTargetEffects, chainFrom, healPlayer, powerDamageMult, trueDamage } from './powers.ts';
+import { POWER_CONFIG } from '../shared/config/powers.ts';
 
 const KNOCKBACK_TIME = 0.18;
 
 export interface HitOptions {
   mult: number;
   flat: number;
-  stat: DamageStat;
+  stat: SkillStat;
   element: Element;
   effects: SkillEffect[];
   skill: SkillDef | null;
@@ -40,7 +42,9 @@ export function tryCast(z: Zone, p: PlayerEntity, skill: SkillDef, aimX: number,
   const t = z.time;
   if (p.dead || p.ms.rootT > 0 || p.ms.forceT > 0 || p.ms.dodgeT > 0) return false;
   if (t < p.actionLockUntil) return false;
-  if (!p.weapon || skill.weapon !== p.weapon.type) return false;
+  if (!p.weapon) return false;
+  const isPower = skill.type.startsWith('power');
+  if (isPower ? !p.power : skill.weapon !== p.weapon.type) return false;
   if (p.rec.level < skill.unlockLevel) return false;
   const free = p.gm && p.gmFlags.nocd;
   if (!free && (p.cooldowns.get(skill.id) ?? 0) > t) return false;
@@ -63,7 +67,10 @@ export function tryCast(z: Zone, p: PlayerEntity, skill: SkillDef, aimX: number,
   p.anim = skill.type === 'normal' ? ANIM.ATTACK : skill.type === 'heavy' ? ANIM.HEAVY : ANIM.SKILL;
   p.animUntil = t + Math.max(anim, 0.2);
 
-  let mult = (skill.damage?.mult ?? 0) * masteryDamageMult(p.rec, p.weapon.type) * skill.pveMult;
+  if (skill.damage) p.stealthUntil = 0; // attacking reveals you
+  if (isPower && addPowerMastery(p, POWER_CONFIG.mastery.xpPerCast)) p.session?.send({ t: 'notice', kind: 'level', text: `Power Mastery ${p.power!.nameTh} Lv.${p.rec.powers.owned.find((o) => o.id === p.power!.id)?.masteryLevel}` });
+  if (isPower) z.host.onPowersChanged(p);
+  let mult = (skill.damage?.mult ?? 0) * (isPower ? powerDamageMult(p, skill) : masteryDamageMult(p.rec, p.weapon.type)) * skill.pveMult;
   if (skill.type === 'normal') {
     const w = p.weapon.combo;
     p.combo = t - p.lastNormalAt <= w.window ? (p.combo % w.hits) + 1 : 1;
@@ -108,6 +115,11 @@ function resolveSkill(z: Zone, p: PlayerEntity, skill: SkillDef, ax: number, ay:
   const hitOpts = (m: number): HitOptions => ({
     mult: m, flat: skill.damage?.flat ?? 0, stat: skill.damage?.stat ?? 'patk', element: skill.element, effects: skill.effects, skill,
   });
+
+  const consume = findEff(skill, 'consume_charge');
+  if (consume && p.charges > 0) { mult *= 1 + p.charges * consume.multPer; p.charges = 0; }
+  if (skill.type.startsWith('power')) applyCasterEffects(z, p, skill, ax, ay, mult);
+  if (findEff(skill, 'blink') && shape.kind !== 'self') { ax = p.facingX; ay = p.facingY; viewTick = null; }
 
   if (shape.kind === 'self') {
     for (const ef of skill.effects) {
@@ -192,18 +204,22 @@ function resolveSkill(z: Zone, p: PlayerEntity, skill: SkillDef, ax: number, ay:
   }
 
   const hits = findEff(skill, 'multi')?.hits ?? 1;
+  const chain = findEff(skill, 'chain');
   const reach = effShape.kind === 'arc' ? effShape.range : effShape.kind === 'circle' ? effShape.radius + effShape.forward : effShape.kind === 'line' ? effShape.length : 0;
   for (const e of z.nearby(ox, oy, reach + 2)) {
     if (e.kind !== 2 || e.state === 'dead') continue;
     const pos = viewTick !== null ? z.rewoundPos(e.id, viewTick) ?? [e.x, e.y] : [e.x, e.y];
     if (!shapeHits(effShape, ox, oy, ax, ay, pos[0], pos[1], e.radius)) continue;
+    if (!skill.damage) { applyEffects(z, p, e, skill.effects); continue; } // control-only shapes (e.g. Smoke Veil)
     for (let h = 0; h < hits && (e.state as string) !== 'dead'; h++) dealDamage(z, p, e, hitOpts(mult));
+    if (chain && (e.state as string) !== 'dead') chainFrom(z, p, e, skill, mult, chain.jumps, chain.range);
   }
 }
 
-function attackerStats(src: Combatant, stat: DamageStat): AttackerStats {
+function attackerStats(src: Combatant, statIn: SkillStat): AttackerStats {
   if (src.kind === 1) {
     const s = src.stats;
+    const stat: DamageStat = statIn === 'weapon' ? src.weapon?.damageStat ?? 'patk' : statIn;
     return { atk: s[stat], critRate: s.critRate, critDmg: s.critDmg, accuracy: s.accuracy, armorPen: s.armorPen, bossDmg: s.bossDmg };
   }
   return { atk: src.atk, critRate: 0.05, critDmg: 1.5, accuracy: 0.95, armorPen: 0 };
@@ -241,7 +257,7 @@ export function dealDamage(z: Zone, src: Combatant, tgt: Combatant, o: HitOption
   }
 
   const a = attackerStats(src, o.stat);
-  const physical = src.kind === 1 ? o.stat === 'patk' : src.def.damageType === 'physical';
+  const physical = src.kind === 1 ? (o.stat === 'weapon' ? src.weapon?.damageStat ?? 'patk' : o.stat) === 'patk' : src.def.damageType === 'physical';
   const d: DefenderStats = tgt.kind === 1
     ? { def: physical ? tgt.stats.pdef : tgt.stats.mdef, evasion: tgt.stats.evasion, pvpDR: tgt.stats.pvpDR }
     : { def: tgt.defense, evasion: 0.02, resist: tgt.def.resist, isBoss: tgt.def.tier === 'map_boss' || tgt.def.tier === 'world_boss' };
@@ -259,6 +275,21 @@ export function dealDamage(z: Zone, src: Combatant, tgt: Combatant, o: HitOption
     const tf = tgt.kind === 1 ? { x: tgt.facingX, y: tgt.facingY } : { x: tgt.facingX, y: tgt.facingY };
     if (angleBetween(tf.x, tf.y, spos.x - tpos.x, spos.y - tpos.y) > (110 * Math.PI) / 180) mult *= bs.mult;
   }
+  // ---- The Power modifiers (player -> monster)
+  if (src.kind === 1 && tgt.kind === 2) {
+    const mods = src.powerMods;
+    const hpFrac = tgt.hp / tgt.maxHp;
+    const controlled = t < tgt.stunUntil || t < tgt.rootUntil;
+    for (const ef of o.effects) {
+      if (ef.kind === 'execute' && hpFrac < ef.threshold) mult *= ef.mult;
+      if (ef.kind === 'shatter' && controlled) mult *= ef.mult;
+      if (ef.kind === 'pierce_def') a.armorPen = Math.min(1, a.armorPen + ef.amount);
+    }
+    if (mods.lowHpBonus && hpFrac < 0.5) mult *= 1 + mods.lowHpBonus;
+    if (mods.shatterBonus && controlled) mult *= 1 + mods.shatterBonus;
+    if (mods.elementBonus && src.power && o.element === src.power.element) mult *= 1 + mods.elementBonus;
+    if (t < tgt.vulnUntil) mult *= 1 + tgt.vulnAmount;
+  }
 
   const roll = rollDamage(a, d, mult, o.flat, o.element, 'pve', () => z.rng());
   if (roll.miss) {
@@ -272,6 +303,13 @@ export function dealDamage(z: Zone, src: Combatant, tgt: Combatant, o: HitOption
     amount -= absorbed;
   }
   tgt.hp -= amount;
+  // cheat death (Phoenix Rebirth / Life Miracle)
+  if (tgt.kind === 1 && tgt.hp <= 0 && tgt.cheatDeath && tgt.cheatDeath.until > t) {
+    tgt.hp = Math.max(1, tgt.stats.hp * tgt.cheatDeath.hpPct);
+    tgt.cheatDeath = null;
+    z.emit({ e: 'heal', t: tgt.id, v: Math.round(tgt.hp) }, tpos.x, tpos.y);
+    z.emit({ e: 'counter', id: tgt.id }, tpos.x, tpos.y);
+  }
   z.emit({ e: 'hit', s: src.id, t: tgt.id, d: roll.amount, c: roll.crit ? 1 : 0, m: 0 }, tpos.x, tpos.y);
 
   if (src.kind === 1) {
@@ -290,8 +328,16 @@ export function dealDamage(z: Zone, src: Combatant, tgt: Combatant, o: HitOption
   }
 
   applyEffects(z, src, tgt, o.effects);
+  if (src.kind === 1 && tgt.kind === 2) {
+    applyPowerTargetEffects(z, src, tgt, o.effects);
+    for (const proc of src.powerOnHit) if (z.rng() < proc.chance) applyPowerTargetEffects(z, src, tgt, proc.effects);
+    const ls = o.effects.find((e): e is Extract<SkillEffect, { kind: 'lifesteal' }> => e.kind === 'lifesteal');
+    if (ls) healPlayer(z, src, roll.amount * ls.fraction);
+  }
+  // Thorn Armor style reflect
+  if (tgt.kind === 1 && src.kind === 2 && tgt.reflect && tgt.reflect.until > t && amount > 0) trueDamage(z, tgt, src, amount * tgt.reflect.fraction);
 
-  if (tgt.hp <= 0) {
+  if (tgt.hp <= 0 && (tgt.kind === 1 || tgt.state !== 'dead')) {
     if (tgt.kind === 2) killMonster(z, tgt);
     else killPlayer(z, tgt);
   }
@@ -304,13 +350,14 @@ function applyEffects(z: Zone, src: Combatant, tgt: Combatant, effects: SkillEff
   const tpos = tgt.kind === 1 ? tgt.ms : tgt;
   for (const ef of effects) {
     if (tgt.kind === 1 && t < tgt.superArmorUntil && (ef.kind === 'stun' || ef.kind === 'knockback' || ef.kind === 'root')) continue;
+    const cc = src.kind === 1 ? 1 + (src.powerMods.ccBonus ?? 0) : 1;
     if (ef.kind === 'root') {
-      if (tgt.kind === 2) tgt.rootUntil = Math.max(tgt.rootUntil, t + ef.duration * (tgt.def.tier === 'normal' ? 1 : 0.4));
+      if (tgt.kind === 2) tgt.rootUntil = Math.max(tgt.rootUntil, t + ef.duration * cc * (tgt.def.tier === 'normal' ? 1 : 0.4));
       else tgt.ms.rootT = Math.max(tgt.ms.rootT, ef.duration * (1 - tgt.stats.ccRes));
     } else if (ef.kind === 'stun') {
       if (tgt.kind === 2) {
         const resist = tgt.def.tier === 'normal' ? 1 : 0.4; // elites shrug off CC faster
-        tgt.stunUntil = Math.max(tgt.stunUntil, t + ef.duration * resist);
+        tgt.stunUntil = Math.max(tgt.stunUntil, t + ef.duration * resist * cc);
         tgt.windup = null;
         if (tgt.state === 'windup') tgt.state = 'chase';
       } else {
@@ -373,6 +420,8 @@ export function killMonster(z: Zone, m: MonsterEntity) {
     const exp = m.exp * share * levelDiffMult(p.rec.level, m.level) * capMult * z.host.rates.exp;
     const res = grantExp(p.rec, exp);
     if (p.weapon) addMastery(p.rec, p.weapon.type, PROGRESSION.weaponMastery.xpPerKill);
+    if (p.power) { addPowerMastery(p, POWER_CONFIG.mastery.xpPerKill); z.host.onPowersChanged(p); }
+    if (p.powerMods.healOnKill) healPlayer(z, p, p.stats.hp * p.powerMods.healOnKill);
     p.charDirty = true;
     p.dirty = true;
     if (res.levelsGained > 0) {
@@ -403,6 +452,8 @@ export function killPlayer(z: Zone, p: PlayerEntity) {
   p.anim = ANIM.DEAD;
   p.ms.dodgeT = 0; p.ms.forceT = 0;
   stopAuto(p, 'ตัวละครตาย');
+  p.summons = [];
+  p.charges = 0;
   const lost = deathPenalty(p.rec);
   p.charDirty = true;
   p.dirty = true;

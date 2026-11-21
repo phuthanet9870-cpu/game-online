@@ -6,7 +6,7 @@
 
 export interface PortalDef { id: string; x: number; y: number; w: number; h: number; to: string; toX: number; toY: number; label: string }
 export interface SpawnGroupDef { id: string; monsterId: string; x: number; y: number; radius: number; baseCount: number; perPlayer: number; maxCount: number }
-export interface NpcDef { id: string; name: string; nameTh: string; role: 'shop' | 'info'; x: number; y: number; shopId?: string; dialogue: string[]; color: string }
+export interface NpcDef { id: string; name: string; nameTh: string; role: 'shop' | 'info' | 'power' | 'ritual'; x: number; y: number; shopId?: string; dialogue: string[]; color: string }
 export interface ResourceNodeDef { id: string; kind: 'herb' | 'ore'; x: number; y: number; itemId: string; min: number; max: number; respawnSec: number }
 export interface HazardDef { id: string; kind: 'mud' | 'thorns'; x: number; y: number; radius: number; slowMult: number; dpsFraction: number }
 export interface StructureDef { kind: 'house' | 'shop' | 'smithy' | 'hall' | 'wall' | 'fountain'; x: number; y: number; w: number; h: number }
@@ -39,7 +39,10 @@ export const ZONES: Record<string, ZoneDef> = {
     id: 'aether_capital', name: 'Aether Capital', nameTh: 'นครอีเธอร์', region: 'Capital', kind: 'city', safe: true,
     levelRange: [1, 100], width: 56, height: 56, seed: 1001, biome: 'city',
     spawnPoint: { x: 28, y: 33 },
-    portals: [{ id: 'east_gate', x: 54, y: 26, w: 2, h: 4, to: 'greenfall_plains', toX: 4.5, toY: 50, label: 'Greenfall Plains →' }],
+    portals: [
+      { id: 'east_gate', x: 54, y: 26, w: 2, h: 4, to: 'greenfall_plains', toX: 4.5, toY: 50, label: 'Greenfall Plains →' },
+      { id: 'west_gate', x: 0, y: 27, w: 2, h: 4, to: 'warhaven_citadel', toX: 50.5, toY: 28.5, label: '← Warhaven Citadel' },
+    ],
     spawnGroups: [],
     npcs: [
       { id: 'npc_merchant', name: 'Mira the Merchant', nameTh: 'มิร่า พ่อค้า', role: 'shop', shopId: 'aether_general', x: 21.5, y: 24.5, color: '#3b7dd8',
@@ -48,13 +51,13 @@ export const ZONES: Record<string, ZoneDef> = {
         dialogue: ['ประตูตะวันออกพาไปสู่ Greenfall Plains', 'สไลม์และหมูป่าเหมาะกับมือใหม่ ส่วนหมาป่าจ่าฝูงทางตะวันออกเฉียงเหนือนั้นอันตราย', 'ไกลออกไปทางเหนือคือ Whispering Forest สำหรับเลเวล 6 ขึ้นไป'] },
       { id: 'npc_smith', name: 'Borin the Blacksmith', nameTh: 'โบริน ช่างตีเหล็ก', role: 'info', x: 34.5, y: 24.5, color: '#7f8c8d',
         dialogue: ['ระบบตีบวก +20 เจาะรูน และรีฟอร์จออปชั่น ยังไม่เปิดให้บริการ (Milestone 4)', 'เก็บแร่เหล็กไว้ก่อน เดี๋ยวได้ใช้แน่'] },
-      { id: 'npc_sage', name: 'Elder Sage Ilya', nameTh: 'ปราชญ์อิลยา', role: 'info', x: 28.5, y: 20.5, color: '#8e44ad',
-        dialogue: ['The Power คือพลังที่ต้องตามหาเองจากมอนสเตอร์และบอส', 'เศษพลัง (Power Fragment) ที่เจ้าเก็บได้ จะใช้แลกพลังได้เมื่อระบบ The Power เปิด (Milestone 3)'] },
+      { id: 'npc_sage', name: 'Elder Sage Ilya', nameTh: 'ปราชญ์อิลยา', role: 'power', x: 28.5, y: 20.5, color: '#8e44ad',
+        dialogue: ['The Power คือพลังที่ต้องตามหาเองจากมอนสเตอร์และบอส', 'นำเศษพลัง 30 ชิ้นกับทอง 5,000 มา ข้าจะหลอมให้เป็นพลังที่เจ้าเลือก', 'ถ้าจะเปลี่ยนพลังที่ใช้อยู่ ต้องไปทำพิธีที่ Power Rebirth Temple ใน Warhaven Citadel'] },
     ],
     resourceNodes: [], hazards: [],
     structures: [
       { kind: 'wall', x: 0, y: 0, w: 56, h: 2 }, { kind: 'wall', x: 0, y: 54, w: 56, h: 2 },
-      { kind: 'wall', x: 0, y: 0, w: 2, h: 56 }, { kind: 'wall', x: 54, y: 0, w: 2, h: 26 }, { kind: 'wall', x: 54, y: 30, w: 2, h: 26 },
+      { kind: 'wall', x: 0, y: 0, w: 2, h: 27 }, { kind: 'wall', x: 0, y: 31, w: 2, h: 25 }, { kind: 'wall', x: 54, y: 0, w: 2, h: 26 }, { kind: 'wall', x: 54, y: 30, w: 2, h: 26 },
       { kind: 'shop', x: 18, y: 18, w: 7, h: 5 }, { kind: 'smithy', x: 31, y: 18, w: 7, h: 5 },
       { kind: 'hall', x: 24, y: 10, w: 9, h: 8 },
       { kind: 'house', x: 8, y: 8, w: 6, h: 5 }, { kind: 'house', x: 8, y: 20, w: 5, h: 5 }, { kind: 'house', x: 8, y: 36, w: 6, h: 5 },
@@ -138,6 +141,31 @@ export const ZONES: Record<string, ZoneDef> = {
     structures: [],
     routes: [[{ x: 50, y: 96 }, { x: 50, y: 70 }, { x: 40, y: 50 }, { x: 50, y: 30 }, { x: 48, y: 14 }], [{ x: 50, y: 70 }, { x: 72, y: 50 }, { x: 64, y: 24 }]],
   },
+};
+
+ZONES.warhaven_citadel = {
+  id: 'warhaven_citadel', name: 'Warhaven Citadel', nameTh: 'ป้อมวอร์เฮเวน', region: 'Capital', kind: 'city', safe: true,
+  levelRange: [1, 100], width: 56, height: 56, seed: 1002, biome: 'city',
+  spawnPoint: { x: 46, y: 28.5 },
+  portals: [{ id: 'east_gate', x: 54, y: 26, w: 2, h: 5, to: 'aether_capital', toX: 4.5, toY: 29, label: 'Aether Capital →' }],
+  spawnGroups: [],
+  npcs: [
+    { id: 'npc_priestess', name: 'High Priestess Seren', nameTh: 'นักบวชสูงเซเรน', role: 'ritual', x: 27.5, y: 19.5, color: '#d0b050',
+      dialogue: ['นี่คือ Power Rebirth Temple ผู้ที่ต้องการเปลี่ยนพลังต้องผ่านพิธีกรรม', 'พลังเดิมจะถูกเก็บไว้ใน Power Collection พร้อม Mastery ทั้งหมด ไม่มีวันสูญหาย', 'พิธีใช้วัตถุดิบหายากจากบอสและดันเจี้ยน และทำได้ทุก 12 ชั่วโมง'] },
+    { id: 'npc_guildclerk', name: 'Guild Clerk Mara', nameTh: 'เสมียนกิลด์มาร่า', role: 'info', x: 16.5, y: 30.5, color: '#2c7a4a',
+      dialogue: ['การจดทะเบียนกิลด์และ Guild War ยังไม่เปิด (Milestone 6–7)'] },
+    { id: 'npc_warmaster', name: 'Warmaster Dorn', nameTh: 'แม่ทัพดอร์น', role: 'info', x: 38.5, y: 34.5, color: '#9a2a2a',
+      dialogue: ['อันดับ PvP และ Castle War จะเปิดใน Milestone 7', 'ระหว่างนี้จงฝึกฝีมือในทุ่งให้เชี่ยวชาญ'] },
+  ],
+  resourceNodes: [], hazards: [],
+  structures: [
+    { kind: 'wall', x: 0, y: 0, w: 56, h: 2 }, { kind: 'wall', x: 0, y: 54, w: 56, h: 2 }, { kind: 'wall', x: 0, y: 0, w: 2, h: 56 },
+    { kind: 'wall', x: 54, y: 0, w: 2, h: 26 }, { kind: 'wall', x: 54, y: 31, w: 2, h: 25 },
+    { kind: 'hall', x: 22, y: 9, w: 11, h: 9 }, { kind: 'house', x: 10, y: 24, w: 6, h: 6 }, { kind: 'smithy', x: 40, y: 36, w: 6, h: 5 },
+    { kind: 'house', x: 8, y: 40, w: 6, h: 6 }, { kind: 'house', x: 42, y: 8, w: 6, h: 6 }, { kind: 'house', x: 20, y: 42, w: 7, h: 5 },
+    { kind: 'fountain', x: 27, y: 27, w: 3, h: 3 },
+  ],
+  routes: [],
 };
 
 export const START_ZONE = 'aether_capital';

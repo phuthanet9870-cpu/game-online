@@ -46,7 +46,7 @@ test('movement: client prediction replay reproduces server state exactly', () =>
 
 test('movement: walls block, dodge costs stamina and has cooldown', () => {
   const map = generateMap(ZONES.aether_capital);
-  const s = newMoveState(3, 28.5, 100); // near the west wall (x<2 is wall)
+  const s = newMoveState(3, 14.5, 100); // near the west wall (x<2 is wall; the gate is at y 27-31)
   for (let i = 0; i < 40; i++) stepMove(s, { mx: -1, my: 0, dodge: false, block: false }, params, map);
   assert.ok(s.x >= 2 + 0.3 - 1e-9, `x=${s.x}`);
   const d = newMoveState(28, 33, 100);

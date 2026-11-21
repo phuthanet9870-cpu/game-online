@@ -17,13 +17,14 @@ import type { PlayerEntity } from './entities.ts';
 import { Inventory, createItem } from './inventory.ts';
 import { accrueRested } from './progression.ts';
 import { recomputeStats } from './playerStats.ts';
-import type { CharacterRecord, Storage } from './storage/types.ts';
+import { emptyPowerState, type CharacterRecord, type Storage } from './storage/types.ts';
 import { TokenBucket, consoleLogger, cryptoRng, type Logger } from './util.ts';
 import { hashPassword, randomToken, verifyPassword } from './auth.ts';
 import { Zone, type ZoneHost } from './zone.ts';
 import { validateConfig } from './validateConfig.ts';
 import { defaultGmFlags, runGm } from './gm.ts';
 import { grantExp } from './progression.ts';
+import { awaken, exchangeFragments, performRitual, powersView, setLoadout } from './powers.ts';
 import { USE_ERRORS, useItem } from './actions.ts';
 import { canStartAuto, startAuto, stopAuto } from './autofarm.ts';
 import { sanitizeAuto } from '../shared/config/auto.ts';
@@ -134,6 +135,7 @@ export class GameServer implements ZoneHost {
     for (const p of this.onlineChars.values()) {
       if (p.invDirty) { p.invDirty = false; this.sendInv(p); }
       if (p.charDirty) { p.charDirty = false; this.sendChar(p); }
+      if (p.powersDirty) { p.powersDirty = false; this.sendPowers(p); }
       if (p.session === null && p.disconnectedAt !== null && this.time - p.disconnectedAt >= SC.disconnectGraceSec) {
         this.removeFromWorld(p, 'disconnect_timeout');
       }
@@ -314,7 +316,7 @@ export class GameServer implements ZoneHost {
     return {
       id: crypto.randomUUID(), accountId, name, app, level: 1, exp: 0, restedExp: 0, gold: 100,
       zoneId: z.id, x: z.spawnPoint.x, y: z.spawnPoint.y, hp: stats.hp, energy: stats.energy,
-      mastery: { [weapon]: { level: 0, xp: 0 } }, items: inv.items, createdAt: now, lastSeen: now, version: 1,
+      mastery: { [weapon]: { level: 0, xp: 0 } }, items: inv.items, powers: emptyPowerState(), createdAt: now, lastSeen: now, version: 1,
     };
   }
 
@@ -338,11 +340,13 @@ export class GameServer implements ZoneHost {
       z.addPlayer(online, online.ms.x, online.ms.y);
       this.sendInv(online);
       this.sendChar(online);
+      this.sendPowers(online);
       return;
     }
     const rec = await this.storage.loadCharacter(charId);
     if (!rec || rec.accountId !== s.accountId) return this.err(s, 'not_yours', 'Character not found');
     if (this.onlineChars.has(charId)) return this.enterWorld(s, charId); // raced with another select
+    rec.powers = { ...emptyPowerState(), ...(rec.powers ?? {}) };
     accrueRested(rec, this.now());
     const p = this.makePlayer(rec);
     this.onlineChars.set(rec.id, p);
@@ -357,6 +361,7 @@ export class GameServer implements ZoneHost {
     zone.addPlayer(p, x, y);
     this.sendInv(p);
     this.sendChar(p);
+    this.sendPowers(p);
     p.session?.send({ t: 'chat', ch: 'system', from: 'System', text: `ยินดีต้อนรับสู่ ${zone.def.name}, ${rec.name}!` });
     this.audit(p, 'enter_world', { zone: zone.def.id });
   }
@@ -382,6 +387,7 @@ export class GameServer implements ZoneHost {
       known: new Set(), anim: ANIM.IDLE, animUntil: 0, killTimes: [], dirty: false, invDirty: false, charDirty: false,
       lastSaveAt: 0, saving: Promise.resolve(), hazardTickAt: 0,
       gm: false, gmFlags: defaultGmFlags(), mutedUntil: 0, auto: null, autoKillTimes: [],
+      power: null, powerMods: {}, powerOnHit: [], powersDirty: false, buffs: [], stealthUntil: 0, charges: 0, cheatDeath: null, reflect: null, summons: [],
     };
     recomputeStats(p);
     return p;
@@ -399,6 +405,7 @@ export class GameServer implements ZoneHost {
     const to = this.zones.get(zoneId);
     if (!to) { this.logger.error('transfer to unknown zone', zoneId); return; }
     stopAuto(p, 'เปลี่ยนแผนที่');
+    p.summons = [];
     from?.removePlayer(p);
     to.addPlayer(p, x, y);
     this.requestSave(p, 'zone_change');
@@ -483,7 +490,11 @@ export class GameServer implements ZoneHost {
         const npc = z.npcs.get(msg.id);
         if (!npc) return this.err(s, 'no_npc', 'NPC not found');
         if ((npc.x - p.ms.x) ** 2 + (npc.y - p.ms.y) ** 2 > SC.npcRange ** 2) return this.err(s, 'too_far', 'เข้าใกล้ NPC กว่านี้');
-        if (npc.def.role === 'shop' && npc.def.shopId && SHOPS[npc.def.shopId]) {
+        if (npc.def.role === 'power' || npc.def.role === 'ritual') {
+          s.conn.send({ t: 'dialog', npc: npc.id, name: npc.def.nameTh, lines: npc.def.dialogue });
+          s.conn.send({ t: 'power_npc', npc: npc.id, role: npc.def.role });
+          this.sendPowers(p);
+        } else if (npc.def.role === 'shop' && npc.def.shopId && SHOPS[npc.def.shopId]) {
           const shop = SHOPS[npc.def.shopId];
           s.conn.send({ t: 'shop', npc: npc.id, shopId: shop.id, items: shop.items });
         } else s.conn.send({ t: 'dialog', npc: npc.id, name: npc.def.nameTh, lines: npc.def.dialogue });
@@ -521,6 +532,37 @@ export class GameServer implements ZoneHost {
         startAuto(z, p, cfg);
         this.audit(p, 'auto_start', { zone: z.def.id, cfg });
         s.conn.send({ t: 'auto', on: true, kills: 0, reason: '' });
+        return;
+      }
+      case 'power_exchange':
+      case 'power_ritual': {
+        const npc = z.npcs.get(msg.npc);
+        const role = msg.t === 'power_exchange' ? 'power' : 'ritual';
+        if (!npc || npc.def.role !== role) return this.err(s, 'no_npc', msg.t === 'power_exchange' ? 'ต้องคุยกับปราชญ์แห่งพลัง' : 'ต้องทำพิธีที่ Power Rebirth Temple');
+        if ((npc.x - p.ms.x) ** 2 + (npc.y - p.ms.y) ** 2 > SC.npcRange ** 2) return this.err(s, 'too_far', 'เข้าใกล้ NPC กว่านี้');
+        const r = msg.t === 'power_exchange' ? exchangeFragments(p, msg.power) : performRitual(p, msg.power, this.now(), this.time - p.lastCombatAt < 8);
+        if (!r.ok) return this.err(s, r.code, r.msg);
+        this.audit(p, msg.t, { power: msg.power, gold: p.rec.gold });
+        this.afterPowerChange(p);
+        this.requestSave(p, msg.t);
+        s.conn.send({ t: 'notice', kind: 'level', text: r.msg });
+        return;
+      }
+      case 'power_awaken': {
+        const r = awaken(p, msg.power);
+        if (!r.ok) return this.err(s, r.code, r.msg);
+        this.audit(p, 'power_awaken', { power: msg.power });
+        this.afterPowerChange(p);
+        this.requestSave(p, 'power_awaken');
+        s.conn.send({ t: 'notice', kind: 'level', text: r.msg });
+        return;
+      }
+      case 'power_loadout': {
+        if (this.time - p.lastCombatAt < 5) return this.err(s, 'combat', 'เปลี่ยน loadout ระหว่างต่อสู้ไม่ได้ (รอ 5 วินาที)');
+        const r = setLoadout(p, msg.power, { actives: msg.actives, ult: msg.ult, passives: msg.passives });
+        if (!r.ok) return this.err(s, r.code, r.msg);
+        this.afterPowerChange(p);
+        s.conn.send({ t: 'notice', kind: 'info', text: r.msg });
         return;
       }
       case 'auto_stop': {
@@ -603,6 +645,11 @@ export class GameServer implements ZoneHost {
         this.violation(s, 'unexpected_' + msg.t);
     }
   }
+
+  // ----------------------------------------------------------- The Power hooks
+  onStatsChanged(p: PlayerEntity) { recomputeStats(p); p.charDirty = true; }
+  onPowersChanged(p: PlayerEntity) { p.powersDirty = true; }
+  sendPowers(p: PlayerEntity) { p.session?.send({ t: 'powers', ...powersView(p, this.now()) }); }
 
   // ----------------------------------------------------------- GM
   private chatCommand(s: Session, p: PlayerEntity, text: string) {
@@ -688,11 +735,16 @@ export class GameServer implements ZoneHost {
     p.charDirty = true; p.dirty = true;
   }
 
+  afterPowerChange(p: PlayerEntity) {
+    recomputeStats(p);
+    p.invDirty = true; p.charDirty = true; p.powersDirty = true; p.dirty = true;
+  }
+
   private afterEquipChange(z: Zone, p: PlayerEntity) {
     const prevWeapon = p.weapon?.type;
     recomputeStats(p);
     if (p.weapon?.type !== prevWeapon) { p.combo = 0; z.invalidateMeta(p.id); }
-    p.invDirty = true; p.charDirty = true; p.dirty = true;
+    p.invDirty = true; p.charDirty = true; p.powersDirty = true; p.dirty = true;
     this.requestSave(p, 'equip');
   }
 

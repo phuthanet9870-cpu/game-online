@@ -15,6 +15,8 @@ import type { GameServer } from './GameServer.ts';
 import { createItem } from './inventory.ts';
 import { killMonster, killPlayer } from './combat.ts';
 import { recomputeStats } from './playerStats.ts';
+import { ALL_POWER_IDS, grantPower } from './powers.ts';
+import { getPower } from '../shared/config/powers.ts';
 
 export interface GmFlags { god: boolean; invis: boolean; nocd: boolean; speed: number }
 export const defaultGmFlags = (): GmFlags => ({ god: false, invis: false, nocd: false, speed: 1 });
@@ -36,6 +38,8 @@ export const GM_HELP = [
   '/gm spawn <monsterId> [count] | /gm killmobs [radius] | /gm clearmobs [radius] | /gm respawn',
   '/gm rates [exp drop gold] — ตัวคูณ event ทั้งเซิร์ฟ เช่น /gm rates 2 1.5 1',
   '/gm kick <ชื่อ> | /gm mute <ชื่อ> <นาที> | /gm ban <ชื่อ> <ชั่วโมง> | /gm unban <username>',
+  '/gm power <id|all> [awakening 1-3] [ชื่อ] — ให้ The Power (shadow solar thunder frost gravity genesis)',
+  '/gm setpower <id> — เปลี่ยนพลังที่ใช้ทันที (ข้ามพิธี) · /gm mastery_power <lv>',
   '/gm announce <ข้อความ>',
   '/gm items [ค้นหา] | /gm monsters — รายการ id',
   '/gm off — ปิดสิทธิ์ GM ของเซสชันนี้',
@@ -140,6 +144,36 @@ export async function runGm(srv: GameServer, gm: PlayerEntity, line: string): Pr
       t.invDirty = true; t.dirty = true;
       srv.requestSave(t, 'gm_itemall');
       return [`เสกหมวด ${cat}: ${ok}/${defs.length} ชนิด ×${qty} ให้ ${t.rec.name}`, ...(missed.length ? [`กระเป๋าเต็ม — ไม่ได้: ${missed.join(', ')}`] : [])];
+    }
+    case 'power': {
+      const ids = a[0] === 'all' ? ALL_POWER_IDS : [a[0] ?? ''];
+      const aw = Math.max(1, Math.min(3, Math.floor(num(a[1], 1))));
+      const t = who(a[2]);
+      if (typeof t === 'string') return [t];
+      const out: string[] = [];
+      for (const id of ids) {
+        const own = t.rec.powers.owned.find((o) => o.id === id);
+        if (own) { own.awakening = Math.max(own.awakening, aw); out.push(`${id}: ตั้ง Awakening ${own.awakening}`); continue; }
+        const r = grantPower(t, id, aw);
+        out.push(r.msg);
+      }
+      srv.afterPowerChange(t);
+      srv.requestSave(t, 'gm_power');
+      return out;
+    }
+    case 'setpower': {
+      const def = getPower(a[0]);
+      if (!def || !gm.rec.powers.owned.some((o) => o.id === def.id)) return ['ต้องเป็นพลังที่มีอยู่ (ใช้ /gm power ก่อน)'];
+      gm.rec.powers.active = def.id;
+      srv.afterPowerChange(gm);
+      return [`ใช้พลัง ${def.nameTh}${gm.power ? '' : ' (อาวุธปัจจุบันใช้พลังนี้ไม่ได้)'}`];
+    }
+    case 'mastery_power': {
+      const own = gm.rec.powers.owned.find((o) => o.id === gm.rec.powers.active);
+      if (!own) return ['ยังไม่มีพลังที่ใช้อยู่'];
+      own.masteryLevel = Math.max(0, Math.min(20, Math.floor(num(a[0], 0)))); own.masteryXp = 0;
+      srv.afterPowerChange(gm);
+      return [`Power Mastery → ${own.masteryLevel}`];
     }
     case 'gold': {
       const amt = Math.trunc(num(a[0], 0));
