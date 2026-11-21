@@ -54,7 +54,7 @@ console.log("ok   unlocked");
 g.send(Msg.gm, { op: "online" });
 for (let i = 0; i < 40 && !online; i++) await wait(50);
 if (!online?.players.some((p) => p.name === "GmTarget")) fail("online list misses the target");
-console.log(`ok   online: ${online.players.map((p) => `${p.name}@${p.map}`).join(", ")}`);
+console.log(`ok   online: ${online!.players.map((p) => `${p.name}@${p.map}`).join(", ")}`);
 
 await gm({ op: "level", target: "GmTarget", base: 20, job: 10 });
 await wait(200);

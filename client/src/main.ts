@@ -25,6 +25,7 @@ import { MOB_BY_ID, type JobKey, type Mob, type StatKey } from "../../shared/rul
 import { playerStatus } from "../../shared/rules/status.ts";
 import { ITEMS, gearOf } from "../../shared/rules/items.ts";
 import { initWorldMap, setWorldMapMap, updateWorldMap } from "./ui/worldmap.ts";
+import { bindGm, handleGmInput } from "./ui/gm.ts";
 import { thingName } from "./worldItems.ts";
 import { addFloor, addNpc, clearThings, nearestFloor, npcSeeUnits, pickThing, removeThing, updateThings } from "./worldItems.ts";
 import { cardAck, closeShop, getInventory, initItems, openCardList, openShop, setHotkeys, setInventory, setWeight } from "./ui/items.ts";
@@ -411,6 +412,7 @@ function enterWorld(r: Room) {
   setPartyMap(mapName);
   bindEmotions(r); // NPC scripts in the world: emotion bubbles and npctalk lines (ui/emotion.ts)
   bindTower(r); // 2.7.0 floor guardian hint panel (ui/tower.ts)
+  bindGm(r); // GM window (ui/gm.ts, server/src/gm.ts)
   bindBoss(r, { entity: (id) => { const e = entities.get(id); return e && { pos: e.pos, name: e.name, top: e.view.standTop(), dead: e.dead,
     spotlight: (sec: number) => (e.view as { spotlight?: (s: number) => void }).spotlight?.(sec) }; },
     screen: (p) => { const q = p.clone().project(camera); return { x: (q.x + 1) / 2 * innerWidth, y: (1 - q.y) / 2 * innerHeight }; }, me: () => r.sessionId, fx }); // MVP effect, rewards, announcements, boss move FX (ui/boss.ts)
@@ -797,7 +799,7 @@ const chatInput = $<HTMLInputElement>("chat-input");
 $<HTMLFormElement>("chat-form").addEventListener("submit", (ev) => {
   ev.preventDefault();
   const text = chatInput.value.trim();
-  if (text && !handleDuelInput(text) && !handleChatInput(text)) room?.send(Msg.chat, { text });
+  if (text && !handleGmInput(text) && !handleDuelInput(text) && !handleChatInput(text)) room?.send(Msg.chat, { text });
   chatInput.value = "";
   chatInput.blur();
 });

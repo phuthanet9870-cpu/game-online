@@ -1,0 +1,57 @@
+/* GM window (ui/gm.ts): a floating panel on the right, the same quiet surfaces as the map window (style.css UI tokens). */
+#gm-panel {
+  position: fixed; z-index: 55; top: 72px; right: 72px; width: 360px; max-height: calc(100vh - 96px); display: flex; flex-direction: column;
+  background: var(--ui-surface, #f7f8fb); color: var(--ui-text, #1d2433); border-radius: 14px; overflow: hidden;
+  box-shadow: 0 18px 48px rgba(8, 12, 24, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.06); font: 12px/1.4 var(--ui-font, Inter, system-ui, sans-serif);
+}
+#gm-panel[hidden] { display: none; }
+#gm-panel .gm-head { display: flex; align-items: center; gap: 8px; padding: 10px 10px 10px 14px; border-bottom: 1px solid var(--ui-line, #e3e7ef); cursor: move; user-select: none; }
+#gm-panel .gm-head strong { font-size: 13px; flex: 1; }
+#gm-panel .gm-badge { background: #d9443a; color: #fff; font-weight: 800; font-size: 10px; letter-spacing: 0.08em; padding: 2px 6px; border-radius: 5px; }
+#gm-panel .gm-tabs { display: flex; gap: 2px; padding: 2px; background: var(--ui-sunken, #eceff5); border-radius: 8px; }
+#gm-panel .gm-tabs button { border: 0; background: none; padding: 4px 9px; border-radius: 6px; font: inherit; font-weight: 600; color: var(--ui-muted, #6b7487); cursor: pointer; }
+#gm-panel .gm-tabs button.on { background: var(--ui-surface, #fff); color: var(--ui-text, #1d2433); box-shadow: 0 1px 2px rgba(20, 28, 48, 0.15); }
+#gm-panel .gm-x { border: 0; background: none; width: 26px; height: 26px; border-radius: 6px; color: var(--ui-muted, #6b7487); cursor: pointer; }
+#gm-panel .gm-x:hover { background: var(--ui-sunken, #eceff5); }
+#gm-panel .gm-body { overflow: auto; padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 12px; }
+#gm-panel .gm-section { display: flex; flex-direction: column; gap: 6px; }
+#gm-panel h4 { margin: 0; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ui-muted, #6b7487); }
+#gm-panel .gm-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+#gm-panel .gm-row > input, #gm-panel .gm-row > select { flex: 1; min-width: 0; }
+#gm-panel label { display: flex; align-items: center; gap: 5px; color: var(--ui-muted, #6b7487); flex: 1; min-width: 0; }
+#gm-panel label input { flex: 1; min-width: 0; }
+#gm-panel input, #gm-panel select {
+  height: 28px; padding: 0 8px; border: 1px solid var(--ui-line, #d9dee8); border-radius: 7px; background: var(--ui-field, #fff);
+  color: var(--ui-text, #1d2433); font: inherit;
+}
+#gm-panel input.short { flex: 0 0 64px; width: 64px; }
+#gm-panel input:focus, #gm-panel select:focus { outline: none; border-color: var(--ui-accent, #3b82f6); box-shadow: 0 0 0 3px var(--ui-accent-ring, rgba(59, 130, 246, 0.2)); }
+#gm-panel .unit { color: var(--ui-muted, #6b7487); }
+#gm-panel button[data-a] {
+  height: 28px; padding: 0 11px; border: 0; border-radius: 7px; background: var(--ui-text, #1d2433); color: #fff; font: inherit; font-weight: 600; cursor: pointer;
+}
+#gm-panel button[data-a]:hover { filter: brightness(1.15); }
+#gm-panel button[data-a].ghost { background: var(--ui-sunken, #eceff5); color: var(--ui-text, #1d2433); }
+#gm-panel button[data-a].warn { background: #d9443a; }
+#gm-panel button:focus-visible { outline: 2px solid var(--ui-accent, #3b82f6); outline-offset: 1px; }
+#gm-panel .gm-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+#gm-panel .gm-list { display: flex; flex-direction: column; gap: 4px; max-height: 170px; overflow: auto; }
+#gm-panel .gm-p {
+  display: grid; grid-template-columns: 1fr auto; gap: 1px 8px; text-align: left; padding: 7px 9px; border: 1px solid var(--ui-line, #e3e7ef);
+  border-radius: 8px; background: var(--ui-field, #fff); font: inherit; color: inherit; cursor: pointer;
+}
+#gm-panel .gm-p.on { border-color: var(--ui-accent, #3b82f6); background: var(--ui-accent-soft, #e8f0ff); }
+#gm-panel .gm-p .nm { font-weight: 700; }
+#gm-panel .gm-p .meta { grid-column: 1; color: var(--ui-muted, #6b7487); font-size: 11px; }
+#gm-panel .gm-p .hp { grid-column: 2; grid-row: 1 / 3; align-self: center; width: 54px; height: 5px; border-radius: 3px; background: var(--ui-sunken, #eceff5); overflow: hidden; }
+#gm-panel .gm-p .hp i { display: block; height: 100%; background: #3fb46b; }
+#gm-panel .tag { font-style: normal; font-size: 9px; font-weight: 800; padding: 1px 4px; border-radius: 4px; background: #d9443a; color: #fff; vertical-align: 1px; }
+#gm-panel .tag.mute { background: #8a93a8; } #gm-panel .tag.dead { background: #1d2433; }
+#gm-panel .gm-note, #gm-panel .gm-empty { margin: 0; color: var(--ui-muted, #6b7487); font-size: 11px; }
+#gm-panel .gm-log { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+#gm-panel .gm-log li { padding: 6px 8px; border-radius: 7px; background: var(--ui-field, #fff); border-left: 3px solid #3fb46b; }
+#gm-panel .gm-log li.no { border-left-color: #d9443a; }
+#gm-panel .gm-log time { color: var(--ui-muted, #6b7487); margin-right: 8px; font-variant-numeric: tabular-nums; }
+#gm-panel .gm-toast { margin: 0 14px 12px; padding: 8px 10px; border-radius: 8px; font-weight: 600; }
+#gm-panel .gm-toast.ok { background: #e6f6ec; color: #1f7a45; }
+#gm-panel .gm-toast.no { background: #fdeceb; color: #a8322a; }

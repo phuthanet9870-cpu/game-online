@@ -1,8 +1,10 @@
 // Minimal Node `process` for the in-page server. Installed on globalThis before any server module is evaluated.
+declare const __GM_PASSPHRASE__: string; // vite.config.ts, from the build's environment
 const env: Record<string, string> = {
   GAME_NAME: "ro",
   RO_STORE: "pglite",
   NODE_ENV: "production",
+  ...(__GM_PASSPHRASE__ ? { GM_PASSPHRASE: __GM_PASSPHRASE__ } : {}),
 };
 const start = performance.now();
 const proc = {

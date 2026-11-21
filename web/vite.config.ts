@@ -42,7 +42,8 @@ export default defineConfig({
   publicDir: false,
   // server/src reads its config from process.env at runtime (shims/process.ts); the game build keeps NODE_ENV=production
   // fixed (no GM shortcuts), the selftest build reads it at runtime so the bots can use them
-  define: { "process.env": "globalThis.process.env", ...(SELFTEST ? { "process.env.NODE_ENV": "globalThis.process.env.NODE_ENV" } : {}) },
+  // GM_PASSPHRASE comes from the build's environment only (never committed): the in-page server checks "/gm<passphrase>" with it
+  define: { "process.env": "globalThis.process.env", __GM_PASSPHRASE__: JSON.stringify(process.env.GM_PASSPHRASE ?? ""), ...(SELFTEST ? { "process.env.NODE_ENV": "globalThis.process.env.NODE_ENV" } : {}) },
   plugins: [browserServer()],
   optimizeDeps: { exclude: ["@electric-sql/pglite"] },
   server: { fs: { allow: [".."] } },
