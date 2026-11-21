@@ -82,7 +82,13 @@ export class Hud {
     this.bag.hidden = !this.bag.hidden;
   }
 
+  private shownHp = "";
+
+  /** Cheap to call every frame: touches the DOM only when the value changes. */
   setHp(hp: number, maxHp: number) {
+    const key = `${hp}/${maxHp}`;
+    if (key === this.shownHp) return;
+    this.shownHp = key;
     const f = maxHp > 0 ? hp / maxHp : 0;
     this.hpFill.style.width = `${Math.round(f * 100)}%`;
     this.hpFill.dataset.level = f > 0.5 ? "ok" : f > 0.25 ? "warn" : "low";

@@ -44,7 +44,8 @@ declare global {
 const STORE_KEY = "lumen-realm.character";
 const BAG_KEY = "lumen-realm.bag";
 const PRESENCE_INTERVAL_MS = 100;
-const SNAPSHOT_INTERVAL_MS = 200;
+/** The host sends monsters, loot and hits together, this often, as one `tick` message. */
+const BROADCAST_MS = 100;
 /** Extra cells of slack the host allows for network lag when checking reach. */
 const REACH_SLACK = 1;
 
@@ -210,7 +211,7 @@ async function play(me: Saved) {
   // Host-only state.
   let sim: WorldSim | null = null;
   let hostTimer: ReturnType<typeof setInterval> | null = null;
-  let pendingHits: Array<[string, string, number, number]> = [];
+  let outgoingHits: Array<[string, string, number, number]> = [];
   const lastSwing = new Map<string, number>();
 
   const saveMe = () => writeJson(STORE_KEY, { name: me.name, color: me.color, x: Math.round(walker.x), y: Math.round(walker.y), hp });
@@ -324,7 +325,8 @@ async function play(me: Saved) {
       const it = world.items.get(pickupTarget);
       if (!it) { pickupTarget = null; return; }
       if (cellDistance(walker, it) <= 1 && walker.path.length <= 1) {
-        void send("take", { id: pickupTarget }).catch(() => {});
+        if (sim) handleTake(myPeer, { id: pickupTarget });
+        else void send("take", { id: pickupTarget }).catch(() => {});
         pickupTarget = null;
       }
       return;
@@ -336,7 +338,8 @@ async function play(me: Saved) {
       if (walker.path.length > 1) walker.path = walker.path.slice(0, 1);
       if (walker.path.length === 0 && now >= nextSwingAt) {
         nextSwingAt = now + PLAYER_BASE.attackDelayMs;
-        void send("swing", { id: attackTarget }).catch(() => {});
+        if (sim) handleSwing(myPeer, { id: attackTarget });
+        else void send("swing", { id: attackTarget }).catch(() => {});
       }
     } else if (now >= nextRepathAt) {
       nextRepathAt = now + 300;
@@ -392,16 +395,11 @@ async function play(me: Saved) {
 
   const fromHost = (msg: Message) => msg.peer === hostPeer;
 
-  on("mobs", (msg) => {
-    if (!fromHost(msg)) return;
-    const snap = decodeSnapshot(msg.data);
-    if (snap) applySnapshot(snap);
-  });
-
-  on("hits", (msg) => {
-    if (!fromHost(msg) || !Array.isArray(msg.data)) return;
+  /** Show hits and apply the ones that landed on this page's character. */
+  function applyHits(rows: unknown) {
+    if (!Array.isArray(rows)) return;
     const now = performance.now();
-    for (const row of msg.data.slice(0, 100)) {
+    for (const row of rows.slice(0, 100)) {
       if (!Array.isArray(row)) continue;
       const [from, to, dmg, miss] = row as [unknown, unknown, unknown, unknown];
       if (typeof from !== "string" || typeof to !== "string") continue;
@@ -423,17 +421,27 @@ async function play(me: Saved) {
         }
       }
     }
+  }
+
+  // The host renders from its own sim, so it ignores its own echo.
+  on("tick", (msg) => {
+    if (!fromHost(msg) || msg.sameTab) return;
+    const snap = decodeSnapshot(msg.data);
+    if (snap) applySnapshot(snap);
+    applyHits((msg.data as { h?: unknown })?.h);
   });
 
-  on("taken", (msg) => {
-    if (!fromHost(msg)) return;
-    const d = msg.data as { by?: unknown; item?: unknown; refused?: unknown };
+  function applyTaken(d: { by?: unknown; item?: unknown; refused?: unknown }) {
     if (d?.by !== myPeer || typeof d.item !== "string" || !ITEMS[d.item]) return;
     if (d.refused === true) return hud.addLine("", `${ITEMS[d.item].name} เป็นของผู้เล่นอื่นอยู่ รออีกสักครู่`, "system");
     bag[d.item] = (bag[d.item] ?? 0) + 1;
     writeJson(BAG_KEY, bag);
     showBag();
     hud.addLine("", `ได้รับ ${ITEMS[d.item].name}`, "system");
+  }
+
+  on("taken", (msg) => {
+    if (fromHost(msg) && !msg.sameTab) applyTaken(msg.data as { by?: unknown });
   });
 
   on("chat", (msg) => {
@@ -483,7 +491,7 @@ async function play(me: Saved) {
       }
     }
     const host = sim;
-    let lastSnapshot = 0;
+    let lastBroadcast = 0;
     hostTimer = setInterval(() => {
       const t = Date.now();
       const positions = playerPositions();
@@ -494,14 +502,15 @@ async function play(me: Saved) {
       }
       for (const id of [...host.players.keys()]) if (!positions.has(id)) host.removePlayer(id);
       const events = host.tick(TICK_MS, t);
-      for (const h of events.hits) pendingHits.push([h.from, h.to, h.damage, h.miss ? 1 : 0]);
-      if (pendingHits.length > 0) {
-        const batch = pendingHits.splice(0, 60);
-        void send("hits", batch).catch(() => {});
-      }
-      if (t - lastSnapshot >= SNAPSHOT_INTERVAL_MS) {
-        lastSnapshot = t;
-        void send("mobs", encodeSnapshot(host)).catch(() => {});
+      hostHits(events.hits);
+      // The host sees its own world every tick, with no network round trip.
+      const snapshot = encodeSnapshot(host);
+      const local = decodeSnapshot(snapshot);
+      if (local) applySnapshot(local);
+      // Everyone else gets one combined message per BROADCAST_MS, well inside the room's send budget.
+      if (t - lastBroadcast >= BROADCAST_MS) {
+        lastBroadcast = t;
+        void send("tick", { ...snapshot, h: outgoingHits.splice(0, 60) }).catch(() => {});
       }
     }, TICK_MS);
     hud.addLine("", "หน้านี้กำลังควบคุมมอนสเตอร์ให้ทุกคนในห้อง", "system");
@@ -511,33 +520,46 @@ async function play(me: Saved) {
     if (hostTimer) clearInterval(hostTimer);
     hostTimer = null;
     sim = null;
-    pendingHits = [];
+    outgoingHits = [];
   }
 
-  on("swing", (msg) => {
+  /** Show hits now on the host page and queue them for everyone else. */
+  function hostHits(hits: Array<{ from: string; to: string; damage: number; miss: boolean }>) {
+    if (hits.length === 0) return;
+    const rows = hits.map((h): [string, string, number, number] => [h.from, h.to, h.damage, h.miss ? 1 : 0]);
+    applyHits(rows);
+    outgoingHits.push(...rows);
+  }
+
+  /** Judge one swing (from any page, the host's own included). */
+  function handleSwing(peer: string, data: unknown) {
     if (!sim) return;
-    const id = (msg.data as { id?: unknown })?.id;
-    const pos = playerPositions().get(msg.peer);
+    const id = (data as { id?: unknown })?.id;
+    const pos = playerPositions().get(peer);
     const m = typeof id === "string" ? sim.monsters.monsters.get(id) : undefined;
     if (!pos || pos.hp <= 0 || !m || m.mode === "dead") return;
     if (cellDistance(pos, m.walker) > PLAYER_BASE.attackRange + REACH_SLACK) return;
     const t = Date.now();
-    if (t - (lastSwing.get(msg.peer) ?? 0) < PLAYER_BASE.attackDelayMs * 0.8) return;
-    lastSwing.set(msg.peer, t);
-    const r = sim.strike(msg.peer, PLAYER_BASE, m.id, t);
-    for (const h of r.hits) pendingHits.push([h.from, h.to, h.damage, h.miss ? 1 : 0]);
-  });
+    if (t - (lastSwing.get(peer) ?? 0) < PLAYER_BASE.attackDelayMs * 0.8) return;
+    lastSwing.set(peer, t);
+    hostHits(sim.strike(peer, PLAYER_BASE, m.id, t).hits);
+  }
 
-  on("take", (msg) => {
+  function handleTake(peer: string, data: unknown) {
     if (!sim) return;
-    const id = (msg.data as { id?: unknown })?.id;
-    const pos = playerPositions().get(msg.peer);
+    const id = (data as { id?: unknown })?.id;
+    const pos = playerPositions().get(peer);
     const item = typeof id === "string" ? sim.items.get(id) : undefined;
     if (!pos || pos.hp <= 0 || !item || cellDistance(pos, item) > 1 + REACH_SLACK) return;
-    const taken = sim.take(msg.peer, item.id, Date.now());
-    void send("taken", { by: msg.peer, item: item.itemId, ...(taken ? {} : { refused: true }) }).catch(() => {});
-    if (taken) void send("mobs", encodeSnapshot(sim)).catch(() => {});
-  });
+    const taken = sim.take(peer, item.id, Date.now());
+    const result = { by: peer, item: item.itemId, ...(taken ? {} : { refused: true }) };
+    if (peer === myPeer) applyTaken(result);
+    else void send("taken", result).catch(() => {});
+  }
+
+  // Requests from other pages; the host handles its own directly, without a round trip.
+  on("swing", (msg) => { if (!msg.sameTab) handleSwing(msg.peer, msg.data); });
+  on("take", (msg) => { if (!msg.sameTab) handleTake(msg.peer, msg.data); });
 
   const cleanups: Array<() => void> = [];
   function stop() {

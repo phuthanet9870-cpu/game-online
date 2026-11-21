@@ -48,7 +48,8 @@ export class WorldView {
     private readonly perFrame: (dt: number, now: number) => void,
   ) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // 1.5x keeps edges sharp on high-DPI screens at about half the pixel cost of 2x.
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     container.append(this.renderer.domElement);
 
