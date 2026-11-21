@@ -1,0 +1,27 @@
+{
+  "name": "the-power-eternal-war",
+  "version": "0.1.0",
+  "private": true,
+  "description": "THE POWER: ETERNAL WAR - online HTML5 MMORPG (server-authoritative)",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "npm run build && node --disable-warning=ExperimentalWarning dist/server.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --disable-warning=ExperimentalWarning --import tsx --test tests/*.test.ts",
+    "e2e": "npm run build && node tests/e2e/artifact-smoke.mjs && node tests/e2e/online-multiplayer.mjs"
+  },
+  "engines": {
+    "node": ">=22.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/ws": "^8.5.13",
+    "esbuild": "^0.24.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

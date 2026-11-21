@@ -1,0 +1,333 @@
+/**
+ * Server-side combat resolution: skill validation, hit detection (with lag
+ * compensation for instant attacks), damage, status effects, kills, rewards.
+ */
+import { shapeHits, rollDamage, type AttackerStats, type DefenderStats } from '../shared/combat.ts';
+import type { DamageStat, Element, SkillDef, SkillEffect } from '../shared/config/skills.ts';
+import { PROGRESSION, levelDiffMult } from '../shared/config/progression.ts';
+import type { MonsterAttack } from '../shared/config/monsters.ts';
+import { STAT_CONFIG } from '../shared/config/stats.ts';
+import { angleBetween, normalize } from '../shared/math.ts';
+import { moveWithCollision } from '../shared/movement.ts';
+import { ANIM } from '../shared/protocol.ts';
+import type { Combatant, MonsterEntity, PlayerEntity } from './entities.ts';
+import type { Zone } from './zone.ts';
+import { addMastery, deathPenalty, grantExp, masteryDamageMult } from './progression.ts';
+import { rollLoot } from './loot.ts';
+import { recomputeStats } from './playerStats.ts';
+
+const KNOCKBACK_TIME = 0.18;
+
+export interface HitOptions {
+  mult: number;
+  flat: number;
+  stat: DamageStat;
+  element: Element;
+  effects: SkillEffect[];
+  skill: SkillDef | null;
+}
+
+function cooldownFor(p: PlayerEntity, skill: SkillDef): number {
+  if (skill.type === 'normal') return skill.cooldown / Math.max(0.1, p.stats.atkSpd);
+  return skill.cooldown * (1 - p.stats.cdr);
+}
+
+/** Validate and start a player action. Returns false if rejected. */
+export function tryCast(z: Zone, p: PlayerEntity, skill: SkillDef, aimX: number, aimY: number, viewTick: number): boolean {
+  const t = z.time;
+  if (p.dead || p.ms.rootT > 0 || p.ms.forceT > 0 || p.ms.dodgeT > 0) return false;
+  if (t < p.actionLockUntil) return false;
+  if (!p.weapon || skill.weapon !== p.weapon.type) return false;
+  if (p.rec.level < skill.unlockLevel) return false;
+  const free = p.gm && p.gmFlags.nocd;
+  if (!free && (p.cooldowns.get(skill.id) ?? 0) > t) return false;
+  if (!free && (p.energy < skill.energyCost || p.ms.stamina < skill.staminaCost)) return false;
+  const aim = normalize(aimX, aimY);
+  if (aim.x === 0 && aim.y === 0) return false;
+
+  if (!free) p.energy -= skill.energyCost;
+  if (skill.staminaCost > 0 && !free) {
+    p.ms.stamina -= skill.staminaCost;
+    p.ms.staminaDelay = STAT_CONFIG.regen.staminaDelayAfterUse;
+  }
+  if (!free) p.cooldowns.set(skill.id, t + cooldownFor(p, skill));
+  const anim = skill.type === 'normal' ? skill.animTime / Math.max(0.1, p.stats.atkSpd) : skill.animTime;
+  p.actionLockUntil = t + anim;
+  p.ms.animT = anim;
+  p.ms.animMoveMult = skill.moveMultDuringAnim;
+  p.anim = skill.type === 'normal' ? ANIM.ATTACK : skill.type === 'heavy' ? ANIM.HEAVY : ANIM.SKILL;
+  p.animUntil = t + Math.max(anim, 0.2);
+
+  let mult = (skill.damage?.mult ?? 0) * masteryDamageMult(p.rec, p.weapon.type) * skill.pveMult;
+  if (skill.type === 'normal') {
+    const w = p.weapon.combo;
+    p.combo = t - p.lastNormalAt <= w.window ? (p.combo % w.hits) + 1 : 1;
+    p.lastNormalAt = t;
+    if (p.combo === w.hits) mult *= w.finisherMult;
+  } else p.combo = 0;
+
+  z.emit({ e: 'act', s: p.id, a: skill.id, x: aim.x, y: aim.y }, p.ms.x, p.ms.y);
+
+  if (skill.castTime > 0) {
+    const zoneId = z.def.id;
+    z.schedule(t + skill.castTime, () => {
+      // interrupted by death, stun or zone change
+      if (p.dead || p.ms.rootT > 0 || p.rec.zoneId !== zoneId || !z.players.has(p.id)) return;
+      resolveSkill(z, p, skill, aim.x, aim.y, mult, null);
+    });
+  } else {
+    resolveSkill(z, p, skill, aim.x, aim.y, mult, viewTick);
+  }
+  return true;
+}
+
+function resolveSkill(z: Zone, p: PlayerEntity, skill: SkillDef, ax: number, ay: number, mult: number, viewTick: number | null) {
+  const t = z.time;
+  const shape = skill.shape;
+  const hitOpts = (m: number): HitOptions => ({
+    mult: m, flat: skill.damage?.flat ?? 0, stat: skill.damage?.stat ?? 'patk', element: skill.element, effects: skill.effects, skill,
+  });
+
+  if (shape.kind === 'self') {
+    for (const ef of skill.effects) {
+      if (ef.kind === 'shield') {
+        p.shield = p.stats.hp * ef.hpFraction + p.stats[ef.stat] * ef.statMult;
+        p.shieldUntil = t + ef.duration;
+      } else if (ef.kind === 'counter') {
+        p.counterUntil = t + ef.window;
+      }
+    }
+    return;
+  }
+
+  if (shape.kind === 'projectile') {
+    z.projectiles.push({
+      id: z.host.nextId(), ownerId: p.id, ownerKind: 1, x: p.ms.x + ax * 0.4, y: p.ms.y + ay * 0.4,
+      vx: ax * shape.speed, vy: ay * shape.speed, radius: shape.radius, remaining: shape.range, pierce: shape.pierce,
+      hit: new Set(), hits: 'monsters', skill, damageMult: mult, element: skill.element, effects: skill.effects,
+    });
+    const pr = z.projectiles[z.projectiles.length - 1];
+    z.emit({ e: 'proj', id: pr.id, s: p.id, x: pr.x, y: pr.y, vx: pr.vx, vy: pr.vy, r: pr.radius, life: shape.range / shape.speed, fx: skill.vfx }, p.ms.x, p.ms.y);
+    return;
+  }
+
+  const ox = p.ms.x, oy = p.ms.y;
+  let effShape = shape;
+  const dash = skill.effects.find((e): e is Extract<SkillEffect, { kind: 'dash' }> => e.kind === 'dash');
+  if (dash) {
+    // collision-checked dash: the hit line only covers the distance actually travelled
+    const probe = { x: ox, y: oy };
+    moveWithCollision(z.map, probe, ax * dash.distance, ay * dash.distance, p.radius);
+    const travelled = Math.hypot(probe.x - ox, probe.y - oy);
+    if (shape.kind === 'line') effShape = { ...shape, length: Math.max(1, travelled + 0.5) };
+    p.ms.forceT = dash.duration;
+    p.ms.fvx = (ax * travelled) / dash.duration;
+    p.ms.fvy = (ay * travelled) / dash.duration;
+    p.iframesUntil = Math.max(p.iframesUntil, t + dash.duration);
+  }
+
+  const reach = effShape.kind === 'arc' ? effShape.range : effShape.kind === 'circle' ? effShape.radius + effShape.forward : effShape.kind === 'line' ? effShape.length : 0;
+  for (const e of z.nearby(ox, oy, reach + 2)) {
+    if (e.kind !== 2 || e.state === 'dead') continue;
+    const pos = viewTick !== null ? z.rewoundPos(e.id, viewTick) ?? [e.x, e.y] : [e.x, e.y];
+    if (shapeHits(effShape, ox, oy, ax, ay, pos[0], pos[1], e.radius)) dealDamage(z, p, e, hitOpts(mult));
+  }
+}
+
+function attackerStats(src: Combatant, stat: DamageStat): AttackerStats {
+  if (src.kind === 1) {
+    const s = src.stats;
+    return { atk: s[stat], critRate: s.critRate, critDmg: s.critDmg, accuracy: s.accuracy, armorPen: s.armorPen, bossDmg: s.bossDmg };
+  }
+  return { atk: src.atk, critRate: 0.05, critDmg: 1.5, accuracy: 0.95, armorPen: 0 };
+}
+
+function isInvulnerable(z: Zone, tgt: Combatant): boolean {
+  if (tgt.kind === 1) return tgt.dead || z.def.safe || z.time < tgt.iframesUntil || (tgt.gm && tgt.gmFlags.god);
+  return tgt.state === 'dead' || tgt.state === 'return';
+}
+
+/** Apply one hit from src to tgt. Returns damage dealt (0 on miss/immune). */
+export function dealDamage(z: Zone, src: Combatant, tgt: Combatant, o: HitOptions): number {
+  const t = z.time;
+  const tpos = tgt.kind === 1 ? tgt.ms : tgt;
+  const spos = src.kind === 1 ? src.ms : src;
+  if (isInvulnerable(z, tgt)) {
+    z.emit({ e: 'hit', s: src.id, t: tgt.id, d: 0, c: 0, m: 1 }, tpos.x, tpos.y);
+    return 0;
+  }
+
+  // Guard Counter: negate the hit and strike back
+  if (tgt.kind === 1 && src.kind === 2 && t < tgt.counterUntil && tgt.weapon) {
+    tgt.counterUntil = 0;
+    const counter = tgt.weapon.skills.flatMap((s) => s.effects).find((e): e is Extract<SkillEffect, { kind: 'counter' }> => e.kind === 'counter');
+    z.emit({ e: 'counter', id: tgt.id }, tpos.x, tpos.y);
+    if (counter) {
+      const cs = tgt.weapon.skills.find((s) => s.effects.some((e) => e.kind === 'counter'))!;
+      for (const e of z.nearby(tpos.x, tpos.y, counter.range + 1)) {
+        if (e.kind !== 2 || e.state === 'dead') continue;
+        if ((e.x - tpos.x) ** 2 + (e.y - tpos.y) ** 2 > (counter.range + e.radius) ** 2) continue;
+        dealDamage(z, tgt, e, { mult: counter.damageMult * masteryDamageMult(tgt.rec, tgt.weapon.type), flat: cs.damage?.flat ?? 0, stat: 'patk', element: 'none', effects: [{ kind: 'stun', duration: counter.stunDuration }], skill: cs });
+      }
+    }
+    return 0;
+  }
+
+  const a = attackerStats(src, o.stat);
+  const physical = src.kind === 1 ? o.stat === 'patk' : src.def.damageType === 'physical';
+  const d: DefenderStats = tgt.kind === 1
+    ? { def: physical ? tgt.stats.pdef : tgt.stats.mdef, evasion: tgt.stats.evasion, pvpDR: tgt.stats.pvpDR }
+    : { def: tgt.defense, evasion: 0.02, resist: tgt.def.resist, isBoss: tgt.def.tier === 'map_boss' || tgt.def.tier === 'world_boss' };
+
+  let reduction = 0;
+  if (tgt.kind === 1 && tgt.blocking && tgt.weapon) {
+    const facing = angleBetween(tgt.facingX, tgt.facingY, spos.x - tpos.x, spos.y - tpos.y);
+    if (facing <= (tgt.weapon.defensive.arcDeg * Math.PI) / 360) reduction = tgt.weapon.defensive.damageReduction;
+  }
+  d.damageReduction = reduction;
+
+  const roll = rollDamage(a, d, o.mult, o.flat, o.element, 'pve', () => z.rng());
+  if (roll.miss) {
+    z.emit({ e: 'hit', s: src.id, t: tgt.id, d: 0, c: 0, m: 1 }, tpos.x, tpos.y);
+    return 0;
+  }
+  let amount = roll.amount;
+  if (tgt.kind === 1 && tgt.shield > 0) {
+    const absorbed = Math.min(tgt.shield, amount);
+    tgt.shield -= absorbed;
+    amount -= absorbed;
+  }
+  tgt.hp -= amount;
+  z.emit({ e: 'hit', s: src.id, t: tgt.id, d: roll.amount, c: roll.crit ? 1 : 0, m: 0 }, tpos.x, tpos.y);
+
+  if (src.kind === 1) {
+    src.lastCombatAt = t;
+    if (src.weapon && addMastery(src.rec, src.weapon.type, PROGRESSION.weaponMastery.xpPerHit)) {
+      src.charDirty = true;
+      src.session?.send({ t: 'notice', kind: 'level', text: `Weapon Mastery ${src.weapon.name} Lv.${src.rec.mastery[src.weapon.type]?.level}` });
+    }
+  }
+  if (tgt.kind === 2) {
+    if (src.kind === 1) tgt.threat.set(src.id, (tgt.threat.get(src.id) ?? 0) + roll.amount);
+    tgt.lastHitAt = t;
+    if (tgt.state === 'idle' || tgt.state === 'patrol') { tgt.state = 'chase'; tgt.targetId = src.id; }
+  } else {
+    tgt.lastCombatAt = t;
+  }
+
+  applyEffects(z, src, tgt, o.effects);
+
+  if (tgt.hp <= 0) {
+    if (tgt.kind === 2) killMonster(z, tgt);
+    else killPlayer(z, tgt);
+  }
+  return roll.amount;
+}
+
+function applyEffects(z: Zone, src: Combatant, tgt: Combatant, effects: SkillEffect[]) {
+  const t = z.time;
+  const spos = src.kind === 1 ? src.ms : src;
+  const tpos = tgt.kind === 1 ? tgt.ms : tgt;
+  for (const ef of effects) {
+    if (ef.kind === 'stun') {
+      if (tgt.kind === 2) {
+        const resist = tgt.def.tier === 'normal' ? 1 : 0.4; // elites shrug off CC faster
+        tgt.stunUntil = Math.max(tgt.stunUntil, t + ef.duration * resist);
+        tgt.windup = null;
+        if (tgt.state === 'windup') tgt.state = 'chase';
+      } else {
+        tgt.ms.rootT = Math.max(tgt.ms.rootT, ef.duration * (1 - tgt.stats.ccRes));
+      }
+    } else if (ef.kind === 'knockback') {
+      const dir = normalize(tpos.x - spos.x, tpos.y - spos.y);
+      const dist = tgt.kind === 2 && tgt.def.tier !== 'normal' ? ef.distance * 0.3 : ef.distance;
+      if (tgt.kind === 2) {
+        tgt.forceUntil = t + KNOCKBACK_TIME;
+        tgt.fvx = (dir.x * dist) / KNOCKBACK_TIME; tgt.fvy = (dir.y * dist) / KNOCKBACK_TIME;
+      } else {
+        const d2 = dist * (1 - tgt.stats.ccRes);
+        tgt.ms.forceT = KNOCKBACK_TIME; tgt.ms.fvx = (dir.x * d2) / KNOCKBACK_TIME; tgt.ms.fvy = (dir.y * d2) / KNOCKBACK_TIME;
+      }
+    } else if (ef.kind === 'slow') {
+      if (tgt.kind === 2) { tgt.slowUntil = t + ef.duration; tgt.slowMult = ef.mult; }
+      else { tgt.ms.slowT = ef.duration * (1 - tgt.stats.ccRes); tgt.ms.slowMult = ef.mult; }
+    }
+  }
+}
+
+/** Monster attack lands on the given players. */
+export function resolveMonsterAttack(z: Zone, m: MonsterEntity, targets: PlayerEntity[], mult: number, effects: SkillEffect[]) {
+  for (const p of targets) dealDamage(z, m, p, { mult, flat: 0, stat: 'patk', element: m.def.element, effects, skill: null });
+}
+
+export function attackEffects(a: MonsterAttack): SkillEffect[] {
+  const out: SkillEffect[] = [];
+  if (a.kind === 'melee' && a.knockback > 0) out.push({ kind: 'knockback', distance: a.knockback });
+  if (a.kind === 'aoe' && a.slow) out.push({ kind: 'slow', mult: a.slow.mult, duration: a.slow.duration });
+  return out;
+}
+
+export function killMonster(z: Zone, m: MonsterEntity) {
+  const t = z.time;
+  m.hp = 0;
+  m.state = 'dead';
+  m.windup = null;
+  m.anim = ANIM.DEAD;
+  m.respawnAt = t + m.def.respawnSec;
+  z.emit({ e: 'die', id: m.id }, m.x, m.y);
+
+  let total = 0, topId: number | null = null, topDmg = 0;
+  for (const [pid, dmg] of m.threat) { total += dmg; if (dmg > topDmg) { topDmg = dmg; topId = pid; } }
+  const top = topId !== null ? z.players.get(topId) : undefined;
+  let rewardMult = 1;
+
+  for (const [pid, dmg] of m.threat) {
+    const p = z.players.get(pid);
+    if (!p || p.dead || total <= 0) continue;
+    // farming soft cap (anti-bot): track kills per rolling hour
+    p.killTimes.push(t);
+    while (p.killTimes.length && p.killTimes[0] < t - 3600) p.killTimes.shift();
+    const over = p.killTimes.length > PROGRESSION.farming.killsPerHourSoftCap;
+    const capMult = over ? PROGRESSION.farming.overCapRewardMult : 1;
+    if (p === top) rewardMult = capMult;
+    const share = Math.max(0.25, Math.min(1, (dmg / total) * 1.5));
+    const exp = m.exp * share * levelDiffMult(p.rec.level, m.level) * capMult * z.host.rates.exp;
+    const res = grantExp(p.rec, exp);
+    if (p.weapon) addMastery(p.rec, p.weapon.type, PROGRESSION.weaponMastery.xpPerKill);
+    p.charDirty = true;
+    p.dirty = true;
+    if (res.levelsGained > 0) {
+      recomputeStats(p);
+      p.hp = p.stats.hp;
+      p.energy = p.stats.energy;
+      z.emit({ e: 'lvl', id: p.id, lvl: p.rec.level }, p.ms.x, p.ms.y);
+      z.invalidateMeta(p.id);
+      p.session?.send({ t: 'notice', kind: 'level', text: `LEVEL UP! Lv.${p.rec.level}` });
+      z.host.requestSave(p, 'level_up');
+    }
+  }
+
+  const loot = rollLoot(m.def, m.level, () => z.rng(), rewardMult * z.host.rates.drop, rewardMult * z.host.rates.gold);
+  const owner = top?.rec.id ?? null;
+  for (const it of loot.items) z.createDrop(m.x, m.y, it, 0, owner);
+  if (loot.gold > 0) z.createDrop(m.x, m.y, null, loot.gold, owner);
+  if (top && loot.items.length) z.host.audit(top, 'loot_roll', { monster: m.def.id, items: loot.items.map((i) => [i.defId, i.qty, i.rarity, i.uid]), gold: loot.gold });
+  m.threat.clear();
+}
+
+export function killPlayer(z: Zone, p: PlayerEntity) {
+  if (p.dead) return;
+  p.hp = 0;
+  p.dead = true;
+  p.shield = 0;
+  p.blocking = false;
+  p.anim = ANIM.DEAD;
+  p.ms.dodgeT = 0; p.ms.forceT = 0;
+  const lost = deathPenalty(p.rec);
+  p.charDirty = true;
+  p.dirty = true;
+  z.emit({ e: 'die', id: p.id }, p.ms.x, p.ms.y);
+  p.session?.send({ t: 'notice', kind: 'warn', text: `คุณถูกสังหาร (เสีย EXP ${lost})` });
+  for (const m of z.monsters.values()) if (m.targetId === p.id) { m.targetId = null; m.threat.delete(p.id); }
+}
+
