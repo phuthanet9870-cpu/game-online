@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Pixel characters</title>
+<style>body{background:#7a9a6a;margin:12px;font:12px system-ui;color:#fff}canvas{image-rendering:pixelated;display:block;margin:6px 0}h3{margin:10px 0 2px}</style></head>
+<body><div id="out"></div>
+<script type="module">
+// Dev preview of the code-drawn characters (client/src/pixelchar.ts): every sheet at 3x.
+import { pixelLook, npcLook, pixelPortrait } from "../src/pixelchar.ts";
+const out = document.getElementById("out");
+const K = +(new URLSearchParams(location.search).get("k") ?? 3), ONLY = new URLSearchParams(location.search).get("only");
+const GRID = new URLSearchParams(location.search).has("grid");
+const gridCv = document.createElement("canvas"), gridRows = [];
+const show = (label, look) => {
+  if (GRID) { gridRows.push([label, pixelLook(look)]); return; }
+  const { walk, act } = pixelLook(look);
+  const h = document.createElement("h3"); h.textContent = label; out.append(h);
+  for (const s of ONLY === "act" ? [act] : ONLY === "walk" ? [walk] : [walk, act]) {
+    const c = document.createElement("canvas"); c.width = s.img.width * K; c.height = s.img.height * K;
+    const g = c.getContext("2d"); g.imageSmoothingEnabled = false; g.drawImage(s.img, 0, 0, c.width, c.height); out.append(c);
+  }
+};
+const q = new URLSearchParams(location.search);
+const jobs = (q.get("jobs") ?? "Novice,Swordman,Mage").split(",");
+let i = 0;
+for (const job of jobs) show(job, { gender: i % 2 ? "F" : "M", hair: i * 2 % 9, style: i % 6, outfit: job, job, weapon: ["knife","sword","rod","bow","mace","dagger","axe"][i % 7], shield: job === "Swordman" ? "guard" : null, headgear: null, garment: null }), i++;
+if (q.has("npc")) for (const [s, n] of [["npc_guide","Guide Lio"],["npc_merchant","Mira the Merchant"],["npc_herbalist","Herbalist Tamsin"],["npc_warden","Warden Orrin"],["npc_ranger","Ranger Vessa"]]) show(n, npcLook(s, n));
+if (GRID) {
+  const C = 48, cols = [["walk",0,0],["walk",0,1],["walk",0,2],["walk",0,3],["walk",0,4],["act",6,0],["act",6,2],["act",1,0],["act",3,0]];
+  gridCv.width = cols.length * C * K; gridCv.height = gridRows.length * C * K;
+  const g = gridCv.getContext("2d"); g.imageSmoothingEnabled = false;
+  gridRows.forEach(([_, L], r) => cols.forEach(([sh, col, row], i) => g.drawImage(L[sh].img, col * C, row * C, C, C, i * C * K, r * C * K, C * K, C * K)));
+  out.append(gridCv);
+}
+if (q.has("portrait")) out.append(pixelPortrait(npcLook("npc_guide","Guide Lio"), "cheer", 200));
+</script></body></html>

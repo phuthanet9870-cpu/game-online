@@ -8,6 +8,7 @@
 // window locks the character (pc_cant_act), so navi.ts holds the goal and walks the moment the window closes; at the Close
 // button the click closes the window itself, so the character simply goes.
 import "./dialog.css";
+import { cutinPortrait } from "../pixelchar.ts";
 import { Vector3, type Camera } from "three";
 import type { Room } from "@colyseus/sdk";
 import { Msg, type CutinEvent, type NpcButtonEvent, type NpcMenuEvent, type NpcMesEvent } from "../../../shared/protocol.ts";
@@ -423,7 +424,10 @@ function onCutin(m: CutinEvent) {
   cutinType = m.type;
   cutinImage = m.image;
   cutinBox.className = `pos-${m.type}`;
-  cutinImg.src = `/art/cutin/${m.image}.png`;
+  // NPC portraits are drawn in code like the NPC itself (pixelchar.ts); the illustrated tutorial cards stay pictures
+  const drawn = cutinPortrait(m.image);
+  cutinImg.src = drawn ?? `/art/cutin/${m.image}.png`;
+  cutinImg.classList.toggle("pixel", !!drawn);
   cutinName.textContent = npc ? npcName(npc) : "";
   cutinBox.hidden = false;
   relayout(); // a portrait that shows up after the box: the box moves beside it

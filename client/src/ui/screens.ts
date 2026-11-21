@@ -9,7 +9,7 @@ import { ApiError, api, session } from "../api.ts";
 import { play, unlock } from "../audio.ts";
 import { onLangChange, t } from "../i18n.ts";
 import { Composer, LivePreview, PC } from "../animSprite.ts";
-import { drawHead } from "../paperdoll.ts";
+import { drawPixelHead } from "../pixelchar.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const SCREENS = ["login-screen", "select-screen", "create-screen"] as const;
@@ -311,8 +311,8 @@ function renderCreate() {
   $("cr-styles").querySelectorAll<HTMLCanvasElement>("canvas").forEach((cv, i) => {
     cv.parentElement!.classList.toggle("on", i === draft.style);
     {
-      // the tile IS the head sprite of that style (the same file the body wears), not a crop of a composite
-      if (cv.isConnected) void drawHead(cv, draft.gender, i, draft.hair, TILE_ROW, cv.height / 72);
+      // the tile is the code-drawn head of that style (pixelchar.ts), the same drawing the body wears
+      if (cv.isConnected) drawPixelHead(cv, draft.gender, i, draft.hair, TILE_ROW);
     }
   });
 }

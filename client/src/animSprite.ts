@@ -1,18 +1,18 @@
 // RO-style animated billboards: each actor composites its current frame on a small canvas and shows that canvas as one
 // camera-facing sprite, so layers can never z-fight or drift apart.
 //
-// Players are PAPER DOLLS (paperdoll.ts): a headless body per outfit + a head per hair style + weapon / headgear / garment /
-//   shield sprites, pinned to per-frame anchors. Sheets: walk (8 frames) · act [stand, sit, hurt, dead, swing x4], 5 facings
-//   (front, 3/4 front, side, 3/4 back, back; facing right, mirrored for the left).
+// Players and NPCs are code-drawn pixel-art chibis (pixelchar.ts): sheets walk (4 frames) · act [stand, sit, hurt, dead,
+//   swing x4], 5 facings (front, 3/4 front, side, 3/4 back, back; facing right, mirrored for the left), scaled up crisply.
 // Monsters (3 rows: front, side, back): animation sheets cut by tools/art/slice_grid.py into public/sprites/anim:
 //   move 4 frames · act [attack wind-up, strike, hurt, dead]
 import * as THREE from "three";
 import type { Look } from "../../shared/look.ts";
-import { drawPd, getJson, loadImg, loadPd, type PdLook } from "./paperdoll.ts";
+import { getJson, loadImg } from "./paperdoll.ts";
+import { FEET as PIXEL_FEET, pixelLook } from "./pixelchar.ts";
 
 /** stride = sheet px a planted foot travels per step in the side-view walk row (slice_grid.py --stride-row) */
 type Meta = { rows: number; cols: number; cellW: number; cellH: number; unit: number; views?: number; stride?: number };
-type Sheet = { img: CanvasImageSource; meta: Meta; feet: number; horizontal: boolean };
+type Sheet = { img: CanvasImageSource; meta: Meta; feet: number; horizontal: boolean; pixel?: boolean };
 export type ActorState = { moving: boolean; dead: boolean; sitting: boolean; speed: number };
 export type ActionKind = "attack" | "hit" | "pickup" | "cheer";
 
@@ -101,8 +101,6 @@ export class Composer {
   sheets = new Map<string, Sheet | null>(); // loaded sheets by short name ("walk", "act", "move")
   private loadId = 0;
   kind: Kind;
-  /** The paper doll of the loaded look (paperdoll.ts): draw() composes its parts on the frame's anchors. */
-  pd?: PdLook;
 
   constructor(kind: Kind) { this.kind = kind; }
 
@@ -144,11 +142,10 @@ export class Composer {
   /** A player's look (world, Select Character, Make Character): every part is loaded before anything is swapped in, so a look is
    *  never drawn half dressed. */
   async loadLook(look: Look) {
-    const id = ++this.loadId, pd = await loadPd(look);
-    if (id !== this.loadId || !pd) return false;
-    this.pd = pd;
+    ++this.loadId;
+    const px = pixelLook(look); // drawn in code, synchronously (cached per look)
     this.sheets.clear();
-    for (const n of ["walk", "act"] as const) this.sheets.set(n, { img: pd[n].img, meta: pd[n].meta, feet: 0, horizontal: false });
+    for (const n of ["walk", "act"] as const) this.sheets.set(n, { img: px[n].img, meta: px[n].meta, feet: PIXEL_FEET, horizontal: false, pixel: true });
     return true;
   }
 
@@ -166,11 +163,11 @@ export class Composer {
 
   draw(g: CanvasRenderingContext2D, f: { s: Sheet; col: number }, row: number, mirror: boolean, scale: number, cx: number, feetY: number) {
     const { s, col } = f, m = s.meta;
-    if (this.pd) return drawPd(g, this.pd, s.meta === this.pd.walk.meta ? "walk" : "act", col, Math.min(row, 4), mirror, scale, cx, feetY);
     const r = Math.min(row, m.rows - 1);
     const sx = s.horizontal ? r * m.cellW : col * m.cellW, sy = s.horizontal ? 0 : r * m.cellH;
     g.save();
-    g.translate(cx, feetY);
+    if (s.pixel) { g.imageSmoothingEnabled = false; scale = scale >= 1.5 ? Math.round(scale) : scale; } // whole pixels stay square
+    g.translate(Math.round(cx), Math.round(feetY));
     if (mirror) g.scale(-1, 1);
     g.scale(scale, scale);
     g.drawImage(s.img, sx, sy, m.cellW, m.cellH, -m.cellW / 2, -(m.cellH - s.feet), m.cellW, m.cellH);
@@ -481,7 +478,7 @@ export function preloadMobs(ids: Iterable<number>) {
     for (const n of ["move", "act"]) void animSheet(`${body}_${n}`);
   }
 }
-/** Warm every part of a look (character select knows the look before the room joins). */
+/** Draw a look's sheets ahead of time (character select knows the look before the room joins). */
 export function preloadLook(look: Look) {
-  void loadPd(look);
+  pixelLook(look);
 }

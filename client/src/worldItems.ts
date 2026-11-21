@@ -2,8 +2,27 @@
 import * as THREE from "three";
 import { ITEMS } from "../../shared/rules/items.ts";
 import { MonsterSprite } from "./sprites.ts";
+import { AnimSprite } from "./animSprite.ts";
+import { npcLook } from "./pixelchar.ts";
 
-type Thing = { id: string; kind: "floor" | "npc"; obj: THREE.Sprite; label: HTMLDivElement; pos: THREE.Vector3; npc?: MonsterSprite; t0: number };
+/** A townsperson drawn like a player (pixelchar.ts), standing and breathing; same interface as MonsterSprite. */
+class NpcActor {
+  private anim: AnimSprite;
+  private last = -1;
+  get sprite() { return this.anim.object; }
+  constructor(look: NonNullable<ReturnType<typeof npcLook>>) {
+    this.anim = new AnimSprite({ look, height: 1.5 });
+    this.anim.faceDir(0); // facing the plaza's default camera
+  }
+  update(_dir: number, camYaw: number, _moving: boolean, t: number) {
+    const dt = this.last < 0 ? 0 : Math.min(0.1, t - this.last);
+    this.last = t;
+    this.anim.update(dt, camYaw, { moving: false, dead: false, sitting: false, speed: 0 });
+  }
+  dispose() { this.anim.dispose(); }
+}
+
+type Thing = { id: string; kind: "floor" | "npc"; obj: THREE.Sprite; label: HTMLDivElement; pos: THREE.Vector3; npc?: MonsterSprite | NpcActor; t0: number };
 const things = new Map<string, Thing>();
 const pickables: THREE.Object3D[] = [];
 
@@ -48,7 +67,8 @@ export function addFloor(scene: THREE.Scene, labels: HTMLElement, id: string, it
 }
 
 export function addNpc(scene: THREE.Scene, labels: HTMLElement, id: string, name: string, sprite: string, x: number, y: number, z: number) {
-  const npc = new MonsterSprite("bloblet", "#f2e3c6", sprite, 1.75, false);
+  const look = npcLook(sprite, name);
+  const npc = look ? new NpcActor(look) : new MonsterSprite("bloblet", "#f2e3c6", sprite, 1.75, false);
   npc.sprite.position.set(x, z, y);
   npc.sprite.userData.thingId = id;
   scene.add(npc.sprite);
