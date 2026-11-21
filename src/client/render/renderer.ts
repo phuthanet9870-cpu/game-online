@@ -6,6 +6,9 @@
  *  - Text/HP bars go on a full-resolution overlay canvas.
  */
 import { BLOCKING, T, tileAt } from '../../shared/mapgen.ts';
+import { POWERS } from '../../shared/config/powers.ts';
+import { hexToRgb } from './pixel.ts';
+const hexRgb = (h: string) => hexToRgb(h).join(',');
 import { getMonster } from '../../shared/config/monsters.ts';
 import { getItem, RARITY_INFO, type Rarity } from '../../shared/config/items.ts';
 import { ANIM, FLAG } from '../../shared/protocol.ts';
@@ -119,6 +122,23 @@ export class Renderer {
       this.groundEllipse(ctx, c, Math.max(p.w, p.h) * 0.6, `rgba(120,200,255,${0.25 + pulse * 0.25})`, true);
       this.groundEllipse(ctx, c, Math.max(p.w, p.h) * 0.35 * (0.8 + pulse * 0.2), 'rgba(220,250,255,0.6)', false);
     }
+    for (const zn of g.zones.values()) {
+      let zx = zn.x, zy = zn.y;
+      if (zn.follow) { if (zn.owner === g.selfId) { zx = me.x; zy = me.y; } else { const o = g.ents.get(zn.owner); if (o) { zx = o.x; zy = o.y; } } }
+      const c = sp(zx, zy);
+      const col = zn.heal ? '90,230,120' : hexRgb(POWERS[zn.fx.split('_')[0]]?.color ?? '#ff8040');
+      const fade = Math.min(1, (zn.until - now) / 400, (now - zn.start) / 200);
+      const pulse = 0.5 + 0.5 * Math.sin(now / 160 + zn.id);
+      this.groundEllipse(ctx, c, zn.r, `rgba(${col},${(0.14 + 0.08 * pulse) * fade})`, true);
+      this.groundEllipse(ctx, c, zn.r, `rgba(${col},${0.75 * fade})`, false);
+      // drifting particles
+      for (let i = 0; i < Math.min(18, zn.r * 4); i++) {
+        const a = (i * 2.399 + now / 900) % (Math.PI * 2), rr = zn.r * (((i * 37) % 100) / 100);
+        const p = sp(zx + Math.cos(a) * rr, zy + Math.sin(a) * rr);
+        ctx.fillStyle = `rgba(${col},${0.8 * fade})`;
+        ctx.fillRect(p.x, p.y - ((now / 20 + i * 13) % 14), 1, 1);
+      }
+    }
     for (const tr of g.traps.values()) {
       const armed = now >= tr.armAt;
       const c = sp(tr.x, tr.y);
@@ -178,6 +198,15 @@ export class Renderer {
       const c = sp(e.x, e.y);
       if (c.x < -60 || c.y < -60 || c.x > W + 60 || c.y > H + 80) continue;
       list.push({ depth: e.x + e.y, draw: () => this.drawEntity(ctx, g, e, c, now, labels) });
+    }
+    // summons orbit their owner (owner position is replicated; no extra traffic)
+    for (const sm of g.summons) {
+      const o = sm.owner === g.selfId ? me : g.ents.get(sm.owner);
+      if (!o) continue;
+      const ang = now / 1400 + sm.idx * 2.1;
+      const sx = o.x + Math.cos(ang) * 1.3, sy = o.y + Math.sin(ang) * 1.3;
+      const c = sp(sx, sy);
+      list.push({ depth: sx + sy, draw: () => this.drawSummon(ctx, g, sm.kind, c, now, o === me) });
     }
     // self
     if (g.self) {
@@ -342,7 +371,9 @@ export class Renderer {
     if (anim === ANIM.BLOCK) flags |= FLAG.BLOCKING;
     if (s.rootT > 0) flags |= FLAG.STUNNED;
     const selfAct = s.auto ? (() => { const e = g.selfAct; return e && now < e.until ? e : null; })() : g.localAct;
+    if (s.stealth) ctx.globalAlpha = 0.35;
     this.drawHumanoid(ctx, pal, g.weapon?.type ?? null, c, g.facingX, g.facingY, anim, flags, now, selfAct, s.dead);
+    ctx.globalAlpha = 1;
     labels.push(() => this.label(c.x * this.scale, (c.y - 22) * this.scale, `${g.char!.name}  Lv.${g.char!.level}`, '#9fe8ff', 12));
   }
 
@@ -377,7 +408,13 @@ export class Renderer {
         if (e.flags & FLAG.INVULN) ctx.globalAlpha = 0.5;
         const wob = e.anim === ANIM.WINDUP ? Math.sin(now / 30) : 0;
         const hover = def.family === 'wisp' ? -6 + Math.sin(now / 200) * 2 : 0;
+        if (e.flags & (FLAG.FROZEN | FLAG.STUNNED) && e.flags & FLAG.FROZEN) ctx.filter = 'brightness(1.3) hue-rotate(170deg) saturate(0.6)';
         ctx.drawImage(spr, Math.round(c.x - w / 2 + wob), c.y - h + 2 + hover, w, h);
+        ctx.filter = 'none';
+        if (e.flags & FLAG.BURNING) for (let i = 0; i < 3; i++) { ctx.fillStyle = i % 2 ? '#ffb030' : '#ff5020'; ctx.fillRect(Math.round(c.x - w / 3 + ((now / 7 + i * 11) % (w * 0.66))), Math.round(c.y - h * 0.6 - ((now / 9 + i * 7) % 8)), 1, 2); }
+        if (e.flags & FLAG.POISONED) for (let i = 0; i < 3; i++) { ctx.fillStyle = '#80ff60'; ctx.fillRect(Math.round(c.x - w / 3 + ((now / 11 + i * 9) % (w * 0.66))), Math.round(c.y - h * 0.5 - ((now / 13 + i * 5) % 7)), 1, 1); }
+        if (e.flags & FLAG.ROOTED) { ctx.strokeStyle = 'rgba(120,200,90,0.9)'; ctx.beginPath(); ctx.ellipse(c.x, c.y, w / 3, w / 6, 0, 0, Math.PI * 2); ctx.stroke(); }
+        if (e.flags & FLAG.STUNNED && !(e.flags & FLAG.FROZEN)) for (let i = 0; i < 3; i++) { const a2 = now / 200 + i * 2.1; ctx.fillStyle = '#ffe060'; ctx.fillRect(Math.round(c.x + Math.cos(a2) * 5), Math.round(c.y - h - 2 + Math.sin(a2) * 2), 2, 2); }
         ctx.restore();
         if (!dead) labels.push(() => {
           const elite = m.tier !== 'normal';
@@ -418,6 +455,28 @@ export class Renderer {
         break;
       }
     }
+  }
+
+  private drawSummon(ctx: CanvasRenderingContext2D, g: GameClient, kind: string, c: { x: number; y: number }, now: number, mine: boolean) {
+    this.shadow(ctx, c, 4);
+    ctx.save();
+    if (kind === 'wolf' || kind === 'treant') {
+      const def = getMonster(kind === 'wolf' ? 'plains_wolf' : 'elder_sapling');
+      if (def) {
+        const spr = monsterSprite(def, Math.floor(now / 200) % 2, false);
+        const sc = kind === 'treant' ? 1.1 : 0.9;
+        ctx.globalAlpha = 0.85;
+        ctx.filter = kind === 'wolf' ? 'hue-rotate(90deg) brightness(1.2)' : 'none';
+        ctx.drawImage(spr, c.x - (spr.width * sc) / 2, c.y - spr.height * sc + 2, spr.width * sc, spr.height * sc);
+      }
+    } else {
+      const app = (mine ? g.char?.app : undefined) ?? { gender: 'male' as const, skin: 0, hairStyle: 0, hairColor: 0, face: 0, outfit: 0 };
+      const spr = characterSprite(paletteFor(app), Math.floor(now / 150) % 2 + 1, false, false);
+      ctx.globalAlpha = 0.6;
+      ctx.filter = kind === 'shadow_clone' ? 'brightness(0.25) saturate(0)' : kind === 'lightning_clone' ? 'brightness(1.6) sepia(1) hue-rotate(10deg) saturate(4)' : 'brightness(1.5) hue-rotate(160deg)';
+      ctx.drawImage(spr, c.x - spr.width / 2, c.y - spr.height + 1);
+    }
+    ctx.restore();
   }
 
   private drawProjectile(ctx: CanvasRenderingContext2D, fx: string, c: { x: number; y: number }, r: number, now: number, vx = 1, vy = 0) {
@@ -517,6 +576,35 @@ export class Renderer {
         ctx.strokeStyle = `rgba(200,210,230,${1 - k})`;
         ctx.lineWidth = 2;
         ctx.beginPath(); ctx.ellipse(c.x, c.y - 9, 9, 12, 0, 0, Math.PI * 2); ctx.stroke();
+        break;
+      }
+      case 'pburst': case 'pnova': case 'paura': {
+        const col = hexRgb(f.power ?? '#ffffff');
+        const at = f.kind === 'pburst' ? sp(f.x + f.ax * (f.fwd ?? 0), f.y + f.ay * (f.fwd ?? 0)) : c;
+        const r = f.kind === 'paura' ? 0.9 : f.r ?? 2;
+        this.groundEllipse(ctx, at, r * (0.25 + 0.75 * k), `rgba(${col},${1 - k})`, false);
+        this.groundEllipse(ctx, at, r * (0.25 + 0.75 * k), `rgba(${col},${0.25 * (1 - k)})`, true);
+        if (f.kind === 'paura') { ctx.strokeStyle = `rgba(${col},${1 - k})`; ctx.beginPath(); ctx.ellipse(c.x, c.y - 9, 9 + 6 * k, 12 + 6 * k, 0, 0, Math.PI * 2); ctx.stroke(); }
+        break;
+      }
+      case 'summonhit': {
+        ctx.fillStyle = `rgba(220,220,255,${1 - k})`;
+        ctx.fillRect(c.x - 2, c.y - 10, 4, 2); ctx.fillRect(c.x - 1, c.y - 11, 2, 4);
+        break;
+      }
+      case 'freeze': {
+        const e = g.ents.get(f.owner);
+        const p2 = e ? sp(e.x, e.y) : c;
+        ctx.strokeStyle = `rgba(180,240,255,${0.9 * (1 - k)})`;
+        ctx.strokeRect(p2.x - 7, p2.y - 14, 14, 15);
+        break;
+      }
+      case 'chainfx': {
+        const a2 = sp(f.x, f.y), b2 = sp(f.ax, f.ay);
+        ctx.strokeStyle = `rgba(255,240,120,${1 - k})`;
+        ctx.beginPath(); ctx.moveTo(a2.x, a2.y - 8);
+        for (let i = 1; i < 5; i++) { const t2 = i / 5; ctx.lineTo(a2.x + (b2.x - a2.x) * t2 + (Math.random() - 0.5) * 6, a2.y - 8 + (b2.y - a2.y) * t2 + (Math.random() - 0.5) * 6); }
+        ctx.lineTo(b2.x, b2.y - 8); ctx.stroke();
         break;
       }
       case 'barrier': {

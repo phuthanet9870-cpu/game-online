@@ -12,6 +12,8 @@ import { BTN, type CharacterView, type ClientMessage, type EntityMeta, type Game
 import { STAT_CONFIG } from '../shared/config/stats.ts';
 import { getWeapon, type WeaponDef } from '../shared/config/weapons.ts';
 import type { ItemInstance } from '../shared/config/items.ts';
+import type { SkillDef } from '../shared/config/skills.ts';
+import { findPowerSkill } from '../shared/config/powers.ts';
 import { lerp } from '../shared/math.ts';
 import type { Transport } from './net.ts';
 
@@ -31,8 +33,11 @@ export interface ClientEntity {
 export interface ClientProjectile { id: number; x: number; y: number; vx: number; vy: number; r: number; born: number; life: number; fx: string; owner: number }
 export interface Telegraph { x: number; y: number; r: number; ang: number; arc: number; shape: 'circle' | 'arc'; start: number; dur: number }
 export interface Floater { x: number; y: number; text: string; color: string; start: number; big: boolean }
+export interface ClientZone { id: number; owner: number; x: number; y: number; r: number; until: number; follow: boolean; fx: string; heal: boolean; start: number }
+export interface ClientSummon { owner: number; kind: string; until: number; idx: number }
+export type PowersView = Extract<ServerMessage, { t: 'powers' }>;
 export interface ClientTrap { id: number; x: number; y: number; r: number; armAt: number; owner: number }
-export interface Fx { kind: string; x: number; y: number; ax: number; ay: number; start: number; dur: number; owner: number }
+export interface Fx { kind: string; x: number; y: number; ax: number; ay: number; start: number; dur: number; owner: number; power?: string; r?: number; fwd?: number }
 
 interface PendingInput { s: number; mx: number; my: number; dodge: boolean; block: boolean }
 
@@ -53,6 +58,9 @@ export class GameClient {
   ents = new Map<number, ClientEntity>();
   projectiles = new Map<number, ClientProjectile>();
   traps = new Map<number, ClientTrap>();
+  zones = new Map<number, ClientZone>();
+  summons: ClientSummon[] = [];
+  powers: PowersView | null = null;
   telegraphs: Telegraph[] = [];
   floaters: Floater[] = [];
   fx: Fx[] = [];
@@ -95,6 +103,8 @@ export class GameClient {
         this.ents.clear();
         this.projectiles.clear();
         this.traps.clear();
+        this.zones.clear();
+        this.summons = [];
         this.telegraphs = [];
         this.fx = [];
         this.pending = [];
@@ -140,6 +150,7 @@ export class GameClient {
         break;
       }
       case 'pong': this.ping = Math.round(performance.now() - m.c); break;
+      case 'powers': this.powers = m; break;
       default: break;
     }
   }
@@ -254,6 +265,30 @@ export class GameClient {
         if (ev.on) this.traps.set(ev.id, { id: ev.id, x: ev.x, y: ev.y, r: ev.r, armAt: now + ev.arm * 1000, owner: ev.owner });
         else if (this.traps.delete(ev.id)) this.fx.push({ kind: 'trapfire', x: ev.x, y: ev.y, ax: ev.r, ay: 0, start: now, dur: 400, owner: ev.owner });
         break;
+      case 'zone':
+        if (ev.on) this.zones.set(ev.id, { id: ev.id, owner: ev.owner, x: ev.x, y: ev.y, r: ev.r, until: now + ev.dur * 1000, follow: ev.follow, fx: ev.fx, heal: ev.heal, start: now });
+        else this.zones.delete(ev.id);
+        break;
+      case 'summon': {
+        const have = this.summons.filter((s) => s.owner === ev.owner).length;
+        for (let i = 0; i < ev.count; i++) this.summons.push({ owner: ev.owner, kind: ev.kind, until: now + ev.dur * 1000, idx: have + i });
+        break;
+      }
+      case 'sact': {
+        const t = this.ents.get(ev.t);
+        if (t) this.fx.push({ kind: 'summonhit', x: t.x, y: t.y, ax: 0, ay: 0, start: now, dur: 250, owner: ev.owner });
+        break;
+      }
+      case 'frozen': {
+        const e = this.ents.get(ev.id);
+        if (e) { this.fx.push({ kind: 'freeze', x: e.x, y: e.y, ax: 0, ay: 0, start: now, dur: 1500, owner: ev.id }); this.floaters.push({ x: e.x, y: e.y, text: 'FROZEN', color: '#a0e8ff', start: now, big: true }); }
+        break;
+      }
+      case 'chain': {
+        const a = this.ents.get(ev.a), b = this.ents.get(ev.b);
+        if (a && b) this.fx.push({ kind: 'chainfx', x: a.x, y: a.y, ax: b.x, ay: b.y, start: now, dur: 250, owner: ev.a });
+        break;
+      }
       case 'node': {
         const e = this.ents.get(ev.id);
         if (e && e.meta.k === 5) e.meta = { ...e.meta, ready: ev.ready };
@@ -274,7 +309,13 @@ export class GameClient {
       gauntlet_normal: ['punch', 150], gauntlet_heavy: ['cleave', 280], gauntlet_rapid_fist: ['rapid', 600], gauntlet_meteor_punch: ['rush', 300], gauntlet_iron_body: ['iron', 600],
     };
     const k = kinds[id];
+    const ps = k ? undefined : findPowerSkill(id);
     if (k) this.fx.push({ kind: k[0], x, y, ax, ay, start: now, dur: k[1], owner });
+    else if (ps) {
+      const sh = ps.skill.shape;
+      const kind = sh.kind === 'arc' ? 'slash' : sh.kind === 'circle' ? (sh.forward ? 'pburst' : 'pnova') : sh.kind === 'line' ? 'rush' : sh.kind === 'projectile' ? 'cast' : 'paura';
+      this.fx.push({ kind, x, y, ax: sh.kind === 'circle' ? ax : ax, ay, start: now, dur: ps.skill.type === 'power_ultimate' ? 700 : 400, owner, power: ps.power.color, r: sh.kind === 'circle' ? sh.radius : 0, fwd: sh.kind === 'circle' ? sh.forward : 0 });
+    }
     else if (id.endsWith('_melee')) this.fx.push({ kind: 'bite', x, y, ax, ay, start: now, dur: 200, owner });
     else if (id.endsWith('_aoe')) this.fx.push({ kind: 'slam', x, y, ax, ay, start: now, dur: 300, owner });
   }
@@ -304,6 +345,8 @@ export class GameClient {
     this.floaters = this.floaters.filter((f) => now - f.start < 1000);
     this.telegraphs = this.telegraphs.filter((t) => now - t.start < t.dur + 80);
     this.fx = this.fx.filter((f) => now - f.start < f.dur);
+    for (const [id, z] of this.zones) if (now > z.until + 500) this.zones.delete(id);
+    if (this.summons.length) this.summons = this.summons.filter((s) => s.until > now);
     for (const p of this.projectiles.values()) {
       const age = now - p.born;
       if (age > p.life + 200) this.projectiles.delete(p.id);
@@ -340,7 +383,7 @@ export class GameClient {
     const now = performance.now();
     if (this.localAct && now < this.localAct.until) return;
     if (this.ms.dodgeT > 0 || this.ms.rootT > 0 || this.ms.forceT > 0) return;
-    const pick = b & BTN.SKILL1 ? w.skills[0] : b & BTN.SKILL2 ? w.skills[1] : b & BTN.SKILL3 ? w.skills[2] : b & BTN.HEAVY ? w.heavy : b & BTN.ATTACK ? w.normal : null;
+    const pick = this.powerSkillForBits(b) ?? (b & BTN.SKILL1 ? w.skills[0] : b & BTN.SKILL2 ? w.skills[1] : b & BTN.SKILL3 ? w.skills[2] : b & BTN.HEAVY ? w.heavy : b & BTN.ATTACK ? w.normal : null);
     if (!pick) return;
     const serverCd = this.self.cd[pick.id] ?? 0;
     if (serverCd > 0.05 || (this.localCd.get(pick.id) ?? 0) > now) return;
@@ -351,6 +394,22 @@ export class GameClient {
     this.localCd.set(pick.id, now + cd * 1000 - 30);
     this.localAct = { id: pick.id, until: now + Math.max(200, anim * 1000), x: this.facingX, y: this.facingY };
     this.spawnSkillFx(pick.id, this.ms.x, this.ms.y, this.facingX, this.facingY, now, this.selfId);
+  }
+
+  /** Power ability bound to a slot (-1 = ultimate) per the server's loadout. */
+  powerSlotSkill(slot: number): SkillDef | null {
+    const pv = this.powers;
+    if (!pv?.active || !pv.usable) return null;
+    const lo = pv.loadouts[pv.active];
+    const id = slot === -1 ? lo?.ult : lo?.actives[slot];
+    return id ? findPowerSkill(id)?.skill ?? null : null;
+  }
+
+  private powerSkillForBits(b: number): SkillDef | null {
+    if (b & BTN.ULT) return this.powerSlotSkill(-1);
+    const bits = [BTN.P1, BTN.P2, BTN.P3, BTN.P4, BTN.P5];
+    for (let i = 0; i < 5; i++) if (b & bits[i]) return this.powerSlotSkill(i);
+    return null;
   }
 
   private interpolate() {

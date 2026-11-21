@@ -1,6 +1,8 @@
 # POWER_RITUAL_SYSTEM (Power Rebirth Ritual)
 
-สถานะ: **Designed** (ต้องมี The Power, instance zones และ Warhaven Citadel ก่อน)
+สถานะ: **Prototype** — พิธีทำงานจริงที่ NPC นักบวชสูงเซเรน (Power Rebirth Temple, Warhaven Citadel): ตรวจพลังที่ครอบครอง, อาวุธที่รองรับ, วัตถุดิบทั่วไป + เฉพาะผล, ทอง, คูลดาวน์ 12 ชม., ห้ามระหว่างต่อสู้ แล้วหักของและสลับพลังในขั้นเดียวบนเซิร์ฟเวอร์ พลังเดิมและ Mastery ถูกเก็บไว้ (มีเทสต์)
+**ยังไม่ทำ:** ด่าน Ritual Instance (ป้องกันแท่น → ปริศนาอักขระ → สู้วิญญาณ) และการคืนวัตถุดิบบางส่วนเมื่อล้มเหลว ต้องรอระบบ instance (ทำพร้อมดันเจี้ยน)
+วัตถุดิบบางชนิด (Ritual Crystal, Power Soul Fragment, Rebirth Core, วัตถุดิบเฉพาะผล 5 จาก 6 ชนิด) ยังไม่มีแหล่งดรอป เพราะบอสและแมพภูมิภาคเหล่านั้นยังไม่เปิด ตอนนี้จึงได้มาจาก GM เท่านั้น
 
 ## วัตถุดิบ (config)
 ทั่วไป: Soul Essence ×100 *(ดรอปได้แล้ว)*, Ancient Rune Dust ×50, Ritual Crystal ×10, Power Soul Fragment ×5, Rebirth Core ×1, Gold ×100,000

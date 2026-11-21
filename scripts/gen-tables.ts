@@ -29,3 +29,18 @@ if (which === 'skills') {
     }
   }
 }
+if (which === 'powers') {
+  const { POWERS } = await import('../src/shared/config/powers.ts');
+  const fx = (e: unknown) => JSON.stringify(e).replace(/"/g, '').replace(/\|/g, '/');
+  for (const p of Object.values(POWERS)) {
+    console.log(`\n### ${p.name} (${p.nameTh}) — ${p.element}, อาวุธ: ${p.weapons ? p.weapons.join('/') : 'ทุกประเภท'}\n`);
+    console.log('| ID | ชื่อ | ประเภท | ปลด | Damage | Shape | CD | EN | Cast | Anim | Effects | PvP× | Counterplay |');
+    console.log('|---|---|---|---|---|---|---|---|---|---|---|---|---|');
+    [...p.actives, ...p.ultimates].forEach((s, i) => {
+      const tier = s.type === 'power_ultimate' ? (i - 15 < 1 ? 'I' : i - 15 < 3 ? 'II' : 'III') : i < 5 ? 'I' : i < 10 ? 'II' : 'III';
+      console.log(`| ${s.id} | ${s.nameTh} (${s.name}) | ${s.type.replace('power_', '')} | ${tier} | ${s.damage ? `${s.damage.mult}×${s.damage.stat}+${s.damage.flat}` : '-'} | ${fx(s.shape)} | ${s.cooldown}s | ${s.energyCost} | ${s.castTime}s | ${s.animTime}s | ${s.effects.map(fx).join('<br>') || '-'} | ${s.pvpMult} | ${s.counterplay ?? '-'} |`);
+    });
+    console.log('\n| Passive ID | ชื่อ | ปลด | ผล |\n|---|---|---|---|');
+    p.passives.forEach((s, i) => console.log(`| ${s.id} | ${s.nameTh} (${s.name}) | ${i < 2 ? 'I' : i < 3 ? 'II' : 'III'} | ${s.description} |`));
+  }
+}

@@ -111,6 +111,35 @@ for (const w of ['dagger', 'bow', 'grimoire', 'gauntlet']) {
   checks[`weapon_${w}`] = (await st()).char.weapon === w;
 }
 
+// 8) The Power: exchange fragments at the Sage by clicking, then cast all slots in the field
+await gm('/gm weapon staff');
+await gm('/gm item mat_power_fragment 30');
+await gm('/gm gold 5000');
+await gm('/gm tp 28.5 22.5 aether_capital');
+await page.waitForTimeout(800);
+await page.keyboard.press('Escape'); // close any open panels
+const sage = await page.evaluate(() => { const g = window.__tpew(); return g && g.nearestScreen(4); });
+await page.mouse.click(sage.x, sage.y - 20);
+await page.waitForSelector('.win.power:not(.hidden)', { timeout: 8000 }).catch(async (e) => { await page.screenshot({ path: join(out, 'fail-sage.png') }); console.log('sage', JSON.stringify(sage), await page.textContent('.chatlog')); throw e; });
+await page.click('.win.power .pcard:has-text("อัคคีสุริยะ")');
+await page.click('.win.power button:has-text("หลอมเป็น")');
+await page.waitForTimeout(500);
+checks.powerExchange = await page.evaluate(() => window.__tpew().powersActive === 'solar');
+await page.screenshot({ path: join(out, '7-power-panel.png') });
+await page.keyboard.press('Escape');
+await gm('/gm power solar 3');
+await gm('/gm tp 14 44 greenfall_plains');
+await page.waitForTimeout(1000);
+const en0p = (await st()).self.en;
+for (const k of ['KeyQ', 'KeyE', 'KeyR', 'KeyT', 'KeyG', 'KeyX']) {
+  const t = await page.evaluate(() => window.__tpew().nearestMonsterScreen);
+  if (t) await page.mouse.move(t.x, t.y);
+  await page.keyboard.down(k); await page.waitForTimeout(120); await page.keyboard.up(k);
+  await page.waitForTimeout(700);
+}
+await page.screenshot({ path: join(out, '8-power-combat.png') });
+checks.powerCast = (await st()).self.en < en0p || (await page.evaluate(() => window.__tpew().powerMastery)) > 0;
+
 console.log(JSON.stringify({ checks, errors }, null, 2));
 await browser.close();
 process.exit(errors.length || Object.values(checks).some((v) => !v) ? 1 : 0);

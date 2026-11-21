@@ -13,6 +13,7 @@ import { ITEMS } from '../../shared/config/items.ts';
 import { ZONES } from '../../shared/config/zones.ts';
 import { PERCENT_STATS, STAT_KEYS, STAT_LABELS, type StatKey } from '../../shared/config/stats.ts';
 import { WEAPON_DISPLAY, WEAPON_TYPES } from '../../shared/config/weapons.ts';
+import { POWERS, POWER_CONFIG, findPowerSkill, powerAllowsWeapon, unlockedAbilities, type PowerDef } from '../../shared/config/powers.ts';
 import type { SkillDef } from '../../shared/config/skills.ts';
 import type { ServerMessage } from '../../shared/protocol.ts';
 import type { GameClient } from '../game.ts';
@@ -38,7 +39,10 @@ export class Hud {
   private notices: HTMLElement;
   private minimap: HTMLCanvasElement;
   private minimapImg: HTMLCanvasElement | null = null;
-  private panels: Record<'inv' | 'char' | 'shop' | 'dialog' | 'help' | 'gm' | 'auto', HTMLElement>;
+  private panels: Record<'inv' | 'char' | 'shop' | 'dialog' | 'help' | 'gm' | 'auto' | 'power', HTMLElement>;
+  private powerNpc: { npc: number; role: 'power' | 'ritual' } | null = null;
+  private powerSel: string | null = null;
+  private lastPowerKey = '';
   private autoCfg: AutoSettings = loadAutoCfg();
   private autoBtn!: HTMLElement;
   private death: HTMLElement;
@@ -80,6 +84,7 @@ export class Hud {
       help: h('div', { class: 'panel win help hidden' }),
       gm: h('div', { class: 'panel win gm hidden' }),
       auto: h('div', { class: 'panel win auto hidden' }),
+      power: h('div', { class: 'panel win power hidden' }),
     };
     this.autoBtn = h('button', { class: 'btn small auto-btn', onclick: () => this.toggle('auto') }, 'ออโต้ [O]');
     this.chatInput.addEventListener('keydown', (e) => {
@@ -97,6 +102,7 @@ export class Hud {
         h('div', { class: 'menu' },
           h('button', { class: 'btn small', onclick: () => this.toggle('inv') }, 'กระเป๋า [I]'),
           h('button', { class: 'btn small', onclick: () => this.toggle('char') }, 'ตัวละคร [C]'),
+          h('button', { class: 'btn small', onclick: () => { this.powerNpc = null; this.toggle('power'); } }, 'The Power [P]'),
           this.autoBtn,
           h('button', { class: 'btn small', onclick: () => this.toggle('help') }, 'ปุ่ม [H]'),
           this.gmBtn,
@@ -123,6 +129,8 @@ export class Hud {
         if (m.on) this.notice('เริ่มออโต้', 'info');
         if (this.isOpen('auto')) setTimeout(() => this.renderAuto(), 50);
         break;
+      case 'power_npc': this.powerNpc = { npc: m.npc, role: m.role }; this.show('power'); break;
+      case 'powers': if (this.isOpen('power')) this.renderPower(true); this.lastWeapon = '#'; break;
       case 'enter_zone': this.minimapImg = null; if (this.isOpen('auto')) setTimeout(() => this.renderAuto(), 50); this.hide('shop'); this.hide('dialog'); this.shop = null; break;
       default: break;
     }
@@ -148,8 +156,8 @@ export class Hud {
 
   // ------------------------------------------------------------ panels
   isOpen(k: keyof Hud['panels']) { return !this.panels[k].classList.contains('hidden'); }
-  show(k: keyof Hud['panels']) { this.panels[k].classList.remove('hidden'); if (k === 'inv') this.renderInv(true); if (k === 'char') this.renderChar(true); if (k === 'gm') this.renderGm(); if (k === 'auto') this.renderAuto(); }
-  hide(k: keyof Hud['panels']) { this.panels[k].classList.add('hidden'); if (k === 'shop') this.shop = null; }
+  show(k: keyof Hud['panels']) { this.panels[k].classList.remove('hidden'); if (k === 'inv') this.renderInv(true); if (k === 'char') this.renderChar(true); if (k === 'gm') this.renderGm(); if (k === 'auto') this.renderAuto(); if (k === 'power') this.renderPower(true); }
+  hide(k: keyof Hud['panels']) { this.panels[k].classList.add('hidden'); if (k === 'shop') this.shop = null; if (k === 'power') this.powerNpc = null; }
   toggle(k: keyof Hud['panels']) { if (this.isOpen(k)) this.hide(k); else this.show(k); }
   closeAll() { for (const k of Object.keys(this.panels) as (keyof Hud['panels'])[]) this.hide(k); }
 
@@ -162,7 +170,7 @@ export class Hud {
     const rows: [string, string][] = [
       ['คลิกพื้น', 'เดินไปจุดนั้น (กดค้าง = เดินตามเมาส์)'], ['คลิกมอนสเตอร์', 'เดินเข้าระยะแล้วโจมตีอัตโนมัติ (คอมโบ 3 จังหวะ)'],
       ['คลิก NPC / ไอเทม / สมุนไพร / แร่', 'เดินไปคุย / เก็บ'], ['คลิกปุ่มสกิลด้านล่าง', 'ใช้สกิล (เล็งเป้าที่เลือก หรือทิศเมาส์)'],
-      ['W A S D', 'เดินด้วยคีย์บอร์ด (ยกเลิกคำสั่งคลิก)'], ['O', 'ออโต้ฟาร์ม'], ['คลิกขวา', 'โจมตีหนักไปทางเมาส์ (ใช้ Stamina)'],
+      ['W A S D', 'เดินด้วยคีย์บอร์ด (ยกเลิกคำสั่งคลิก)'], ['O', 'ออโต้ฟาร์ม'], ['Q E R T G', 'สกิล The Power 5 ช่อง'], ['X', 'Ultimate'], ['P', 'หน้าต่าง The Power'], ['คลิกขวา', 'โจมตีหนักไปทางเมาส์ (ใช้ Stamina)'],
       ['Space', 'หลบ (มี i-frame)'], ['Shift (ค้าง)', 'ป้องกัน'], ['1 2 3', 'สกิลอาวุธ'], ['4 / 5', 'ยา HP / Energy'],
       ['F', 'เก็บของ / คุยกับ NPC / เก็บทรัพยากร'], ['I / C', 'กระเป๋า / ตัวละคร'], ['Enter', 'แชต'], ['Esc', 'ปิดหน้าต่าง'],
     ];
@@ -304,6 +312,10 @@ export class Hud {
         h('div', { class: 'row' }, 'ความเร็ว ×', ...[1, 1.5, 2, 3].map((v) => btn(String(v), () => cmd(`speed ${v}`), g.speed === v ? 'primary' : ''))),
         h('div', { class: 'row' }, btn('ฟื้นฟูเต็ม', () => cmd('heal')), btn('ชุบชีวิต', () => cmd('revive')), ),
         h('div', { class: 'row' }, 'ถืออาวุธ:', ...WEAPON_TYPES.map((t) => btn(WEAPON_DISPLAY[t].nameTh, () => cmd(`weapon ${t}`), this.g.weapon?.type === t ? 'primary' : ''))),
+        h('div', { class: 'gmsec' }, 'The Power'),
+        h('div', { class: 'row' }, ...Object.values(POWERS).map((pw) => btn(`ให้ ${pw.nameTh}`, () => cmd(`power ${pw.id} 3`))), btn('ให้ทั้ง 6 (Awakening III)', () => cmd('power all 3'), 'primary')),
+        h('div', { class: 'row' }, 'ใช้พลังทันที (ข้ามพิธี):', ...Object.values(POWERS).map((pw) => btn(pw.nameTh, () => cmd(`setpower ${pw.id}`), this.g.powers?.active === pw.id ? 'primary' : '')),
+          'Power Mastery', input('gm-pm', '0-20', 50), btn('ตั้ง', () => cmd(`mastery_power ${val('gm-pm') || 0}`))),
         h('div', { class: 'gmsec' }, 'ความก้าวหน้า (ตัวเอง)'),
         h('div', { class: 'row' }, 'เลเวล', input('gm-level', '1-100', 60), btn('ตั้ง', () => cmd(`level ${val('gm-level') || 1}`)), ...[10, 30, 50, 100].map((v) => btn(`Lv${v}`, () => cmd(`level ${v}`)))),
         h('div', { class: 'row' }, 'EXP', input('gm-exp', 'จำนวน', 80), btn('ให้', () => cmd(`exp ${val('gm-exp') || 0}`))),
@@ -384,6 +396,104 @@ export class Hud {
   }
   private gmTarget = '';
 
+  renderPower(force = false) {
+    const pv = this.g.powers;
+    const key = JSON.stringify([pv, this.powerSel, this.powerNpc, this.g.weapon?.type, this.g.gold]);
+    if (!force && key === this.lastPowerKey) return;
+    this.lastPowerKey = key;
+    const p = this.panels.power;
+    clear(p);
+    const title = this.powerNpc?.role === 'power' ? 'ปราชญ์แห่งพลัง — แลก The Power' : this.powerNpc?.role === 'ritual' ? 'Power Rebirth Temple — พิธีเปลี่ยนพลัง' : 'The Power';
+    p.append(this.header(title, 'power'));
+    if (!pv) { p.append(h('p', { class: 'dim' }, 'กำลังโหลด...')); return; }
+    const owned = new Map(pv.owned.map((o) => [o.id, o]));
+    const frag = this.g.items.filter((i) => i.defId === 'mat_power_fragment' && i.slot !== null).reduce((a, b) => a + b.qty, 0);
+    const count = (id: string) => this.g.items.filter((i) => i.defId === id && i.slot !== null).reduce((a, b) => a + b.qty, 0);
+    const sel = this.powerSel ?? pv.active ?? Object.keys(POWERS)[0];
+    // ---- power list
+    const list = h('div', { class: 'plist' });
+    for (const def of Object.values(POWERS)) {
+      const o = owned.get(def.id);
+      list.append(h('button', { class: `pcard${sel === def.id ? ' sel' : ''}${o ? '' : ' notowned'}`, style: `--pc:${def.color}`, onclick: () => { this.powerSel = def.id; this.renderPower(true); } },
+        h('b', {}, def.nameTh), h('small', {}, def.name),
+        h('small', {}, o ? `${pv.active === def.id ? '● ใช้อยู่ · ' : ''}Awakening ${'I'.repeat(o.awakening)} · Mastery ${o.masteryLevel}` : 'ยังไม่มี')));
+    }
+    p.append(list);
+    const def = POWERS[sel] as PowerDef;
+    const o = owned.get(def.id);
+    const info = h('div', { class: 'pinfo' },
+      h('div', {}, h('b', { style: `color:${def.color}` }, `${def.nameTh} (${def.name})`), ` · ${def.type}`),
+      h('div', { class: 'dim' }, `อาวุธ: ${def.weapons ? def.weapons.map((w) => WEAPON_DISPLAY[w].nameTh).join(', ') : 'ทุกประเภท'} · บทบาท: ${def.teamRole}`),
+      h('div', { class: 'cols2' }, h('div', {}, h('span', { class: 'good' }, 'จุดเด่น: '), def.strengths.join(', ')), h('div', {}, h('span', { class: 'bad' }, 'จุดอ่อน: '), def.weaknesses.join(', '))),
+      h('div', { class: 'dim' }, `วิธีตอบโต้: ${def.counterplay}`));
+    p.append(info);
+    // ---- NPC actions
+    if (this.powerNpc?.role === 'power' && !o) {
+      const c = POWER_CONFIG.exchange;
+      p.append(h('div', { class: 'row pact' }, `แลกด้วยเศษพลัง ${frag}/${c.fragments} + ทอง ${c.gold.toLocaleString()}`,
+        h('button', { class: 'btn primary', disabled: frag < c.fragments || this.g.gold < c.gold, onclick: () => this.g.send({ t: 'power_exchange', npc: this.powerNpc!.npc, power: def.id }) }, `หลอมเป็น ${def.nameTh}`)));
+    }
+    if (this.powerNpc?.role === 'ritual' && o && pv.active !== def.id) {
+      const R = POWER_CONFIG.ritual;
+      const need: [string, number][] = [...Object.entries(R.items), [def.ritualItem, R.powerItemQty]];
+      const ok = need.every(([id, n]) => count(id) >= n) && this.g.gold >= R.gold && pv.ritualIn === 0 && powerAllowsWeapon(def, this.g.weapon?.type);
+      p.append(h('div', { class: 'pact' },
+        h('div', {}, 'วัตถุดิบพิธี: ', ...need.map(([id, n]) => h('span', { class: count(id) >= n ? 'good' : 'bad' }, `${getItem(id)?.nameTh ?? id} ${count(id)}/${n} · `)),
+          h('span', { class: this.g.gold >= R.gold ? 'good' : 'bad' }, `ทอง ${R.gold.toLocaleString()}`)),
+        h('div', { class: 'dim' }, `ภารกิจพิธีของพลังนี้: ${def.ritualTrial} (ด่านทดสอบในพิธียังไม่เปิด — ตอนนี้เป็นการทำพิธีแบบหักวัตถุดิบ)`),
+        pv.ritualIn > 0 ? h('div', { class: 'bad' }, `พิธีพร้อมอีก ${Math.ceil(pv.ritualIn / 60)} นาที`) : null,
+        !powerAllowsWeapon(def, this.g.weapon?.type) ? h('div', { class: 'bad' }, 'อาวุธที่ถืออยู่ใช้พลังนี้ไม่ได้') : null,
+        h('button', { class: 'btn primary', disabled: !ok, onclick: () => this.g.send({ t: 'power_ritual', npc: this.powerNpc!.npc, power: def.id }) }, `ทำพิธีเปลี่ยนเป็น ${def.nameTh}`)));
+    }
+    if (!o) {
+      p.append(h('p', { class: 'dim' }, `ยังไม่มีพลังนี้ — หาได้จากบอส/ดันเจี้ยน หรือแลกเศษพลัง ${POWER_CONFIG.exchange.fragments} ชิ้นที่ปราชญ์อิลยา (Aether Capital)`));
+      this.abilityList(p, def, 0);
+      return;
+    }
+    if (pv.active !== def.id) p.append(h('div', { class: 'dim' }, 'อยู่ใน Power Collection — เปลี่ยนมาใช้ต้องทำพิธีที่ Power Rebirth Temple (Warhaven Citadel ทางประตูตะวันตกของเมือง)'));
+    if (pv.active === def.id && !pv.usable) p.append(h('div', { class: 'bad' }, 'อาวุธที่ถืออยู่ใช้พลังนี้ไม่ได้ — สกิลพลังถูกปิดจนกว่าจะเปลี่ยนอาวุธ'));
+    p.append(h('div', { class: 'row' }, `Power Mastery Lv.${o.masteryLevel} (${o.masteryXp}/${Number.isFinite(o.next) ? o.next : 'MAX'}) · +${o.masteryLevel}% ดาเมจพลัง`));
+    // ---- awakening
+    if (o.awakening < 3) {
+      const tier = POWER_CONFIG.awakening[o.awakening];
+      const cost = tier.cost!;
+      const ok = Object.entries(cost.items).every(([id, n]) => count(id) >= n) && this.g.gold >= cost.gold && o.masteryLevel >= cost.masteryLevel;
+      p.append(h('div', { class: 'pact' }, h('b', {}, `ปลุกพลัง → ${tier.name}`), ' ต้องการ: ',
+        h('span', { class: o.masteryLevel >= cost.masteryLevel ? 'good' : 'bad' }, `Mastery ${cost.masteryLevel} · `),
+        ...Object.entries(cost.items).map(([id, n]) => h('span', { class: count(id) >= n ? 'good' : 'bad' }, `${getItem(id)?.nameTh ?? id} ${count(id)}/${n} · `)),
+        h('span', { class: this.g.gold >= cost.gold ? 'good' : 'bad' }, `ทอง ${cost.gold.toLocaleString()}`),
+        h('button', { class: 'btn small primary', disabled: !ok, onclick: () => this.g.send({ t: 'power_awaken', power: def.id }) }, 'ปลุกพลัง')));
+    } else p.append(h('div', { class: 'good' }, 'Awakening III — ปลดล็อกครบ 25 ความสามารถ (Mastery stage: customization/visual evolution อยู่ในแผน)'));
+    // ---- loadout editor
+    const lo = pv.loadouts[def.id] ?? { actives: [null, null, null, null, null], ult: null, passives: [null, null, null] };
+    const un = unlockedAbilities(def, o.awakening);
+    const select = (id: string, opts: { id: string; nameTh: string }[], cur: string | null) =>
+      h('select', { id }, h('option', { value: '' }, '— ว่าง —'), ...opts.map((x) => h('option', { value: x.id, selected: x.id === cur }, x.nameTh)));
+    const keys = ['Q', 'E', 'R', 'T', 'G'];
+    const loEl = h('div', { class: 'loadout' },
+      h('div', { class: 'gmsec' }, `Loadout: Active ${POWER_CONFIG.loadout.actives} · Ultimate 1 · Passive ${POWER_CONFIG.loadout.passives}`),
+      h('div', { class: 'lorow' }, ...lo.actives.map((a, i) => h('label', {}, keys[i], select(`lo-a${i}`, un.actives, a)))),
+      h('div', { class: 'lorow' }, h('label', {}, 'X Ultimate', select('lo-u', un.ultimates, lo.ult)), ...lo.passives.map((a, i) => h('label', {}, `Passive ${i + 1}`, select(`lo-p${i}`, un.passives, a)))),
+      h('button', { class: 'btn small primary', onclick: () => {
+        const v = (id: string) => (p.querySelector(`#${id}`) as HTMLSelectElement).value || null;
+        this.g.send({ t: 'power_loadout', power: def.id, actives: [0, 1, 2, 3, 4].map((i) => v(`lo-a${i}`)), ult: v('lo-u'), passives: [0, 1, 2].map((i) => v(`lo-p${i}`)) });
+      } }, 'บันทึก Loadout'));
+    p.append(loEl);
+    this.abilityList(p, def, o.awakening);
+  }
+
+  private abilityList(p: HTMLElement, def: PowerDef, awakening: number) {
+    const un = awakening ? unlockedAbilities(def, awakening) : { actives: [], ultimates: [], passives: [] };
+    const ok = new Set([...un.actives, ...un.ultimates, ...un.passives].map((x) => x.id));
+    const row = (x: { id: string; nameTh: string; name: string; description: string }, meta: string) =>
+      h('div', { class: `abil${ok.has(x.id) ? '' : ' lockedab'}` }, h('b', {}, `${x.nameTh}`), h('small', {}, ` ${x.name} ${meta}`), h('div', { class: 'dim' }, x.description));
+    const list = h('div', { class: 'abils' },
+      h('div', { class: 'gmsec' }, 'Active (15)'), ...def.actives.map((s, i) => row(s, `· CD ${s.cooldown}s · EN ${s.energyCost}${s.castTime ? ` · ร่าย ${s.castTime}s` : ''} · ปลด ${i < 5 ? 'I' : i < 10 ? 'II' : 'III'}`)),
+      h('div', { class: 'gmsec' }, 'Ultimate (5)'), ...def.ultimates.map((s, i) => row({ ...s, description: `${s.description} — ตอบโต้: ${s.counterplay}` }, `· CD ${s.cooldown}s · EN ${s.energyCost} · ปลด ${i < 1 ? 'I' : i < 3 ? 'II' : 'III'}`)),
+      h('div', { class: 'gmsec' }, 'Passive (5)'), ...def.passives.map((s, i) => row(s, `· ปลด ${i < 2 ? 'I' : i < 3 ? 'II' : 'III'}`)));
+    p.append(list);
+  }
+
   renderAuto() {
     const p = this.panels.auto;
     clear(p);
@@ -442,14 +552,29 @@ export class Hud {
   }
 
   // ------------------------------------------------------------ per-frame update
-  private skillSlot(id: string, key: string, label: string, skill: SkillDef | null, extra?: string) {
+  private skillSlot(id: string, key: string, label: string, skill: SkillDef | null, extra?: string, cls = '') {
     const cd = h('div', { class: 'cdov' });
     const tip = skill
       ? `${skill.nameTh} (${skill.name})\n${skill.description}\nคูลดาวน์ ${skill.cooldown}s · Energy ${skill.energyCost}${skill.staminaCost ? ` · Stamina ${skill.staminaCost}` : ''}${skill.castTime ? ` · ร่าย ${skill.castTime}s` : ''}\nระยะ: ${describeShape(skill)}`
       : extra ?? label;
-    const slot = h('div', { class: 'sk', title: tip, onmousedown: (e: Event) => { e.preventDefault(); this.onSkill(id); } }, h('div', { class: 'skname' }, label), skill && skill.energyCost ? h('div', { class: 'skcost' }, String(skill.energyCost)) : null, h('div', { class: 'skkey' }, key), cd);
+    const slot = h('div', { class: `sk ${cls}`, title: tip, onmousedown: (e: Event) => { e.preventDefault(); this.onSkill(id); } }, h('div', { class: 'skname' }, label), skill && skill.energyCost ? h('div', { class: 'skcost' }, String(skill.energyCost)) : null, h('div', { class: 'skkey' }, key), cd);
     this.skillEls.set(id, { cd, slot });
     return slot;
+  }
+
+  private powerSlots(): HTMLElement[] {
+    const keys = ['Q', 'E', 'R', 'T', 'G'];
+    const out: HTMLElement[] = [];
+    if (!this.g.powers?.active) return out;
+    if (!this.g.powers.usable) return [h('div', { class: 'sk locked', title: 'อาวุธที่ถืออยู่ใช้พลังนี้ไม่ได้' }, h('div', { class: 'skname' }, 'พลังถูกปิด'), h('div', { class: 'skkey' }, '—'))];
+    for (let i = 0; i < 5; i++) {
+      const sk = this.g.powerSlotSkill(i);
+      out.push(sk ? this.skillSlot(sk.id, keys[i], sk.nameTh, sk, undefined, 'power') : h('div', { class: 'sk empty', title: 'ช่องว่าง — ตั้งค่าใน The Power [P]' }, h('div', { class: 'skkey' }, keys[i])));
+    }
+    const u = this.g.powerSlotSkill(-1);
+    out.push(u ? this.skillSlot(u.id, 'X', u.nameTh, u, undefined, 'ult') : h('div', { class: 'sk empty ult' }, h('div', { class: 'skkey' }, 'X')));
+    out.push(h('div', { class: 'sep' }));
+    return out;
   }
 
   private buildSkills() {
@@ -464,6 +589,7 @@ export class Hud {
       h('div', { class: 'sep' }),
       ...(w ? w.skills.map((s, i) => this.skillSlot(s.id, String(i + 1), s.nameTh, s)) : []),
       h('div', { class: 'sep' }),
+      ...this.powerSlots(),
       this.skillSlot('pot_hp', '4', 'ยา HP', null, 'ใช้ยาฟื้นพลัง HP'),
       this.skillSlot('pot_en', '5', 'ยา EN', null, 'ใช้ยาฟื้นพลัง Energy'),
     );
@@ -490,7 +616,7 @@ export class Hud {
     for (const [id, el] of this.skillEls) {
       let rem = s.cd[id] ?? 0, total = 1;
       const w = g.weapon;
-      const sk = w ? [w.normal, w.heavy, ...w.skills].find((x) => x.id === id) : undefined;
+      const sk = (w ? [w.normal, w.heavy, ...w.skills].find((x) => x.id === id) : undefined) ?? findPowerSkill(id)?.skill;
       if (sk) total = sk.type === 'normal' ? sk.cooldown / (c.stats.atkSpd || 1) : sk.cooldown * (1 - c.stats.cdr);
       if (id === 'dodge') { rem = g.ms.dodgeCd; total = (w?.dodge.cooldown ?? 0.5) + (w?.dodge.duration ?? 0.25); }
       if (id === 'pot_hp' || id === 'pot_en') { rem = s.potCd; total = 8; }
@@ -502,7 +628,11 @@ export class Hud {
     // buffs
     const b: string[] = [];
     if (s.shield > 0) b.push('🛡 โล่');
-    if (s.dr > 0) b.push(`🪨 กายเหล็ก ${s.dr.toFixed(0)}s`);
+    if (s.dr > 0) b.push(`🪨 ลดดาเมจ ${s.dr.toFixed(0)}s`);
+    if (s.charges > 0) b.push(`⚡×${s.charges}`);
+    if (s.stealth) b.push('🌑 ล่องหน');
+    if (s.cheat) b.push('🔥 คืนชีพพร้อม');
+    for (const [src, rem] of s.buffs) { const ps = findPowerSkill(src); b.push(`✨ ${ps?.skill.nameTh ?? src} ${rem.toFixed(0)}s`); }
     if (s.rootT > 0) b.push('💫 มึน');
     if (s.slowT > 0) b.push('🐌 ช้า');
     if (s.dodgeT > 0) b.push('✨ อมตะ');

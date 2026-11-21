@@ -188,6 +188,12 @@ function sampleInput() {
     if (keys.has('Digit1')) b |= BTN.SKILL1;
     if (keys.has('Digit2')) b |= BTN.SKILL2;
     if (keys.has('Digit3')) b |= BTN.SKILL3;
+    if (keys.has('KeyQ')) b |= BTN.P1;
+    if (keys.has('KeyE')) b |= BTN.P2;
+    if (keys.has('KeyR')) b |= BTN.P3;
+    if (keys.has('KeyT')) b |= BTN.P4;
+    if (keys.has('KeyG')) b |= BTN.P5;
+    if (keys.has('KeyX')) b |= BTN.ULT;
   }
   const co = c.tick();
   if (co.interact !== null) doInteract(co.interact);
@@ -233,7 +239,9 @@ function onSkillButton(id: string) {
   if (id === w.normal.id) return c.press(BTN.ATTACK);
   if (id === w.heavy.id) return c.press(BTN.HEAVY);
   const i = w.skills.findIndex((s) => s.id === id);
-  if (i >= 0) c.press([BTN.SKILL1, BTN.SKILL2, BTN.SKILL3][i]);
+  if (i >= 0) return c.press([BTN.SKILL1, BTN.SKILL2, BTN.SKILL3][i]);
+  if (g.powerSlotSkill(-1)?.id === id) return c.press(BTN.ULT);
+  for (let k = 0; k < 5; k++) if (g.powerSlotSkill(k)?.id === id) return c.press([BTN.P1, BTN.P2, BTN.P3, BTN.P4, BTN.P5][k]);
 }
 
 function interact() {
@@ -260,6 +268,7 @@ window.addEventListener('keydown', (e) => {
     case 'KeyC': hud?.toggle('char'); break;
     case 'KeyH': hud?.toggle('help'); break;
     case 'KeyO': hud?.toggle('auto'); break;
+    case 'KeyP': hud?.toggle('power'); break;
     case 'Digit4': usePotion('pot_hp_small'); break;
     case 'Digit5': usePotion('pot_energy_small'); break;
     case 'Escape': hud?.closeAll(); break;
@@ -314,6 +323,8 @@ boot();
 // Read-only hook for automated tests (exposes client view state, grants no authority).
 (window as unknown as { __tpew: () => unknown }).__tpew = () => game && { zone: game.zone?.id, self: game.self, char: game.char, players: [...game.ents.values()].filter((e) => e.meta.k === 1).map((e) => ('name' in e.meta ? e.meta.name : '')), monsters: [...game.ents.values()].filter((e) => e.meta.k === 2).length,
   pos: { x: game.ms.x, y: game.ms.y },
+  powersActive: game.powers?.active ?? null,
+  powerMastery: game.powers?.owned.find((o) => o.id === game?.powers?.active)?.masteryXp ?? 0,
   items: game.items.map((i) => i.defId),
   nearestScreen: (k: number) => {
     if (!renderer || !game) return null;

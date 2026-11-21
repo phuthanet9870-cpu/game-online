@@ -45,15 +45,15 @@
 | Pixel-art isometric renderer (chunk cache, depth sort, VFX) | Functional | screenshots ใน e2e |
 | HUD (HP/EN/ST, skill bar + cooldown, minimap, buffs, net status, EXP) | Functional | ไม่มี Quest Tracker/Party (ยังไม่มีระบบ) |
 | **ระบบ GM** (ดู GM_SYSTEM.md) | Tested | `tests/gm.test.ts`, e2e |
+| **The Power** 6 ผล × 25 = 150 ความสามารถ (สเปกครบ), engine, loadout 5/1/3, ข้อจำกัดอาวุธ, Mastery, Awakening I–III, แลกเศษพลัง | Tested | `tests/powers.test.ts` (smoke ร่ายครบ 120 สกิล), e2e |
+| Power Rebirth Ritual (ตรวจ/หัก/สลับ/คูลดาวน์) | Prototype | ยังไม่มีด่าน instance ของพิธี |
+| Warhaven Citadel (เมืองที่ 2) | Functional | Temple + NPC ข้อมูล; ระบบกิลด์/PvP ยังไม่เปิด |
 
 ## ระบบที่ยังไม่ทำ
 
 | ระบบ | สถานะ | Milestone |
 |---|---|---|
-| The Power (6 ผล, 150 ความสามารถ) | Designed (ชื่อ, schema) — **ยังไม่มีสเปกตัวเลขรายสกิล** | M3 |
-| Skill Loadout / Power Mastery / Awakening | Designed | M3 |
-| Power Rebirth Ritual | Designed | M3 |
-| Power Fragment exchange / pity | Designed (เศษพลังดรอปได้แล้ว แต่ยังใช้ไม่ได้) | M3 |
+| Ritual instance (ป้องกันแท่น/ปริศนา/สู้วิญญาณ), Power Mastery stage, boss pity | Designed | M3/M5 |
 | Enhancement +20, Option Reforge, Rune Socket/Fusion | Designed | M4 |
 | Crafting | Designed | M4 |
 | อีก 29 แมพ, Map Boss, World Boss, Dungeon | Designed (รายชื่อ/เงื่อนไข) | M5 |
