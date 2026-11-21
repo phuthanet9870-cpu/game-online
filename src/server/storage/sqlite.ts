@@ -69,6 +69,10 @@ export const MIGRATIONS: { id: number; name: string; sql: string }[] = [
     id: 3, name: 'the_power',
     sql: `ALTER TABLE characters ADD COLUMN powers TEXT NOT NULL DEFAULT '{"owned":[],"active":null,"loadouts":{},"ritualReadyAt":0}';`,
   },
+  {
+    id: 4, name: 'server_kv',
+    sql: `CREATE TABLE server_kv (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL);`,
+  },
 ];
 
 type Row = Record<string, unknown>;
@@ -192,6 +196,9 @@ export class SqliteStorage implements Storage {
     const r = this.db.prepare('UPDATE accounts SET banned_until = ? WHERE id = ?').run(until, accountId);
     return Number(r.changes) === 1;
   }
+
+  async getKV(k: string) { const r = this.db.prepare('SELECT value FROM server_kv WHERE key = ?').get(k) as Row | undefined; return r ? String(r.value) : null; }
+  async setKV(k: string, v: string) { this.db.prepare('INSERT INTO server_kv (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at').run(k, v, Date.now()); }
 
   /** Online backup to a file (used by `npm run backup`-style ops). */
   backup(path: string) { this.db.exec(`VACUUM INTO '${path.replace(/'/g, "''")}'`); }

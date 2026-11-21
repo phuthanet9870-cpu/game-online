@@ -11,6 +11,8 @@ export interface ResourceNodeDef { id: string; kind: 'herb' | 'ore'; x: number; 
 export interface HazardDef { id: string; kind: 'mud' | 'thorns'; x: number; y: number; radius: number; slowMult: number; dpsFraction: number }
 export interface StructureDef { kind: 'house' | 'shop' | 'smithy' | 'hall' | 'wall' | 'fountain'; x: number; y: number; w: number; h: number }
 
+export interface BossScheduleDef { monsterId: string; minMinutes: number; maxMinutes: number; spawnPoints: { x: number; y: number; hint: string }[]; mutatedChance: number }
+
 export interface ZoneDef {
   id: string;
   name: string;
@@ -26,6 +28,8 @@ export interface ZoneDef {
   spawnPoint: { x: number; y: number };
   portals: PortalDef[];
   spawnGroups: SpawnGroupDef[];
+  /** Map bosses: server-scheduled random spawn windows (PART 15). */
+  bosses?: BossScheduleDef[];
   npcs: NpcDef[];
   resourceNodes: ResourceNodeDef[];
   hazards: HazardDef[];
@@ -86,6 +90,8 @@ export const ZONES: Record<string, ZoneDef> = {
       { id: 'g_wolf_b', monsterId: 'plains_wolf', x: 78, y: 28, radius: 7, baseCount: 4, perPlayer: 2, maxCount: 9 },
       { id: 'g_alpha', monsterId: 'alpha_wolf', x: 86, y: 14, radius: 2, baseCount: 1, perPlayer: 0, maxCount: 1 },
     ],
+    bosses: [{ monsterId: 'meadow_king', minMinutes: 45, maxMinutes: 90, mutatedChance: 0.1, spawnPoints: [
+      { x: 40, y: 82, hint: 'ทุ่งโคลนทางใต้' }, { x: 84, y: 76, hint: 'เนินตะวันออกเฉียงใต้' }, { x: 60, y: 18, hint: 'ทุ่งหญ้าทางเหนือ' }] }],
     npcs: [
       { id: 'npc_scout', name: 'Scout Fenn', nameTh: 'หน่วยลาดตระเวนเฟนน์', role: 'info', x: 8.5, y: 46.5, color: '#27ae60',
         dialogue: ['สไลม์ใกล้ประตูเมืองไม่โจมตีก่อน เหมาะสำหรับฝึกมือ', 'ระวังเห็ดพองลม! เมื่อมันพองตัว ให้กระโดดหลบ (Space) ออกจากวงสีแดง'] },
@@ -121,6 +127,8 @@ export const ZONES: Record<string, ZoneDef> = {
       { id: 'f_spore_b', monsterId: 'sporeling', x: 82, y: 66, radius: 6, baseCount: 4, perPlayer: 1, maxCount: 8 },
       { id: 'f_elder', monsterId: 'elder_sapling', x: 48, y: 12, radius: 2, baseCount: 1, perPlayer: 0, maxCount: 1 },
     ],
+    bosses: [{ monsterId: 'whisperwood_matriarch', minMinutes: 60, maxMinutes: 120, mutatedChance: 0.1, spawnPoints: [
+      { x: 20, y: 30, hint: 'ป่าทึบตะวันตก' }, { x: 80, y: 50, hint: 'ลำธารตะวันออก' }, { x: 30, y: 74, hint: 'ป่าสปอร์ใต้' }] }],
     npcs: [
       { id: 'npc_druid', name: 'Druid Saela', nameTh: 'ดรูอิดเซลา', role: 'info', x: 53.5, y: 92.5, color: '#16a085',
         dialogue: ['ป่านี้กระซิบเตือนผู้บุกรุก... ระวังพุ่มหนามที่ทำให้เดินช้าและบาดเจ็บ', 'ต้นกล้าผู้เฒ่าทางเหนือสุดแข็งแกร่งมาก ควรไปเป็นกลุ่ม'] },

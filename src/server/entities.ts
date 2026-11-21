@@ -11,6 +11,7 @@ import type { Inventory } from './inventory.ts';
 import type { GmFlags } from './gm.ts';
 import type { AutoState } from './autofarm.ts';
 import type { PassiveMods, PowerDef } from '../shared/config/powers.ts';
+import type { BossState } from './bosses.ts';
 
 export type InputMsg = Extract<ClientMessage, { t: 'in' }>;
 
@@ -108,6 +109,8 @@ export interface MonsterEntity {
   dots: { dps: number; until: number; nextAt: number; srcId: number; label: string }[];
   frost: number; frostUntil: number;
   vulnAmount: number; vulnUntil: number;
+  /** Present only on map bosses. */
+  boss?: BossState;
   forceUntil: number; fvx: number; fvy: number;
   respawnAt: number;
   anim: number; animUntil: number;

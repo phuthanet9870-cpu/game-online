@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 0.2.0 — 2026-11-21
+### Added
+- Point-and-click: เดิน (A*), คลิกมอนสเตอร์ = เดินเข้าระยะแล้วตีอัตโนมัติ, คลิก NPC/ไอเทม/ทรัพยากร, คลิกปุ่มสกิล
+- GM Panel แยกแท็บ/หมวดหมู่ + `/gm itemall`, `/gm power`, `/gm boss`
+- Auto Farm ฝั่งเซิร์ฟเวอร์ (target/radius/rotation/ยา/loot filter/เงื่อนไขหยุด/โควตาชั่วโมง)
+- อาวุธครบ 6 ชนิด (Dagger, Bow, Grimoire, Gauntlet) + effect engine ใหม่
+- The Power: 6 ผล 150 ความสามารถ, loadout, mastery, awakening, แลกเศษพลัง, Rebirth Ritual (prototype), Warhaven Citadel
+- Map Boss 2 ตัว, Boss Tracker, Complete Power Core + pity, server_kv (migration 4)
+
 ## 0.1.0 — 2026-11-21
 ### Added
 - สถาปัตยกรรม TypeScript: shared/server/client, esbuild build (Node server, online client, single-file artifact)

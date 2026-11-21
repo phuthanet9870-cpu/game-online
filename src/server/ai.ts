@@ -11,6 +11,7 @@ import { ANIM } from '../shared/protocol.ts';
 import type { MonsterEntity, PlayerEntity } from './entities.ts';
 import type { Zone } from './zone.ts';
 import { attackEffects, resolveMonsterAttack } from './combat.ts';
+import { bossReturnedHome } from './bosses.ts';
 
 function findTarget(z: Zone, m: MonsterEntity): PlayerEntity | null {
   let best: PlayerEntity | null = null, bestD = Infinity;
@@ -28,7 +29,7 @@ function stepToward(z: Zone, m: MonsterEntity, tx: number, ty: number, speedMult
   if (d < 0.05) return true;
   if (z.time < m.rootUntil) { m.facingX = dx / d; m.facingY = dy / d; return false; } // rooted: can turn and attack, not move
   const slow = z.time < m.slowUntil ? m.slowMult : 1;
-  const step = Math.min(d, m.def.moveSpeed * speedMult * slow * TICK_DT);
+  const step = Math.min(d, m.def.moveSpeed * speedMult * slow * (m.boss?.speedMult ?? 1) * TICK_DT);
   const n = normalize(dx, dy);
   m.facingX = n.x; m.facingY = n.y;
   const free = moveWithCollision(z.map, m, n.x * step, n.y * step, m.radius);
@@ -134,7 +135,7 @@ export function updateMonster(z: Zone, m: MonsterEntity) {
       if (!w) { m.state = 'chase'; break; }
       if (t < w.until) break;
       const a = m.def.attacks[w.idx];
-      m.attackReady[w.idx] = t + a.cooldown;
+      m.attackReady[w.idx] = t + a.cooldown * (m.boss?.cdMult ?? 1);
       // shared global cooldown so specials don't chain instantly into basics
       for (let i = 0; i < m.attackReady.length; i++) m.attackReady[i] = Math.max(m.attackReady[i], t + 0.4);
       m.windup = null;
@@ -176,6 +177,7 @@ export function updateMonster(z: Zone, m: MonsterEntity) {
       if (stepToward(z, m, m.homeX, m.homeY, 1.6)) {
         m.state = 'idle';
         m.hp = m.maxHp;
+        bossReturnedHome(m);
         m.stateUntil = t + 2;
       }
       break;

@@ -128,6 +128,7 @@ export type ServerMessage =
   | { t: 'auto'; on: boolean; kills: number; reason: string }
   | { t: 'powers'; owned: { id: string; awakening: number; masteryLevel: number; masteryXp: number; next: number }[]; active: string | null; loadouts: Record<string, { actives: (string | null)[]; ult: string | null; passives: (string | null)[] }>; ritualIn: number; usable: boolean }
   | { t: 'power_npc'; npc: number; role: 'power' | 'ritual' }
+  | { t: 'boss'; zone: string; list: { id: string; name: string; status: 'alive' | 'soon' | 'waiting'; hint: string; mutated: boolean; hp: number; window: string }[] }
   | { t: 'gm'; on: boolean; god: boolean; invis: boolean; nocd: boolean; speed: number; rates: { exp: number; drop: number; gold: number } };
 
 // ---------------------------------------------------------------- validation

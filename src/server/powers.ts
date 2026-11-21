@@ -13,6 +13,7 @@ import type { MonsterEntity, PlayerEntity, PowerZone } from './entities.ts';
 import type { OwnedPower, PowerLoadout } from './storage/types.ts';
 import type { Zone } from './zone.ts';
 import { dealDamage, killMonster } from './combat.ts';
+import { recordHeal } from './bosses.ts';
 
 export const POWER_BITS = [128, 256, 512, 1024, 2048] as const;
 export const ULT_BIT = 4096;
@@ -102,10 +103,12 @@ export function addPowerMastery(p: PlayerEntity, xp: number): boolean {
 }
 
 // ------------------------------------------------------------------ caster-side effects
-export function healPlayer(z: Zone, p: PlayerEntity, amount: number) {
+export function healPlayer(z: Zone, p: PlayerEntity, amount: number, healer?: PlayerEntity) {
   if (p.dead || amount <= 0) return;
-  const v = Math.round(amount * Math.max(0.1, p.stats.healPower));
+  const v = Math.round(amount * Math.max(0.1, (healer ?? p).stats.healPower));
+  const real = Math.min(v, p.stats.hp - p.hp);
   p.hp = Math.min(p.stats.hp, p.hp + v);
+  if (healer && real > 0) recordHeal(z, healer, real);
   z.emit({ e: 'heal', t: p.id, v }, p.ms.x, p.ms.y);
 }
 
@@ -133,9 +136,9 @@ export function applyCasterEffects(z: Zone, p: PlayerEntity, skill: SkillDef, ax
       }
       case 'heal': {
         const amt = p.stats.hp * ef.pct + healStat(p) * ef.statMult;
-        healPlayer(z, p, amt);
+        healPlayer(z, p, amt, p);
         if (ef.radius > 0) for (const o of z.players.values()) {
-          if (o !== p && !o.dead && (o.ms.x - p.ms.x) ** 2 + (o.ms.y - p.ms.y) ** 2 <= ef.radius ** 2) healPlayer(z, o, o.stats.hp * ef.pct + healStat(p) * ef.statMult);
+          if (o !== p && !o.dead && (o.ms.x - p.ms.x) ** 2 + (o.ms.y - p.ms.y) ** 2 <= ef.radius ** 2) healPlayer(z, o, o.stats.hp * ef.pct + healStat(p) * ef.statMult, p);
         }
         break;
       }
@@ -290,7 +293,7 @@ export function tickZones(z: Zone) {
     if (t < zn.nextTick) continue;
     zn.nextTick = t + zn.tick;
     if (zn.healPct > 0) {
-      for (const o of z.players.values()) if (!o.dead && (o.ms.x - zn.x) ** 2 + (o.ms.y - zn.y) ** 2 <= zn.radius ** 2) healPlayer(z, o, o.stats.hp * zn.healPct);
+      for (const o of z.players.values()) if (!o.dead && (o.ms.x - zn.x) ** 2 + (o.ms.y - zn.y) ** 2 <= zn.radius ** 2) healPlayer(z, o, o.stats.hp * zn.healPct, owner);
     }
     if (!zn.skill.damage) continue;
     const effects = zn.skill.effects.filter((e) => e.kind !== 'zone' && e.kind !== 'buff' && e.kind !== 'buff_dr');

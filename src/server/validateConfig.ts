@@ -68,6 +68,13 @@ export function validateConfig(): string[] {
       if (!ok(g.x, g.y)) errs.push(`zone ${z.id} group ${g.id} unreachable`);
       if (g.maxCount < g.baseCount) errs.push(`zone ${z.id} group ${g.id} maxCount < baseCount`);
     }
+    for (const b of z.bosses ?? []) {
+      const m = MONSTERS[b.monsterId];
+      if (!m || m.tier !== 'map_boss') errs.push(`zone ${z.id} boss ${b.monsterId} must be a map_boss monster`);
+      if (b.minMinutes <= 0 || b.maxMinutes < b.minMinutes) errs.push(`zone ${z.id} boss window invalid`);
+      if (b.spawnPoints.length < 2) errs.push(`zone ${z.id} boss needs multiple spawn points`);
+      for (const sp of b.spawnPoints) if (!ok(sp.x, sp.y)) errs.push(`zone ${z.id} boss spawn (${sp.x},${sp.y}) unreachable`);
+    }
     for (const n of z.npcs) {
       if (n.shopId && !SHOPS[n.shopId]) errs.push(`zone ${z.id} npc ${n.id} unknown shop`);
       if (!ok(n.x, n.y + 1) && !ok(n.x, n.y) && !ok(n.x + 1, n.y)) errs.push(`zone ${z.id} npc ${n.id} unreachable`);

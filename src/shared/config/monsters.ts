@@ -46,6 +46,8 @@ export interface MonsterDef {
   loot: LootEntry[];
   palette: { body: string; dark: string; light: string; eye: string };
   scale: number;
+  /** Boss phases, entered when HP falls below hpBelow (fraction). */
+  phases?: { hpBelow: number; name: string; atkMult: number; speedMult: number; cooldownMult: number; summon?: { monsterId: string; count: number } }[];
 }
 
 const POWER_FRAGMENT_NORMAL = 0.01; // within the 0.5–2% band from the brief
@@ -170,6 +172,42 @@ export const MONSTERS: Record<string, MonsterDef> = Object.fromEntries(([
       { itemId: 'mat_life_seed', chance: 0.12, min: 1, max: 1 },
       { itemId: 'mat_power_fragment', chance: POWER_FRAGMENT_ELITE, min: 1, max: 2 }],
     palette: { body: '#5a3e24', dark: '#2e1e10', light: '#6fd36f', eye: '#ffe066' } },
+  // ---------------- Map Bosses ----------------
+  { ...base, id: 'meadow_king', name: 'Thunderhoof, the Meadow King', nameTh: 'กีบอัสนี ราชาแห่งทุ่ง', family: 'boar', tier: 'map_boss', levelMin: 10, levelMax: 10,
+    hp: 9000, hpPerLevel: 0, atk: 60, atkPerLevel: 0, def: 22, defPerLevel: 0, aggroRange: 8, moveSpeed: 3.0, leashRange: 20, radius: 0.9, scale: 2.4,
+    attacks: [
+      { kind: 'melee', windup: 0.6, cooldown: 1.6, range: 2.2, arcDeg: 120, mult: 1, knockback: 1.2 },
+      { kind: 'aoe', windup: 1.2, cooldown: 7, range: 7, radius: 3, mult: 1.8, slow: { mult: 0.5, duration: 2 } },
+      { kind: 'aoe', windup: 1.6, cooldown: 14, range: 1, radius: 5, mult: 2.4 },
+    ],
+    phases: [
+      { hpBelow: 0.7, name: 'โกรธเกรี้ยว', atkMult: 1.2, speedMult: 1.15, cooldownMult: 0.85, summon: { monsterId: 'meadow_boar', count: 3 } },
+      { hpBelow: 0.35, name: 'คลั่ง', atkMult: 1.45, speedMult: 1.3, cooldownMult: 0.7, summon: { monsterId: 'plains_wolf', count: 3 } },
+    ],
+    exp: 3500, expPerLevel: 0, gold: [300, 600], respawnSec: 1e9,
+    loot: [{ itemId: 'power_core', chance: 0.005, min: 1, max: 1 }, { itemId: 'mat_ritual_crystal', chance: 0.25, min: 1, max: 1 },
+      { itemId: 'mat_ancient_rune_dust', chance: 1, min: 3, max: 6 }, { itemId: 'mat_power_fragment', chance: 0.6, min: 2, max: 5 },
+      { itemId: 'wpn_wolfbane_blade', chance: 0.15, min: 1, max: 1, rarityWeights: { rare: 70, epic: 25, legendary: 5 } },
+      { itemId: 'arm_leather_vest', chance: 0.25, min: 1, max: 1, rarityWeights: { rare: 70, epic: 27, legendary: 3 } }],
+    palette: { body: '#7a5a3a', dark: '#3a2410', light: '#ffd060', eye: '#ffe040' } },
+  { ...base, id: 'whisperwood_matriarch', name: 'Whisperwood Matriarch', nameTh: 'มารดาแห่งป่ากระซิบ', family: 'sapling', tier: 'map_boss', levelMin: 16, levelMax: 16,
+    hp: 22000, hpPerLevel: 0, atk: 95, atkPerLevel: 0, def: 35, defPerLevel: 0, aggroRange: 8, moveSpeed: 2.2, leashRange: 20, radius: 1, scale: 2.4,
+    damageType: 'magic', element: 'nature', resist: { nature: 0.5, fire: -0.3 },
+    attacks: [
+      { kind: 'melee', windup: 0.7, cooldown: 1.8, range: 2.4, arcDeg: 140, mult: 1, knockback: 1.4 },
+      { kind: 'ranged', windup: 0.6, cooldown: 3, range: 9, speed: 9, radius: 0.5, mult: 1.2 },
+      { kind: 'aoe', windup: 1.3, cooldown: 8, range: 8, radius: 3, mult: 1.9, slow: { mult: 0.4, duration: 3 } },
+    ],
+    phases: [
+      { hpBelow: 0.7, name: 'รากตื่น', atkMult: 1.2, speedMult: 1.1, cooldownMult: 0.85, summon: { monsterId: 'sporeling', count: 3 } },
+      { hpBelow: 0.35, name: 'ป่าคลั่ง', atkMult: 1.5, speedMult: 1.25, cooldownMult: 0.7, summon: { monsterId: 'shade_wolf', count: 3 } },
+    ],
+    exp: 9000, expPerLevel: 0, gold: [600, 1200], respawnSec: 1e9,
+    loot: [{ itemId: 'power_core', chance: 0.005, min: 1, max: 1 }, { itemId: 'mat_ritual_crystal', chance: 0.35, min: 1, max: 2 },
+      { itemId: 'mat_life_seed', chance: 0.4, min: 1, max: 3 }, { itemId: 'mat_ancient_rune_dust', chance: 1, min: 4, max: 8 },
+      { itemId: 'mat_power_fragment', chance: 0.7, min: 3, max: 6 },
+      { itemId: 'wpn_sylvan_staff', chance: 0.15, min: 1, max: 1, rarityWeights: { rare: 70, epic: 25, legendary: 5 } }],
+    palette: { body: '#3e2a4a', dark: '#1e1024', light: '#c060ff', eye: '#ff70ff' } },
 ] as MonsterDef[]).map((m) => [m.id, m]));
 
 export function getMonster(id: string): MonsterDef | undefined {

@@ -60,5 +60,8 @@ export class MemoryStorage implements Storage {
     for (const a of this.accounts.values()) if (a.id === accountId) { a.bannedUntil = until; this.changed(); return true; }
     return false;
   }
+  private kv = new Map<string, string>();
+  async getKV(k: string) { return this.kv.get(k) ?? null; }
+  async setKV(k: string, v: string) { this.kv.set(k, v); }
   async close() {}
 }

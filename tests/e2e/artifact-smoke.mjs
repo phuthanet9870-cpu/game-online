@@ -140,6 +140,23 @@ for (const k of ['KeyQ', 'KeyE', 'KeyR', 'KeyT', 'KeyG', 'KeyX']) {
 await page.screenshot({ path: join(out, '8-power-combat.png') });
 checks.powerCast = (await st()).self.en < en0p || (await page.evaluate(() => window.__tpew().powerMastery)) > 0;
 
+// 9) Map Boss: GM spawn, tracker + boss bar, click to fight
+await gm('/gm god');
+await gm('/gm tp 40 76 greenfall_plains');
+await page.waitForTimeout(600);
+await gm('/gm boss spawn');
+await page.waitForTimeout(6000); // boss tracker broadcast every 5 s
+checks.bossTracker = (await page.textContent('.bosstrack')).includes('⚔');
+await gm('/gm boss');
+const bl = (await page.textContent('.chatlog')).match(/\((\d+), (\d+)\) · หน้าต่างเกิด/);
+await gm(`/gm tp ${Number(bl[1]) + 3} ${Number(bl[2])} greenfall_plains`);
+await page.waitForTimeout(1500);
+checks.bossBar = await page.isVisible('.bossbar');
+const bt = await page.evaluate(() => window.__tpew().nearestMonsterScreen);
+if (bt) await page.mouse.click(bt.x, bt.y);
+await page.waitForTimeout(2500);
+await page.screenshot({ path: join(out, '9-boss.png') });
+
 console.log(JSON.stringify({ checks, errors }, null, 2));
 await browser.close();
 process.exit(errors.length || Object.values(checks).some((v) => !v) ? 1 : 0);

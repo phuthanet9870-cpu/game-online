@@ -21,7 +21,8 @@ export type ItemIcon = 'sword' | 'staff' | 'dagger' | 'bow' | 'grimoire' | 'gaun
 
 export type ItemUse =
   | { kind: 'heal'; flat: number; hpFraction: number; cooldown: number }
-  | { kind: 'energy'; flat: number; cooldown: number };
+  | { kind: 'energy'; flat: number; cooldown: number }
+  | { kind: 'power_core' };
 
 export interface ItemDef {
   id: string;
@@ -90,6 +91,7 @@ export const ITEMS: Record<string, ItemDef> = Object.fromEntries(([
   mat('mat_frozen_tear', 'Frozen Tear', 'น้ำตาเยือกแข็ง', 'gel', '#90e0ff', 40, 'วัตถุดิบพิธีเฉพาะ Eternal Frost (Frostbound North)', 'rare'),
   mat('mat_gravity_stone', 'Gravity Stone', 'หินโน้มถ่วง', 'ore', '#9a7aff', 40, 'วัตถุดิบพิธีเฉพาะ Gravity Dominion (Voidfall)', 'rare'),
   mat('mat_life_seed', 'Life Seed', 'เมล็ดชีวิต', 'herb', '#60e060', 40, 'วัตถุดิบพิธีเฉพาะ Genesis Bloom (ดรอปจาก Elder Sapling)', 'rare'),
+  { id: 'power_core', name: 'Complete Power Core', nameTh: 'แกนพลังสมบูรณ์', description: 'ใช้เพื่อรับ The Power แบบสุ่มที่ยังไม่มี (ถ้ามีครบแล้วจะกลายเป็นเศษพลัง 30 ชิ้น) ดรอปจาก Map Boss', category: 'consumable', rarity: 'legendary', stackMax: 10, levelReq: 1, use: { kind: 'power_core' }, sellPrice: 500, bind: 'none', icon: 'fragment', color: '#ffb030' },
   { id: 'rune_vitality_basic', name: 'Rune of Vitality (Basic)', nameTh: 'รูนแห่งชีวิต (พื้นฐาน)', description: 'เพิ่ม HP เมื่อฝังในช่องรูน (ระบบฝังรูน: Milestone 4)', category: 'rune', rarity: 'uncommon', stackMax: 99, levelReq: 1, sellPrice: 30, bind: 'none', icon: 'rune', color: '#58e07a' },
 ] as ItemDef[]).map((d) => [d.id, d]));
 

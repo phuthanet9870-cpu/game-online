@@ -6,7 +6,7 @@ export interface AccountRecord { id: string; username: string; passHash: string;
 
 export interface OwnedPower { id: string; awakening: number; masteryLevel: number; masteryXp: number }
 export interface PowerLoadout { actives: (string | null)[]; ult: string | null; passives: (string | null)[] }
-export interface PowerState { owned: OwnedPower[]; active: string | null; loadouts: Record<string, PowerLoadout>; ritualReadyAt: number }
+export interface PowerState { owned: OwnedPower[]; active: string | null; loadouts: Record<string, PowerLoadout>; ritualReadyAt: number; corePity?: number }
 export const emptyPowerState = (): PowerState => ({ owned: [], active: null, loadouts: {}, ritualReadyAt: 0 });
 
 export interface CharacterRecord {
@@ -51,5 +51,8 @@ export interface Storage {
   saveCharacter(rec: CharacterRecord): Promise<'ok' | 'stale'>;
   audit(entry: AuditEntry): Promise<void>;
   setBan(accountId: string, until: number): Promise<boolean>;
+  /** Small server state (boss timers). */
+  getKV(key: string): Promise<string | null>;
+  setKV(key: string, value: string): Promise<void>;
   close(): Promise<void>;
 }

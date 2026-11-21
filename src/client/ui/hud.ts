@@ -54,6 +54,8 @@ export class Hud {
   private lastAuto = false;
   gm: Extract<ServerMessage, { t: 'gm' }> | null = null;
   private gmBtn: HTMLElement;
+  private bossTracker = h('div', { class: 'bosstrack hidden' });
+  private bossBar = h('div', { class: 'bossbar hidden' }, h('div', { class: 'bb-name' }), h('div', { class: 'bar boss' }, h('div', { class: 'fill' }), h('div', { class: 'btext' })));
 
   constructor(parent: HTMLElement, private g: GameClient, private r: Renderer, private onLogout: () => void, private onSkill: (id: string) => void = () => {}) {
     const bar = (cls: string) => {
@@ -98,7 +100,8 @@ export class Hud {
     });
     this.root = h('div', { class: 'hud' },
       h('div', { class: 'pframe' }, this.nameEl, hp.el, en.el, st.el, this.buffs),
-      h('div', { class: 'tr' }, this.zoneEl, this.minimap,
+      this.bossBar,
+      h('div', { class: 'tr' }, this.zoneEl, this.minimap, this.bossTracker,
         h('div', { class: 'menu' },
           h('button', { class: 'btn small', onclick: () => this.toggle('inv') }, 'กระเป๋า [I]'),
           h('button', { class: 'btn small', onclick: () => this.toggle('char') }, 'ตัวละคร [C]'),
@@ -129,9 +132,16 @@ export class Hud {
         if (m.on) this.notice('เริ่มออโต้', 'info');
         if (this.isOpen('auto')) setTimeout(() => this.renderAuto(), 50);
         break;
+      case 'boss': {
+        clear(this.bossTracker);
+        this.bossTracker.classList.toggle('hidden', m.list.length === 0 || m.zone !== this.g.zone?.id);
+        this.bossTracker.append(h('div', { class: 'bt-h' }, 'Boss Tracker'), ...m.list.map((b) => h('div', { class: `bt ${b.status}` },
+          b.status === 'alive' ? `⚔ ${b.mutated ? '[กลายพันธุ์] ' : ''}${b.name} — ${b.hp}% @ ${b.hint}` : b.status === 'soon' ? `🌫 ${b.name} — ใกล้ปรากฏ!` : `⏳ ${b.name} — เกิดทุก ${b.window}`)));
+        break;
+      }
       case 'power_npc': this.powerNpc = { npc: m.npc, role: m.role }; this.show('power'); break;
       case 'powers': if (this.isOpen('power')) this.renderPower(true); this.lastWeapon = '#'; break;
-      case 'enter_zone': this.minimapImg = null; if (this.isOpen('auto')) setTimeout(() => this.renderAuto(), 50); this.hide('shop'); this.hide('dialog'); this.shop = null; break;
+      case 'enter_zone': this.minimapImg = null; this.bossTracker.classList.add('hidden'); if (this.isOpen('auto')) setTimeout(() => this.renderAuto(), 50); this.hide('shop'); this.hide('dialog'); this.shop = null; break;
       default: break;
     }
   }
@@ -650,6 +660,15 @@ export class Hud {
     if (this.isOpen('inv')) this.renderInv();
     if (this.isOpen('char')) this.renderChar();
     this.drawMinimap();
+    // boss HP bar for the nearest visible map boss
+    let boss: (typeof g.ents extends Map<number, infer E> ? E : never) | null = null;
+    for (const e of g.ents.values()) if (e.meta.k === 2 && e.meta.tier === 'map_boss' && !e.dead && e.snaps.length) { boss = e; break; }
+    this.bossBar.classList.toggle('hidden', !boss);
+    if (boss && boss.meta.k === 2) {
+      (this.bossBar.querySelector('.bb-name') as HTMLElement).textContent = `${boss.meta.name}  Lv.${boss.meta.level}`;
+      (this.bossBar.querySelector('.fill') as HTMLElement).style.width = `${boss.hp}%`;
+      (this.bossBar.querySelector('.btext') as HTMLElement).textContent = `${boss.hp}%`;
+    }
   }
 
   private drawMinimap() {

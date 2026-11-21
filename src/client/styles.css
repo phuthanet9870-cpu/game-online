@@ -117,7 +117,7 @@ canvas.overlay-c { position: absolute; left: 0; top: 0; pointer-events: none; }
 .chatlog { max-height: 170px; overflow-y: auto; font-size: 12px; background: #0d0b1499; padding: 4px 6px; user-select: text; }
 .cl.system { color: var(--gold); } .cl.zone { color: var(--text); }
 .chatin { font-size: 12px; padding: 4px 6px; background: #0d0b14cc; }
-.net { position: absolute; right: 12px; top: calc(270px + env(safe-area-inset-top, 0px)); max-width: 240px; text-align: right; font-size: 11px; color: var(--dim); background: #0d0b1499; padding: 2px 6px; font-variant-numeric: tabular-nums; }
+.net { position: absolute; right: 12px; bottom: calc(96px + env(safe-area-inset-top, 0px)); max-width: 240px; text-align: right; font-size: 11px; color: var(--dim); background: #0d0b1499; padding: 2px 6px; font-variant-numeric: tabular-nums; }
 .notices { position: absolute; left: 50%; top: 70px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .notice { background: #0d0b14dd; border: 1px solid var(--edge); padding: 4px 12px; font-size: 13px; transition: opacity .8s; }
 .notice.loot { color: var(--good); } .notice.warn { color: var(--bad); } .notice.level { color: var(--gold); font-family: var(--font-display); font-size: 16px; }
@@ -209,3 +209,11 @@ table.stats td.v { text-align: right; font-variant-numeric: tabular-nums; color:
 .sk.empty { opacity: .45; }
 .sk.locked { opacity: .6; border-style: dashed; }
 @media (max-width: 900px) { .win.power { left: 8px; right: 8px; width: auto; } .plist { grid-template-columns: 1fr 1fr; } }
+.bosstrack { background: #0d0b14dd; border: 2px solid #8a3040; padding: 4px 8px; font-size: 11px; width: 220px; box-sizing: border-box; }
+.bt-h { color: #ff9aa6; font-family: var(--font-display); }
+.bt.alive { color: #ffb0a0; } .bt.soon { color: var(--gold); } .bt.waiting { color: var(--dim); }
+.bossbar { position: absolute; left: 50%; top: calc(14px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); width: min(520px, 60vw); display: flex; flex-direction: column; gap: 2px; align-items: center; }
+.bb-name { font: 15px var(--font-display); color: #ffb060; text-shadow: 2px 2px 0 #000; }
+.bar.boss { width: 100%; height: 14px; }
+.bar.boss .fill { background: linear-gradient(180deg, #ff7040, #b02020); }
+.tr .menu { order: 3; }

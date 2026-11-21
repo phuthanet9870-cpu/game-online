@@ -109,6 +109,11 @@ function genField(z: ZoneDef, tiles: Uint8Array) {
     carveDisc(tiles, w, h, g.x, g.y, g.radius * 0.85 + 1, null);
     carveLine(tiles, w, h, z.spawnPoint.x, z.spawnPoint.y, g.x, g.y, 0.9, dirt);
   }
+  // boss arenas: open ground + a path from the zone entrance
+  for (const b of z.bosses ?? []) for (const sp of b.spawnPoints) {
+    carveDisc(tiles, w, h, sp.x, sp.y, 4, null);
+    carveLine(tiles, w, h, z.spawnPoint.x, z.spawnPoint.y, sp.x, sp.y, 0.9, dirt);
+  }
   for (const n of z.resourceNodes) carveDisc(tiles, w, h, n.x, n.y, 1.6, null);
   for (const n of z.npcs) carveDisc(tiles, w, h, n.x, n.y, 2, null);
   carveDisc(tiles, w, h, z.spawnPoint.x, z.spawnPoint.y, 3, null);

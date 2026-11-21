@@ -47,6 +47,7 @@
 | **ระบบ GM** (ดู GM_SYSTEM.md) | Tested | `tests/gm.test.ts`, e2e |
 | **The Power** 6 ผล × 25 = 150 ความสามารถ (สเปกครบ), engine, loadout 5/1/3, ข้อจำกัดอาวุธ, Mastery, Awakening I–III, แลกเศษพลัง | Tested | `tests/powers.test.ts` (smoke ร่ายครบ 120 สกิล), e2e |
 | Power Rebirth Ritual (ตรวจ/หัก/สลับ/คูลดาวน์) | Prototype | ยังไม่มีด่าน instance ของพิธี |
+| Map Boss (2 ตัว: schedule สุ่ม+persist, hint, phases, mutated, contribution, personal loot, pity, reset) + Boss Tracker/HP bar | Tested | `tests/boss.test.ts`, e2e |
 | Warhaven Citadel (เมืองที่ 2) | Functional | Temple + NPC ข้อมูล; ระบบกิลด์/PvP ยังไม่เปิด |
 
 ## ระบบที่ยังไม่ทำ
@@ -56,7 +57,7 @@
 | Ritual instance (ป้องกันแท่น/ปริศนา/สู้วิญญาณ), Power Mastery stage, boss pity | Designed | M3/M5 |
 | Enhancement +20, Option Reforge, Rune Socket/Fusion | Designed | M4 |
 | Crafting | Designed | M4 |
-| อีก 29 แมพ, Map Boss, World Boss, Dungeon | Designed (รายชื่อ/เงื่อนไข) | M5 |
+| อีก 28 แมพ (+Map Boss ของแต่ละแมพ), World Boss 6 ตัว, Dungeon 6 แห่ง | Designed (รายชื่อ/เงื่อนไข) | M5 |
 | Party, Guild, Trading, Marketplace | Designed | M6 |
 | Duel/Arena/Battleground/Open PvP/Guild War/Castle Siege | Designed | M7 |
 | Quest system | Designed | M5–M6 |

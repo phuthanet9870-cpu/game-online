@@ -21,6 +21,7 @@ import { emptyPowerState, type CharacterRecord, type Storage } from './storage/t
 import { TokenBucket, consoleLogger, cryptoRng, type Logger } from './util.ts';
 import { hashPassword, randomToken, verifyPassword } from './auth.ts';
 import { Zone, type ZoneHost } from './zone.ts';
+import { setBossNext } from './bosses.ts';
 import { validateConfig } from './validateConfig.ts';
 import { defaultGmFlags, runGm } from './gm.ts';
 import { grantExp } from './progression.ts';
@@ -104,6 +105,12 @@ export class GameServer implements ZoneHost {
   async init() {
     await this.storage.init();
     for (const z of Object.values(ZONES)) this.zones.set(z.id, new Zone(z, this));
+    // restore persisted boss timers (server-decided; survive restarts)
+    for (const zone of this.zones.values()) for (const b of zone.bosses) {
+      const v = await this.storage.getKV(`boss:${b.key}`);
+      if (v && Number.isFinite(Number(v))) setBossNext(zone, b.key, this.time + Math.max(0, (Number(v) - this.now()) / 1000));
+      else this.saveBossNext(b.key, this.now() + (b.nextSpawnAt - this.time) * 1000);
+    }
   }
 
   rng() { return this.rngFn(); }
@@ -649,6 +656,8 @@ export class GameServer implements ZoneHost {
   // ----------------------------------------------------------- The Power hooks
   onStatsChanged(p: PlayerEntity) { recomputeStats(p); p.charDirty = true; }
   onPowersChanged(p: PlayerEntity) { p.powersDirty = true; }
+  saveBossNext(key: string, epochMs: number) { this.storage.setKV(`boss:${key}`, String(Math.round(epochMs))).catch((e) => this.logger.error('boss save failed', String(e))); }
+  zoneChat(zoneId: string, text: string) { const z = this.zones.get(zoneId); if (z) for (const p of z.players.values()) p.session?.send({ t: 'chat', ch: 'system', from: 'World', text }); }
   sendPowers(p: PlayerEntity) { p.session?.send({ t: 'powers', ...powersView(p, this.now()) }); }
 
   // ----------------------------------------------------------- GM

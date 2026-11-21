@@ -16,6 +16,7 @@ import { createItem } from './inventory.ts';
 import { killMonster, killPlayer } from './combat.ts';
 import { recomputeStats } from './playerStats.ts';
 import { ALL_POWER_IDS, grantPower } from './powers.ts';
+import { bossStatus, setBossNext } from './bosses.ts';
 import { getPower } from '../shared/config/powers.ts';
 
 export interface GmFlags { god: boolean; invis: boolean; nocd: boolean; speed: number }
@@ -40,6 +41,7 @@ export const GM_HELP = [
   '/gm kick <ชื่อ> | /gm mute <ชื่อ> <นาที> | /gm ban <ชื่อ> <ชั่วโมง> | /gm unban <username>',
   '/gm power <id|all> [awakening 1-3] [ชื่อ] — ให้ The Power (shadow solar thunder frost gravity genesis)',
   '/gm setpower <id> — เปลี่ยนพลังที่ใช้ทันที (ข้ามพิธี) · /gm mastery_power <lv>',
+  '/gm boss [spawn|next <นาที>] — Map Boss ของแมพนี้ (spawn = เกิดทันที)',
   '/gm announce <ข้อความ>',
   '/gm items [ค้นหา] | /gm monsters — รายการ id',
   '/gm off — ปิดสิทธิ์ GM ของเซสชันนี้',
@@ -174,6 +176,12 @@ export async function runGm(srv: GameServer, gm: PlayerEntity, line: string): Pr
       own.masteryLevel = Math.max(0, Math.min(20, Math.floor(num(a[0], 0)))); own.masteryXp = 0;
       srv.afterPowerChange(gm);
       return [`Power Mastery → ${own.masteryLevel}`];
+    }
+    case 'boss': {
+      if (!z || !z.bosses.length) return ['แมพนี้ไม่มี Map Boss'];
+      if (a[0] === 'spawn') { for (const b of z.bosses) if (!b.alive) setBossNext(z, b.key, z.time); return ['Map Boss จะเกิดใน tick ถัดไป']; }
+      if (a[0] === 'next') { const min = Math.max(0, num(a[1], 1)); for (const b of z.bosses) setBossNext(z, b.key, z.time + min * 60); return [`ตั้งเวลาเกิดอีก ${min} นาที`]; }
+      return bossStatus(z).map((b, i) => { const m = z.bosses[i].alive; return `${b.name}: ${b.status}${m ? ` HP ${b.hp}%${b.mutated ? ' (กลายพันธุ์)' : ''} @ ${b.hint} (${m.x.toFixed(0)}, ${m.y.toFixed(0)})` : ` · เกิดอีก ~${Math.max(0, Math.round((z.bosses[i].nextSpawnAt - z.time) / 60))} นาที`} · หน้าต่างเกิด ${b.window}`; });
     }
     case 'gold': {
       const amt = Math.trunc(num(a[0], 0));

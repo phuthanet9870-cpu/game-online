@@ -18,6 +18,7 @@ import { rollLoot } from './loot.ts';
 import { recomputeStats } from './playerStats.ts';
 import { AUTO_CONFIG } from '../shared/config/auto.ts';
 import { stopAuto } from './autofarm.ts';
+import { bossKilled } from './bosses.ts';
 import { addPowerMastery, applyCasterEffects, applyPowerTargetEffects, chainFrom, healPlayer, powerDamageMult, trueDamage } from './powers.ts';
 import { POWER_CONFIG } from '../shared/config/powers.ts';
 
@@ -303,6 +304,7 @@ export function dealDamage(z: Zone, src: Combatant, tgt: Combatant, o: HitOption
     amount -= absorbed;
   }
   tgt.hp -= amount;
+  if (tgt.kind === 1 && src.kind === 2 && src.boss) src.boss.tanked.set(tgt.id, (src.boss.tanked.get(tgt.id) ?? 0) + amount);
   // cheat death (Phoenix Rebirth / Life Miracle)
   if (tgt.kind === 1 && tgt.hp <= 0 && tgt.cheatDeath && tgt.cheatDeath.until > t) {
     tgt.hp = Math.max(1, tgt.stats.hp * tgt.cheatDeath.hpPct);
@@ -400,6 +402,7 @@ export function killMonster(z: Zone, m: MonsterEntity) {
   m.anim = ANIM.DEAD;
   m.respawnAt = t + m.def.respawnSec;
   z.emit({ e: 'die', id: m.id }, m.x, m.y);
+  if (m.boss) { bossKilled(z, m); m.threat.clear(); return; }
 
   let total = 0, topId: number | null = null, topDmg = 0;
   for (const [pid, dmg] of m.threat) { total += dmg; if (dmg > topDmg) { topDmg = dmg; topId = pid; } }

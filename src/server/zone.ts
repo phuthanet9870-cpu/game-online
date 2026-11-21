@@ -12,6 +12,7 @@ import { getItem } from '../shared/config/items.ts';
 import { moveParamsFor, stepMove, TICK_DT, type MoveParams } from '../shared/movement.ts';
 import { ANIM, BTN, FLAG, type EntityMeta, type EntityState, type GameEvent, type SelfState } from '../shared/protocol.ts';
 import type { AnyEntity, DropEntity, MonsterEntity, NodeEntity, NpcEntity, PlayerEntity, PowerZone, Projectile, TrapEntity } from './entities.ts';
+import { bossStatus, initBosses, tickBosses, type BossRuntime } from './bosses.ts';
 import { POWER_BITS, ULT_BIT, chainFrom, powerSkillFor, tickMonsterPower, tickPlayerPower, tickZones } from './powers.ts';
 import type { SkillDef, SkillEffect } from '../shared/config/skills.ts';
 import { dealDamage, resolveMonsterAttack, tryCast, killPlayer } from './combat.ts';
@@ -26,6 +27,11 @@ export interface ZoneHost {
   onStatsChanged(p: PlayerEntity): void;
   /** Power collection/mastery changed: resend powers view. */
   onPowersChanged(p: PlayerEntity): void;
+  afterPowerChange(p: PlayerEntity): void;
+  /** Persist a boss's next spawn time (epoch ms). */
+  saveBossNext(key: string, epochMs: number): void;
+  now(): number;
+  zoneChat(zoneId: string, text: string): void;
   rng(): number;
   nextId(): number;
   logger: Logger;
@@ -69,6 +75,8 @@ export class Zone {
   readonly projectiles: Projectile[] = [];
   readonly traps: TrapEntity[] = [];
   readonly powerZones: PowerZone[] = [];
+  bosses: BossRuntime[] = [];
+  private nextBossBroadcast = 0;
   private grid = new SpatialGrid(SC.spatialCellSize);
   private history: { tick: number; pos: Map<number, [number, number]> }[] = [];
   private events: { ev: GameEvent; x: number; y: number }[] = [];
@@ -86,6 +94,7 @@ export class Zone {
       this.nodes.set(id, { kind: 5, id, def: n, x: n.x, y: n.y, readyAt: 0 });
     }
     for (const g of def.spawnGroups) for (let i = 0; i < g.baseCount; i++) this.spawnMonster(g);
+    this.bosses = initBosses(this);
     this.rebuildGrid();
   }
 
@@ -195,6 +204,12 @@ export class Zone {
 
     for (const m of this.monsters.values()) { tickMonsterPower(this, m); updateMonster(this, m); }
     tickZones(this);
+    tickBosses(this);
+    if (this.bosses.length && t >= this.nextBossBroadcast) {
+      this.nextBossBroadcast = t + 5;
+      const list = bossStatus(this);
+      for (const p of this.players.values()) p.session?.send({ t: 'boss', zone: this.def.id, list });
+    }
     this.updateProjectiles();
     this.updateTraps();
 
@@ -356,14 +371,14 @@ export class Zone {
     return null;
   }
 
-  createDrop(x: number, y: number, item: DropEntity['item'], gold: number, ownerCharId: string | null) {
+  createDrop(x: number, y: number, item: DropEntity['item'], gold: number, ownerCharId: string | null, ownerSec: number = SC.dropOwnerSec) {
     const id = this.host.nextId();
     const a = this.rng() * Math.PI * 2, r = 0.3 + this.rng() * 0.9;
     let dx = x + Math.cos(a) * r, dy = y + Math.sin(a) * r;
     if (isBlocked(this.map, dx, dy)) { dx = x; dy = y; }
     this.drops.set(id, {
       kind: 3, id, x: dx, y: dy, item, gold, ownerCharId,
-      ownerUntil: this.time + SC.dropOwnerSec, despawnAt: this.time + SC.dropDespawnSec,
+      ownerUntil: this.time + ownerSec, despawnAt: this.time + Math.max(SC.dropDespawnSec, ownerSec + 30),
     });
   }
 
@@ -489,7 +504,7 @@ export class Zone {
   meta(e: AnyEntity): EntityMeta {
     switch (e.kind) {
       case 1: return { id: e.id, k: 1, name: e.rec.name, level: e.rec.level, app: e.rec.app, weapon: e.weapon?.type ?? null };
-      case 2: return { id: e.id, k: 2, def: e.def.id, level: e.level, name: e.def.name, tier: e.def.tier };
+      case 2: return { id: e.id, k: 2, def: e.def.id, level: e.level, name: (e.boss?.mutated ? 'Mutated ' : '') + e.def.name, tier: e.def.tier };
       case 3: return { id: e.id, k: 3, item: e.item?.defId ?? 'gold', qty: e.item?.qty ?? e.gold, rarity: e.item?.rarity ?? 'common', owner: e.ownerCharId, x: e.x, y: e.y };
       case 4: return { id: e.id, k: 4, npc: e.def.id, name: e.def.nameTh, role: e.def.role, x: e.x, y: e.y, color: e.def.color, shop: e.def.shopId };
       case 5: return { id: e.id, k: 5, node: e.def.id, kind: e.def.kind, x: e.x, y: e.y, ready: e.readyAt === 0 };
