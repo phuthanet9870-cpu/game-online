@@ -324,7 +324,7 @@ export class Renderer {
     const s = g.self!;
     if (!g.char) return;
     const pal = paletteFor(g.char.app);
-    const moving = Math.hypot(g.input.mx, g.input.my) > 0.1;
+    const moving = s.auto ? g.autoMoving : Math.hypot(g.input.mx, g.input.my) > 0.1;
     let anim: number = moving ? ANIM.MOVE : ANIM.IDLE;
     if (g.ms.dodgeT > 0) anim = ANIM.DODGE;
     if (g.input.buttons & 8) anim = ANIM.BLOCK;
@@ -332,7 +332,8 @@ export class Renderer {
     if (s.shield > 0) flags |= FLAG.SHIELDED;
     if (anim === ANIM.BLOCK) flags |= FLAG.BLOCKING;
     if (s.rootT > 0) flags |= FLAG.STUNNED;
-    this.drawHumanoid(ctx, pal, g.weapon?.type ?? null, c, g.facingX, g.facingY, anim, flags, now, g.localAct, s.dead);
+    const selfAct = s.auto ? (() => { const e = g.selfAct; return e && now < e.until ? e : null; })() : g.localAct;
+    this.drawHumanoid(ctx, pal, g.weapon?.type ?? null, c, g.facingX, g.facingY, anim, flags, now, selfAct, s.dead);
     labels.push(() => this.label(c.x * this.scale, (c.y - 22) * this.scale, `${g.char!.name}  Lv.${g.char!.level}`, '#9fe8ff', 12));
   }
 

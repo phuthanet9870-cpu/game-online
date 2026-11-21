@@ -179,3 +179,10 @@ table.stats td.v { text-align: right; font-variant-numeric: tabular-nums; color:
 .sk { cursor: pointer; }
 .sk:hover { border-color: var(--gold); }
 .sk:active { transform: translateY(1px); }
+.win.auto { right: 180px; top: 70px; width: 440px; }
+.autolist { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; }
+.chk { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; }
+.chk input[type=checkbox] { accent-color: var(--gold); }
+.auto-btn.primary { animation: autopulse 1.2s infinite alternate; }
+@keyframes autopulse { from { box-shadow: 0 0 0 0 #e8b44a00; } to { box-shadow: 0 0 8px 2px #e8b44a88; } }
+@media (max-width: 900px) { .win.auto { left: 8px; right: 8px; width: auto; } }

@@ -151,8 +151,17 @@ export class GameClient {
     });
   }
 
+  /** True while the server-side auto farm is moving us (set from snapshots). */
+  autoMoving = false;
+  selfAct: { id: string; until: number; x: number; y: number } | null = null;
+
   private applySelf(s: SelfState, hard: boolean) {
     const before = { x: this.ms.x + this.corrX, y: this.ms.y + this.corrY };
+    if (s.auto) {
+      this.pending = [];
+      this.autoMoving = Math.hypot(s.x - this.ms.x, s.y - this.ms.y) > 0.02;
+      this.facingX = s.fx; this.facingY = s.fy;
+    }
     this.self = s;
     const ms = this.ms;
     Object.assign(ms, {
@@ -170,8 +179,9 @@ export class GameClient {
     } else {
       const ex = before.x - ms.x, ey = before.y - ms.y;
       const err = Math.hypot(ex, ey);
-      if (err > 3) { this.corrX = 0; this.corrY = 0; Object.assign(this.prevMs, ms); this.corrections++; }
-      else if (err > 0.01) { this.corrX = ex; this.corrY = ey; this.corrections++; }
+      const count = !s.auto; // under auto the server moves us: that's not a misprediction
+      if (err > 3) { this.corrX = 0; this.corrY = 0; Object.assign(this.prevMs, ms); if (count) this.corrections++; }
+      else if (err > 0.01) { this.corrX = ex; this.corrY = ey; if (count) this.corrections++; }
     }
   }
 
@@ -192,7 +202,8 @@ export class GameClient {
         break;
       }
       case 'act': {
-        if (ev.s === this.selfId && ev.a !== 'dodge') break; // predicted locally
+        if (ev.s === this.selfId && ev.a !== 'dodge' && !this.self?.auto) break; // predicted locally (unless auto drives us)
+        if (ev.s === this.selfId) this.selfAct = { id: ev.a, until: now + 300, x: ev.x, y: ev.y };
         const e = this.ents.get(ev.s);
         if (e) { e.actUntil = now + 300; e.actId = ev.a; e.actX = ev.x; e.actY = ev.y; }
         const src = ev.s === this.selfId ? { x: this.ms.x, y: this.ms.y } : e;
@@ -296,7 +307,7 @@ export class GameClient {
     let { mx, my } = i;
     const b = i.buttons;
     const al = Math.hypot(i.aimX, i.aimY);
-    if (al > 0.01) { this.facingX = i.aimX / al; this.facingY = i.aimY / al; }
+    if (al > 0.01 && !this.self.auto) { this.facingX = i.aimX / al; this.facingY = i.aimY / al; }
     const dodge = (b & BTN.DODGE) !== 0;
     if (dodge && mx === 0 && my === 0) { mx = this.facingX; my = this.facingY; }
     const s = ++this.seq;
@@ -305,6 +316,7 @@ export class GameClient {
     Object.assign(this.prevMs, this.ms);
     const block = (b & BTN.BLOCK) !== 0 && this.weapon !== null && !(this.weapon.defensive.kind === 'mana_guard' && (this.self.en <= 0));
     const p: PendingInput = { s, mx: cmd.mx, my: cmd.my, dodge, block };
+    if (this.self.auto) return; // the server drives movement; we only render its state
     if (!this.self.dead) stepMove(this.ms, p, this.params(), this.map);
     this.pending.push(p);
     if (this.pending.length > 60) this.pending.shift();

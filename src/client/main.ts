@@ -259,6 +259,7 @@ window.addEventListener('keydown', (e) => {
     case 'KeyI': hud?.toggle('inv'); break;
     case 'KeyC': hud?.toggle('char'); break;
     case 'KeyH': hud?.toggle('help'); break;
+    case 'KeyO': hud?.toggle('auto'); break;
     case 'Digit4': usePotion('pot_hp_small'); break;
     case 'Digit5': usePotion('pot_energy_small'); break;
     case 'Escape': hud?.closeAll(); break;

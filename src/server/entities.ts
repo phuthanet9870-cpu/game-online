@@ -9,6 +9,7 @@ import type { ClientMessage } from '../shared/protocol.ts';
 import type { CharacterRecord } from './storage/types.ts';
 import type { Inventory } from './inventory.ts';
 import type { GmFlags } from './gm.ts';
+import type { AutoState } from './autofarm.ts';
 
 export type InputMsg = Extract<ClientMessage, { t: 'in' }>;
 
@@ -60,6 +61,9 @@ export interface PlayerEntity {
   gm: boolean;
   gmFlags: GmFlags;
   mutedUntil: number;
+  auto: AutoState | null;
+  /** Server times of kills made under auto (rolling hourly cap). */
+  autoKillTimes: number[];
 }
 
 export interface MonsterEntity {

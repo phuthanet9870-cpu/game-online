@@ -4,6 +4,11 @@
  */
 import { EQUIP_SLOTS, RARITY_INFO, getItem, isEquipment, itemStats, type EquipSlot, type ItemInstance } from '../../shared/config/items.ts';
 import { MONSTERS } from '../../shared/config/monsters.ts';
+import { AUTO_CONFIG, DEFAULT_AUTO, sanitizeAuto, type AutoSettings } from '../../shared/config/auto.ts';
+
+const AUTO_KEY = 'tpew.auto.v1';
+function loadAutoCfg(): AutoSettings { try { const r = localStorage.getItem(AUTO_KEY); if (r) return sanitizeAuto(JSON.parse(r)) ?? structuredClone(DEFAULT_AUTO); } catch { /* ignore */ } return structuredClone(DEFAULT_AUTO); }
+function saveAutoCfg(c: AutoSettings) { try { localStorage.setItem(AUTO_KEY, JSON.stringify(c)); } catch { /* ignore */ } }
 import { ITEMS } from '../../shared/config/items.ts';
 import { ZONES } from '../../shared/config/zones.ts';
 import { PERCENT_STATS, STAT_KEYS, STAT_LABELS, type StatKey } from '../../shared/config/stats.ts';
@@ -33,13 +38,16 @@ export class Hud {
   private notices: HTMLElement;
   private minimap: HTMLCanvasElement;
   private minimapImg: HTMLCanvasElement | null = null;
-  private panels: Record<'inv' | 'char' | 'shop' | 'dialog' | 'help' | 'gm', HTMLElement>;
+  private panels: Record<'inv' | 'char' | 'shop' | 'dialog' | 'help' | 'gm' | 'auto', HTMLElement>;
+  private autoCfg: AutoSettings = loadAutoCfg();
+  private autoBtn!: HTMLElement;
   private death: HTMLElement;
   private shop: { npc: number; items: { itemId: string; price: number }[] } | null = null;
   private selectedUid: string | null = null;
   private lastInvKey = '';
   private lastCharKey = '';
   private lastWeapon = '';
+  private lastAuto = false;
   gm: Extract<ServerMessage, { t: 'gm' }> | null = null;
   private gmBtn: HTMLElement;
 
@@ -71,7 +79,9 @@ export class Hud {
       dialog: h('div', { class: 'panel win dialog hidden' }),
       help: h('div', { class: 'panel win help hidden' }),
       gm: h('div', { class: 'panel win gm hidden' }),
+      auto: h('div', { class: 'panel win auto hidden' }),
     };
+    this.autoBtn = h('button', { class: 'btn small auto-btn', onclick: () => this.toggle('auto') }, 'ออโต้ [O]');
     this.chatInput.addEventListener('keydown', (e) => {
       e.stopPropagation();
       if (e.key === 'Enter') {
@@ -87,6 +97,7 @@ export class Hud {
         h('div', { class: 'menu' },
           h('button', { class: 'btn small', onclick: () => this.toggle('inv') }, 'กระเป๋า [I]'),
           h('button', { class: 'btn small', onclick: () => this.toggle('char') }, 'ตัวละคร [C]'),
+          this.autoBtn,
           h('button', { class: 'btn small', onclick: () => this.toggle('help') }, 'ปุ่ม [H]'),
           this.gmBtn,
           h('button', { class: 'btn small', onclick: () => this.onLogout() }, 'ออก'))),
@@ -107,7 +118,12 @@ export class Hud {
       case 'shop': this.shop = { npc: m.npc, items: m.items }; this.renderShop(); this.show('shop'); this.show('inv'); break;
       case 'dialog': this.renderDialog(m.name, m.lines); this.show('dialog'); break;
       case 'gm': this.gm = m; this.gmBtn.classList.toggle('hidden', !m.on); if (!m.on) this.hide('gm'); else this.renderGm(); break;
-      case 'enter_zone': this.minimapImg = null; this.hide('shop'); this.hide('dialog'); this.shop = null; break;
+      case 'auto':
+        if (!m.on && m.reason) this.notice(`ออโต้หยุด: ${m.reason} (ฆ่าไป ${m.kills} ตัว)`, 'warn');
+        if (m.on) this.notice('เริ่มออโต้', 'info');
+        if (this.isOpen('auto')) setTimeout(() => this.renderAuto(), 50);
+        break;
+      case 'enter_zone': this.minimapImg = null; if (this.isOpen('auto')) setTimeout(() => this.renderAuto(), 50); this.hide('shop'); this.hide('dialog'); this.shop = null; break;
       default: break;
     }
   }
@@ -132,7 +148,7 @@ export class Hud {
 
   // ------------------------------------------------------------ panels
   isOpen(k: keyof Hud['panels']) { return !this.panels[k].classList.contains('hidden'); }
-  show(k: keyof Hud['panels']) { this.panels[k].classList.remove('hidden'); if (k === 'inv') this.renderInv(true); if (k === 'char') this.renderChar(true); if (k === 'gm') this.renderGm(); }
+  show(k: keyof Hud['panels']) { this.panels[k].classList.remove('hidden'); if (k === 'inv') this.renderInv(true); if (k === 'char') this.renderChar(true); if (k === 'gm') this.renderGm(); if (k === 'auto') this.renderAuto(); }
   hide(k: keyof Hud['panels']) { this.panels[k].classList.add('hidden'); if (k === 'shop') this.shop = null; }
   toggle(k: keyof Hud['panels']) { if (this.isOpen(k)) this.hide(k); else this.show(k); }
   closeAll() { for (const k of Object.keys(this.panels) as (keyof Hud['panels'])[]) this.hide(k); }
@@ -146,7 +162,7 @@ export class Hud {
     const rows: [string, string][] = [
       ['คลิกพื้น', 'เดินไปจุดนั้น (กดค้าง = เดินตามเมาส์)'], ['คลิกมอนสเตอร์', 'เดินเข้าระยะแล้วโจมตีอัตโนมัติ (คอมโบ 3 จังหวะ)'],
       ['คลิก NPC / ไอเทม / สมุนไพร / แร่', 'เดินไปคุย / เก็บ'], ['คลิกปุ่มสกิลด้านล่าง', 'ใช้สกิล (เล็งเป้าที่เลือก หรือทิศเมาส์)'],
-      ['W A S D', 'เดินด้วยคีย์บอร์ด (ยกเลิกคำสั่งคลิก)'], ['คลิกขวา', 'โจมตีหนักไปทางเมาส์ (ใช้ Stamina)'],
+      ['W A S D', 'เดินด้วยคีย์บอร์ด (ยกเลิกคำสั่งคลิก)'], ['O', 'ออโต้ฟาร์ม'], ['คลิกขวา', 'โจมตีหนักไปทางเมาส์ (ใช้ Stamina)'],
       ['Space', 'หลบ (มี i-frame)'], ['Shift (ค้าง)', 'ป้องกัน'], ['1 2 3', 'สกิลอาวุธ'], ['4 / 5', 'ยา HP / Energy'],
       ['F', 'เก็บของ / คุยกับ NPC / เก็บทรัพยากร'], ['I / C', 'กระเป๋า / ตัวละคร'], ['Enter', 'แชต'], ['Esc', 'ปิดหน้าต่าง'],
     ];
@@ -367,6 +383,63 @@ export class Hud {
   }
   private gmTarget = '';
 
+  renderAuto() {
+    const p = this.panels.auto;
+    clear(p);
+    const c = this.autoCfg;
+    const save = () => saveAutoCfg(c);
+    const running = !!this.g.self?.auto;
+    const z = this.g.zone;
+    const chk = (label: string, get: () => boolean, set: (v: boolean) => void, disabled = false) => {
+      const box = h('input', { type: 'checkbox', checked: get(), disabled });
+      box.addEventListener('change', () => { set(box.checked); save(); if (label.startsWith('Elite')) this.renderAuto(); });
+      return h('label', { class: 'chk' }, box, label);
+    };
+    const numIn = (label: string, get: () => number, set: (v: number) => void, min: number, max: number, unit = '') => {
+      const inp = h('input', { type: 'number', min, max, value: get(), style: 'width:64px' });
+      inp.addEventListener('change', () => { set(Math.max(min, Math.min(max, Number(inp.value) || 0))); save(); });
+      return h('label', { class: 'chk' }, label, inp, unit);
+    };
+    p.append(this.header('ออโต้ฟาร์ม', 'auto'));
+    if (!z || z.safe || z.kind !== 'field') {
+      p.append(h('p', { class: 'dim' }, 'ใช้ออโต้ได้เฉพาะในแมพฟาร์ม (เช่น Greenfall Plains) ในเมืองหรือ Safe Zone ใช้ไม่ได้'));
+    }
+    // targets: monsters that live on this map
+    const mons = [...new Set((z?.spawnGroups ?? []).map((g) => g.monsterId))].map((id) => MONSTERS[id]).filter(Boolean);
+    const tgt = h('div', { class: 'autolist' });
+    for (const m of mons) {
+      const elite = m.tier !== 'normal';
+      tgt.append(chk(`${m.nameTh} Lv.${m.levelMin}-${m.levelMax}${elite ? ' ★' : ''}`, () => c.targets.includes(m.id),
+        (v) => { c.targets = v ? [...new Set([...c.targets, m.id])] : c.targets.filter((x) => x !== m.id); }, elite && !c.allowElite));
+    }
+    const w = this.g.weapon;
+    p.append(
+      h('div', { class: 'gmsec' }, 'เป้าหมาย (ไม่เลือก = ทุกตัวที่อนุญาต)'), tgt,
+      chk(`Elite (รางวัลเหลือ ${AUTO_CONFIG.eliteRewardMult * 100}%)`, () => c.allowElite, (v) => { c.allowElite = v; }),
+      h('div', { class: 'dim' }, 'บอสทุกประเภทใช้ออโต้ไม่ได้ (เซิร์ฟเวอร์บังคับ)'),
+      numIn('รัศมีฟาร์ม', () => c.radius, (v) => { c.radius = v; }, AUTO_CONFIG.minRadius, AUTO_CONFIG.maxRadius, ' ช่อง (นับจากจุดเริ่ม)'),
+      h('div', { class: 'gmsec' }, 'สกิล'),
+      h('div', { class: 'row' }, ...(w ? w.skills.map((sk, i) => chk(`${i + 1}. ${sk.nameTh}${sk.damage ? '' : ' (ไม่ใช้ในออโต้)'}`, () => c.useSkills[i], (v) => { c.useSkills[i] = v; }, !sk.damage)) : []),
+        chk(w ? `${w.heavy.nameTh}` : 'โจมตีหนัก', () => c.useHeavy, (v) => { c.useHeavy = v; })),
+      h('div', { class: 'gmsec' }, 'ยา'),
+      h('div', { class: 'row' }, numIn('ใช้ยา HP เมื่อต่ำกว่า', () => c.hpPotionPct, (v) => { c.hpPotionPct = v; }, 0, 90, '%'),
+        numIn('ใช้ยา EN เมื่อต่ำกว่า', () => c.enPotionPct, (v) => { c.enPotionPct = v; }, 0, 90, '%')),
+      h('div', { class: 'gmsec' }, 'เก็บของ'),
+      h('div', { class: 'row' }, chk('ทอง', () => c.loot.gold, (v) => { c.loot.gold = v; }), chk('วัตถุดิบ/รูน', () => c.loot.materials, (v) => { c.loot.materials = v; }),
+        chk('ยา', () => c.loot.consumables, (v) => { c.loot.consumables = v; }),
+        (() => { const sel = h('select', {}, ...(['none', 'common', 'uncommon', 'rare', 'epic'] as const).map((r) => h('option', { value: r, selected: c.loot.equipmentMinRarity === r }, r === 'none' ? 'ไม่เก็บอุปกรณ์' : `อุปกรณ์ ${RARITY_INFO[r].nameTh}+`)));
+          sel.addEventListener('change', () => { c.loot.equipmentMinRarity = sel.value as AutoSettings['loot']['equipmentMinRarity']; save(); }); return sel; })()),
+      h('div', { class: 'gmsec' }, 'เงื่อนไขหยุด'),
+      h('div', { class: 'row' }, numIn('เวลา', () => c.stop.minutes, (v) => { c.stop.minutes = v; }, 0, AUTO_CONFIG.maxSessionMinutes, 'นาที (0=ไม่จำกัด)'),
+        numIn('จำนวนตัว', () => c.stop.kills, (v) => { c.stop.kills = v; }, 0, 100000, '(0=ไม่จำกัด)')),
+      h('div', { class: 'row' }, chk('กระเป๋าเต็ม', () => c.stop.whenBagFull, (v) => { c.stop.whenBagFull = v; }), chk('ยา HP หมด', () => c.stop.whenOutOfPotions, (v) => { c.stop.whenOutOfPotions = v; })),
+      h('div', { class: 'row' },
+        running ? h('button', { class: 'btn danger', id: 'auto-stop', onclick: () => this.g.send({ t: 'auto_stop' }) }, `หยุดออโต้ (ฆ่าแล้ว ${this.g.self?.autoKills ?? 0})`)
+          : h('button', { class: 'btn primary', id: 'auto-start', onclick: () => this.g.send({ t: 'auto_start', cfg: c }) }, 'เริ่มออโต้')),
+      h('div', { class: 'dim' }, `เซิร์ฟเวอร์ควบคุมตัวละครระหว่างออโต้ · เดิน/คลิก/กดสกิลเองเพื่อยกเลิก · จำกัด ${AUTO_CONFIG.hourlyKillCap} ตัว/ชั่วโมง · หยุดเมื่อหลุด ตาย หรือย้ายแมพ`),
+    );
+  }
+
   // ------------------------------------------------------------ per-frame update
   private skillSlot(id: string, key: string, label: string, skill: SkillDef | null, extra?: string) {
     const cd = h('div', { class: 'cdov' });
@@ -434,9 +507,14 @@ export class Hud {
     if (this.gm?.god) b.push('👑 God');
     if (this.gm?.invis) b.push('👻 ล่องหน');
     if (this.gm?.nocd) b.push('⚡ NoCD');
+    if (s.auto) b.push(`🤖 AUTO (${s.autoKills})`);
     const bt = b.join('  ');
     if (this.buffs.textContent !== bt) this.buffs.textContent = bt;
     this.death.classList.toggle('hidden', !s.dead);
+    this.autoBtn.classList.toggle('primary', s.auto);
+    const stopBtn = this.panels.auto.querySelector('#auto-stop');
+    if (stopBtn) { const t = `หยุดออโต้ (ฆ่าแล้ว ${s.autoKills})`; if (stopBtn.textContent !== t) stopBtn.textContent = t; }
+    if (s.auto !== this.lastAuto) { this.lastAuto = s.auto; if (this.isOpen('auto')) this.renderAuto(); }
     if (this.isOpen('inv')) this.renderInv();
     if (this.isOpen('char')) this.renderChar();
     this.drawMinimap();

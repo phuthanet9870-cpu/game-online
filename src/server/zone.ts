@@ -14,6 +14,7 @@ import { ANIM, BTN, FLAG, type EntityMeta, type EntityState, type GameEvent, typ
 import type { AnyEntity, DropEntity, MonsterEntity, NodeEntity, NpcEntity, PlayerEntity, Projectile } from './entities.ts';
 import { dealDamage, resolveMonsterAttack, tryCast, killPlayer } from './combat.ts';
 import { updateMonster } from './ai.ts';
+import { autoTick, stopAuto } from './autofarm.ts';
 import type { Logger } from './util.ts';
 
 export interface ZoneHost {
@@ -201,7 +202,19 @@ export class Zone {
     p.inputBudget = Math.min(SC.inputBudgetMax, p.inputBudget + 1);
     const before = { x: p.ms.x, y: p.ms.y };
     let processed = 0;
-    while (p.inputQueue.length && p.inputBudget >= 1) {
+    if (p.auto) {
+      // Auto farm: the server drives this character. Client inputs are only
+      // acknowledged; any manual movement or button press cancels auto.
+      while (p.inputQueue.length) {
+        const input = p.inputQueue.shift()!;
+        if (input.s <= p.lastSeq) continue;
+        p.lastSeq = input.s;
+        if (input.b !== 0 || Math.abs(input.mx) + Math.abs(input.my) > 0.01) stopAuto(p, 'ผู้เล่นควบคุมเอง');
+      }
+      const c = p.auto ? autoTick(this, p) : null;
+      if (c) { this.applyControls(p, { ...c, vt: this.tick }); processed = 1; }
+    }
+    while (!p.auto && p.inputQueue.length && p.inputBudget >= 1) {
       const input = p.inputQueue.shift()!;
       p.inputBudget -= 1;
       processed++;
@@ -271,6 +284,11 @@ export class Zone {
   private applyInput(p: PlayerEntity, input: { s: number; mx: number; my: number; ax: number; ay: number; b: number; vt: number }) {
     if (input.s <= p.lastSeq) return; // replayed/duplicate input
     p.lastSeq = input.s;
+    this.applyControls(p, input);
+  }
+
+  /** Apply one tick of controls (from a client input or the auto farm) with full validation. */
+  private applyControls(p: PlayerEntity, input: { mx: number; my: number; ax: number; ay: number; b: number; vt: number }) {
     if (p.dead) return;
     const al = Math.hypot(input.ax, input.ay);
     if (al > 0.01) { p.facingX = input.ax / al; p.facingY = input.ay / al; }
@@ -452,6 +470,7 @@ export class Zone {
       dodgeCd: ms.dodgeCd, slowT: ms.slowT, slowMult: ms.slowMult,
       hp: Math.ceil(p.hp), mhp: p.stats.hp, en: Math.floor(p.energy), men: p.stats.energy, mst: p.stats.stamina,
       shield: Math.ceil(p.shield), dead: p.dead, cd, combo: p.combo, potCd: Math.max(0, Math.round((p.potCdUntil - t) * 10) / 10),
+      auto: p.auto !== null, autoKills: p.auto?.kills ?? 0, fx: Math.round(p.facingX * 1000) / 1000, fy: Math.round(p.facingY * 1000) / 1000,
     };
   }
 

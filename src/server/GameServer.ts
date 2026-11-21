@@ -24,6 +24,9 @@ import { Zone, type ZoneHost } from './zone.ts';
 import { validateConfig } from './validateConfig.ts';
 import { defaultGmFlags, runGm } from './gm.ts';
 import { grantExp } from './progression.ts';
+import { USE_ERRORS, useItem } from './actions.ts';
+import { canStartAuto, startAuto, stopAuto } from './autofarm.ts';
+import { sanitizeAuto } from '../shared/config/auto.ts';
 
 export interface Connection {
   id: string;
@@ -164,6 +167,7 @@ export class GameServer implements ZoneHost {
     this.sessions.delete(connId);
     const p = s.player;
     if (p && p.session?.connId === connId) {
+      stopAuto(p, 'การเชื่อมต่อหลุด'); // no offline botting
       p.session = null;
       p.disconnectedAt = this.time;
       p.inputQueue.length = 0;
@@ -377,7 +381,7 @@ export class GameServer implements ZoneHost {
       dead: false, lastCombatAt: -99, potCdUntil: 0, inputQueue: [], lastSeq: -1, inputBudget: SC.inputBudgetMax, ticksWithoutInput: 0,
       known: new Set(), anim: ANIM.IDLE, animUntil: 0, killTimes: [], dirty: false, invDirty: false, charDirty: false,
       lastSaveAt: 0, saving: Promise.resolve(), hazardTickAt: 0,
-      gm: false, gmFlags: defaultGmFlags(), mutedUntil: 0,
+      gm: false, gmFlags: defaultGmFlags(), mutedUntil: 0, auto: null, autoKillTimes: [],
     };
     recomputeStats(p);
     return p;
@@ -394,6 +398,7 @@ export class GameServer implements ZoneHost {
     const from = this.zones.get(p.rec.zoneId);
     const to = this.zones.get(zoneId);
     if (!to) { this.logger.error('transfer to unknown zone', zoneId); return; }
+    stopAuto(p, 'เปลี่ยนแผนที่');
     from?.removePlayer(p);
     to.addPlayer(p, x, y);
     this.requestSave(p, 'zone_change');
@@ -504,19 +509,22 @@ export class GameServer implements ZoneHost {
         return;
       }
       case 'use': {
-        if (p.dead) return this.err(s, 'dead', 'You are dead');
-        const it = p.inv.get(msg.uid);
-        const def = it ? getItem(it.defId) : undefined;
-        if (!it || it.slot === null || !def?.use) return this.err(s, 'not_usable', 'ใช้ไอเทมนี้ไม่ได้');
-        if (this.time < p.potCdUntil && !(p.gm && p.gmFlags.nocd)) return this.err(s, 'cooldown', 'ยาอยู่ในคูลดาวน์');
-        if (!p.inv.removeUid(it.uid, 1)) return this.err(s, 'not_usable', 'ใช้ไอเทมนี้ไม่ได้');
-        p.potCdUntil = this.time + def.use.cooldown;
-        if (def.use.kind === 'heal') {
-          const v = Math.round(def.use.flat + p.stats.hp * def.use.hpFraction);
-          p.hp = Math.min(p.stats.hp, p.hp + v);
-          z.emit({ e: 'heal', t: p.id, v }, p.ms.x, p.ms.y);
-        } else p.energy = Math.min(p.stats.energy, p.energy + def.use.flat);
-        p.invDirty = true; p.dirty = true;
+        const e = useItem(z, p, msg.uid);
+        if (e) this.err(s, e, USE_ERRORS[e] ?? e);
+        return;
+      }
+      case 'auto_start': {
+        const cfg = sanitizeAuto(msg.cfg);
+        if (!cfg) return this.err(s, 'bad_auto', 'ตั้งค่าออโต้ไม่ถูกต้อง');
+        const ok = canStartAuto(z, p);
+        if (!ok.ok) return this.err(s, ok.code, ok.msg);
+        startAuto(z, p, cfg);
+        this.audit(p, 'auto_start', { zone: z.def.id, cfg });
+        s.conn.send({ t: 'auto', on: true, kills: 0, reason: '' });
+        return;
+      }
+      case 'auto_stop': {
+        stopAuto(p, 'หยุดโดยผู้เล่น');
         return;
       }
       case 'discard': {

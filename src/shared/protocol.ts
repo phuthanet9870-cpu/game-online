@@ -34,7 +34,9 @@ export type ClientMessage =
   | { t: 'respawn' }
   | { t: 'chat'; text: string }
   | { t: 'ping'; c: number }
-  | { t: 'logout' };
+  | { t: 'logout' }
+  | { t: 'auto_start'; cfg: unknown }
+  | { t: 'auto_stop' };
 
 export const ENTITY_KIND = { PLAYER: 1, MONSTER: 2, DROP: 3, NPC: 4, NODE: 5 } as const;
 export const ANIM = { IDLE: 0, MOVE: 1, ATTACK: 2, HEAVY: 3, SKILL: 4, DODGE: 5, BLOCK: 6, HURT: 7, DEAD: 8, WINDUP: 9, CAST: 10, RETURN: 11 } as const;
@@ -78,6 +80,11 @@ export interface SelfState {
   cd: Record<string, number>;
   combo: number;
   potCd: number;
+  /** Auto farm running (client stops predicting while true). */
+  auto: boolean;
+  autoKills: number;
+  /** Server-side facing (used to render self while auto drives the character). */
+  fx: number; fy: number;
 }
 
 export interface CharacterView {
@@ -101,6 +108,7 @@ export type ServerMessage =
   | { t: 'notice'; text: string; kind: 'info' | 'warn' | 'loot' | 'level' }
   | { t: 'pong'; c: number; s: number }
   | { t: 'logged_out' }
+  | { t: 'auto'; on: boolean; kills: number; reason: string }
   | { t: 'gm'; on: boolean; god: boolean; invis: boolean; nocd: boolean; speed: number; rates: { exp: number; drop: number; gold: number } };
 
 // ---------------------------------------------------------------- validation
@@ -144,6 +152,8 @@ export function parseClientMessage(raw: unknown): ClientMessage | null {
     case 'chat': return isStr(o.text, 1, 200) ? { t: 'chat', text: o.text } : null;
     case 'ping': return isFiniteNum(o.c) ? { t: 'ping', c: o.c } : null;
     case 'logout': return { t: 'logout' };
+    case 'auto_start': return o.cfg && typeof o.cfg === 'object' ? { t: 'auto_start', cfg: o.cfg } : null;
+    case 'auto_stop': return { t: 'auto_stop' };
     default: return null;
   }
 }

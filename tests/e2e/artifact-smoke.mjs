@@ -86,6 +86,20 @@ await page.waitForTimeout(400);
 checks.clickSkill = (await st()).self.en < en0;
 await page.screenshot({ path: join(out, '4-field-combat.png') });
 
+// 6) auto farm from the panel
+await page.keyboard.press('KeyO');
+await page.waitForSelector('#auto-start');
+await page.click('#auto-start');
+await page.waitForTimeout(400);
+await page.mouse.move(640, 700); // keep the cursor off the canvas: clicks/keys would cancel auto
+let kills = 0;
+for (let i = 0; i < 40 && kills < 2; i++) { await page.waitForTimeout(500); kills = (await st()).self.autoKills; }
+checks.autoFarmKills = kills >= 2;
+await page.screenshot({ path: join(out, '5-auto.png') });
+await page.click('#auto-stop');
+await page.waitForTimeout(300);
+checks.autoStopped = (await st()).self.auto === false;
+
 console.log(JSON.stringify({ checks, errors }, null, 2));
 await browser.close();
 process.exit(errors.length || Object.values(checks).some((v) => !v) ? 1 : 0);

@@ -15,6 +15,8 @@ import type { Zone } from './zone.ts';
 import { addMastery, deathPenalty, grantExp, masteryDamageMult } from './progression.ts';
 import { rollLoot } from './loot.ts';
 import { recomputeStats } from './playerStats.ts';
+import { AUTO_CONFIG } from '../shared/config/auto.ts';
+import { stopAuto } from './autofarm.ts';
 
 const KNOCKBACK_TIME = 0.18;
 
@@ -289,7 +291,8 @@ export function killMonster(z: Zone, m: MonsterEntity) {
     while (p.killTimes.length && p.killTimes[0] < t - 3600) p.killTimes.shift();
     const over = p.killTimes.length > PROGRESSION.farming.killsPerHourSoftCap;
     const capMult = over ? PROGRESSION.farming.overCapRewardMult : 1;
-    if (p === top) rewardMult = capMult;
+    if (p === top) rewardMult = capMult * (p.auto && m.def.tier === 'elite' ? AUTO_CONFIG.eliteRewardMult : 1);
+    if (p.auto) { p.auto.kills++; p.autoKillTimes.push(t); while (p.autoKillTimes.length && p.autoKillTimes[0] < t - 3600) p.autoKillTimes.shift(); }
     const share = Math.max(0.25, Math.min(1, (dmg / total) * 1.5));
     const exp = m.exp * share * levelDiffMult(p.rec.level, m.level) * capMult * z.host.rates.exp;
     const res = grantExp(p.rec, exp);
@@ -323,6 +326,7 @@ export function killPlayer(z: Zone, p: PlayerEntity) {
   p.blocking = false;
   p.anim = ANIM.DEAD;
   p.ms.dodgeT = 0; p.ms.forceT = 0;
+  stopAuto(p, 'ตัวละครตาย');
   const lost = deathPenalty(p.rec);
   p.charDirty = true;
   p.dirty = true;
