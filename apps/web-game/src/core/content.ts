@@ -2,6 +2,7 @@ import weaponsJson from '@data/weapons/weapons.json';
 import monstersJson from '@data/monsters/phase1-monsters.json';
 import playerJson from '@data/weapons/player-base.json';
 import mapJson from '@data/maps/training-ground.json';
+import itemsJson from '@data/items/phase2-items.json';
 
 export type WeaponType = 'staff' | 'sword' | 'dagger' | 'bow' | 'grimoire' | 'gauntlet';
 export const WEAPON_TYPES: readonly WeaponType[] = [
@@ -186,12 +187,27 @@ export function parseTiledMap(raw: {
 
 export const isActionDef = (s: WeaponSkillRef | ActionDef): s is ActionDef => 'cooldownMs' in s;
 
+/** Display-only copy of item templates; ownership/quantities always come from the server. */
+export interface ItemTemplate {
+  id: string;
+  name: string;
+  category: string;
+  rarity: string;
+  maxStack: number;
+  sellPriceGold: number;
+  tradable: boolean;
+  gmOnly: boolean;
+}
+
 export const CONTENT = {
+  items: itemsJson.items as unknown as ItemTemplate[],
   weapons: weaponsJson.weapons as unknown as WeaponDef[],
   monsters: monstersJson.monsters as unknown as MonsterDef[],
   player: playerJson as unknown as PlayerBaseDef,
   trainingMap: parseTiledMap(mapJson as unknown as Parameters<typeof parseTiledMap>[0]),
 };
+
+export const itemName = (id: string): string => CONTENT.items.find((i) => i.id === id)?.name ?? id;
 
 export function getWeapon(id: WeaponType): WeaponDef {
   const w = CONTENT.weapons.find((x) => x.id === id);

@@ -1,15 +1,10 @@
 import Phaser from 'phaser';
-import { CONTENT, getWeapon } from '../core/content';
+import { CONTENT } from '../core/content';
 import { DIR8, type Dir8 } from '../core/direction';
 import type { HotbarAction } from '../core/hotbar';
 import type { Vec2 } from '../core/math';
-import {
-  GameSimulation,
-  type ActionRequest,
-  type ActionSlot,
-  type MonsterEntity,
-  type SimEvent,
-} from '../core/simulation';
+import type { ActionRequest, ActionSlot, SimEvent } from '../core/simulation';
+import type { MonsterView, OtherPlayerView, WorldSource } from '../core/worldSource';
 import {
   hudStore,
   onCommand,
@@ -54,7 +49,7 @@ const ACTION_TO_SLOT: Partial<Record<HotbarAction, ActionSlot>> = {
 export const computeZoom = (w: number, h: number): number =>
   Math.max(1, Math.min(6, Math.round(Math.min(w / LOGICAL_W, h / LOGICAL_H))));
 
-interface MonsterView {
+interface MonsterSprites {
   sprite: Phaser.GameObjects.Sprite;
   hpBar: Phaser.GameObjects.Graphics;
   label: Phaser.GameObjects.Text;
@@ -63,11 +58,15 @@ interface MonsterView {
 }
 
 export class WorldScene extends Phaser.Scene {
-  sim!: GameSimulation;
+  sim!: WorldSource;
   private keys!: KeyboardInput;
   private player!: Phaser.GameObjects.Sprite;
   private sword!: Phaser.GameObjects.Image;
-  private monsterViews = new Map<string, MonsterView>();
+  private monsterViews = new Map<string, MonsterSprites>();
+  private otherViews = new Map<
+    string,
+    { sprite: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text; hpBar: Phaser.GameObjects.Graphics }
+  >();
   private debugGfx!: Phaser.GameObjects.Graphics;
   private collisionGfx!: Phaser.GameObjects.Graphics;
   private debug = false;
@@ -86,15 +85,12 @@ export class WorldScene extends Phaser.Scene {
     super('world');
   }
 
+  init(data: { world: WorldSource }): void {
+    this.sim = data.world;
+  }
+
   create(): void {
-    const weapon = getWeapon('sword');
-    this.sim = new GameSimulation({
-      map: CONTENT.trainingMap,
-      weapon,
-      monsters: CONTENT.monsters,
-      player: CONTENT.player,
-      seed: Date.now() & 0xffffffff,
-    });
+    const weapon = this.sim.weapon;
     this.actionNames.set('sword_basic', 'Basic Attack');
     for (const s of weapon.skills) this.actionNames.set(s.id, s.name);
 
@@ -150,10 +146,16 @@ export class WorldScene extends Phaser.Scene {
       this.unsub.forEach((u) => u());
     });
 
-    pushLog('system', 'ยินดีต้อนรับสู่ THE POWER: ECLIPSE — Phase 1 Combat Prototype (ออฟไลน์)', 'good');
     pushLog(
       'system',
-      'WASD/ลูกศร เดิน · 1 หรือคลิกซ้าย = Basic · 2/3/4 = สกิลดาบ · Space/E = Dodge · F3 = Debug',
+      this.sim.mode === 'online'
+        ? 'ยินดีต้อนรับสู่ THE POWER: ECLIPSE — Phase 2 Online Test World'
+        : 'ยินดีต้อนรับสู่ THE POWER: ECLIPSE — Phase 1 Sandbox (ออฟไลน์ ไม่บันทึกข้อมูล)',
+      'good',
+    );
+    pushLog(
+      'system',
+      'WASD/ลูกศร เดิน · 1 หรือคลิกซ้าย = Basic · 2/3/4 = สกิลดาบ · Space/E = Dodge · T = Potion · F3 = Debug',
     );
 
     // QA hook for automated browser tests. Single-player prototype only — removed/gated once the
@@ -244,7 +246,7 @@ export class WorldScene extends Phaser.Scene {
     this.sword = this.add.image(p.pos.x, p.pos.y, 'sword').setOrigin(0.5, 1).setVisible(false);
   }
 
-  private createMonsterView(m: MonsterEntity): void {
+  private createMonsterView(m: MonsterView): void {
     const key = m.def.sprite;
     const sprite = this.add.sprite(m.pos.x, m.pos.y, key, 0).setOrigin(0.5, 0.8);
     sprite.play(key === 'slime' ? 'slime-idle' : 'wolf-idle');
@@ -322,6 +324,7 @@ export class WorldScene extends Phaser.Scene {
     for (const e of this.sim.drainEvents()) this.handleEvent(e);
     this.syncPlayer();
     this.syncMonsters();
+    this.syncOthers();
     if (this.debug) this.drawDebug();
 
     this.hudTimer += delta;
@@ -335,7 +338,10 @@ export class WorldScene extends Phaser.Scene {
     const slot = ACTION_TO_SLOT[a];
     if (slot) out.push({ type: 'attack', slot });
     else if (a === 'dodge') out.push({ type: 'dash' });
-    else showToast('ช่องนี้จะปลดล็อกใน Phase ถัดไป');
+    else if (a === 'hpPotion') {
+      if (this.sim.usePotion) this.sim.usePotion();
+      else showToast('HP Potion ใช้ได้ในโหมดออนไลน์ (กระเป๋าอยู่บน server)');
+    } else showToast('ช่องนี้จะปลดล็อกใน Phase ถัดไป');
   }
 
   /* -------------------------------------------------------------- events */
@@ -343,6 +349,18 @@ export class WorldScene extends Phaser.Scene {
   private handleEvent(e: SimEvent): void {
     switch (e.type) {
       case 'damage': {
+        const other = this.otherViews.get(e.targetId);
+        if (other) {
+          this.floatText(e.pos.x, e.pos.y - 14, `${e.amount}`, '#ff9aa5', 8);
+          this.flash(other.sprite);
+          break;
+        }
+        if (e.sourceId !== 'player' && e.targetId !== 'player' && this.sim.mode === 'online') {
+          // another player's hit on a monster: show the number, keep our combat log focused on us
+          this.floatText(e.pos.x, e.pos.y - 14, `${e.amount}`, '#c9c3e0', 8);
+          this.flash(this.monsterViews.get(e.targetId)?.sprite);
+          break;
+        }
         const toPlayer = e.targetId === 'player';
         this.floatText(
           e.pos.x,
@@ -370,6 +388,12 @@ export class WorldScene extends Phaser.Scene {
         }
         break;
       }
+      case 'heal':
+        if (e.targetId === 'player') {
+          this.floatText(e.pos.x, e.pos.y - 16, `+${e.amount}`, '#7dffa8', 10);
+          pushLog('combat', `ใช้ HP Potion ฟื้นฟู ${e.amount} HP`, 'good');
+        }
+        break;
       case 'evade':
         this.floatText(
           e.pos.x,
@@ -423,9 +447,12 @@ export class WorldScene extends Phaser.Scene {
         if (e.entityId === 'player') {
           pushLog('system', 'คุณเสียชีวิต — จะเกิดใหม่ที่จุดเกิดในไม่กี่วินาที', 'bad');
           this.player.setFrame(DIR8.indexOf(this.sim.player.facing) * PLAYER_COL_COUNT + PLAYER_COLS.dead);
+        } else if (this.otherViews.has(e.entityId)) {
+          const o = this.sim.others.find((x) => x.id === e.entityId);
+          pushLog('system', `${o?.name ?? 'ผู้เล่น'} เสียชีวิต`, 'warn');
         } else {
           const m = this.sim.getMonster(e.entityId);
-          pushLog('combat', `กำจัด ${m?.def.name ?? e.entityId} สำเร็จ`, 'good');
+          if (e.killerId === 'player') pushLog('combat', `กำจัด ${m?.def.name ?? e.entityId} สำเร็จ`, 'good');
           this.puff(e.pos, m?.def.sprite === 'slime' ? 0x6fe07f : 0xb0b6c6);
         }
         break;
@@ -639,6 +666,73 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  private syncOthers(): void {
+    const seen = new Set<string>();
+    for (const o of this.sim.others) {
+      seen.add(o.id);
+      let v = this.otherViews.get(o.id);
+      if (!v) {
+        v = {
+          sprite: this.add
+            .sprite(o.pos.x, o.pos.y, 'player', 0)
+            .setOrigin(0.5, 26 / 32)
+            .setTint(0xd9d2ff),
+          label: this.add
+            .text(o.pos.x, o.pos.y, '', {
+              fontFamily: 'monospace',
+              fontSize: '6px',
+              color: '#bfe6ff',
+              stroke: '#140a1e',
+              strokeThickness: 2,
+            })
+            .setOrigin(0.5, 1)
+            .setResolution(4),
+          hpBar: this.add.graphics(),
+        };
+        this.otherViews.set(o.id, v);
+      }
+      this.syncOther(o, v);
+    }
+    for (const [id, v] of this.otherViews)
+      if (!seen.has(id)) {
+        v.sprite.destroy();
+        v.label.destroy();
+        v.hpBar.destroy();
+        this.otherViews.delete(id);
+      }
+  }
+
+  private syncOther(
+    o: OtherPlayerView,
+    v: {
+      sprite: Phaser.GameObjects.Sprite;
+      label: Phaser.GameObjects.Text;
+      hpBar: Phaser.GameObjects.Graphics;
+    },
+  ): void {
+    v.sprite
+      .setPosition(o.pos.x, o.pos.y)
+      .setDepth(o.pos.y)
+      .setAlpha(o.connected ? 1 : 0.45);
+    if (o.charState === 'DEAD') {
+      v.sprite.anims.stop();
+      v.sprite.setFrame(DIR8.indexOf(o.facing) * PLAYER_COL_COUNT + PLAYER_COLS.dead);
+    } else {
+      const key = `${o.moving || o.dashing ? 'p-walk' : 'p-idle'}-${o.facing}`;
+      if (v.sprite.anims.currentAnim?.key !== key) v.sprite.play(key);
+    }
+    const top = o.pos.y - 30;
+    v.label
+      .setText(`Lv.${o.level} ${o.name}${o.connected ? '' : ' (หลุด)'}`)
+      .setPosition(o.pos.x, top - 3)
+      .setDepth(29000);
+    v.hpBar.clear().setDepth(o.pos.y + 2);
+    v.hpBar.fillStyle(0x140a1e, 0.9).fillRect(o.pos.x - 10, top - 1, 20, 3);
+    v.hpBar
+      .fillStyle(0x4ad27a, 1)
+      .fillRect(o.pos.x - 9, top, Math.max(0, (o.hp / Math.max(1, o.maxHp)) * 18), 1);
+  }
+
   private drawDebug(): void {
     const g = this.debugGfx;
     g.clear();
@@ -740,9 +834,13 @@ export class WorldScene extends Phaser.Scene {
           y: m.pos.y,
           kind: m.alive ? ('monster' as const) : ('dead' as const),
         })),
+        ...sim.others.map((o) => ({ x: o.pos.x, y: o.pos.y, kind: 'other' as const })),
         { x: p.pos.x, y: p.pos.y, kind: 'player' as const },
       ],
       gate: computePhase1Gate(sim.telemetry, this.facingsSeen, runtimeErrors.count),
+      mode: sim.mode,
+      online: sim.online ? { ...sim.online, items: [...sim.online.items] } : null,
+      othersCount: sim.others.length,
       fps: Math.round(this.game.loop.actualFps),
       debug: this.debug,
       invulnerable: now < p.invulnerableUntil,

@@ -5,6 +5,7 @@
 import type { GateItem } from './phaseGate';
 import type { CharacterState, CombatState, DeathRecapEntry, RejectReason } from '../core/simulation';
 import type { HotbarAction } from '../core/hotbar';
+import type { OnlineState } from '../core/worldSource';
 
 export interface SlotCooldown {
   remainingMs: number;
@@ -24,7 +25,7 @@ export interface TargetInfo {
 export interface MinimapEntity {
   x: number;
   y: number;
-  kind: 'player' | 'monster' | 'dead';
+  kind: 'player' | 'monster' | 'dead' | 'other';
 }
 
 export interface HudSnapshot {
@@ -47,12 +48,15 @@ export interface HudSnapshot {
   mapSize: { w: number; h: number };
   minimap: MinimapEntity[];
   gate: GateItem[];
+  mode: 'offline' | 'online';
+  online: OnlineState | null;
+  othersCount: number;
   fps: number;
   debug: boolean;
   invulnerable: boolean;
 }
 
-export type LogChannel = 'combat' | 'system';
+export type LogChannel = 'combat' | 'system' | 'world';
 export interface LogEntry {
   id: number;
   channel: LogChannel;
@@ -102,6 +106,9 @@ export const INITIAL_HUD: HudSnapshot = {
   mapSize: { w: 1, h: 1 },
   minimap: [],
   gate: [],
+  mode: 'offline',
+  online: null,
+  othersCount: 0,
   fps: 0,
   debug: false,
   invulnerable: false,
@@ -134,6 +141,8 @@ export const REJECT_TEXT: Record<RejectReason, string> = {
   stamina: 'Stamina ไม่พอ',
   busy: 'กำลังใช้ท่าอื่นอยู่',
   dead: 'ตัวละครเสียชีวิต',
+  full: 'HP เต็มแล้ว',
+  'no-item': 'ไม่มีไอเทมนี้ในกระเป๋า',
 };
 
 /** Counts uncaught runtime errors for the QA gate. */

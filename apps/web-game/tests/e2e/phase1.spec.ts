@@ -53,6 +53,7 @@ test('Phase 1 gate: load, move 8-dir, collide, fight, 3 sword skills, dodge, kil
   });
 
   await page.goto('/');
+  await page.getByRole('button', { name: 'เล่น Sandbox ออฟไลน์' }).click();
   await expect(page.locator('#game-root canvas')).toBeVisible();
   await expect(page.getByTestId('hotbar').locator('.slot')).toHaveCount(20);
   await page.getByRole('button', { name: 'เริ่มทดสอบ' }).click();
@@ -145,6 +146,7 @@ test('Phase 1 gate: load, move 8-dir, collide, fight, 3 sword skills, dodge, kil
 
 test('GM command is denied client-side and chat input does not leak keys to the game', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: 'เล่น Sandbox ออฟไลน์' }).click();
   await page.getByRole('button', { name: 'เริ่มทดสอบ' }).click();
   const start = await page.evaluate(() => ({ ...(window as any).__TPE__.sim.player.pos }));
   await page.keyboard.press('Enter');
@@ -159,6 +161,7 @@ test('GM command is denied client-side and chat input does not leak keys to the 
 
 test('resize keeps an integer pixel zoom and the 20-slot hotbar', async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button', { name: 'เล่น Sandbox ออฟไลน์' }).click();
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.waitForTimeout(300);
   expect(await page.evaluate(() => (window as any).__TPE__.zoom())).toBe(3);

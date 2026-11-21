@@ -9,12 +9,25 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: { '@data': fileURLToPath(new URL('../../game-data', import.meta.url)) },
   },
-  define: { __BUILD_TIME__: JSON.stringify(new Date().toISOString()) },
+  define: {
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+    // the single-file test artifact has no game server behind it: skip server discovery entirely
+    __OFFLINE_ONLY__: JSON.stringify(mode === 'single'),
+  },
+  preview: { proxy: {} },
   build: {
     outDir: mode === 'single' ? 'dist-single' : 'dist',
     target: 'es2022',
     chunkSizeWarningLimit: 2000,
     assetsInlineLimit: mode === 'single' ? 100_000_000 : 4096,
   },
-  server: { port: 5173, strictPort: true },
+  server: {
+    port: 5173,
+    strictPort: true,
+    // dev: forward API + WebSocket to the Go server (start it with ALLOWED_ORIGINS=127.0.0.1:5173,localhost:5173)
+    proxy: {
+      '/api': 'http://127.0.0.1:8080',
+      '/ws': { target: 'ws://127.0.0.1:8080', ws: true },
+    },
+  },
 }));

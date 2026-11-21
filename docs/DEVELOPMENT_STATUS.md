@@ -2,9 +2,9 @@
 
 _อัปเดต: 2026-11-21_
 
-- **Current Phase:** 01 — HTML5 Combat Prototype → **Acceptance Gate ผ่าน**, รออนุมัติขึ้น Phase 02
-- **Implemented (พิสูจน์ด้วยการรัน/ทดสอบ):** 8-dir movement + collision, sword basic + 3 skills, dodge/stamina, slime/wolf AI, death/respawn + death recap, character state machine, damage pipeline, 20-slot hotbar UI (ใช้งานได้ 5 ช่อง), debug overlay, typed Phaser↔React bridge, content validation
-- **Not implemented:** ทุกอย่างที่ต้องใช้ server (บัญชี, persistence, multiplayer, items, GM จริง), The Power, อาวุธอีก 5 ชนิด, เมือง/NPC, แมพจริงทั้ง 32
-- **Tests:** unit 45/45 ผ่าน, E2E 3/3 ผ่าน (Chromium), lint/typecheck ผ่าน, data validation ผ่าน
-- **Blocked on owner decision:** เลือก server language Java หรือ Go (ADR-005) ก่อนเริ่ม Phase 02
-- **Test artifact:** https://claude.ai/artifact/6wZeHUbzaG3BzGdJCAyvEn (private จนกว่าเจ้าของจะแชร์)
+- **Current Phase:** 02 — Online Authoritative Foundation → **Acceptance Gate ผ่าน (localhost)**, รออนุมัติขึ้น Phase 03
+- **Server:** Go (ADR-005) + PostgreSQL 16 — auth/session, characters (สูงสุด 3), WSS 30 Hz authoritative world, personal loot, XP/Level/Gold/Inventory พร้อม ledger idempotent, reconnect grace 15 s, chat + rate limits, GM RBAC + audit
+- **Client:** หน้า Login/สมัคร/เลือก-สร้าง-ลบตัวละคร, โหมดออนไลน์ (prediction + interpolation + auto-reconnect), HUD EXP/Gold/กระเป๋า/ผู้เล่นออนไลน์/GM panel; Phase 1 sandbox ออฟไลน์ยังใช้ได้
+- **Tests:** Go ทั้งหมดผ่าน (รวม integration PostgreSQL), Vitest 45/45, Playwright offline 3/3 + online 4/4, load 20 bots × 60 s ผ่าน, reconcile ledger = 0
+- **ยังไม่มี:** อาวุธอีก 5 ชนิด, The Power, Auto, hotbar remap, GM HUD เต็ม (Phase 3); เมือง/NPC/dungeon/party/PvP (Phase 4+); deploy จริง/TLS/MFA (Phase 8)
+- **Test artifact:** https://claude.ai/artifact/6wZeHUbzaG3BzGdJCAyvEn — เปิดได้เฉพาะ sandbox ออฟไลน์ (อาร์ติแฟกต์เชื่อม server ไม่ได้)

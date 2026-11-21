@@ -11,7 +11,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:e2e": "playwright test --trace off"
+    "test:e2e": "playwright test --trace off",
+    "test:e2e:online": "playwright test -c playwright.online.config.ts --trace off"
   },
   "dependencies": {
     "phaser": "3.90.0",

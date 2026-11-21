@@ -30,7 +30,7 @@ export type CombatState =
   | 'dead';
 export type AiState = 'IDLE' | 'PATROL' | 'ALERT' | 'CHASE' | 'ATTACK' | 'RESET' | 'DEAD';
 export type ActionSlot = 'basic' | 'skill1' | 'skill2' | 'skill3';
-export type RejectReason = 'cooldown' | 'stamina' | 'busy' | 'dead';
+export type RejectReason = 'cooldown' | 'stamina' | 'busy' | 'dead' | 'full' | 'no-item';
 
 export type ActionRequest = { type: 'attack'; slot: ActionSlot } | { type: 'dash' };
 
@@ -56,6 +56,7 @@ export type SimEvent =
       actionId: string;
     }
   | { type: 'evade'; time: number; targetId: string; pos: Vec2; reason: 'dash' | 'reset' | 'protected' }
+  | { type: 'heal'; time: number; targetId: string; amount: number; pos: Vec2; actionId: string }
   | { type: 'death'; time: number; entityId: string; killerId: string; pos: Vec2 }
   | { type: 'respawn'; time: number; entityId: string; pos: Vec2 }
   | { type: 'action'; time: number; actionId: string; slot: ActionSlot; angle: number }
@@ -218,6 +219,9 @@ const RECAP_WINDOW_MS = 10_000;
  * from Phase 2 the authoritative copy of these rules lives on the server.
  */
 export class GameSimulation {
+  readonly mode = 'offline' as const;
+  /** Other players — always empty in the offline sandbox. */
+  readonly others: never[] = [];
   time = 0;
   readonly grid: CollisionGrid;
   readonly player: PlayerEntity;
@@ -233,7 +237,7 @@ export class GameSimulation {
     actionsUsed: {},
     dashes: 0,
     dashStaminaSpent: 0,
-    rejected: { cooldown: 0, stamina: 0, busy: 0, dead: 0 },
+    rejected: { cooldown: 0, stamina: 0, busy: 0, dead: 0, full: 0, 'no-item': 0 },
     playerDeaths: 0,
     playerRespawns: 0,
     counters: 0,

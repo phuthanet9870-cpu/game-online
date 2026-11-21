@@ -1,0 +1,10 @@
+{
+  "contentVersion": "phase2-0.1.0",
+  "_note": "Phase 2 starter subset of the 1,350-template catalog. IDs follow the catalog prefixes; DEV ids belong to the dev training map (not one of the 30 farm maps). Prices/stack sizes are [TUNING].",
+  "items": [
+    { "id": "TRD-DEV-001", "name": "Slime Gel", "category": "TRD", "rarity": "Common", "maxStack": 999, "sellPriceGold": 3, "tradable": true, "gmOnly": false },
+    { "id": "TRD-DEV-002", "name": "Wolf Fang", "category": "TRD", "rarity": "Common", "maxStack": 999, "sellPriceGold": 8, "tradable": true, "gmOnly": false },
+    { "id": "CON-001", "name": "Minor HP Potion", "category": "CON", "rarity": "Common", "maxStack": 99, "sellPriceGold": 2, "tradable": true, "gmOnly": false,
+      "use": { "healPctMaxHp": 0.3, "cooldownMs": 10000 } }
+  ]
+}
