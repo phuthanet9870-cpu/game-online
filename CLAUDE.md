@@ -40,17 +40,28 @@ The repository is a host for many games. The host knows nothing about any partic
 
 ## Roadmap and decisions
 
-The user chose: an RO-like 2.5D look, TypeScript + Colyseus, simple shapes until real art exists, and incremental phases where each one is playable.
+The full plan is the "Lumen Realm Roadmap" artifact: https://claude.ai/artifact/LSmRrVfwwvRj9hWuAFoiQr. The game's working name is Lumen Realm; the currency is Lumen. The user chose an RO-like 2.5D look, TypeScript + Colyseus, and simple shapes until real art exists. Each MVP must be playable online when it is done.
 
 0. Shared map, click-to-move, chat. **Done.**
-1. Monsters that spawn, can be attacked, and drop items.
-2. Levels, stats, and the first job.
-3. Inventory, equipment, and cards.
-4. Parties, shared EXP, and saving characters to a database.
-5. Multiple maps with warps, NPCs, and quests.
-6. MVP bosses, guilds, trading, and PvP.
+1. Accounts and persistent characters (auth, PostgreSQL, one session per account, reconnection).
+2. Monsters and basic combat (spawn zones, AI state machine, drops with loot priority).
+3. Levels, stats, and the first jobs (Initiate, then Vanguard, Arcanist, Pathfinder, Mender, Tinker, Shade).
+4. Items, equipment, NPC shops, and account storage.
+5. Skills, elements, sizes, and status effects.
+6. Soul Shards (the card equivalent), tempering (refine), and item sets.
+7. Parties, chat channels, trading, player shops, and mail.
+8. Multiple maps with warps, NPC dialogue, quests, and map channels.
+9. MVP bosses, party instances, achievements, and rankings.
+10. Guilds, castle siege, second jobs, GM tools, and multi-process scaling.
 
-Still undecided (ask the user first): the database (PostgreSQL was suggested), accounts and login, and art direction. Do not use Ragnarok Online's assets or names: it is only the genre reference.
+Rules that apply to every MVP:
+
+- Online first. The server decides everything; clients send intents only. Validate every message. Send only what is near the player (area of interest). Move items and currency inside one DB transaction with an audit log. Each MVP needs room tests, a two-browser check, a bot load test, and a check that data survives a server restart.
+- rAthena (https://github.com/rathena/rathena) is the reference for game mechanics only. It is GPL-3.0, so do not copy its source code or its `db/` files into this repository. Re-implement the behaviour in TypeScript with our own numbers.
+- Never use Ragnarok Online names, art or data for monsters, items, jobs, skills or places. Use original names; the starter list is in the artifact.
+- Game content (monsters, items, skills, quests, NPCs) lives in JSON files under `games/world/data`, not in code.
+
+Still undecided (ask the user first): login method details and art direction.
 
 ## Conventions
 
