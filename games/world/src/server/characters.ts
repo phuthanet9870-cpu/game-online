@@ -23,6 +23,26 @@ export const CHARACTER_MIGRATIONS: Migration[] = [
       CREATE INDEX world_characters_account_idx ON world_characters (account_id);
     `,
   },
+  {
+    id: "world/002_hp_and_inventory",
+    sql: `
+      ALTER TABLE world_characters ADD COLUMN hp INTEGER;
+      CREATE TABLE world_inventory (
+        character_id INTEGER NOT NULL REFERENCES world_characters(id) ON DELETE CASCADE,
+        item_id      TEXT NOT NULL,
+        amount       INTEGER NOT NULL CHECK (amount > 0),
+        PRIMARY KEY (character_id, item_id)
+      );
+      CREATE TABLE world_item_log (
+        id           BIGSERIAL PRIMARY KEY,
+        character_id INTEGER NOT NULL,
+        item_id      TEXT NOT NULL,
+        delta        INTEGER NOT NULL,
+        reason       TEXT NOT NULL,
+        at           TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+    `,
+  },
 ];
 
 export const MAX_CHARACTERS = 3;
@@ -37,6 +57,11 @@ export interface CharacterRow {
   mapId: string;
   x: number;
   y: number;
+  /** Null until first saved; means full HP. */
+  hp: number | null;
+  saveMapId: string;
+  saveX: number;
+  saveY: number;
 }
 
 /** What the character-select screen shows. */
@@ -62,7 +87,8 @@ export function validateCharacterName(input: unknown): string {
   return name;
 }
 
-const SELECT = `SELECT id, account_id AS "accountId", name, color, map_id AS "mapId", x, y FROM world_characters`;
+const SELECT = `SELECT id, account_id AS "accountId", name, color, map_id AS "mapId", x, y, hp,
+  save_map_id AS "saveMapId", save_x AS "saveX", save_y AS "saveY" FROM world_characters`;
 
 export class CharacterStore {
   constructor(private readonly db: Database) {}
@@ -107,10 +133,31 @@ export class CharacterStore {
     return rows[0] ?? null;
   }
 
-  async savePosition(id: number, mapId: string, x: number, y: number): Promise<void> {
+  async saveState(id: number, s: { mapId: string; x: number; y: number; hp: number }): Promise<void> {
     await this.db.query(
-      "UPDATE world_characters SET map_id = $2, x = $3, y = $4, updated_at = now() WHERE id = $1",
-      [id, mapId, x, y],
+      "UPDATE world_characters SET map_id = $2, x = $3, y = $4, hp = $5, updated_at = now() WHERE id = $1",
+      [id, s.mapId, s.x, s.y, s.hp],
     );
+  }
+
+  async inventory(characterId: number): Promise<Array<{ item: string; amount: number }>> {
+    const { rows } = await this.db.query<{ item: string; amount: number }>(
+      "SELECT item_id AS item, amount FROM world_inventory WHERE character_id = $1 ORDER BY item_id", [characterId]);
+    return rows;
+  }
+
+  /** Add items and log the change in one transaction. Returns the new amount. */
+  async addItem(characterId: number, itemId: string, amount: number, reason: string): Promise<number> {
+    return this.db.transaction(async (tx) => {
+      const { rows } = await tx.query<{ amount: number }>(
+        `INSERT INTO world_inventory (character_id, item_id, amount) VALUES ($1, $2, $3)
+         ON CONFLICT (character_id, item_id) DO UPDATE SET amount = world_inventory.amount + EXCLUDED.amount
+         RETURNING amount`,
+        [characterId, itemId, amount],
+      );
+      await tx.query("INSERT INTO world_item_log (character_id, item_id, delta, reason) VALUES ($1, $2, $3, $4)",
+        [characterId, itemId, amount, reason]);
+      return rows[0].amount;
+    });
   }
 }

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "gloop", "name": "Gloop", "level": 1, "hp": 45, "atk": [3, 6], "def": 0, "hit": 0, "flee": 0,
+    "attackDelayMs": 1600, "attackRange": 1, "walkSpeed": 2.2, "sight": 0, "chaseRange": 10,
+    "modes": { "aggressive": false, "assist": false, "randomWalk": true },
+    "look": { "shape": "blob", "color": "#7fd4ff", "size": 0.8 },
+    "drops": [{ "item": "gloop_gel", "rate": 7000 }, { "item": "meadow_tonic", "rate": 1500 }]
+  },
+  {
+    "id": "thornhop", "name": "Thornhop", "level": 3, "hp": 70, "atk": [5, 9], "def": 1, "hit": 6, "flee": 12,
+    "attackDelayMs": 1200, "attackRange": 1, "walkSpeed": 4.5, "sight": 0, "chaseRange": 12,
+    "modes": { "aggressive": false, "assist": false, "randomWalk": true },
+    "look": { "shape": "hopper", "color": "#e8b07a", "size": 0.75 },
+    "drops": [{ "item": "thorn_pelt", "rate": 5500 }, { "item": "meadow_tonic", "rate": 2000 }]
+  },
+  {
+    "id": "mossback", "name": "Mossback", "level": 5, "hp": 160, "atk": [8, 12], "def": 8, "hit": 4, "flee": 0,
+    "attackDelayMs": 2000, "attackRange": 1, "walkSpeed": 1.4, "sight": 0, "chaseRange": 8,
+    "modes": { "aggressive": false, "assist": false, "randomWalk": true },
+    "look": { "shape": "shell", "color": "#6f9a5a", "size": 1.0 },
+    "drops": [{ "item": "moss_shell", "rate": 4500 }, { "item": "grove_tonic", "rate": 800 }]
+  },
+  {
+    "id": "buzzling", "name": "Buzzling", "level": 6, "hp": 85, "atk": [9, 14], "def": 2, "hit": 14, "flee": 16,
+    "attackDelayMs": 1100, "attackRange": 1, "walkSpeed": 4.0, "sight": 6, "chaseRange": 14,
+    "modes": { "aggressive": true, "assist": true, "randomWalk": true },
+    "look": { "shape": "flyer", "color": "#f2d14a", "size": 0.7 },
+    "drops": [{ "item": "buzz_wing", "rate": 5000 }, { "item": "grove_tonic", "rate": 600 }]
+  }
+]

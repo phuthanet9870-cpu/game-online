@@ -25,3 +25,24 @@
 .swatches { display: flex; flex-wrap: wrap; gap: 8px; }
 .swatch-pick { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
 .swatch-pick.on { border-color: #fff; box-shadow: 0 0 0 2px #4f7be8; }
+
+.world-status { position: absolute; top: 58px; left: 12px; display: flex; gap: 8px; align-items: center; }
+.world-status[hidden] { display: none; }
+.hp { position: relative; width: 200px; height: 18px; border-radius: 9px; background: rgba(20, 26, 38, 0.8); overflow: hidden; border: 1px solid #0006; }
+.hp-fill { height: 100%; width: 100%; background: #5ad46a; transition: width .15s linear; }
+.hp-fill[data-level="warn"] { background: #e8c34f; }
+.hp-fill[data-level="low"] { background: #e8574f; }
+.hp-text { position: absolute; inset: 0; display: grid; place-items: center; font-size: 12px; font-weight: 600; text-shadow: 0 1px 2px #000; font-variant-numeric: tabular-nums; }
+.bag-toggle { padding: 3px 10px; border-radius: 8px; border: 1px solid #4a5675; background: rgba(20, 26, 38, 0.8); color: #eef; cursor: pointer; font-size: 13px; }
+.world-bag { position: absolute; top: 88px; left: 12px; width: min(260px, calc(100% - 24px)); background: rgba(20, 26, 38, 0.9); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; }
+.world-bag[hidden] { display: none; }
+.world-bag ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.world-bag li { display: grid; grid-template-columns: 12px 1fr auto; gap: 8px; align-items: center; font-size: 13px; }
+.world-bag li.empty { display: block; opacity: .7; }
+.world-bag .dot { width: 10px; height: 10px; border-radius: 3px; transform: rotate(45deg); }
+.world-bag .amount { font-variant-numeric: tabular-nums; opacity: .85; }
+.world-down { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(60, 10, 10, 0.35); }
+.world-down[hidden] { display: none; }
+.world-down .world-panel { display: grid; gap: 10px; justify-items: center; padding: 18px 22px; }
+.world-down p { margin: 0; font-size: 16px; font-weight: 600; }
+.world-down .revive { padding: 9px 16px; border: 0; border-radius: 8px; background: #4f7be8; color: white; font-weight: 600; cursor: pointer; font: inherit; }

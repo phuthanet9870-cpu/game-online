@@ -12,7 +12,8 @@
     "start": "npm run start -w @game/server",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "build:artifact": "node tools/build-artifact.mjs"
+    "build:artifact": "node tools/build-artifact.mjs",
+    "loadtest": "tsx tools/loadtest.ts"
   },
   "devDependencies": {
     "@colyseus/testing": "^0.18.6",

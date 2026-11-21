@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Client as SDKClient } from "@colyseus/sdk";
 import { createTestHost, type TestHost } from "@game/server/testing";
 import { CLOSE_CODE_SESSION_TAKEN } from "@game/core";
-import { MAPS, WORLD_ROOM, WorldState } from "../shared";
+import { AOI_RADIUS, MAPS, WORLD_ROOM, WorldState } from "../shared";
 import { worldServer } from "./index";
 
 const PORT = 2571;
@@ -170,5 +170,86 @@ describe("WorldRoom", () => {
     expect(lines).toEqual([]);
     await ra.leave();
     await rb.leave();
+  });
+  it("only sends monsters inside the player's area of interest", async () => {
+    const p = await newPlayer();
+    await host.db.query("UPDATE world_characters SET x = 3, y = 3 WHERE id = $1", [p.characterId]);
+    const room = await join(p);
+    const server = host.colyseus.getRoomById(room.roomId) as any;
+    await new Promise((r) => setTimeout(r, 400));
+    const seen = [...room.state.monsters.entries()];
+    expect(seen.length).toBeGreaterThan(0);
+    for (const [, m] of seen) expect(Math.max(Math.abs(m.x - 3), Math.abs(m.y - 3))).toBeLessThanOrEqual(AOI_RADIUS + 2);
+    const all = [...server.state.monsters.values()];
+    expect(seen.length).toBeLessThan(all.length);
+    expect(seen.some(([, m]) => m.def === "mossback")).toBe(false);
+    await room.leave();
+  });
+
+  it("attacks a monster, shows the hits and removes it when it dies", async () => {
+    const p = await newPlayer();
+    const room = await join(p);
+    const server = host.colyseus.getRoomById(room.roomId) as any;
+    const sim = server.sim;
+    const me = sim.players.get(room.sessionId);
+    // Put a 1-HP monster right next to the player.
+    const m = [...sim.monsters.monsters.values()].find((x: any) => x.mode !== "dead");
+    m.walker = { x: Math.round(me.walker.x) + 1, y: Math.round(me.walker.y), path: [] };
+    m.hp = 1;
+    m.def = { ...m.def, flee: -1000, modes: { ...m.def.modes, randomWalk: false } };
+    await server.waitForNextSimulationTick();
+    const hits: any[] = [];
+    room.onMessage("hits", (h: any[]) => hits.push(...h));
+    room.send("attack", { id: m.id });
+    for (let i = 0; i < 40 && m.mode !== "dead"; i++) await server.waitForNextSimulationTick();
+    expect(m.mode).toBe("dead");
+    await new Promise((r) => setTimeout(r, 120));
+    expect(hits.some((h) => h.from === room.sessionId && h.to === m.id && !h.miss)).toBe(true);
+    expect(room.state.monsters.has(m.id)).toBe(false);
+    await room.leave();
+  });
+
+  it("picks up a ground item into the saved inventory, respecting owner priority", async () => {
+    const p = await newPlayer();
+    const room = await join(p);
+    const server = host.colyseus.getRoomById(room.roomId) as any;
+    const me = server.sim.players.get(room.sessionId);
+    const at = { x: Math.round(me.walker.x), y: Math.round(me.walker.y) };
+    const now = Date.now();
+    server.sim.restoreItem({ id: "t1", itemId: "gloop_gel", ...at, ownerId: "someone-else", ownerUntil: now + 60_000, expiresAt: now + 60_000 });
+    server.sim.restoreItem({ id: "t2", itemId: "thorn_pelt", ...at, ownerId: null, ownerUntil: 0, expiresAt: now + 60_000 });
+
+    const notice = room.waitForMessage("notice");
+    room.send("pickup", { id: "t1" });
+    expect((await notice).text).toContain("ผู้เล่นอื่น");
+
+    const inventory = room.waitForMessage("inventory");
+    room.send("pickup", { id: "t2" });
+    expect(await inventory).toEqual({ items: [{ item: "thorn_pelt", amount: 1 }] });
+    expect(server.sim.items.has("t2")).toBe(false);
+    const { rows } = await host.db.query("SELECT item_id, delta, reason FROM world_item_log WHERE character_id = $1", [p.characterId]);
+    expect(rows).toEqual([{ item_id: "thorn_pelt", delta: 1, reason: "pickup" }]);
+    await room.leave();
+  });
+
+  it("revives a fallen player at the save point and saves HP", async () => {
+    const p = await newPlayer();
+    const room = await join(p);
+    const server = host.colyseus.getRoomById(room.roomId) as any;
+    const me = server.sim.players.get(room.sessionId);
+    me.hp = 0;
+    me.walker = { x: 10, y: 10, path: [] };
+    room.send("move", { x: 12, y: 10 });
+    await server.waitForNextSimulationTick();
+    expect(me.walker.path).toEqual([]);
+    const handled = server.waitForMessage("revive");
+    room.send("revive", {});
+    await handled;
+    expect(me.hp).toBe(60);
+    expect({ x: me.walker.x, y: me.walker.y }).toEqual(MAPS["starter-field"].spawn);
+    await room.leave();
+    await new Promise((r) => setTimeout(r, 50));
+    const { rows } = await host.db.query("SELECT hp FROM world_characters WHERE id = $1", [p.characterId]);
+    expect(rows[0].hp).toBeGreaterThanOrEqual(60);
   });
 });

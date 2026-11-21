@@ -9,14 +9,27 @@ export class Hud {
   private readonly input: HTMLInputElement;
   private readonly online: HTMLSpanElement;
   private readonly onKey: (e: KeyboardEvent) => void;
+  private readonly hpFill: HTMLDivElement;
+  private readonly hpText: HTMLSpanElement;
+  private readonly bag: HTMLDivElement;
+  private readonly bagList: HTMLUListElement;
+  private readonly downScreen: HTMLDivElement;
 
-  constructor(mapName: string, onSend: (text: string) => void, onSwitchCharacter: () => void) {
+  constructor(mapName: string, onSend: (text: string) => void, onSwitchCharacter: () => void, onRevive?: () => void) {
     this.root.className = "world-hud";
     this.root.innerHTML = `
       <div class="world-top">
         <div class="world-panel"><strong class="map"></strong> · ออนไลน์ <span class="online">0</span>
           · <button type="button" class="switch">เปลี่ยนตัวละคร</button></div>
-        <div class="world-panel help">คลิกพื้นเพื่อเดิน · คลิกขวาลาก หรือ Q/E หมุนกล้อง · ล้อเมาส์ซูม · Enter แชท</div>
+        <div class="world-panel help">คลิกพื้นเพื่อเดิน · คลิกมอนสเตอร์เพื่อโจมตี · คลิกของเพื่อเก็บ · คลิกขวาลาก หรือ Q/E หมุนกล้อง · Enter แชท · I กระเป๋า</div>
+      </div>
+      <div class="world-status">
+        <div class="hp" role="meter" aria-label="HP"><div class="hp-fill"></div><span class="hp-text"></span></div>
+        <button type="button" class="bag-toggle">กระเป๋า (I)</button>
+      </div>
+      <div class="world-bag" hidden><strong>กระเป๋า</strong><ul></ul></div>
+      <div class="world-down" hidden>
+        <div class="world-panel"><p>คุณหมดแรงแล้ว</p><button type="button" class="revive">ฟื้นที่จุดเซฟ</button></div>
       </div>
       <div class="world-chat">
         <div class="log" aria-live="polite"></div>
@@ -27,6 +40,15 @@ export class Hud {
     this.input = this.root.querySelector(".input")!;
     this.online = this.root.querySelector(".online")!;
     this.root.querySelector(".switch")!.addEventListener("click", onSwitchCharacter);
+    this.hpFill = this.root.querySelector(".hp-fill")!;
+    this.hpText = this.root.querySelector(".hp-text")!;
+    this.bag = this.root.querySelector(".world-bag")!;
+    this.bagList = this.bag.querySelector("ul")!;
+    this.downScreen = this.root.querySelector(".world-down")!;
+    this.root.querySelector(".bag-toggle")!.addEventListener("click", () => this.toggleBag());
+    const revive = this.root.querySelector<HTMLButtonElement>(".revive")!;
+    if (onRevive) revive.addEventListener("click", onRevive);
+    this.root.querySelector<HTMLElement>(".world-status")!.hidden = !onRevive;
 
     this.input.addEventListener("keydown", (e) => {
       e.stopPropagation();
@@ -40,9 +62,12 @@ export class Hud {
       }
     });
     this.onKey = (e) => {
-      if (e.key === "Enter" && document.activeElement !== this.input) {
+      if (document.activeElement === this.input) return;
+      if (e.key === "Enter") {
         e.preventDefault();
         this.input.focus();
+      } else if (e.key.toLowerCase() === "i" && !e.ctrlKey && !e.metaKey) {
+        this.toggleBag();
       }
     };
     window.addEventListener("keydown", this.onKey);
@@ -51,6 +76,41 @@ export class Hud {
   /** True while the player is typing, so game hotkeys stay off. */
   get typing(): boolean {
     return document.activeElement === this.input;
+  }
+
+  toggleBag() {
+    this.bag.hidden = !this.bag.hidden;
+  }
+
+  setHp(hp: number, maxHp: number) {
+    const f = maxHp > 0 ? hp / maxHp : 0;
+    this.hpFill.style.width = `${Math.round(f * 100)}%`;
+    this.hpFill.dataset.level = f > 0.5 ? "ok" : f > 0.25 ? "warn" : "low";
+    this.hpText.textContent = `HP ${hp} / ${maxHp}`;
+    this.root.querySelector(".hp")!.setAttribute("aria-valuenow", String(hp));
+    this.downScreen.hidden = hp > 0;
+  }
+
+  setInventory(items: Array<{ name: string; amount: number; color: string }>) {
+    this.bagList.replaceChildren(...items.map((i) => {
+      const li = document.createElement("li");
+      const dot = document.createElement("span");
+      dot.className = "dot";
+      dot.style.background = i.color;
+      const name = document.createElement("span");
+      name.textContent = i.name;
+      const amount = document.createElement("span");
+      amount.className = "amount";
+      amount.textContent = `× ${i.amount}`;
+      li.append(dot, name, amount);
+      return li;
+    }));
+    if (items.length === 0) {
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = "ยังว่างอยู่ ตีมอนสเตอร์แล้วเก็บของที่ดรอป";
+      this.bagList.append(li);
+    }
   }
 
   setOnline(count: number) {

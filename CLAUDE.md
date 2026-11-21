@@ -11,7 +11,8 @@ npm workspaces monorepo, Node 22. Run everything from the repository root.
 - Database: set `DATABASE_URL` (PostgreSQL) for real deployments. Without it the server uses PGlite (Postgres in WASM) stored in `.data/pglite` (override with `PGLITE_DIR`), so dev needs no database server. Migrations run automatically at startup.
 - `npm run build`: build the client into `packages/client/dist`.
 - `npm start`: production mode. One process on `PORT` (default 2567) serves both the built client and the game server. Run `npm run build` first.
-- `npm run build:artifact`: build the world game as one self-contained HTML page (`games/world/dist-artifact/lumen-realm.html`) for the claude.ai artifact "Lumen Realm" (https://claude.ai/artifact/G4z2SoQ5MWcg6ywfJDk2VD). Republish that file to the same artifact with `capabilities: {room: {topics: {chat: "interact"}}}`.
+- `npm run build:artifact`: build the world game as one self-contained HTML page (`games/world/dist-artifact/lumen-realm.html`) for the claude.ai artifact "Lumen Realm" (https://claude.ai/artifact/G4z2SoQ5MWcg6ywfJDk2VD). Republish that file to the same artifact with `capabilities: {room: {topics: {chat, ping, mobs, hits, swing, take, taken: "interact"}}}` (every topic the page emits must be listed).
+- `npm run loadtest -- [bots=50] [seconds=30] [server]`: bot players join a running server, walk and fight, then the script prints the server's tick timing from `/api/games/world/stats`. MVP 2 measured 50 bots at 0.64 ms average and 2.5 ms maximum per tick.
 - `npm run typecheck`: `tsc --noEmit` over every workspace. There is no linter.
 - `npm test`: all Vitest tests.
 - One file: `npx vitest run games/world/src/shared/pathfinding.test.ts`. One test: add `-t "routes around walls"`.
@@ -31,7 +32,10 @@ The repository is a host for many games. The host knows nothing about any partic
 ### `games/world`: the first game, a 2.5D RO-style MMO
 
 - `src/shared` is imported by both server and client. It holds the synchronised state (`state.ts`), message shapes (`protocol.ts`), tuning constants, the map loader, and A* pathfinding.
-- The server is authoritative. Clients only send `move {x, y}` (the target cell) and `chat {text}`. `WorldRoom` validates input, pathfinds (8 directions, no corner cutting, path length capped), walks each player in `setTimestep`, and broadcasts `chat`. Server-only per-player state (`Seat`: walker, character id, session claim) is kept outside the schema.
+- The server is authoritative. Clients send intents only: `move {x, y}`, `attack {id}`, `pickup {id}`, `revive`, `chat {text}`.
+- `src/sim/` is the game simulation, with no Colyseus dependency so the server and the artifact host both run it. `WorldSim` owns players (walk, auto-attack after walking into range, HP regen, death), ground items (the top damage dealer owns a drop for `ITEM_OWNER_MS`; removal from the map is the pickup lock), and `MonsterSim`. `MonsterSim` runs a state machine per monster (idle/random walk → chase → attack → return home past `chaseRange`, which resets HP) with rAthena-style mode flags (`aggressive`, `assist`, `randomWalk`), and skips AI for monsters with no player within `SLEEP_RADIUS`. `combat.ts` holds the pure formulas: HIT vs FLEE is 80% clamped to 5–95%, damage is ATK roll minus DEF with a minimum of 1. Pass an `Rng`; tests use `seededRng`, and the server uses `crypto.randomInt`.
+- `WorldRoom` calls `sim.tick` in `setTimestep`, then mirrors sim state into the schema (`Seat` keeps server-only data: character id, save point, session claim). Monsters and ground items are `.view()` collections: each client's `StateView` is refreshed every 5 ticks to hold only entities within `AOI_RADIUS`. Hit events go as a `hits` message only to nearby clients. Pickups are written with `CharacterStore.addItem` (one transaction that includes a `world_item_log` row); if the write fails, the item is put back on the ground.
+- Content is data in `games/world/data`: `monsters.json` (fields shaped like rAthena's mob_db, with our own values and drop `rate` out of 10000), `items.json`, and `spawns/<map>.json`. `validateContent()` runs at room start and in tests.
 - Room lifecycle: `onAuth` checks the token and that the character belongs to the account. `onJoin` claims the account session, then reloads the character so it starts where an evicted session just saved. `onDrop` keeps the player in the world for `RECONNECT_SECONDS`. `onLeave` and eviction both go through `closeSeat`, which saves once. The room also autosaves every `AUTOSAVE_MS`. `WorldRoom` is abstract; `createRooms` binds host services into a subclass.
 - Characters live in `world_characters` (`server/characters.ts`, which also holds its migration), with a 3-per-account limit and case-insensitive unique names. The client flow is character select (`client/select.ts`) → `runWorldSession` (`client/session.ts`) → back to select.
 - Content is data. Maps are JSON files in `data/maps` (rows of tile characters; tile types live in `TILES` in `shared/map.ts`), registered in `shared/maps.ts`. Future monsters, items and so on should follow the same pattern: data files plus a loader, not hard-coded content.
@@ -41,7 +45,7 @@ The repository is a host for many games. The host knows nothing about any partic
 
 ### Artifact build (`games/world/src/artifact`)
 
-A playable single-page version for claude.ai. It has no game server: each page walks its own character with the same `findPath`/`advance` code. Multiplayer uses the artifact `room` capability: presence carries `{n, c, x, y, d, m}` (name, colour, position, facing, moving), and chat goes out as a `chat` event. Every peer's presence is clamped and validated as untrusted input. The character is saved in localStorage. With no room (outside claude.ai), the page plays solo. Because clients are authoritative here, this build is a demo; the real game is the Colyseus server. `tools/build-artifact.mjs` runs Vite in IIFE lib mode (`vite.artifact.config.ts`) and inlines the JS and CSS into `page.html`.
+A playable single-page version for claude.ai. It has no game server: each page walks its own character, and presence carries `{n, c, x, y, d, m, hp, h}`. The page with the lowest peer id among those allowed to emit (`h: 1`, checked with a `ping` emit) is elected host. The host runs `WorldSim` for monsters and loot, broadcasts a `mobs` snapshot every 200 ms and `hits` batches, and judges `swing`/`take` requests from other pages (reach, attack rate, loot owner) with `sim.strike`/`sim.take`. Other pages accept `mobs`/`hits`/`taken` only from the current host. When the host leaves, the next page rebuilds the sim from the last snapshot (monster ids are stable, assigned in spawn order). Each page owns its HP and bag (localStorage). Solo play (no room) routes the same messages through a local loopback. Clients are trusted for their own position and HP, so this build is a demo; the real game is the Colyseus server. `#debug` in the URL exposes `window.__lumen` for tests. `tools/build-artifact.mjs` runs Vite in IIFE lib mode (`vite.artifact.config.ts`) and inlines the JS and CSS into `page.html`.
 
 ### Colyseus 0.18 specifics (newer than most examples online)
 
@@ -55,7 +59,7 @@ The full plan is the "Lumen Realm Roadmap" artifact: https://claude.ai/artifact/
 
 0. Shared map, click-to-move, chat. **Done.**
 1. Accounts and persistent characters (auth, PostgreSQL, one session per account, reconnection). **Done.**
-2. Monsters and basic combat (spawn zones, AI state machine, drops with loot priority).
+2. Monsters and basic combat (spawn zones, AI state machine, drops with loot priority). **Done.** No looter mode yet, and no EXP (that is MVP 3).
 3. Levels, stats, and the first jobs (Initiate, then Vanguard, Arcanist, Pathfinder, Mender, Tinker, Shade).
 4. Items, equipment, NPC shops, and account storage.
 5. Skills, elements, sizes, and status effects.

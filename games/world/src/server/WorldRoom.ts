@@ -1,12 +1,16 @@
+import { randomInt } from "node:crypto";
 import { Room, ServerError, type AuthContext, type Client, type Deferred } from "@colyseus/core";
+import { StateView } from "@colyseus/schema";
 import { CLOSE_CODE_SESSION_TAKEN, type Account, type HostServices } from "@game/core";
 import {
-  AUTOSAVE_MS, CHAT_COOLDOWN_MS, CHAT_MAX_LENGTH, DEFAULT_MAP_ID, MAPS, MAX_PATH_LENGTH, MAX_PLAYERS_PER_MAP,
-  Player, RECONNECT_SECONDS, TICK_MS, WALK_SPEED, WorldState, findPath,
-  type ChatBroadcast, type GameMap,
+  AOI_RADIUS, AUTOSAVE_MS, CHAT_COOLDOWN_MS, CHAT_MAX_LENGTH, DEFAULT_MAP_ID, GroundItem, MAPS, MAX_PLAYERS_PER_MAP,
+  Monster, Player, RECONNECT_SECONDS, TICK_MS, WorldState,
+  type ChatBroadcast, type GameMap, type HitEvent, type InventoryMessage, type NoticeMessage,
 } from "../shared";
+import { ITEMS, MONSTERS, SPAWNS, validateContent } from "../shared/content";
+import { cellDistance } from "../sim/combat";
+import { WorldSim, type GroundItem as SimItem } from "../sim/world";
 import { CharacterStore } from "./characters";
-import { advance, type Walker } from "./movement";
 
 interface AuthResult {
   account: Account;
@@ -18,7 +22,7 @@ interface Seat {
   client: Client;
   accountId: number;
   characterId: number;
-  walker: Walker;
+  savePoint: { x: number; y: number };
   release: () => void;
   /** Pending reconnection while the client is dropped. */
   reconnection?: Deferred<Client>;
@@ -26,12 +30,18 @@ interface Seat {
   closed: boolean;
 }
 
+/** How often each client's area of interest is recomputed. */
+const AOI_EVERY_TICKS = 5;
+/** Server-wide tick timing, for /api/games/world/stats and load tests. */
+export const tickStats = { ticks: 0, totalMs: 0, maxMs: 0, reset() { this.ticks = 0; this.totalMs = 0; this.maxMs = 0; } };
+
 /**
- * One instance per map. The server is authoritative: clients only say where
- * they want to go; the room pathfinds and moves them, and saves characters to
- * the database on leave, on eviction and every AUTOSAVE_MS.
+ * One instance per map. The server is authoritative: clients send intents
+ * (move, attack, pickup, revive, chat); `WorldSim` decides what happens and
+ * the room mirrors it into the synced state. Characters are saved on leave,
+ * on eviction and every AUTOSAVE_MS; picked-up items are saved immediately.
  *
- * Abstract because it needs host services; `createWorldRooms` binds them.
+ * Abstract because it needs host services; `createRooms` binds them.
  */
 export abstract class WorldRoom extends Room<{ state: WorldState }> {
   maxClients = MAX_PLAYERS_PER_MAP;
@@ -40,21 +50,41 @@ export abstract class WorldRoom extends Room<{ state: WorldState }> {
   protected abstract readonly services: HostServices;
   private store!: CharacterStore;
   private map!: GameMap;
+  private sim!: WorldSim;
   private seats = new Map<string, Seat>();
   private lastChat = new Map<string, number>();
+  private tickCount = 0;
 
   messages = {
-    move: (client: Client, message: unknown) => this.handleMove(client, message),
+    move: (client: Client, message: unknown) => {
+      if (isCell(message)) this.sim.moveTo(client.sessionId, message);
+    },
+    attack: (client: Client, message: unknown) => {
+      const id = idOf(message);
+      if (id) this.sim.attack(client.sessionId, id);
+    },
+    pickup: (client: Client, message: unknown) => {
+      const id = idOf(message);
+      if (id) this.sim.pickup(client.sessionId, id);
+    },
+    revive: (client: Client) => {
+      const seat = this.seats.get(client.sessionId);
+      if (seat && this.sim.revive(client.sessionId, seat.savePoint)) this.mirrorPlayers();
+    },
     chat: (client: Client, message: unknown) => this.handleChat(client, message),
   };
 
   onCreate(options: { mapId?: string } = {}) {
+    validateContent();
     const map = MAPS[options.mapId ?? DEFAULT_MAP_ID];
     if (!map) throw new Error(`unknown map ${options.mapId}`);
     this.map = map;
     this.store = new CharacterStore(this.services.db);
     this.state = new WorldState();
     this.state.mapId = map.id;
+    // Loot and hit rolls use the OS CSPRNG: players cannot predict them.
+    const rng = () => randomInt(0, 2 ** 32) / 2 ** 32;
+    this.sim = new WorldSim(map, SPAWNS[map.id] ?? [], MONSTERS, rng, Date.now());
     this.setPatchRate(TICK_MS);
     this.setTimestep((deltaMs) => this.tick(deltaMs), TICK_MS);
     this.clock.setInterval(() => void this.saveAll(), AUTOSAVE_MS);
@@ -80,28 +110,31 @@ export abstract class WorldRoom extends Room<{ state: WorldState }> {
       release();
       throw new ServerError(404, "ไม่พบตัวละคร");
     }
-
+    const savePoint = this.map.isWalkable(character.saveX, character.saveY) ? { x: character.saveX, y: character.saveY } : this.map.spawn;
     const spawn = character.mapId === this.map.id && this.map.isWalkable(character.x, character.y)
       ? { x: character.x, y: character.y }
-      : this.nearSpawn();
+      : savePoint;
+    // A character saved dead comes back at its save point.
+    const dead = character.hp === 0;
+    const sp = this.sim.addPlayer(client.sessionId, dead ? savePoint : spawn, dead ? undefined : character.hp ?? undefined);
+    if (dead) sp.hp = Math.ceil(sp.maxHp / 2);
+
     const player = new Player();
     player.name = character.name;
     player.color = character.color;
-    player.x = spawn.x;
-    player.y = spawn.y;
-    player.dir = 0;
-    player.moving = false;
     this.state.players.set(client.sessionId, player);
-    this.seats.set(client.sessionId, {
-      client, accountId: account.id, characterId, release, closed: false,
-      walker: { x: spawn.x, y: spawn.y, path: [] },
-    });
+    this.seats.set(client.sessionId, { client, accountId: account.id, characterId, savePoint, release, closed: false });
+    this.mirrorPlayers();
+
+    client.view = new StateView();
+    this.updateView(client);
+    client.send("inventory", { items: await this.store.inventory(characterId) } satisfies InventoryMessage);
   }
 
   onDrop(client: Client) {
     const seat = this.seats.get(client.sessionId);
     if (!seat || seat.closed) return;
-    seat.walker.path = [];
+    this.sim.moveTo(client.sessionId, roundCell(this.sim.players.get(client.sessionId)?.walker ?? seat.savePoint));
     seat.reconnection = this.allowReconnection(client, RECONNECT_SECONDS);
   }
 
@@ -136,42 +169,33 @@ export abstract class WorldRoom extends Room<{ state: WorldState }> {
     if (seat.closed) return;
     seat.closed = true;
     try {
-      await this.save(seat);
+      await this.save(sessionId, seat);
     } finally {
       seat.release();
       this.seats.delete(sessionId);
+      this.sim.removePlayer(sessionId);
       this.state.players.delete(sessionId);
     }
   }
 
-  private async save(seat: Seat) {
-    const cell = this.restingCell(seat.walker);
-    await this.store.savePosition(seat.characterId, this.map.id, cell.x, cell.y);
+  private async save(sessionId: string, seat: Seat) {
+    const p = this.sim.players.get(sessionId);
+    if (!p) return;
+    const cell = this.restingCell(p.walker);
+    await this.store.saveState(seat.characterId, { mapId: this.map.id, x: cell.x, y: cell.y, hp: p.hp });
   }
 
   private async saveAll() {
-    const open = [...this.seats.values()].filter((s) => !s.closed);
-    const results = await Promise.allSettled(open.map((s) => this.save(s)));
+    const open = [...this.seats.entries()].filter(([, s]) => !s.closed);
+    const results = await Promise.allSettled(open.map(([id, s]) => this.save(id, s)));
     for (const r of results) if (r.status === "rejected") console.error("autosave failed", r.reason);
   }
 
   /** The walkable cell a walker is standing in (or heading into, mid-step). */
-  private restingCell(walker: Walker) {
-    const x = Math.round(walker.x);
-    const y = Math.round(walker.y);
-    if (this.map.isWalkable(x, y)) return { x, y };
+  private restingCell(walker: { x: number; y: number; path: Array<{ x: number; y: number }> }) {
+    const cell = roundCell(walker);
+    if (this.map.isWalkable(cell.x, cell.y)) return cell;
     return walker.path[0] ?? this.map.spawn;
-  }
-
-  private handleMove(client: Client, message: unknown) {
-    const walker = this.seats.get(client.sessionId)?.walker;
-    if (!walker || !isCell(message) || !this.map.isWalkable(message.x, message.y)) return;
-    // Path from the cell the player is currently in; the first waypoint pulls
-    // them to its centre, so a mid-step re-route stays on the grid.
-    const from = { x: Math.round(walker.x), y: Math.round(walker.y) };
-    const path = findPath(this.map, from, message, MAX_PATH_LENGTH);
-    if (!path) return;
-    walker.path = from.x === walker.x && from.y === walker.y ? path : [from, ...path];
   }
 
   private handleChat(client: Client, message: unknown) {
@@ -189,33 +213,130 @@ export abstract class WorldRoom extends Room<{ state: WorldState }> {
   }
 
   private tick(deltaMs: number) {
-    const distance = (WALK_SPEED * deltaMs) / 1000;
-    for (const [sessionId, seat] of this.seats) {
-      const player = this.state.players.get(sessionId);
-      if (!player) continue;
-      const dir = advance(seat.walker, distance);
-      if (dir !== null) player.dir = dir;
-      player.x = seat.walker.x;
-      player.y = seat.walker.y;
-      player.moving = seat.walker.path.length > 0;
+    const started = performance.now();
+    const events = this.sim.tick(deltaMs, Date.now());
+
+    this.mirrorPlayers();
+    this.mirrorMonsters();
+    this.mirrorItems();
+
+    // Hits go only to players who can see where they happened.
+    if (events.hits.length > 0) {
+      for (const seat of this.seats.values()) {
+        const me = this.sim.players.get(seat.client.sessionId);
+        if (!me) continue;
+        const near = events.hits.filter((h) => cellDistance(me.walker, h) <= AOI_RADIUS)
+          .map(({ from, to, damage, miss }): HitEvent => ({ from, to, damage, miss }));
+        if (near.length > 0) seat.client.send("hits", near);
+      }
+    }
+    for (const { playerId, item } of events.pickups) void this.persistPickup(playerId, item);
+    for (const { playerId, itemId } of events.refused) this.notice(playerId, `${ITEMS[itemId]?.name ?? itemId} เป็นของผู้เล่นอื่นอยู่ รออีกสักครู่`);
+    for (const id of events.deaths) this.notice(id, "คุณหมดแรงแล้ว กดฟื้นเพื่อกลับไปที่จุดเซฟ");
+
+    if (++this.tickCount % AOI_EVERY_TICKS === 0) {
+      for (const seat of this.seats.values()) this.updateView(seat.client);
+    }
+    const ms = performance.now() - started;
+    tickStats.ticks++;
+    tickStats.totalMs += ms;
+    tickStats.maxMs = Math.max(tickStats.maxMs, ms);
+  }
+
+  private async persistPickup(playerId: string, item: SimItem) {
+    const seat = this.seats.get(playerId);
+    if (!seat || seat.closed) {
+      this.sim.restoreItem(item);
+      return;
+    }
+    try {
+      await this.store.addItem(seat.characterId, item.itemId, 1, "pickup");
+      seat.client.send("inventory", { items: await this.store.inventory(seat.characterId) } satisfies InventoryMessage);
+      this.notice(playerId, `ได้รับ ${ITEMS[item.itemId]?.name ?? item.itemId}`);
+    } catch (err) {
+      console.error("saving pickup failed", err);
+      this.sim.restoreItem(item);
+      this.notice(playerId, "เก็บของไม่สำเร็จ ลองใหม่อีกครั้ง");
     }
   }
 
-  /** A walkable cell within two cells of the map spawn. */
-  private nearSpawn() {
-    const { x: sx, y: sy } = this.map.spawn;
-    const candidates: Array<{ x: number; y: number }> = [];
-    for (let dy = -2; dy <= 2; dy++) {
-      for (let dx = -2; dx <= 2; dx++) {
-        if (this.map.isWalkable(sx + dx, sy + dy)) candidates.push({ x: sx + dx, y: sy + dy });
-      }
-    }
-    return candidates[Math.floor(Math.random() * candidates.length)] ?? this.map.spawn;
+  private notice(playerId: string, text: string) {
+    this.seats.get(playerId)?.client.send("notice", { text } satisfies NoticeMessage);
   }
+
+  private mirrorPlayers() {
+    for (const [id, p] of this.sim.players) {
+      const s = this.state.players.get(id);
+      if (!s) continue;
+      s.x = p.walker.x;
+      s.y = p.walker.y;
+      s.dir = p.dir;
+      s.moving = p.walker.path.length > 0;
+      s.hp = p.hp;
+      s.maxHp = p.maxHp;
+    }
+  }
+
+  private mirrorMonsters() {
+    for (const [id, m] of this.sim.monsters.monsters) {
+      let s = this.state.monsters.get(id);
+      if (m.mode === "dead") {
+        if (s) this.state.monsters.delete(id);
+        continue;
+      }
+      if (!s) {
+        s = new Monster();
+        s.def = m.def.id;
+        s.maxHp = m.def.hp;
+        this.state.monsters.set(id, s);
+      }
+      s.x = m.walker.x;
+      s.y = m.walker.y;
+      s.dir = m.dir;
+      s.moving = m.walker.path.length > 0;
+      s.hp = m.hp;
+    }
+  }
+
+  private mirrorItems() {
+    for (const [id, item] of this.sim.items) {
+      if (this.state.items.has(id)) continue;
+      const s = new GroundItem();
+      s.item = item.itemId;
+      s.x = item.x;
+      s.y = item.y;
+      this.state.items.set(id, s);
+    }
+    for (const id of [...this.state.items.keys()]) if (!this.sim.items.has(id)) this.state.items.delete(id);
+  }
+
+  /** Add what is near this client to its view and drop what is far. */
+  private updateView(client: Client) {
+    const view = client.view;
+    const me = this.sim.players.get(client.sessionId);
+    if (!view || !me) return;
+    const sync = (entity: object, pos: { x: number; y: number }) => {
+      const near = cellDistance(me.walker, pos) <= AOI_RADIUS;
+      const has = view.has(entity as never);
+      if (near && !has) view.add(entity as never);
+      else if (!near && has) view.remove(entity as never);
+    };
+    for (const m of this.state.monsters.values()) sync(m, m);
+    for (const i of this.state.items.values()) sync(i, i);
+  }
+}
+
+function roundCell(p: { x: number; y: number }) {
+  return { x: Math.round(p.x), y: Math.round(p.y) };
 }
 
 function isCell(value: unknown): value is { x: number; y: number } {
   if (typeof value !== "object" || value === null) return false;
   const { x, y } = value as { x?: unknown; y?: unknown };
   return Number.isInteger(x) && Number.isInteger(y);
+}
+
+function idOf(value: unknown): string | null {
+  const id = typeof value === "object" && value !== null ? (value as { id?: unknown }).id : undefined;
+  return typeof id === "string" && id.length <= 16 ? id : null;
 }

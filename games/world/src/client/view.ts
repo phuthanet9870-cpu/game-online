@@ -11,9 +11,15 @@ export function toWorld(x: number, y: number, out = new THREE.Vector3()): THREE.
   return out.set(x + 0.5, 0, y + 0.5);
 }
 
+/** What a click landed on: a monster or item sprite, else a ground cell. */
+export interface Pick {
+  kind: "monster" | "item";
+  id: string;
+}
+
 /**
  * Owns the Three.js renderer, scene and input for one map. Knows nothing
- * about the network: it reports clicked cells and draws what it is told.
+ * about the network: it reports clicks and draws what it is told.
  */
 export class WorldView {
   readonly avatars = new Map<string, Avatar>();
@@ -31,11 +37,13 @@ export class WorldView {
   private lastTime = performance.now();
   private markerUntil = 0;
   private readonly cleanup: Array<() => void> = [];
+  private readonly entities = new Map<string, THREE.Object3D>();
+  private readonly pickables = new Set<THREE.Object3D>();
 
   constructor(
     private readonly container: HTMLElement,
     private readonly map: GameMap,
-    private readonly onCellClick: (x: number, y: number) => void,
+    private readonly onClick: (cell: { x: number; y: number } | null, pick: Pick | null) => void,
     private readonly isTyping: () => boolean,
     private readonly perFrame: (dt: number, now: number) => void,
   ) {
@@ -96,10 +104,43 @@ export class WorldView {
     this.avatars.delete(sessionId);
   }
 
-  private cellUnderPointer(clientX: number, clientY: number): { x: number; y: number } | null {
+  /** Screen position (CSS pixels) of a world point, for tests and overlays. */
+  project(point: THREE.Vector3): { x: number; y: number } {
+    const v = point.clone().project(this.rig.camera);
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    return { x: rect.left + ((v.x + 1) / 2) * rect.width, y: rect.top + ((1 - v.y) / 2) * rect.height };
+  }
+
+  /** Add a monster, item or effect group. Objects with `userData.pick` become clickable. */
+  addEntity(key: string, root: THREE.Object3D) {
+    this.removeEntity(key);
+    this.entities.set(key, root);
+    root.traverse((o) => { if (o.userData.pick) this.pickables.add(o); });
+    this.scene.add(root);
+  }
+
+  removeEntity(key: string) {
+    const root = this.entities.get(key);
+    if (!root) return;
+    root.traverse((o) => this.pickables.delete(o));
+    this.scene.remove(root);
+    this.entities.delete(key);
+  }
+
+  private aim(clientX: number, clientY: number) {
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(this.pointer, this.rig.camera);
+  }
+
+  private pickUnderPointer(clientX: number, clientY: number): Pick | null {
+    this.aim(clientX, clientY);
+    const hit = this.raycaster.intersectObjects([...this.pickables], false)[0];
+    return (hit?.object.userData.pick as Pick | undefined) ?? null;
+  }
+
+  private cellUnderPointer(clientX: number, clientY: number): { x: number; y: number } | null {
+    this.aim(clientX, clientY);
     const hit = this.raycaster.intersectObject(this.ground)[0];
     if (!hit) return null;
     const x = Math.floor(hit.point.x);
@@ -126,8 +167,10 @@ export class WorldView {
         this.rig.rotate((e.clientX - down.lastX) * -0.008);
         down.lastX = e.clientX;
       }
+      const pick = this.pickUnderPointer(e.clientX, e.clientY);
+      canvas.style.cursor = pick?.kind === "monster" ? "crosshair" : pick?.kind === "item" ? "pointer" : "";
       const cell = this.cellUnderPointer(e.clientX, e.clientY);
-      this.hover.visible = cell !== null;
+      this.hover.visible = cell !== null && !pick;
       if (cell) {
         this.hover.position.x = cell.x + 0.5;
         this.hover.position.z = cell.y + 0.5;
@@ -139,13 +182,15 @@ export class WorldView {
       down = null;
       if (!start || start.button !== 0) return;
       if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > CLICK_DRAG_PX) return;
+      const pick = this.pickUnderPointer(e.clientX, e.clientY);
+      if (pick) return this.onClick(null, pick);
       const cell = this.cellUnderPointer(e.clientX, e.clientY);
       if (!cell || !this.map.isWalkable(cell.x, cell.y)) return;
       this.clickMarker.position.x = cell.x + 0.5;
       this.clickMarker.position.z = cell.y + 0.5;
       this.clickMarker.visible = true;
       this.markerUntil = performance.now() + 600;
-      this.onCellClick(cell.x, cell.y);
+      this.onClick(cell, null);
     });
     on(canvas, "pointerleave", () => (this.hover.visible = false));
     on(canvas, "wheel", (e) => {
@@ -189,6 +234,7 @@ export class WorldView {
     cancelAnimationFrame(this.frame);
     this.cleanup.forEach((fn) => fn());
     for (const id of [...this.avatars.keys()]) this.removeAvatar(id);
+    for (const key of [...this.entities.keys()]) this.removeEntity(key);
     this.scene.traverse((obj) => {
       if (obj instanceof THREE.Mesh || obj instanceof THREE.LineSegments || obj instanceof THREE.InstancedMesh) {
         obj.geometry.dispose();

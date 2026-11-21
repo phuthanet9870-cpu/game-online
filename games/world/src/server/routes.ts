@@ -1,6 +1,7 @@
 import type { RequestHandler, Router } from "express";
 import type { Account, HostServices } from "@game/core";
 import { CharacterError, CharacterStore } from "./characters";
+import { tickStats } from "./WorldRoom";
 
 const wrap = (fn: (account: Account, req: Parameters<RequestHandler>[0], res: Parameters<RequestHandler>[1]) => Promise<unknown>): RequestHandler =>
   (req, res, next) => {
@@ -13,6 +14,12 @@ const wrap = (fn: (account: Account, req: Parameters<RequestHandler>[0], res: Pa
 /** Character-select endpoints: /api/games/world/characters */
 export function characterRoutes(router: Router, services: HostServices & { requireAccount: RequestHandler }) {
   const store = new CharacterStore(services.db);
+  // Server load, for load tests and monitoring. Public: it holds no player data.
+  router.get("/stats", (req, res) => {
+    const avg = tickStats.ticks ? tickStats.totalMs / tickStats.ticks : 0;
+    res.json({ ticks: tickStats.ticks, avgTickMs: Number(avg.toFixed(3)), maxTickMs: Number(tickStats.maxMs.toFixed(3)) });
+    if (req.query.reset === "1") tickStats.reset();
+  });
   router.use(services.requireAccount);
   router.get("/characters", wrap(async (account, _req, res) => {
     res.json({ characters: await store.list(account.id) });

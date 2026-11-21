@@ -1,0 +1,7 @@
+[
+  { "monster": "gloop", "count": 6, "area": { "x": 6, "y": 6, "w": 14, "h": 14 }, "respawnMs": [6000, 10000] },
+  { "monster": "gloop", "count": 6, "area": { "x": 28, "y": 28, "w": 14, "h": 14 }, "respawnMs": [6000, 10000] },
+  { "monster": "thornhop", "count": 6, "area": { "x": 6, "y": 27, "w": 14, "h": 14 }, "respawnMs": [8000, 14000] },
+  { "monster": "mossback", "count": 4, "area": { "x": 27, "y": 14, "w": 16, "h": 7 }, "respawnMs": [15000, 25000] },
+  { "monster": "buzzling", "count": 4, "area": { "x": 7, "y": 31, "w": 10, "h": 10 }, "respawnMs": [12000, 20000] }
+]
