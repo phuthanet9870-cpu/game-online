@@ -1,79 +1,44 @@
-import { Callbacks } from "@colyseus/sdk";
 import type { GameClientModule } from "@game/core";
-import { MAPS, WORLD_ROOM, WorldState, type ChatBroadcast, type JoinOptions, type MoveMessage, type Player } from "../shared";
-import { Avatar } from "./avatar";
-import { Hud } from "./hud";
-import { toWorld, WorldView } from "./view";
+import { WORLD_ROOM, WorldState, type WorldJoinOptions } from "../shared";
+import { selectCharacter } from "./select";
+import { runWorldSession } from "./session";
 import "./world.css";
 
 export const worldClient: GameClientModule = {
   id: "world",
-  title: "โลกแฟนตาซี (แนว RO)",
-  description: "แผนที่ 2.5D หลายผู้เล่น · เดินด้วยการคลิก · แชท",
+  title: "Lumen Realm",
+  description: "โลกแฟนตาซี 2.5D หลายผู้เล่น · เลือกตัวละคร · เดินด้วยการคลิก · แชท",
 
-  async start({ container, sdk, playerName }) {
-    const options: JoinOptions = { name: playerName };
-    const room = await sdk.joinOrCreate(WORLD_ROOM, options, WorldState);
-    if (!room.state?.mapId) await new Promise<void>((resolve) => room.onStateChange.once(() => resolve()));
+  async start({ container, sdk, api, exit }) {
+    let active = true;
+    let stopSession: (() => void) | null = null;
 
-    const map = MAPS[room.state.mapId];
-    if (!map) {
-      await room.leave();
-      throw new Error(`ไม่รู้จักแผนที่ ${room.state.mapId}`);
-    }
-    const hud = new Hud(map.name, (text) => room.send("chat", { text }));
-    let view: WorldView;
-    try {
-      view = new WorldView(
-        container,
-        map,
-        (x, y) => room.send("move", { x, y } satisfies MoveMessage),
-        () => hud.typing,
-        (dt, now) => {
-          // Schema instances update in place; read the latest server values every frame.
-          for (const [sessionId, player] of room.state.players) {
-            const avatar = view.avatars.get(sessionId);
-            if (!avatar) continue;
-            toWorld(player.x, player.y, avatar.target);
-            avatar.setFacing(player.dir);
-            avatar.update(dt, player.moving, now);
-          }
-        },
-      );
-    } catch (err) {
-      // Most likely no WebGL: do not leave a ghost player in the room.
-      hud.dispose();
-      await room.leave();
-      throw err;
-    }
-    container.append(hud.root);
-    view.setLocalPlayer(room.sessionId);
-
-    const $ = Callbacks.get<WorldState>(room);
-    $.onAdd("players", (player: Player, sessionId: string) => {
-      const avatar = new Avatar(player.name, player.color, sessionId === room.sessionId);
-      toWorld(player.x, player.y, avatar.target);
-      avatar.setFacing(player.dir);
-      view.addAvatar(sessionId, avatar);
-      hud.setOnline(room.state.players.size);
-      if (sessionId !== room.sessionId) hud.addLine("", `${player.name} เข้ามาในแผนที่`, "system");
-    });
-    $.onRemove("players", (player: Player, sessionId: string) => {
-      view.removeAvatar(sessionId);
-      hud.setOnline(room.state.players.size);
-      hud.addLine("", `${player.name} ออกจากแผนที่`, "system");
-    });
-
-    room.onMessage("chat", (line: ChatBroadcast) => {
-      hud.addLine(line.name, line.text);
-      view.avatars.get(line.sessionId)?.say(line.text, performance.now());
-    });
-    room.onLeave(() => hud.addLine("", "หลุดการเชื่อมต่อจากเซิร์ฟเวอร์ รีเฟรชหน้าเพื่อเข้าใหม่", "system"));
+    // Character select → play → back to select, until the player leaves.
+    void (async () => {
+      let notice: string | undefined;
+      while (active) {
+        const characterId = await selectCharacter(container, api, notice);
+        if (!active) return;
+        if (characterId === null) return exit();
+        try {
+          const options: WorldJoinOptions = { characterId };
+          const room = await sdk.joinOrCreate(WORLD_ROOM, options, WorldState);
+          if (!room.state?.mapId) await new Promise<void>((resolve) => room.onStateChange.once(() => resolve()));
+          if (!active) return void room.leave();
+          const session = runWorldSession(container, room);
+          stopSession = session.stop;
+          notice = (await session.done).notice;
+          stopSession = null;
+        } catch (err) {
+          notice = `เข้าเกมไม่ได้: ${(err as Error).message}`;
+        }
+      }
+    })();
 
     return () => {
-      room.leave();
-      view.dispose();
-      hud.dispose();
+      active = false;
+      stopSession?.();
+      container.replaceChildren();
     };
   },
 };

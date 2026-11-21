@@ -12,3 +12,10 @@ export const NAME_MAX_LENGTH = 16;
 export const CHAT_MAX_LENGTH = 120;
 export const CHAT_COOLDOWN_MS = 400;
 export const MAX_PLAYERS_PER_MAP = 100;
+
+/** Number of body colours a character can pick, until real sprites exist. */
+export const PLAYER_COLORS = 8;
+/** Seconds a dropped player stays in the world waiting to reconnect. */
+export const RECONNECT_SECONDS = 20;
+/** How often the room saves every player's position. */
+export const AUTOSAVE_MS = 60_000;

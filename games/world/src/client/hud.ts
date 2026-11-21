@@ -10,11 +10,12 @@ export class Hud {
   private readonly online: HTMLSpanElement;
   private readonly onKey: (e: KeyboardEvent) => void;
 
-  constructor(mapName: string, onSend: (text: string) => void) {
+  constructor(mapName: string, onSend: (text: string) => void, onSwitchCharacter: () => void) {
     this.root.className = "world-hud";
     this.root.innerHTML = `
       <div class="world-top">
-        <div class="world-panel"><strong class="map"></strong> · ออนไลน์ <span class="online">0</span></div>
+        <div class="world-panel"><strong class="map"></strong> · ออนไลน์ <span class="online">0</span>
+          · <button type="button" class="switch">เปลี่ยนตัวละคร</button></div>
         <div class="world-panel help">คลิกพื้นเพื่อเดิน · คลิกขวาลาก หรือ Q/E หมุนกล้อง · ล้อเมาส์ซูม · Enter แชท</div>
       </div>
       <div class="world-chat">
@@ -25,6 +26,7 @@ export class Hud {
     this.log = this.root.querySelector(".log")!;
     this.input = this.root.querySelector(".input")!;
     this.online = this.root.querySelector(".online")!;
+    this.root.querySelector(".switch")!.addEventListener("click", onSwitchCharacter);
 
     this.input.addEventListener("keydown", (e) => {
       e.stopPropagation();

@@ -14,6 +14,7 @@ export interface ChatBroadcast {
   text: string;
 }
 
-export interface JoinOptions {
-  name?: string;
+
+export interface WorldJoinOptions {
+  characterId: number;
 }
