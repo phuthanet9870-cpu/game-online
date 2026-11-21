@@ -1,4 +1,5 @@
 import { Room, type Client } from "@colyseus/core";
+import { GmSystem, gmRates, isMuted, loadModeration } from "../gm.ts";
 import { delayConsumeBlockedWhileSitting, itemUseReady, nextItemUse } from "../../../shared/rules/itemuse.ts";
 import { schema, t, type SchemaType } from "@colyseus/schema";
 import {
@@ -174,6 +175,10 @@ const rndValue = (min: number, max: number) => {
 };
 /** drops.conf; DROP_RATE (env, 1 = official) sets every item_rate_* to DROP_RATE * 100 like a rate-changed server. */
 const DROPS = withItemRate(Math.trunc(100 * Number(process.env.DROP_RATE ?? 1)));
+/** the drop table's rates with the GM drop multiplier applied (server/src/gm.ts) */
+let gmDrops = { rate: 1, conf: DROPS };
+const dropConf = () => gmRates.drop === 1 ? DROPS : gmDrops.rate === gmRates.drop ? gmDrops.conf
+  : (gmDrops = { rate: gmRates.drop, conf: withItemRate(Math.trunc(100 * Number(process.env.DROP_RATE ?? 1) * gmRates.drop)) }).conf;
 /** clif_npc_buy_result messages per e_purchase_result. */
 const BUY_FAIL: Record<Exclude<BuyResult, "ok">, string> = {
   money: "You don't have enough zeny.",
@@ -293,6 +298,7 @@ export class MapRoom extends Room<{ state: MapState }> {
   mapName: MapName = FIELD;
   brains = new Map<string, Brain>();
   accountOf = new Map<string, number>();
+  gm = new GmSystem(this, online);
   timeline = new Timeline(); // delayed events (walk steps, attack damage, retaliation, later skills); drained every tick
   private walkSeq = 0; // ids of step timers (a stopped or replaced step's event is recognised and ignored)
   nextMonsterId = 1;
@@ -404,6 +410,7 @@ export class MapRoom extends Room<{ state: MapState }> {
       const p = this.state.players.get(client.sessionId);
       const text = String(m?.text ?? "").trim().slice(0, 120);
       if (!p || !text) return;
+      if (isMuted(this.accountOf.get(client.sessionId))) return client.send(Msg.notice, { text: "A GM muted your chat for now." });
       const k = `chat-rate:${p.name}`;
       if ((await redis.incr(k)) === 1) await redis.expire(k, 5);
       else if (Number(await redis.get(k)) > 5) return; // 5 lines / 5 s
@@ -419,6 +426,7 @@ export class MapRoom extends Room<{ state: MapState }> {
     // ones (FAKE_NPC: no sprite, e.g. a trigger area) stay server-side, like rAthena never sends a class -1 NPC to the client.
     for (const n of npcsOn(this.mapName)) if (n.sprite) this.state.npcs.set(n.id, new Npc({ name: n.name, sprite: n.sprite, x: n.x, y: n.y, kind: n.kind }));
     this.npcEngine = new ScriptEngine(this.scriptHost(), npcsOn(this.mapName));
+    this.gm.register(); // GM menu (server/src/gm.ts): unlocked with the GM_PASSPHRASE
     this.boss.register(); // dev-only GM shortcuts of the boss bot (never in production)
     this.status.register(); // dev-only GM shortcut of the status bot (never in production)
     this.pets.register(); // pet requests (+ the pets bot's dev-only shortcuts)
@@ -833,7 +841,7 @@ export class MapRoom extends Room<{ state: MapState }> {
     const src = ks ? { luk: ks.stats.luk, pc: this.state.players.has(killerId) ? {} : undefined } : undefined;
     // 2.4.0 pets (mob_dead: first_sd + IT_PETEGG -> pet_create_egg): an egg drop (the legendary egg) is first_sd's egg at once, never a floor item
     const firstSid = owners.length ? this.sessionOfChar(owners[0]) : undefined;
-    const drops = rollMobDrops(def, { modifier, src, conf: DROPS }).filter((id) => !(firstSid && ITEMS.get(id)?.type === "Petegg" && (this.pets.makeEgg(firstSid, id), true)));
+    const drops = rollMobDrops(def, { modifier, src, conf: dropConf() }).filter((id) => !(firstSid && ITEMS.get(id)?.type === "Petegg" && (this.pets.makeEgg(firstSid, id), true)));
     const at = this.cell(mon), keep = looted.filter((l) => ITEMS.has(l.itemId));
     const regular = floorLoot(now, owners, def.bossType as BossType, false, DROPS), loot = floorLoot(now, owners, "None", false, DROPS);
     dropDirections(drops.length).forEach((dir, i) => this.addFloorItem(drops[i], 1, at, dir, regular));
@@ -865,6 +873,9 @@ export class MapRoom extends Room<{ state: MapState }> {
     if (!session) throw new Error("session expired — please log in again");
     const own = (await db.query("SELECT id FROM characters WHERE id = $1 AND account_id = $2", [Number(opts.charId), session.accountId])).rows[0];
     if (!own) throw new Error("character not found");
+    const ban = (await db.query("SELECT banned_until FROM accounts WHERE id = $1 AND banned_until > now()", [session.accountId])).rows[0];
+    if (ban) throw new Error("this account is banned");
+    await loadModeration(session.accountId);
     return { accountId: session.accountId, charId: Number(own.id) };
   }
 
@@ -1740,6 +1751,7 @@ export class MapRoom extends Room<{ state: MapState }> {
   /** pc_gainexp for one receiver of a kill. */
   reward(id: string, p: Player, base: number, job: number, quest = false) {
     if (p.dead) return; // pc_gainexp: nothing for a dead character (pc.cpp:8458)
+    if (!quest && gmRates.exp !== 1) { base = Math.round(base * gmRates.exp); job = Math.round(job * gmRates.exp); } // GM EXP rate (server/src/gm.ts)
     const prog = { job: p.job as JobKey, level: p.level, exp: p.exp, jobLevel: p.jobLevel, jobExp: p.jobExp, statPoints: p.statPoints, skillPoints: p.skillPoints };
     const sent = { base: base !== 0, job: job !== 0 }; // pc_gainexp flag&1 / flag&2: from the amounts before any cap (pc.cpp:8471)
     ({ base, job } = capExpGain(prog, base, job)); // max_exp_gain_rate (pc.cpp:8495-8507)

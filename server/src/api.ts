@@ -95,8 +95,9 @@ export function registerApi(app: express.Application) {
   api.post("/login", async (req, res) => {
     const username = String(req.body?.username ?? "").trim().toLowerCase(), password = String(req.body?.password ?? "");
     if (!(await allow(`login:${ip(req)}:${username}`, 8, 300))) return bad(res, 429, "too many attempts, wait 5 minutes");
-    const row = (await db.query("SELECT id, pass_hash FROM accounts WHERE username = $1", [username])).rows[0];
+    const row = (await db.query("SELECT id, pass_hash, banned_until > now() AS banned, banned_until FROM accounts WHERE username = $1", [username])).rows[0];
     if (!row || !(await verifyPassword(password, row.pass_hash))) return bad(res, 401, "wrong username or password");
+    if (row.banned) return bad(res, 403, `this account is banned until ${new Date(row.banned_until).toUTCString()}`); // GM ban (server/src/gm.ts)
     await db.query("UPDATE accounts SET last_login = now() WHERE id = $1", [row.id]);
     res.json({ token: await createSession({ accountId: row.id, username }), username });
   });

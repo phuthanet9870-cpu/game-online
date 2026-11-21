@@ -37,6 +37,24 @@ export type QuestActiveMsg = { id: number; active: boolean }; // CZ_ACTIVE_QUEST
 export type SkillUpMsg = { id: number };
 export type UseSkillMsg = { id: number; lv?: number; target?: string; x?: number; y?: number };
 
+// GM (server/src/gm.ts). gmAuth: the chat command "/gm<passphrase>" (the passphrase is checked on the server against
+// GM_PASSPHRASE and never shown in chat). gm: one GM operation; `target` = a character name (absent = the GM).
+export type GmAuthMsg = { phrase: string };
+export type GmOp =
+  | { op: "online" } | { op: "announce"; text: string } | { op: "rates"; exp?: number; drop?: number }
+  | { op: "warp"; target?: string; map: string; x?: number; y?: number } | { op: "goto"; target: string } | { op: "summon"; target: string }
+  | { op: "level"; target?: string; base?: number; job?: number } | { op: "job"; target?: string; job: string }
+  | { op: "stat"; target?: string; stat: "str" | "agi" | "vit" | "int" | "dex" | "luk"; value: number }
+  | { op: "points"; target?: string; status?: number; skill?: number }
+  | { op: "zeny"; target?: string; amount: number } | { op: "item"; target?: string; itemId: number; amount: number }
+  | { op: "heal"; target?: string } | { op: "revive"; target?: string } | { op: "kill"; target: string }
+  | { op: "kick"; target: string } | { op: "ban"; target: string; hours: number } | { op: "unban"; target: string }
+  | { op: "mute"; target: string; minutes: number } | { op: "unmute"; target: string } | { op: "setgm"; target: string; on: boolean }
+  | { op: "spawn"; mobId: number; count?: number } | { op: "killmobs" };
+export type GmStateEvent = { gm: boolean; rates: { exp: number; drop: number } };
+export type GmResultEvent = { ok: boolean; text: string };
+export type GmOnlineEvent = { players: { name: string; map: string; x: number; y: number; level: number; jobLevel: number; job: string; hp: number; maxHp: number; dead: boolean; gm: boolean; muted: boolean }[] };
+
 // server -> client
 // Per-event messages reach only the clients rAthena's clif_send target reaches (server/src/area.ts): "area" = players within
 // area_size (14) cells of the unit the event is about, "owner" = that player alone. The synced room state goes to everyone.
@@ -318,6 +336,8 @@ export const Msg = {
   petCatchStart: "petCatchStart", petCatchResult: "petCatchResult", petEggs: "petEggs", petInfo: "petInfo", petEmote: "petEmote",
   petNotice: "petNotice", // server -> client
   devPet: "devPet", // DEV ONLY (pets bot, never in production): { op: "hunger" | "intimacy", value } | { op: "starve" | "catch" } | { op: "give", itemId, amount } | { op: "floor", itemId, value: 0 free | 1 held by another character } | { op: "ownerHp", value: % }
+  // GM (server/src/gm.ts): gmAuth / gm client -> server, gmState / gmResult / gmOnline server -> the GM only
+  gmAuth: "gmAuth", gm: "gm", gmState: "gmState", gmResult: "gmResult", gmOnline: "gmOnline",
   // duel (server/src/duel.ts)
   duelInvite: "duelInvite", duelReply: "duelReply", duelLeave: "duelLeave", // client -> server
   duelInvited: "duelInvited", duel: "duel", // server -> client
