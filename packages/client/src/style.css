@@ -1,0 +1,17 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #1d2330; color: #eef; font-family: system-ui, "Noto Sans Thai", sans-serif; overflow: hidden; }
+#game { position: fixed; inset: 0; }
+#game canvas { display: block; }
+
+.lobby { position: fixed; inset: 0; margin: auto; width: min(420px, calc(100% - 32px)); height: fit-content;
+  padding: 24px; background: #2a3245; border-radius: 12px; box-shadow: 0 10px 40px #0008; display: grid; gap: 16px; }
+.lobby[hidden] { display: none; }
+.lobby h1 { margin: 0; font-size: 24px; }
+.lobby label { display: grid; gap: 6px; font-size: 14px; }
+.lobby input { padding: 10px 12px; border-radius: 8px; border: 1px solid #4a5675; background: #1d2330; color: inherit; font-size: 16px; }
+.games { display: grid; gap: 10px; }
+.game-card { text-align: left; padding: 14px; border-radius: 10px; border: 1px solid #4a5675; background: #34405a; color: inherit; cursor: pointer; display: grid; gap: 4px; font: inherit; }
+.game-card:hover:not(:disabled) { background: #3e4c6b; }
+.game-card:disabled { opacity: .6; cursor: wait; }
+.game-card span { font-size: 13px; opacity: .8; }
+.error { margin: 0; color: #ff9b9b; font-size: 14px; }

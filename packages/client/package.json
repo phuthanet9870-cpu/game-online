@@ -1,0 +1,16 @@
+{
+  "name": "@game/client",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@colyseus/sdk": "^0.18.10",
+    "three": "^0.187.0",
+    "@game/core": "*",
+    "@game/world": "*"
+  }
+}

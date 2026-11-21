@@ -1,0 +1,15 @@
+{
+  "name": "@game/world",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./shared": "./src/shared/index.ts",
+    "./server": "./src/server/index.ts",
+    "./client": "./src/client/index.ts",
+    "./data/*": "./data/*"
+  },
+  "dependencies": {
+    "@colyseus/schema": "^5.0.50",
+    "@game/core": "*"
+  }
+}

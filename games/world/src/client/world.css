@@ -1,0 +1,12 @@
+.world-hud { position: fixed; inset: 0; pointer-events: none; font-size: 14px; }
+.world-hud > * { pointer-events: auto; }
+.world-top { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; pointer-events: none; }
+.world-panel { background: rgba(20, 26, 38, 0.75); padding: 8px 12px; border-radius: 8px; pointer-events: auto; }
+.world-panel.help { opacity: 0.85; font-size: 13px; }
+.world-chat { position: absolute; left: 12px; bottom: 12px; width: min(420px, calc(100% - 24px)); display: grid; gap: 6px; }
+.world-chat .log { max-height: 180px; overflow-y: auto; background: rgba(20, 26, 38, 0.6); border-radius: 8px; padding: 6px 10px; }
+.world-chat .log:empty { display: none; }
+.world-chat .line { line-height: 1.45; word-break: break-word; }
+.world-chat .line.system { color: #9fd3ff; font-style: italic; }
+.world-chat .input { padding: 8px 10px; border-radius: 8px; border: 1px solid #4a5675; background: rgba(20, 26, 38, 0.85); color: #eef; font: inherit; }
+@media (max-width: 640px) { .world-panel.help { display: none; } }
