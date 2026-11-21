@@ -68,6 +68,9 @@ export class GameClient {
   ping = 0;
   private acc = 0;
   facingX = 1; facingY = 0;
+  /** Click-to-move/attack UI state (render only). */
+  targetId: number | null = null;
+  moveMarker: { x: number; y: number; t: number } | null = null;
   /** Local animation prediction for responsiveness (cosmetic only). */
   localAct: { id: string; until: number; x: number; y: number } | null = null;
   private localCd = new Map<string, number>();
@@ -92,6 +95,8 @@ export class GameClient {
         this.telegraphs = [];
         this.fx = [];
         this.pending = [];
+        this.targetId = null;
+        this.moveMarker = null;
         this.applySelf(m.self, true);
         this.serverTick = m.tick;
         this.renderTick = m.tick - INTERP_TICKS;

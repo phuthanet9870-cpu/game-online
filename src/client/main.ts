@@ -4,6 +4,7 @@
 import { PROTOCOL_VERSION, BTN, type ServerMessage } from '../shared/protocol.ts';
 import { SERVER_CONFIG } from '../shared/config/server.ts';
 import { GameClient } from './game.ts';
+import { ClickController } from './clickmove.ts';
 import { LocalTransport, WsTransport, clearLocalSave, type Transport } from './net.ts';
 import { Renderer } from './render/renderer.ts';
 import { Hud } from './ui/hud.ts';
@@ -114,14 +115,16 @@ function showCreate(canBack: boolean) {
 
 // ---------------------------------------------------------------- game
 const keys = new Set<string>();
-let mouse = { x: 0, y: 0, l: false, r: false };
+let mouse = { x: 0, y: 0, l: false, r: false, overUi: false, holdMove: false };
+let click: ClickController | null = null;
+let holdRepathAt = 0;
 let raf = 0;
 let pingTimer: ReturnType<typeof setInterval> | null = null;
 
 function teardownGame() {
   cancelAnimationFrame(raf);
   if (pingTimer) clearInterval(pingTimer);
-  game = null; hud = null; renderer = null;
+  game = null; hud = null; renderer = null; click = null;
 }
 
 function startGame() {
@@ -133,7 +136,8 @@ function startGame() {
   renderer = new Renderer(view, overlay);
   const g = new GameClient(net!);
   game = g;
-  hud = new Hud(app, g, renderer, () => { void confirmBox('กลับไปหน้าเลือกตัวละคร?', 'ออก').then((ok) => ok && net?.send({ t: 'logout' })); });
+  click = new ClickController(g);
+  hud = new Hud(app, g, renderer, () => { void confirmBox('กลับไปหน้าเลือกตัวละคร?', 'ออก').then((ok) => ok && net?.send({ t: 'logout' })); }, onSkillButton);
   hud.addChat('[System] กด H เพื่อดูปุ่มควบคุม', 'system');
   // replay the enter_zone we just received into the fresh client
   pendingEnter && g.handle(pendingEnter);
@@ -156,7 +160,7 @@ function startGame() {
 let pendingEnter: ServerMessage | null = null;
 
 function sampleInput() {
-  const g = game!, r = renderer!;
+  const g = game!, r = renderer!, c = click!;
   const typing = document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLSelectElement;
   let sx = 0, sy = 0;
   if (!typing) {
@@ -168,27 +172,34 @@ function sampleInput() {
   // screen direction -> world direction (iso): screen right = (+1,-1), screen down = (+1,+1)
   let mx = sx + sy, my = sy - sx;
   const l = Math.hypot(mx, my);
-  if (l > 0) { mx /= l; my /= l; }
+  if (l > 0) { mx /= l; my /= l; c.order = null; g.targetId = null; } // keyboard movement overrides click orders
   const me = g.selfRenderPos(0);
   const w = r.screenToWorld(mouse.x, mouse.y);
+  // holding the left button on the ground keeps walking toward the cursor
+  if (mouse.l && mouse.holdMove && !mouse.overUi && performance.now() > holdRepathAt) {
+    holdRepathAt = performance.now() + 150;
+    c.moveTo(w.x, w.y, false);
+  }
   let b = 0;
-  const overUi = (mouse as { overUi?: boolean }).overUi;
   if (!typing) {
-    if (mouse.l && !overUi) b |= BTN.ATTACK;
-    if (mouse.r && !overUi) b |= BTN.HEAVY;
+    if (mouse.r && !mouse.overUi) b |= BTN.HEAVY;
     if (keys.has('Space')) b |= BTN.DODGE;
     if (keys.has('ShiftLeft') || keys.has('ShiftRight')) b |= BTN.BLOCK;
     if (keys.has('Digit1')) b |= BTN.SKILL1;
     if (keys.has('Digit2')) b |= BTN.SKILL2;
     if (keys.has('Digit3')) b |= BTN.SKILL3;
   }
-  g.input = { mx, my, aimX: w.x - me.x, aimY: w.y - me.y, buttons: b };
-  // hover + interact targets
-  let hover: number | null = null, hd = 1.2;
+  const co = c.tick();
+  if (co.interact !== null) doInteract(co.interact);
+  // aim: the selected target when there is one, otherwise the cursor
+  const tgt = g.targetId !== null ? g.ents.get(g.targetId) : undefined;
+  const aimX = co.aimX ?? (tgt ? tgt.x - g.ms.x : w.x - me.x);
+  const aimY = co.aimY ?? (tgt ? tgt.y - g.ms.y : w.y - me.y);
+  g.input = { mx: l > 0 ? mx : co.mx, my: l > 0 ? my : co.my, aimX, aimY, buttons: b | co.buttons };
+  // hover + nearest interactable (for the F key)
+  const hover = mouse.overUi ? null : r.pick(g, mouse.x, mouse.y);
   let inter: number | null = null, idist = Infinity;
   for (const e of g.ents.values()) {
-    const d = Math.hypot(e.x - w.x, e.y - w.y);
-    if (d < hd && (e.meta.k !== 2 || !e.dead)) { hd = d; hover = e.id; }
     if (e.meta.k === 3 || e.meta.k === 4 || (e.meta.k === 5 && e.meta.ready)) {
       const range = e.meta.k === 4 ? SERVER_CONFIG.npcRange : e.meta.k === 3 ? SERVER_CONFIG.pickupRange : SERVER_CONFIG.gatherRange;
       const pd = Math.hypot(e.x - g.ms.x, e.y - g.ms.y);
@@ -197,16 +208,36 @@ function sampleInput() {
   }
   r.hoverId = hover;
   r.interactId = inter;
+  document.body.style.cursor = hover !== null ? (g.ents.get(hover)?.meta.k === 2 ? 'crosshair' : 'pointer') : '';
 }
 
-function interact() {
-  const g = game, r = renderer;
-  if (!g || !r || r.interactId === null) return;
-  const e = g.ents.get(r.interactId);
-  if (!e) return;
+function doInteract(id: number) {
+  const g = game;
+  const e = g?.ents.get(id);
+  if (!g || !e) return;
   if (e.meta.k === 3) g.send({ t: 'pickup', id: e.id });
   else if (e.meta.k === 4) g.send({ t: 'talk', id: e.id });
   else if (e.meta.k === 5) g.send({ t: 'gather', id: e.id });
+}
+
+/** Skill bar clicks: same effect as the hotkeys. */
+function onSkillButton(id: string) {
+  const g = game, c = click;
+  if (!g || !c) return;
+  const w = g.weapon;
+  if (id === 'pot_hp') return usePotion('pot_hp_small');
+  if (id === 'pot_en') return usePotion('pot_energy_small');
+  if (id === 'dodge') return c.press(BTN.DODGE, 120);
+  if (id === 'block') return c.press(BTN.BLOCK, 700);
+  if (!w) return;
+  if (id === w.normal.id) return c.press(BTN.ATTACK);
+  if (id === w.heavy.id) return c.press(BTN.HEAVY);
+  const i = w.skills.findIndex((s) => s.id === id);
+  if (i >= 0) c.press([BTN.SKILL1, BTN.SKILL2, BTN.SKILL3][i]);
+}
+
+function interact() {
+  if (renderer?.interactId != null) doInteract(renderer.interactId);
 }
 
 function usePotion(defId: string) {
@@ -238,15 +269,28 @@ window.addEventListener('keyup', (e) => keys.delete(e.code));
 window.addEventListener('blur', () => { keys.clear(); mouse.l = mouse.r = false; });
 window.addEventListener('mousemove', (e) => {
   mouse.x = e.clientX; mouse.y = e.clientY;
-  (mouse as { overUi?: boolean }).overUi = !(e.target instanceof HTMLCanvasElement);
+  mouse.overUi = !(e.target instanceof HTMLCanvasElement);
 });
 window.addEventListener('mousedown', (e) => {
   if (screen !== 'game' || !(e.target instanceof HTMLCanvasElement)) return;
   (document.activeElement as HTMLElement | null)?.blur?.();
-  if (e.button === 0) mouse.l = true;
-  if (e.button === 2) mouse.r = true;
+  mouse.x = e.clientX; mouse.y = e.clientY; mouse.overUi = false;
+  if (e.button === 2) { mouse.r = true; return; }
+  if (e.button !== 0 || !game || !renderer || !click) return;
+  mouse.l = true;
+  mouse.holdMove = false;
+  const id = renderer.pick(game, e.clientX, e.clientY);
+  const ent = id !== null ? game.ents.get(id) : undefined;
+  if (ent && ent.meta.k === 2) click.attack(ent.id);                 // monster: walk into range and auto-attack
+  else if (ent && ent.meta.k !== 1) click.interact(ent.id);          // NPC / item / resource: walk over and use
+  else {                                                             // ground: walk there (hold to keep following the cursor)
+    const w = renderer.screenToWorld(e.clientX, e.clientY);
+    click.moveTo(w.x, w.y);
+    mouse.holdMove = true;
+    holdRepathAt = performance.now() + 250;
+  }
 });
-window.addEventListener('mouseup', (e) => { if (e.button === 0) mouse.l = false; if (e.button === 2) mouse.r = false; });
+window.addEventListener('mouseup', (e) => { if (e.button === 0) { mouse.l = false; mouse.holdMove = false; } if (e.button === 2) mouse.r = false; });
 window.addEventListener('contextmenu', (e) => { if (screen === 'game') e.preventDefault(); });
 window.addEventListener('resize', () => renderer?.resize());
 
@@ -268,6 +312,18 @@ boot();
 
 // Read-only hook for automated tests (exposes client view state, grants no authority).
 (window as unknown as { __tpew: () => unknown }).__tpew = () => game && { zone: game.zone?.id, self: game.self, char: game.char, players: [...game.ents.values()].filter((e) => e.meta.k === 1).map((e) => ('name' in e.meta ? e.meta.name : '')), monsters: [...game.ents.values()].filter((e) => e.meta.k === 2).length,
+  pos: { x: game.ms.x, y: game.ms.y },
+  items: game.items.map((i) => i.defId),
+  nearestScreen: (k: number) => {
+    if (!renderer || !game) return null;
+    let best: { x: number; y: number } | null = null, bd = Infinity;
+    for (const e of game.ents.values()) {
+      if (e.meta.k !== k || e.dead || (k <= 2 && !e.snaps.length)) continue;
+      const d = Math.hypot(e.x - game.ms.x, e.y - game.ms.y);
+      if (d < bd) { bd = d; best = { x: ((e.x - e.y) * 16 - renderer.camX) * renderer.scale, y: ((e.x + e.y) * 8 - renderer.camY - 6) * renderer.scale }; }
+    }
+    return best && { ...best, dist: bd };
+  },
   nearestMonsterScreen: (() => {
     if (!renderer) return null;
     let best: { x: number; y: number } | null = null, bd = Infinity;

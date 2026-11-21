@@ -28,6 +28,7 @@ export const GM_HELP = [
   '/gm tp <x> <y> [zone] — วาร์ป (zones: ' + Object.keys(ZONES).join(', ') + ')',
   '/gm goto <ชื่อ> | /gm summon <ชื่อ> — ไปหา / ดึงผู้เล่นมา',
   '/gm item <itemId> [qty] [rarity] [ชื่อ] — เสกไอเทม',
+  '/gm itemall <category|all> [qty] [rarity|-] [ชื่อ] — เสกทุกไอเทมในหมวด (weapon armor helmet gloves boots accessory consumable material rune)',
   '/gm gold <amount> [ชื่อ] — เสก/หักทอง (ติดลบได้)',
   '/gm level <1-100> [ชื่อ] | /gm exp <n> [ชื่อ] | /gm mastery <weapon> <lv> [ชื่อ]',
   '/gm heal [ชื่อ] | /gm revive [ชื่อ] | /gm kill <ชื่อ>',
@@ -116,6 +117,29 @@ export async function runGm(srv: GameServer, gm: PlayerEntity, line: string): Pr
       t.invDirty = true; t.dirty = true;
       srv.requestSave(t, 'gm_item');
       return [`ให้ ${def.nameTh} ×${given} (${rarity}) แก่ ${t.rec.name}${left ? ` — กระเป๋าเต็ม ขาด ${left}` : ''}`];
+    }
+    case 'itemall': {
+      const cat = (a[0] ?? '').toLowerCase();
+      const defs = Object.values(ITEMS).filter((i) => cat === 'all' || i.category === cat);
+      if (!defs.length) return ['หมวด: all, ' + [...new Set(Object.values(ITEMS).map((i) => i.category))].join(', ')];
+      const qty = Math.max(1, Math.min(999, Math.floor(num(a[1], 1))));
+      const rar = a[2] && a[2] !== '-' && (RARITIES as readonly string[]).includes(a[2]) ? (a[2] as Rarity) : null;
+      const t = who(a[3]);
+      if (typeof t === 'string') return [t];
+      let ok = 0;
+      const missed: string[] = [];
+      for (const def of defs) {
+        let left = qty;
+        while (left > 0) {
+          const n = Math.min(left, def.stackMax);
+          if (!t.inv.addInstance(createItem(def.id, n, { rarity: rar ?? def.rarity, ilvl: Math.max(def.levelReq, t.rec.level), bound: false }))) break;
+          left -= n;
+        }
+        if (left === 0) ok++; else missed.push(def.nameTh);
+      }
+      t.invDirty = true; t.dirty = true;
+      srv.requestSave(t, 'gm_itemall');
+      return [`เสกหมวด ${cat}: ${ok}/${defs.length} ชนิด ×${qty} ให้ ${t.rec.name}`, ...(missed.length ? [`กระเป๋าเต็ม — ไม่ได้: ${missed.join(', ')}`] : [])];
     }
     case 'gold': {
       const amt = Math.trunc(num(a[0], 0));

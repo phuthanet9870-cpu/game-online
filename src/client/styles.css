@@ -131,7 +131,7 @@ canvas.overlay-c { position: absolute; left: 0; top: 0; pointer-events: none; }
 .win.shop { left: 290px; top: 70px; width: 400px; }
 .win.dialog { left: 50%; bottom: 150px; transform: translateX(-50%); width: min(520px, 90vw); }
 .win.help { left: 50%; top: 60px; transform: translateX(-50%); width: 420px; }
-.win.gm { left: 290px; top: 12px; width: 560px; border-color: #8a3040; }
+.win.gm { left: 290px; top: 12px; width: 600px; border-color: #8a3040; }
 .whead { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-display); color: var(--gold); font-size: 16px; }
 .x { background: none; border: none; color: var(--dim); font-size: 20px; cursor: pointer; line-height: 1; }
 .grid { display: grid; grid-template-columns: repeat(8, 40px); gap: 4px; }
@@ -165,3 +165,17 @@ table.stats td.v { text-align: right; font-variant-numeric: tabular-nums; color:
   .chat { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+.tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 2px solid var(--edge); }
+.tabs.sub { border-bottom: 1px solid #ffffff14; }
+.tab { background: transparent; border: none; border-bottom: 2px solid transparent; margin-bottom: -2px; padding: 4px 10px; cursor: pointer; color: var(--dim); font-size: 13px; }
+.tab:hover { color: var(--text); }
+.tab.on { color: var(--gold); border-bottom-color: var(--gold); }
+.gmbody { display: flex; flex-direction: column; gap: 8px; }
+.gmitems { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.gmitem { display: flex; flex-direction: column; align-items: center; gap: 2px; background: #120f1c; border: 2px solid var(--edge); padding: 6px 4px; cursor: pointer; font-size: 11px; text-align: center; }
+.gmitem:hover { background: #2a2340; }
+.gmitem img { image-rendering: pixelated; }
+.gmitem small { color: var(--dim); font-size: 10px; }
+.sk { cursor: pointer; }
+.sk:hover { border-color: var(--gold); }
+.sk:active { transform: translateY(1px); }

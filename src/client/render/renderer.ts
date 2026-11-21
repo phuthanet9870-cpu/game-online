@@ -129,6 +129,20 @@ export class Renderer {
       } else this.groundArc(ctx, t.x, t.y, t.r, t.ang, t.arc, k, sp);
     }
 
+    // click markers: move destination + selected target
+    if (g.moveMarker && now - g.moveMarker.t < 600) {
+      const k = (now - g.moveMarker.t) / 600;
+      this.groundEllipse(ctx, sp(g.moveMarker.x, g.moveMarker.y), 0.5 * (1 - k) + 0.15, `rgba(120,230,255,${1 - k})`, false);
+    }
+    if (g.targetId !== null) {
+      const t = g.ents.get(g.targetId);
+      if (t && !t.dead) {
+        const pulse = 0.55 + 0.25 * Math.sin(now / 150);
+        this.groundEllipse(ctx, sp(t.x, t.y), 0.55, `rgba(255,70,60,${pulse})`, false);
+        this.groundEllipse(ctx, sp(t.x, t.y), 0.62, `rgba(255,70,60,${pulse * 0.5})`, false);
+      }
+    }
+
     // collect drawables
     const list: Drawable[] = [];
     const forest = g.zone.biome === 'forest';
@@ -494,6 +508,25 @@ export class Renderer {
       }
     }
     ctx.restore();
+  }
+
+  /** Entity under a screen point (CSS px), using sprite-sized boxes; front-most wins. */
+  pick(g: GameClient, px: number, py: number): number | null {
+    const lx = px / this.scale + this.camX, ly = py / this.scale + this.camY;
+    let best: number | null = null, bestDepth = -Infinity;
+    for (const e of g.ents.values()) {
+      const m = e.meta;
+      if ((m.k === 1 || m.k === 2) && (!e.snaps.length || e.dead)) continue;
+      const s = toScreen(e.x, e.y);
+      let hw = 8, top = 22, bottom = 3;
+      if (m.k === 2) { const def = getMonster(m.def); const sc = def?.scale ?? 1; hw = 9 * sc; top = (def?.family === 'sapling' ? 22 : def?.family === 'wisp' ? 20 : 15) * sc; }
+      else if (m.k === 3) { hw = 7; top = 12; }
+      else if (m.k === 5) { hw = 9; top = 14; }
+      if (lx < s.sx - hw || lx > s.sx + hw || ly < s.sy - top || ly > s.sy + bottom) continue;
+      const depth = e.x + e.y + (m.k === 3 ? 0.5 : 0); // drops win over the ground they lie on
+      if (depth > bestDepth) { bestDepth = depth; best = e.id; }
+    }
+    return best;
   }
 
   /** Minimap image of the current zone (one pixel per tile). */

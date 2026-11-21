@@ -58,6 +58,11 @@ test('GM commands: gold, item, level, god, nocd, speed, tp, spawn, rates, kick, 
   assert.ok(g.inv.items.some((i) => i.defId === 'wpn_wolfbane_blade' && i.rarity === 'legendary'));
   await run('item mat_iron_ore 2500');
   assert.equal(g.inv.count('mat_iron_ore'), 2500);
+  await run('itemall material 10');
+  assert.equal(g.inv.count('mat_soul_essence'), 10);
+  assert.equal(g.inv.count('mat_power_fragment'), 10);
+  await run('itemall boots 1 epic');
+  assert.ok(g.inv.items.some((i) => i.defId === 'bts_leather_boots' && i.rarity === 'epic'));
   await run('level 50');
   assert.equal(g.rec.level, 50);
   assert.equal(g.hp, g.stats.hp);
