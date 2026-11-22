@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.11.0] — 2026-11-22 — Pixel-art skill effects
+### Added
+- New client VFX engine (`apps/client/src/vfx.ts`), our own effects in a hand-made pixel-art VFX style (studied from the MIT pixelfx project's conventions; no code or art copied): effects rasterise into a low-res pixel buffer (1 art pixel = 2 world units) upscaled nearest-neighbour; an opaque COLOR buffer whose fades use a 4×4 ordered dither (only smoke/vapour is translucent) plus an additive LIGHT buffer; dark→bright palette ramps per element; particles step at 120 Hz.
+- Effects follow each skill's ability: crescent slashes (white rim cooling down a steel ramp, dithered tail, tip glint, sparks); fireballs with flame tongues cooling to smoke; faceted ice shards and ice-spike eruptions that melt and drip; jagged lightning bolts from the sky and crackling orbs; holy light pillars; void orbs and writhing shadow tendrils; bubbling poison puddles; arrow rain; spinning blade crescents for cyclones; chronomancer clock dials (hands run backwards for rewinds); summon portals, hexagonal barriers, buff auras, taunt shout rings, dash speed lines; anticipation sigils that gather energy before delayed strikes (the meteor visibly falls onto its mark).
+- Hits: element-specific debris (sparks with gravity and floor bounce, embers, flakes, drips, wisps), hit flash, crit flare; heavy hits freeze the frame for 0.07-0.12 s with a small shake. Status effects show burn embers, poison bubbles, bleed drips, frost flakes, shock arcs, curse wisps.
+- World effects now carry the casting skill id (`type@skillId`) so the client can pick a skill's signature look; enemy telegraphs keep their readable red style.
+### Verified
+- Typecheck + 54 tests pass; Chromium screenshots of all 7 classes casting every slot; ~59-60 fps in headless Chromium while casting ultimates. Firefox/Safari still untested.
+
 ## [0.10.0] — 2026-11-22 — Onboarding
 ### Added
 - 10-step guided tutorial tracked by the server (each step completes only when the real action is observed), gold rewards totalling 300, skippable, Thai/English; existing characters skip it automatically.

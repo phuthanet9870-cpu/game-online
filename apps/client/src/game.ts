@@ -1,3 +1,4 @@
+import { Vfx } from './vfx.js';
 import { sound } from './audio.js';
 import { CLASSES, SKILL_MAP, computeStats, moveCircle, type AccountProgress, type CharacterData, type GameMap, type Interactable } from '@astra/shared';
 
@@ -10,6 +11,7 @@ export interface FloatText { x: number; y: number; text: string; color: string; 
 export interface Particle { x: number; y: number; vx: number; vy: number; t: number; life: number; color: string; r: number }
 
 export class ClientGame {
+  vfx = new Vfx(this);
   map: GameMap | null = null;
   pid = 0;
   char: CharacterData | null = null;
@@ -124,13 +126,13 @@ export class ClientGame {
           else if (mine) sound.hit(ev.dt, ev.c);
           if (mine && e.def === 'dummy') { const n = performance.now(); if (n - this.dps.last > 4000) { this.dps.total = 0; this.dps.start = n; } this.dps.total += ev.v; this.dps.last = n; }
           if (this.showNumbers && (mine || onMe || this.quality !== 'low')) this.float(e.rx, e.ry - 30, String(ev.v) + (ev.c ? '!' : ''), onMe ? '#ff5a5a' : ev.c ? '#ffd23a' : mine ? DMG_COLORS[ev.dt] ?? '#fff' : '#bbb', ev.c ? 20 : onMe ? 15 : 14);
-          if (this.quality !== 'low') this.burst(e.rx, e.ry, DMG_COLORS[ev.dt] ?? '#fff', ev.c ? 8 : 4);
+          this.vfx.onHit(e, ev.dt, !!ev.c, ev.v, mine);
           break;
         }
         case 'heal': if (e && this.showNumbers) this.float(e.rx, e.ry - 34, '+' + ev.v, '#5dff8a', 14); break;
         case 'miss': if (e) this.float(e.rx, e.ry - 34, ev.kind === 'dodge' ? 'Dodge' : ev.kind === 'block' ? 'Block' : 'Immune', '#9fd8ff', 13); break;
-        case 'cast': { if (e) e.swingT = 0.25; if (ev.id === this.pid) { const sk = SKILL_MAP[ev.skill]; sound.cast(['fire', 'ice', 'lightning', 'holy', 'shadow', 'poison'].find((x) => sk?.tags.includes(x)) ?? 'physical'); } break; }
-        case 'death': if (e) { this.burst(e.rx, e.ry, '#c9a0ff', 18); if (e.id === this.pid) sound.death(); } break;
+        case 'cast': { if (e) e.swingT = 0.25; this.vfx.onCast(ev); if (ev.id === this.pid) { const sk = SKILL_MAP[ev.skill]; sound.cast(['fire', 'ice', 'lightning', 'holy', 'shadow', 'poison'].find((x) => sk?.tags.includes(x)) ?? 'physical'); } break; }
+        case 'death': if (e) { this.vfx.onDeath(e); if (e.id === this.pid) sound.death(); } break;
         case 'msg': if (ev.kind === 'warn') sound.warn(); break;
         case 'level': if (e && ev.id === this.pid) sound.levelUp(); if (e) { this.float(e.rx, e.ry - 50, 'LEVEL UP!', '#ffe47a', 22); this.burst(e.rx, e.ry, '#ffe47a', 30); } break;
         case 'phase': sound.phase(); if (e) { this.shake = 10; this.burst(e.rx, e.ry, '#ff4f9a', 40); } break;
@@ -164,13 +166,15 @@ export class ClientGame {
       [this.px, this.py] = moveCircle(this.map, this.px, this.py, 14, this.input.mx * sp * dt, this.input.my * sp * dt);
       if (this.input.mx || this.input.my) { this.frames.push({ seq: this.seq, mx: this.input.mx, my: this.input.my, dt, sp }); if (this.frames.length > 240) this.frames.shift(); }
     }
-    const k = 1 - Math.pow(0.0001, dt * (1000 / Math.max(40, this.snapInterval)) / 6);
+    // hit-stop: other bodies freeze for a few frames on heavy hits (own movement stays responsive)
+    const k = this.vfx.hitstop > 0 ? 0 : 1 - Math.pow(0.0001, dt * (1000 / Math.max(40, this.snapInterval)) / 6);
     for (const e of this.ents.values()) {
       if (e.id === this.pid && this.predicted) { e.rx = this.px; e.ry = this.py; }
       else { e.rx += (e.x - e.rx) * k; e.ry += (e.y - e.ry) * k; if (Math.hypot(e.x - e.rx, e.y - e.ry) > 300) { e.rx = e.x; e.ry = e.y; } }
       e.swingT = Math.max(0, e.swingT - dt);
       e.flash = Math.max(0, e.flash - dt);
     }
+    this.vfx.update(dt);
     for (const p of this.projs) { p.x += p.vx * dt; p.y += p.vy * dt; }
     for (const a of this.areas) { a.age += dt; if (a.delay > 0) a.delay -= dt; }
     for (const f of this.fx) { f.t += dt; f.y += f.vy * dt; f.vy *= 0.94; }

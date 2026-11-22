@@ -153,6 +153,8 @@ const ELEM_STATUS: Record<DamageType, StatusId> = { physical: 'bleed', fire: 'bu
 const DOTS = new Set<StatusId>(['burn', 'poison', 'bleed', 'curse']);
 const HARD_CC = new Set<StatusId>(['stun', 'freeze', 'broken']);
 export const TICK_RATE = 30;
+/** Visual tag appended to effect visuals so clients can draw per-skill VFX: "fire@mag_u_meteor". */
+const vtag = (ctx: { skill?: SkillDef; basic: boolean }) => (ctx.skill ? '@' + ctx.skill.id : '');
 
 export class World {
   map: GameMap;
@@ -474,7 +476,7 @@ export class World {
         const [nx, ny] = this.dir(e, ctx);
         const ang = Math.atan2(ny, nx);
         const pk = this.packet(e, fx.dmg, ctx);
-        this.areas.push(this.mkArea(e, { x: e.x, y: e.y, r: fx.range * aoe, shape: 'cone', ang, arc: (fx.arc * Math.PI) / 180, delay: 0, dur: 0, packet: pk, visual: 'slash_' + pk.type }));
+        this.areas.push(this.mkArea(e, { x: e.x, y: e.y, r: fx.range * aoe, shape: 'cone', ang, arc: (fx.arc * Math.PI) / 180, delay: 0, dur: 0, packet: pk, visual: 'slash_' + pk.type + vtag(ctx) }));
         if (fx.knock) this.delayed.push({ t: this.time + 0.05, fn: () => this.knockback(e, fx.range * aoe, fx.knock!) });
         break;
       }
@@ -495,7 +497,7 @@ export class World {
               id: this.id(), team: e.team, owner: e.id, x: e.x + Math.cos(a) * e.r, y: e.y + Math.sin(a) * e.r, vx: Math.cos(a) * fx.speed, vy: Math.sin(a) * fx.speed, r: fx.radius ?? 8,
               range: fx.range, packet: p2, pierce: lone ? 99 : fx.pierce ?? 0, chain: fx.chain ?? 0, hit: new Set(), homing: fx.homing,
               explode: fx.explode ? { radius: fx.explode.radius * aoe, packet: { ...this.packet(e, fx.explode.dmg, ctx), amount: this.packet(e, fx.explode.dmg, ctx).amount * mult } } : undefined,
-              visual: pk.type + (ctx.basic ? '_basic' : ''),
+              visual: pk.type + (ctx.basic ? '_basic' : '') + vtag(ctx),
             });
           }
         };
@@ -518,7 +520,7 @@ export class World {
             } else { const a = this.rng.range(0, Math.PI * 2), rr = this.rng.range(0, fx.scatter ?? 100); x = cx + Math.cos(a) * rr; y = cy + Math.sin(a) * rr; }
           }
           const pk = fx.dmg ? this.packet(e, fx.dmg, ctx) : null;
-          this.areas.push(this.mkArea(e, { x, y, r: fx.radius * aoe, shape: 'circle', ang: 0, arc: 0, delay: (fx.delay ?? 0) + (n > 1 ? i * 0.12 : 0), dur: fx.duration ?? 0, tick: fx.tick ?? 0.5, packet: pk, healPct: fx.healPct ?? 0, follow: !!fx.follow, visual: (pk?.type ?? 'holy') + (fx.healPct ? '_heal' : ''), pull: fx.pull ?? 0 }));
+          this.areas.push(this.mkArea(e, { x, y, r: fx.radius * aoe, shape: 'circle', ang: 0, arc: 0, delay: (fx.delay ?? 0) + (n > 1 ? i * 0.12 : 0), dur: fx.duration ?? 0, tick: fx.tick ?? 0.5, packet: pk, healPct: fx.healPct ?? 0, follow: !!fx.follow, visual: (pk?.type ?? 'holy') + (fx.healPct ? '_heal' : '') + vtag(ctx), pull: fx.pull ?? 0 }));
         }
         break;
       }

@@ -105,6 +105,7 @@ Last updated: 2026-11-22 (v0.9.0 — Phases 0-1, 4, 5, 6, 7, content expansion, 
 | Touch controls (joystick + buttons) | Implemented | Only checked in an emulated phone viewport. |
 | Thai / English UI | Tested | UI chrome + classes, 72 skills, quests, enemies, activities, blessings, modifiers, achievements, crafting in Thai (coverage test). Item names and stat labels still English. |
 | Audio (synthesized SFX + ambience, volume settings) | Implemented | No recorded music/voice. |
+| Pixel-art skill VFX (per-skill effects, light buffer, dither fades, hit-stop) | Implemented | Checked by screenshots in Chromium for all 7 classes; character sprites are still procedural. |
 
 ## Backlog (prioritised)
 - **B-1 Deployment**: HTTPS host, domain, TLS proxy, managed Postgres backups. Blocked on the owner choosing a host.

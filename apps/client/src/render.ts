@@ -145,7 +145,9 @@ export class Renderer {
     const trc = g.char?.treasure; if (trc && trc.zone === g.room?.id) { ctx.strokeStyle = 'rgba(255,210,60,0.5)'; ctx.setLineDash([10, 8]); ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(trc.hx, trc.hy, trc.hr, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
     if (this.ghost) { ctx.fillStyle = this.ghost.ok ? 'rgba(120,255,160,0.3)' : 'rgba(255,80,80,0.3)'; ctx.fillRect(this.ghost.x * TILE, this.ghost.y * TILE, this.ghost.w * TILE, this.ghost.h * TILE); ctx.strokeStyle = '#fff'; ctx.strokeRect(this.ghost.x * TILE, this.ghost.y * TILE, this.ghost.w * TILE, this.ghost.h * TILE); }
     // areas (ground layer)
-    for (const a of g.areas) this.drawArea(a);
+    g.vfx.begin(x0, y0, x1, y1);
+    for (const a of g.areas) if (!g.vfx.drawArea(ctx, a, this.time)) this.drawArea(a);
+    g.vfx.flushGround(ctx);
     // drops
     for (const d of g.drops) this.drawDrop(d);
     // interactables + entities sorted by y
@@ -156,10 +158,11 @@ export class Renderer {
     for (const i of items) i.fn();
     // projectiles
     ctx.globalCompositeOperation = this.g.quality === 'low' ? 'source-over' : 'lighter';
-    for (const p of g.projs) this.drawProj(p);
+    for (const p of g.projs) if (p.team === 0) g.vfx.drawProjectile(ctx, p, this.time); else this.drawProj(p);
     for (const p of g.particles) { ctx.globalAlpha = 1 - p.t / p.life; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); }
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
+    g.vfx.drawTop(ctx, this.time, g.quality);
     // dungeon darkness vignette (light radius around player)
     if (m.theme === 'dungeon' && me && this.g.quality !== 'low') {
       const grd = ctx.createRadialGradient(me.rx, me.ry, 200, me.rx, me.ry, 620);
@@ -180,8 +183,9 @@ export class Renderer {
   private drawArea(a: ClientGame['areas'][number]) {
     const { ctx } = this;
     const enemy = a.team === 1;
-    const col = enemy ? '255,60,70' : hexToRgb(DMG_COLORS[a.v.split('_')[0]!] ?? '#ffffff');
-    const heal = a.v.endsWith('_heal');
+    const vbase = a.v.split('@')[0]!;
+    const col = enemy ? '255,60,70' : hexToRgb(DMG_COLORS[vbase.replace('slash_', '').split('_')[0]!] ?? '#ffffff');
+    const heal = vbase.endsWith('_heal');
     ctx.save();
     if (a.outside) {
       // Raid "Total Eclipse": darkness everywhere except the safe circle
@@ -407,7 +411,7 @@ export class Renderer {
 
   private drawProj(p: ClientGame['projs'][number]) {
     const { ctx } = this;
-    const type = p.v.replace('enemy_', '').replace('_basic', '');
+    const type = p.v.split('@')[0]!.replace('enemy_', '').replace('_basic', '');
     const enemy = p.team === 1;
     const col = enemy ? (p.v === 'enemy_orb' ? '#ff4fa0' : '#ff6b6b') : DMG_COLORS[type] ?? '#fff';
     const ang = Math.atan2(p.vy, p.vx);
