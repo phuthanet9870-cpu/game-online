@@ -254,6 +254,10 @@ export interface CharacterData {
   tutorial?: number;
   /** Appearance chosen at creation (hair colour / outfit tint palette indexes, -1 = class default). */
   look?: { hair: number; outfit: number };
+  /** Claimed level/achievement benefits, Awakening level, equipped emblem ids (see meta.ts). */
+  benefits?: string[];
+  awaken?: number;
+  emblems?: string[];
   treasure?: { zone: string; x: number; y: number; hx: number; hy: number; hr: number } | null;
 }
 
@@ -267,6 +271,8 @@ export interface AccountProgress {
   aura: string | null;
   pets: string[];
   pet: string | null;
+  /** Login calendar, wishes, cosmetics, mounts, shop limits (see meta.ts). */
+  meta?: import('./meta.js').MetaState;
   house?: { owned: Record<string, number>; placed: Array<{ id: string; x: number; y: number }>; perm: 'private' | 'party' | 'guild' | 'public' };
 }
 export interface SeasonProgress { id: string; xp: number; shards: number; claimed: number[]; week: number; weekly: Record<string, number>; weeklyDone: string[]; archive: Array<{ id: string; xp: number; tier: number }> }

@@ -1,10 +1,10 @@
 import { Vfx } from './vfx.js';
 import { sound } from './audio.js';
-import { CLASSES, SKILL_MAP, computeStats, moveCircle, type AccountProgress, type CharacterData, type GameMap, type Interactable } from '@astra/shared';
+import { MOUNTS, CLASSES, SKILL_MAP, computeStats, moveCircle, type AccountProgress, type CharacterData, type GameMap, type Interactable } from '@astra/shared';
 
 export interface CEnt {
   id: number; kind: 0 | 1 | 2; x: number; y: number; f: number; hp: number; mhp: number; barrier: number; def: string; name: string; lv: number; st: string[];
-  flags: number; windup: number; dead: boolean; size: number; affixes: string[]; breakG: number; phase: number; invuln: boolean; aura: string; pet: string; look: string;
+  flags: number; windup: number; dead: boolean; size: number; affixes: string[]; breakG: number; phase: number; invuln: boolean; aura: string; pet: string; look: string; mount: string;
   rx: number; ry: number; moving: number; swingT: number; flash: number; seen: number; petX?: number; petY?: number;
 }
 export interface FloatText { x: number; y: number; text: string; color: string; t: number; size: number; vy: number }
@@ -59,10 +59,10 @@ export class ClientGame {
       seen.add(id);
       // short tuples (static fields unchanged) are merged with the cached static block
       let a = raw;
-      if (raw.length === 13) { const st = this.statics.get(id); if (!st) continue; a = [raw[0], st[1], raw[1], raw[2], raw[3], raw[4], st[6], raw[5], st[8], st[9], st[10], raw[6], st[12], raw[7], raw[8], raw[9], st[16], raw[10], raw[11], raw[12], st[20], st[21]]; }
+      if (raw.length === 13) { const st = this.statics.get(id); if (!st) continue; a = [raw[0], st[1], raw[1], raw[2], raw[3], raw[4], st[6], raw[5], st[8], st[9], st[10], raw[6], st[12], raw[7], raw[8], raw[9], st[16], raw[10], raw[11], raw[12], st[20], st[21], st[22], st[23]]; } // keep in sync with expandEntities()
       else this.statics.set(id, raw);
       let e = this.ents.get(id);
-      const next = { id, kind: a[1], x: a[2], y: a[3], f: a[4], hp: a[5], mhp: a[6], barrier: a[7], def: a[8], name: a[9], lv: a[10], st: a[11] ? String(a[11]).split(',') : [], flags: a[12], windup: a[13], dead: !!a[14], size: a[15], affixes: a[16] ? String(a[16]).split(',') : [], breakG: a[17], phase: a[18], invuln: !!a[19], aura: a[20] ?? '', pet: a[21] ?? '', look: a[22] ?? '' };
+      const next = { id, kind: a[1], x: a[2], y: a[3], f: a[4], hp: a[5], mhp: a[6], barrier: a[7], def: a[8], name: a[9], lv: a[10], st: a[11] ? String(a[11]).split(',') : [], flags: a[12], windup: a[13], dead: !!a[14], size: a[15], affixes: a[16] ? String(a[16]).split(',') : [], breakG: a[17], phase: a[18], invuln: !!a[19], aura: a[20] ?? '', pet: a[21] ?? '', look: a[22] ?? '', mount: a[23] ?? '' };
       if (!e) { e = { ...next, rx: next.x, ry: next.y, moving: 0, swingT: 0, flash: 0, seen: now }; this.ents.set(id, e); }
       else {
         const moved = Math.hypot(next.x - e.x, next.y - e.y);
@@ -111,6 +111,7 @@ export class ClientGame {
     if (me?.st.includes('slow') || me?.st.includes('chill')) v *= 0.65;
     if (me?.st.includes('stun') || me?.st.includes('freeze') || me?.dead) v = 0;
     if (this.self?.lock > 0) v *= 0.35;
+    if (this.self?.mount) v *= 1 + (MOUNTS[this.self.mount]?.speed ?? 0);
     return v;
   }
 

@@ -1,3 +1,4 @@
+import { awakenMods, emblemMods } from './meta.js';
 import { CLASSES } from './data/classes.js';
 import { PASSIVE_MAP } from './data/passives.js';
 import { LEGENDARY_POWERS } from './data/items.js';
@@ -64,6 +65,8 @@ export function collectMods(ch: CharacterData, extra: Mod[] = []): { m: Record<s
       affinity = true; // equipped item already validated for class affinity bonus below
     }
   }
+  sumMods(awakenMods(ch.awaken ?? 0), m);
+  sumMods(emblemMods(ch), m);
   sumMods(extra, m);
   return { m, flags, weaponPower, affinity };
 }

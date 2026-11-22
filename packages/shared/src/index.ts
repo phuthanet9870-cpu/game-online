@@ -1,6 +1,7 @@
 export * from './types.js';
 export * from './math.js';
 export * from './stats.js';
+export * from './meta.js';
 export * from './loot.js';
 export * from './character.js';
 export * from './maps.js';

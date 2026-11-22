@@ -1,6 +1,6 @@
-import { drawChibi, drawEnemySprite, drawMinionSprite, setAnimTime } from './sprites.js';
+import { drawChibi, drawEnemySprite, drawMinionSprite, drawMountSprite, setAnimTime } from './sprites.js';
 export { drawChibi };
-import { CLASSES, ENEMIES, FURNITURE, MINIONS, RARITY_DEFS, TILE, type GameMap, type Interactable, type Rarity, lookColors, parseLookKey } from '@astra/shared';
+import { CLASSES, ENEMIES, FURNITURE, MINIONS, RARITY_DEFS, TILE, type GameMap, type Interactable, type Rarity, lookColors, parseLookKey, MOUNTS } from '@astra/shared';
 import { DMG_COLORS, type CEnt, type ClientGame } from './game.js';
 
 const THEMES: Record<string, { floor: string[]; path: string[]; wall: string; wallTop: string; water: string; tree: string; bg: string }> = {
@@ -334,7 +334,8 @@ export class Renderer {
       if (au && !e.dead) { ctx.globalCompositeOperation = 'lighter'; const grd = ctx.createRadialGradient(0, -14, 6, 0, -14, 34); grd.addColorStop(0, au + '00'); grd.addColorStop(0.6, au + '55'); grd.addColorStop(1, au + '00'); ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(0, -14, 34, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = au + 'aa'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(0, 6, 18 + Math.sin(this.time * 3) * 2, 7, 0, 0, Math.PI * 2); ctx.stroke(); ctx.globalCompositeOperation = 'source-over'; }
       ctx.globalAlpha = e.dead ? 0.35 : e.invuln && e.id === g.pid ? 0.75 : 1;
       const lc = cd ? lookColors(cd.id, parseLookKey(e.look)) : { body: '#888', hair: '#333', accent: '#ccc' };
-      drawChibi(ctx, 0, 0, scale, e.f, lc.body, lc.hair, lc.accent, e.swingT, e.moving > 0.2 ? 2 : 0, e.def, e.id, e.flash);
+      if (e.mount && !e.dead) drawMountSprite(ctx, e.mount, MOUNTS[e.mount]?.color ?? '#ccc', e.f, e.moving > 0.2, this.time);
+      drawChibi(ctx, 0, e.mount ? -14 : 0, scale, e.f, lc.body, lc.hair, lc.accent, e.swingT, e.mount ? 0 : e.moving > 0.2 ? 2 : 0, e.def, e.id, e.flash);
       ctx.globalAlpha = 1;
       if (e.id !== g.pid) { ctx.font = '700 12px system-ui'; ctx.textAlign = 'center'; label(ctx, `${e.name} · ${e.lv}`, 0, -54 * scale, '#bfe3ff'); bar(ctx, -20, -48 * scale, 40, 4, e.hp / e.mhp, '#5bd16a'); }
     } else if (e.kind === 1) {

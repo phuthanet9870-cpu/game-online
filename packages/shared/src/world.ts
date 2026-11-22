@@ -2,6 +2,7 @@
 // Pure TypeScript, no DOM or Node APIs, deterministic given the same seed and command stream.
 
 import { lookKey } from './data/appearance.js';
+import { MOUNTS } from './meta.js';
 import { CLASSES, MINIONS } from './data/classes.js';
 import { DODGE, MINION_CAPS, SKILL_MAP } from './data/skills.js';
 import { DIFFICULTIES, ELITE_AFFIXES, ENEMIES } from './data/enemies.js';
@@ -47,6 +48,9 @@ export interface PlayerState {
   lastSeq: number;
   echoN?: number;
   pet?: string | null;
+  /** Mount id while riding (cleared by any combat). */
+  mount?: string | null;
+  costume?: string | null;
 }
 export interface EnemyState {
   def: EnemyDef;
@@ -989,6 +993,8 @@ export class World {
       let speed = e.speed;
       for (const s of e.statuses) if (s.id === 'slow' || s.id === 'chill') speed *= 1 - clamp(s.power, 0, 0.7);
       if (e.lock > 0) speed *= 0.35; // casting slows movement
+      if (p.mount && (p.combatT < 0.25 || p.input.attack)) { p.mount = null; e.dirty = true; } // any fighting dismounts
+      if (p.mount) speed *= 1 + (MOUNTS[p.mount]?.speed ?? 0);
       const { mx, my } = p.input;
       if (mx || my) {
         [e.x, e.y] = moveCircle(this.map, e.x, e.y, e.r, mx * speed * dt, my * speed * dt);
@@ -1379,7 +1385,7 @@ export class World {
         e.p ? e.p.char.cls : e.e ? e.e.def.id : e.mi!.type, e.name, e.level, e.statuses.map((s) => s.id).filter((v, i, a) => a.indexOf(v) === i).join(','),
         e.e ? (e.e.elite ? 1 : 0) | (e.e.def.boss ? 2 : 0) : 0, pend ? Math.round((1 - pend.t / pend.total) * 100) / 100 : 0, e.dead ? 1 : 0,
         Math.round((e.buffs.reduce((s, b) => s + (b.mods.find((m) => m.stat === 'sizePct')?.value ?? 0), 0))) || 0,
-        e.e?.affixes.join(',') ?? '', e.e ? Math.round((e.e.breakG / (e.e.breakMax || 1)) * 100) / 100 : 0, e.e?.phase ?? 0, e.invuln > 0 || !!e.dash ? 1 : 0, e.p?.aura ?? '', e.p?.pet ?? '', e.p ? lookKey(e.p.char.look) : '',
+        e.e?.affixes.join(',') ?? '', e.e ? Math.round((e.e.breakG / (e.e.breakMax || 1)) * 100) / 100 : 0, e.e?.phase ?? 0, e.invuln > 0 || !!e.dash ? 1 : 0, e.p?.aura ?? '', e.p?.pet ?? '', e.p ? lookKey(e.p.char.look, e.p.costume) : '', e.p?.mount ?? '',
       ]);
     }
     const projs = this.projs.filter((p) => dist2(p.x, p.y, cx, cy) < r2).map((p) => [p.id, Math.round(p.x), Math.round(p.y), Math.round(p.vx), Math.round(p.vy), p.r, p.visual, p.team]);
@@ -1393,7 +1399,7 @@ export class World {
         id: me.id, res: Math.round(p.res), maxRes: me.stats.maxRes, sec: Math.round(p.sec * 10) / 10, secMax: me.stats.secMax,
         cdA: lo.active.map((s) => (s ? Math.round((p.cds[s] ?? 0) * 10) / 10 : 0)), cdU: lo.ultimate.map((s) => (s ? Math.round((p.cds[s] ?? 0) * 10) / 10 : 0)),
         dodge: Math.round(p.dodgeCd * 10) / 10, potCd: Math.round(p.potionCd * 10) / 10, potions: p.char.potions, buffs: me.buffs.map((b) => [b.name, Math.round(b.t * 10) / 10]),
-        target: p.targetId, ack: p.lastSeq, deadT: me.dead ? (this.opts.noRespawn ? -2 : Math.max(0, Math.round(p.deadT * 10) / 10)) : -1, lock: Math.round(me.lock * 100) / 100,
+        target: p.targetId, ack: p.lastSeq, deadT: me.dead ? (this.opts.noRespawn ? -2 : Math.max(0, Math.round(p.deadT * 10) / 10)) : -1, lock: Math.round(me.lock * 100) / 100, mount: p.mount ?? '',
       };
     }
     return { time: Math.round(this.time * 1000), ents, projs, areas, drops, self };

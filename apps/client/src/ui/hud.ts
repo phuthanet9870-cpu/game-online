@@ -12,12 +12,14 @@ import * as P from './panels.js';
 import { passiveTreePanel } from './passive.js';
 import { inventoryWindow } from './invwin.js';
 import { craftingWindow } from './craftwin.js';
+import * as MW from './metawin.js';
+import { BENEFITS, benefitReady, dayIndex, normalizeMeta, COSMETICS } from '@astra/shared';
 import { modeBanner } from './screens.js';
 import * as S from './social.js';
 import { sound } from '../audio.js';
 import { itemName, translateDom, trText } from '../l10n.js';
 
-type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 'codex' | 'social' | 'guild' | 'auction' | 'ladder' | 'alchemist' | 'season' | 'hearth' | 'carpenter' | 'settings' | 'dungeon' | 'smith' | 'quartermaster' | 'trainer' | 'stash' | 'map' | 'crafting';
+type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 'codex' | 'social' | 'guild' | 'auction' | 'ladder' | 'alchemist' | 'season' | 'hearth' | 'carpenter' | 'settings' | 'dungeon' | 'smith' | 'quartermaster' | 'trainer' | 'stash' | 'map' | 'crafting' | 'login' | 'shop' | 'benefits' | 'wish' | 'awaken' | 'wardrobe';
 
 export class GameUI {
   game = new ClientGame();
@@ -177,6 +179,7 @@ export class GameUI {
       case 'achievement': toast(`★ Achievement: ${m.name}`, 'good'); break;
       case 'hc_dead': this.showModal(h('div', { class: 'modal-wrap' }, h('div', { class: 'modal hc-dead' }, h('h2', null, `☠ ${m.name} ${t('hcDead')}`), h('p', null, `Level ${m.level}. Their legend is recorded on the Hardcore ladder.`), h('button', { class: 'btn', onclick: () => this.leave() }, t('close'))))); break;
       case 'pong': g.rtt = performance.now() - m.c; break;
+      case 'wish_result': this.lastWish = m.prizes; sound.loot(m.prizes.some((p: any) => p.r === 'SSR') ? 'legendary' : 'rare'); this.openPanel('wish'); break;
       default: break;
     }
   }
@@ -322,13 +325,15 @@ export class GameUI {
   private buildMenu() {
     const th = getLang() === 'th';
     // feature menu (top-right): only entries backed by a real system
-    const top: Array<[string, string, string, () => void]> = [
-      ['events', th ? 'อีเวนต์' : 'Events', '#ff6a8a', () => this.toggle('season')],
-      ['pass', th ? 'ซีซันพาส' : 'Season Pass', '#9b6cff', () => this.toggle('season')],
-      ['trophy', th ? 'อันดับ' : 'Rankings', '#ffd36a', () => this.toggle('ladder')],
-      ['book', th ? 'โคเด็กซ์' : 'Codex', '#3a5ab0', () => this.toggle('codex')],
+    const top: Array<[string, string, string, () => void, string]> = [
+      ['events', th ? 'อีเวนต์' : 'Events', '#ff6a8a', () => this.toggle('season'), ''],
+      ['calendar', th ? 'รางวัลล็อกอิน' : 'Login Rewards', '#ff6a8a', () => this.toggle('login'), 'login'],
+      ['pass', th ? 'ซีซันพาส' : 'Battle Pass', '#9b6cff', () => this.toggle('season'), ''],
+      ['shop', th ? 'ร้านค้า' : 'Shop', '', () => this.toggle('shop'), ''],
+      ['gacha', th ? 'ขอพร' : 'Wish', '#b36cff', () => this.toggle('wish'), 'wish'],
+      ['gift', th ? 'สิทธิประโยชน์' : 'Benefits', '#ff4f6a', () => this.toggle('benefits'), 'benefits'],
     ];
-    clear(this.el.topmenu!).append(...top.map(([ic, label, col, fn]) => h('button', { class: 'tm-btn', onclick: fn, title: label }, uiIcon(ic, 34, col), h('span', null, label))));
+    clear(this.el.topmenu!).append(...top.map(([ic, label, col, fn, dot]) => h('button', { class: 'tm-btn', onclick: fn, title: label, 'data-dot': dot }, uiIcon(ic, 34, col || '#9b6cff'), h('i', { class: 'dot-red', hidden: true }), h('span', null, label))));
     const right: Array<[string, string, string, () => void, string]> = [
       ['people', th ? 'สังคม' : 'Social', '#ffb36a', () => this.toggle('social'), 'social'],
       ['crest', th ? 'กิลด์' : 'Guild', '#3a5ab0', () => this.toggle('guild'), 'guild'],
@@ -347,7 +352,7 @@ export class GameUI {
   private filterChat() { for (const el of Array.from(this.el.chatLog!.children) as HTMLElement[]) el.hidden = this.chatTab !== 'all' && el.dataset.ch !== this.chatTab && !(this.chatTab === 'local' && el.dataset.ch === 'whisper'); this.el.chatLog!.scrollTop = this.el.chatLog!.scrollHeight; }
   private menuGrid() {
     const th = getLang() === 'th';
-    const items: Array<[PanelName, string, string, string]> = [['inventory', 'bag', t('inventory'), 'inventory'], ['character', 'person', t('character'), 'character'], ['skills', 'book', t('skills'), 'skills'], ['passives', 'tree', t('passives'), 'passives'], ['quests', 'scroll', t('quests'), 'quests'], ['codex', 'book', t('codex'), 'codex'], ['social', 'people', t('social'), 'social'], ['guild', 'crest', 'Guild', 'guild'], ['ladder', 'trophy', th ? 'อันดับ' : 'Leaderboards', 'ladder'], ['season', 'pass', th ? 'ซีซัน' : 'Season', 'season'], ['crafting', 'anvil', th ? 'คราฟต์' : 'Crafting', ''], ['hearth', 'house', th ? 'บ้าน' : 'Hearth', 'hearth'], ['map', 'mapicon', t('map'), 'map'], ['settings', 'gear', t('settings'), '']];
+    const items: Array<[PanelName, string, string, string]> = [['inventory', 'bag', t('inventory'), 'inventory'], ['character', 'person', t('character'), 'character'], ['skills', 'book', t('skills'), 'skills'], ['passives', 'tree', t('passives'), 'passives'], ['quests', 'scroll', t('quests'), 'quests'], ['codex', 'book', t('codex'), 'codex'], ['social', 'people', t('social'), 'social'], ['guild', 'crest', 'Guild', 'guild'], ['ladder', 'trophy', th ? 'อันดับ' : 'Leaderboards', 'ladder'], ['season', 'pass', th ? 'ซีซัน' : 'Season', 'season'], ['crafting', 'anvil', th ? 'คราฟต์' : 'Crafting', ''], ['hearth', 'house', th ? 'บ้าน' : 'Hearth', 'hearth'], ['map', 'mapicon', t('map'), 'map'], ['awaken', 'awaken', th ? 'ตื่นรู้และตราสัญลักษณ์' : 'Awakening & Emblems', ''], ['wardrobe', 'costume', th ? 'ตู้เสื้อผ้า' : 'Wardrobe', ''], ['shop', 'shop', th ? 'ร้านค้า' : 'Shop', ''], ['wish', 'gacha', th ? 'ขอพร' : 'Wish', ''], ['login', 'calendar', th ? 'รางวัลล็อกอิน' : 'Login Rewards', ''], ['benefits', 'gift', th ? 'สิทธิประโยชน์' : 'Benefits', ''], ['settings', 'gear', t('settings'), '']];
     const close = () => this.closeModal();
     this.showModal(h('div', { class: 'modal-wrap', onclick: (e: Event) => { if (e.target === e.currentTarget) close(); } }, h('div', { class: 'modal menu-grid' }, h('header', { class: 'row between' }, h('h2', null, th ? 'เมนู' : 'Menu'), h('button', { class: 'btn ghost tiny', onclick: close }, '✕')),
       h('div', { class: 'mg' }, ...items.map(([p, ic, label, bind]) => h('button', { class: 'mg-btn', onclick: () => { close(); this.openPanel(p); } }, uiIcon(ic, 40), h('span', null, label), bind ? h('kbd', null, keyLabel(this.input.binds[bind] ?? '')) : null))))));
@@ -380,7 +385,7 @@ export class GameUI {
         this.el.pot = util(13, 'potion', '#ff4a5a', t('potion'), 'potion', () => { sound.potion(); this.send({ t: 'potion' }); }),
         this.el.dodgeSlot = util(14, 'dodge', '#8fd8ff', t('dodge'), 'dodge', () => this.onAction('dodge')),
         util(15, 'chestbox', '', th ? 'เก็บของใกล้ตัว' : 'Pick up nearest item', 'pickup', () => this.pickupNearest()),
-        util(16, 'eye', '#ff6a4a', th ? 'เลือกเป้าหมายถัดไป' : 'Cycle target', 'target', () => this.onAction('target')),
+        this.el.mountSlot = util(16, 'mount', '#e8eaff', th ? 'ขึ้น/ลงพาหนะ (นอกการต่อสู้)' : 'Mount / dismount (out of combat)', '', () => this.send({ t: 'mount_toggle' })),
         util(17, 'chat', '#9b6cff', th ? 'แชท' : 'Chat', '', () => (this.el.chatIn as HTMLInputElement).focus()),
         util(18, 'bag', '', t('inventory'), 'inventory', () => this.toggle('inventory')),
         util(19, 'scroll', '', t('quests'), 'quests', () => this.toggle('quests')),
@@ -403,7 +408,7 @@ export class GameUI {
     const d = CLASSES[ch.cls];
     const E = this.el;
     const th = getLang() === 'th';
-    E.name!.replaceChildren(h('em', null, `Lv.${ch.level}`), ` ${ch.name}`, ch.hardcore ? h('span', { class: 'hc-badge' }, 'HC') : '');
+    if (this.nameKey !== `${ch.level}|${ch.name}|${g.account?.achievements.length}|${normalizeMeta(g.account?.meta).login.total}`) { this.nameKey = `${ch.level}|${ch.name}|${g.account?.achievements.length}|${normalizeMeta(g.account?.meta).login.total}`; E.name!.replaceChildren(h('em', null, `Lv.${ch.level}`), ` ${ch.name}`, ch.hardcore ? h('span', { class: 'hc-badge' }, 'HC') : '', g.account ? MW.renownBadge(g.account) : ''); }
     const hpPct = me.hp / me.mhp;
     (E.hp!.children[0] as HTMLElement).style.width = `${hpPct * 100}%`;
     (E.hp!.children[1] as HTMLElement).style.width = `${Math.min(1, me.barrier / me.mhp) * 100}%`;
@@ -427,7 +432,16 @@ export class GameUI {
     const curKey = `${ch.gold}|${ch.dust}|${shards}`;
     if (this.curKey !== curKey) { this.curKey = curKey; clear(E.cur!).append(...([['gold', ch.gold, th ? 'ทอง' : 'Gold'], ['dust', ch.dust, th ? 'ผงดวงดาว' : 'Astral Dust'], ['shard', shards, th ? 'เศษอัมเบอร์ (ซีซัน)' : 'Ember Shards (season)']] as const).map(([k, v, label]) => { const el = h('div', { class: 'cur' }, currencyIcon(k, 24), h('b', null, v.toLocaleString())); bindTip(el, () => h('div', { class: 'tip' }, label)); return el; })); }
     this.trackerT -= 0.1;
-    if (this.trackerT <= 0) { this.trackerT = 1; this.renderTracker(); this.renderParty(); this.renderPill(); }
+    if (this.trackerT <= 0) {
+      this.trackerT = 1; this.renderTracker(); this.renderParty(); this.renderPill();
+      const acc = g.account, meta = normalizeMeta(acc?.meta);
+      const dots: Record<string, boolean> = { login: meta.login.last !== dayIndex(Date.now()), wish: meta.wish.tokens > 0, benefits: !!acc && BENEFITS.some((b) => !ch.benefits?.includes(b.id) && benefitReady(acc, ch, b)) };
+      for (const b of Array.from(E.topmenu!.querySelectorAll<HTMLElement>('.tm-btn'))) { const d = b.dataset.dot; (b.querySelector('.dot-red') as HTMLElement).hidden = !(d && dots[d]); }
+      const fr = meta.cosmetics.frame ? COSMETICS[meta.cosmetics.frame]?.color : null;
+      (E.portrait as HTMLElement).style.borderColor = fr ?? '';
+      (E.portrait as HTMLElement).style.boxShadow = fr ? `0 0 0 2px #000, 0 0 18px ${fr}` : '';
+      if (E.mountSlot) E.mountSlot.classList.toggle('on', !!s.mount);
+    }
     // skill cooldowns + affordability
     const st = st0;
     for (const el of Array.from(E.bar!.querySelectorAll<HTMLElement>('.slot[data-k]'))) {
@@ -514,7 +528,10 @@ export class GameUI {
         return h('div', { class: 'pm' }, h('div', { class: 'pm-av', style: `--c:${cd?.colors.body ?? '#555'}` }, (m.cls[0] ?? '?').toUpperCase()), h('div', { class: 'grow' }, h('div', { class: 'pm-n' }, m.name === p.leader ? uiIcon('crown', 14) : null, h('em', null, `Lv.${m.level}`), ` ${m.name}`), e ? h('div', { class: 'gbar thin hp' }, h('i', { style: `width:${(e.hp / e.mhp) * 100}%` })) : h('small', { class: 'muted' }, m.room))); }));
   }
   private trackerT = 0;
+  shopState = { tab: 'supplies' as 'supplies' | 'materials' | 'cosmetics' | 'mounts' };
+  lastWish: any[] | null = null;
   private curKey = '';
+  private nameKey = '';
   private portraitKey = '';
   private drawPortrait() {
     const ch = this.game.char; if (!ch) return;
@@ -613,7 +630,7 @@ export class GameUI {
     if (!p || !this.game.char) return;
     const ctx = this.ctx();
     const inTown = this.game.room?.kind === 'town';
-    const titles: Record<PanelName, string> = { inventory: t('inventory'), skills: t('skills'), passives: t('passives'), character: t('character'), quests: t('quests'), codex: t('codex'), social: t('social'), guild: 'Guild', ladder: 'Leaderboards', alchemist: 'Sister Maelis — alchemy & cooking', season: 'Season & weekly', hearth: 'Your Hearth', carpenter: 'Carpenter Odo — furniture', auction: 'Auctioneer Vell — auction house', settings: t('settings'), dungeon: 'Rift Gate', smith: 'Brenna the Smith — forge, salvage & enchant', quartermaster: 'Quartermaster Sol — potions & selling', trainer: 'Master Ilrin — trainer', stash: 'Astral Vault', map: t('map'), crafting: getLang() === 'th' ? 'คราฟต์และทักษะชีวิต' : 'Crafting & Life Skills' };
+    const titles: Record<PanelName, string> = { inventory: t('inventory'), skills: t('skills'), passives: t('passives'), character: t('character'), quests: t('quests'), codex: t('codex'), social: t('social'), guild: 'Guild', ladder: 'Leaderboards', alchemist: 'Sister Maelis — alchemy & cooking', season: 'Season & weekly', hearth: 'Your Hearth', carpenter: 'Carpenter Odo — furniture', auction: 'Auctioneer Vell — auction house', settings: t('settings'), dungeon: 'Rift Gate', smith: 'Brenna the Smith — forge, salvage & enchant', quartermaster: 'Quartermaster Sol — potions & selling', trainer: 'Master Ilrin — trainer', stash: 'Astral Vault', map: t('map'), crafting: getLang() === 'th' ? 'คราฟต์และทักษะชีวิต' : 'Crafting & Life Skills', login: getLang() === 'th' ? 'รางวัลล็อกอิน' : 'Login Rewards', shop: getLang() === 'th' ? 'ร้านค้า' : 'Shop', benefits: getLang() === 'th' ? 'สิทธิประโยชน์' : 'Benefits', wish: getLang() === 'th' ? 'ขอพรแห่งดวงดาว' : 'Astral Wish', awaken: getLang() === 'th' ? 'ตื่นรู้และตราสัญลักษณ์' : 'Awakening & Emblems', wardrobe: getLang() === 'th' ? 'ตู้เสื้อผ้า' : 'Wardrobe' };
     let body: HTMLElement;
     switch (p) {
       case 'inventory': body = inventoryWindow(ctx, 'normal', () => this.renderPanel()); break;
@@ -623,6 +640,12 @@ export class GameUI {
       case 'season': body = S.seasonPanel(this.seasonData, ctx.ch, ctx.account, (m) => this.send(m)); break;
       case 'alchemist': body = craftingWindow(ctx.ch, ['alchemy', 'cooking'], (m) => this.send(m), () => this.renderPanel()); break;
       case 'crafting': body = craftingWindow(ctx.ch, [], (m) => this.send(m), () => this.renderPanel()); break;
+      case 'login': body = MW.loginWindow(ctx.ch, ctx.account, (m) => this.send(m)); break;
+      case 'shop': body = MW.shopWindow(ctx.ch, ctx.account, (m) => this.send(m), this.shopState, () => this.renderPanel()); break;
+      case 'benefits': body = MW.benefitsWindow(ctx.ch, ctx.account, (m) => this.send(m)); break;
+      case 'wish': body = MW.wishWindow(ctx.ch, ctx.account, (m) => this.send(m), this.lastWish); break;
+      case 'awaken': body = MW.awakenWindow(ctx.ch, ctx.account, (m) => this.send(m)); break;
+      case 'wardrobe': body = MW.wardrobeWindow(ctx.account, (m) => this.send(m)); break;
       case 'quartermaster': body = inventoryWindow(ctx, 'quartermaster', () => this.renderPanel()); break;
       case 'stash': body = inventoryWindow(ctx, 'stash', () => this.renderPanel()); break;
       case 'skills': body = P.skillsPanel(ctx); break;
@@ -643,7 +666,7 @@ export class GameUI {
     const panel = clear(this.el.panel!);
     panel.hidden = false;
     panel.classList.toggle('wide', p === 'passives' || p === 'map');
-    panel.classList.toggle('win', ['inventory', 'smith', 'quartermaster', 'stash', 'crafting', 'alchemist', 'auction', 'social', 'guild', 'skills', 'passives', 'character', 'season', 'dungeon'].includes(p));
+    panel.classList.toggle('win', ['inventory', 'smith', 'quartermaster', 'stash', 'crafting', 'alchemist', 'auction', 'social', 'guild', 'skills', 'passives', 'character', 'season', 'dungeon', 'login', 'shop', 'benefits', 'wish', 'awaken', 'wardrobe'].includes(p));
     const th = getLang() === 'th';
     const socialTabs = ['social', 'guild', 'auction'].includes(p) ? h('div', { class: 'win-tabs' }, ...([['auction', 'gavel', th ? 'ห้องประมูล' : 'Auction House'], ['guild', 'crest', th ? 'กิลด์' : 'Guild'], ['social', 'people', th ? 'ปาร์ตี้และเทรด' : 'Party & Trade']] as const).map(([id, ic, label]) => h('button', { class: 'wt icon' + (p === id ? ' on' : ''), onclick: () => { this.openPanel(id); if (id === 'auction') { this.send({ t: 'ah_search', q: this.ah.q }); this.send({ t: 'ah_mine' }); } } }, uiIcon(ic, 22), label))) : null;
     if (socialTabs) titles[p] = th ? 'สังคมและชุมชน' : 'Social & Community';

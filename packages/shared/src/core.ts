@@ -2,6 +2,8 @@
 // The Node server wires it to WebSockets + PostgreSQL; the offline build wires it to an in-page
 // message channel + browser storage. Both run this exact code.
 
+import * as M from './meta.js';
+import { emptyMeta, normalizeMeta } from './meta.js';
 import * as C from './character.js';
 import { CLASSES } from './data/classes.js';
 import { classSkills } from './data/skills.js';
@@ -76,7 +78,7 @@ interface Room { id: string; kind: 'town' | 'field' | 'dungeon'; world: World; s
 export interface LeaderRecord { board: string; charId: string; name: string; cls: string; hardcore: boolean; value: number; at: number }
 interface Party { id: string; leader: string; members: string[] }
 
-const MUTATIONS = new Set(['house_buy', 'house_place', 'house_remove', 'use_map', 'guild_vault_put', 'guild_vault_take', 'pet_buy', 'season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose']);
+const MUTATIONS = new Set(['house_buy', 'house_place', 'house_remove', 'use_map', 'guild_vault_put', 'guild_vault_take', 'pet_buy', 'season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose', 'login_claim', 'shop_buy', 'benefit_claim', 'awaken', 'wish', 'emblem_set', 'cosmetic_set']);
 
 /** Character as sent to its owner: hidden server knowledge (exact treasure spot) is removed. */
 export function publicChar(ch: CharacterData): CharacterData {
@@ -86,12 +88,12 @@ export function publicChar(ch: CharacterData): CharacterData {
 }
 
 export function emptyAccount(): AccountProgress {
-  return { codex: {}, achievements: [], titles: [], stash: { normal: Array(STASH_SIZE).fill(null), hardcore: Array(STASH_SIZE).fill(null) }, season: null, auras: [], aura: null, pets: [], pet: null };
+  return { codex: {}, achievements: [], titles: [], stash: { normal: Array(STASH_SIZE).fill(null), hardcore: Array(STASH_SIZE).fill(null) }, season: null, auras: [], aura: null, pets: [], pet: null, meta: emptyMeta() };
 }
 export function normalizeAccount(a: Partial<AccountProgress> | null | undefined): AccountProgress {
   const e = emptyAccount();
   if (!a) return e;
-  return { codex: a.codex ?? {}, achievements: a.achievements ?? [], titles: a.titles ?? [], stash: { normal: pad(a.stash?.normal, STASH_SIZE), hardcore: pad(a.stash?.hardcore, STASH_SIZE) }, season: a.season ?? null, auras: a.auras ?? [], aura: a.aura ?? null, pets: a.pets ?? [], pet: a.pet ?? null, house: a.house ? { owned: a.house.owned ?? {}, placed: a.house.placed ?? [], perm: a.house.perm ?? 'private' } : undefined };
+  return { codex: a.codex ?? {}, achievements: a.achievements ?? [], titles: a.titles ?? [], stash: { normal: pad(a.stash?.normal, STASH_SIZE), hardcore: pad(a.stash?.hardcore, STASH_SIZE) }, season: a.season ?? null, auras: a.auras ?? [], aura: a.aura ?? null, pets: a.pets ?? [], pet: a.pet ?? null, meta: normalizeMeta(a.meta), house: a.house ? { owned: a.house.owned ?? {}, placed: a.house.placed ?? [], perm: a.house.perm ?? 'private' } : undefined };
 }
 const pad = <T>(arr: (T | null)[] | undefined, n: number) => { const o = (arr ?? []).slice(0, n); while (o.length < n) o.push(null); return o; };
 
@@ -196,6 +198,7 @@ export class GameCore {
     const ent = room.world.addPlayer(s.char, s.id, pos);
     ent.p!.partyId = s.partyId;
     ent.p!.aura = s.account.aura;
+    ent.p!.costume = normalizeMeta(s.account.meta).cosmetics.costume;
     ent.p!.pet = s.account.pet;
     const guild = this.guildOf(s.char.id);
     if (guild) ent.name = `${s.char.name} ‹${guild.tag}›`;
@@ -358,6 +361,7 @@ export class GameCore {
         case 'house_buy': case 'house_place': case 'house_remove': case 'house_perm': case 'house_visit': this.housing(s, room, msg); break;
         case 'guild_vault_put': case 'guild_vault_take': this.guildVault(s, room, msg); break;
         case 'pet_buy': case 'pet_set': this.pets(s, room, msg); break;
+        case 'login_claim': case 'shop_buy': case 'benefit_claim': case 'awaken': case 'wish': case 'emblem_set': case 'cosmetic_set': case 'mount_toggle': this.metaMsg(s, room, msg); break;
         case 'guild_create': case 'guild_invite': case 'guild_accept': case 'guild_leave': case 'guild_kick': case 'guild_rank': case 'guild_transfer': case 'guild_motd': case 'guild_info': this.guild(s, room, msg); break;
         default: break;
       }
@@ -1264,6 +1268,40 @@ export class GameCore {
     this.markDirty(s); this.sendChar(s);
   }
 
+  // ─────────── Meta systems: login, shop, benefits, awakening, emblems, cosmetics, mounts, wishes ───────────
+  private metaMsg(s: Session, room: Room, msg: any) {
+    const now = this.clock();
+    const ent = room.world.ents.get(s.entId);
+    const meta = M.ensureMeta(s.account);
+    let r: { ok: true; value: any } | { ok: false; reason: string };
+    let text = '';
+    switch (msg.t) {
+      case 'login_claim': r = M.claimLogin(s.account, s.char, now); if (r.ok) text = `Day ${r.value.day + 1} reward: ${M.rewardText(r.value.reward)}`; break;
+      case 'shop_buy': r = M.buyShop(s.account, s.char, String(msg.id ?? ''), now); if (r.ok) text = `Bought ${r.value.item.name}`; break;
+      case 'benefit_claim': r = M.claimBenefit(s.account, s.char, String(msg.id ?? '')); if (r.ok) text = `Benefit claimed: ${M.rewardText(r.value.reward)}`; break;
+      case 'awaken': r = M.awaken(s.char); if (r.ok) text = `Awakening ${r.value.level} reached`; break;
+      case 'emblem_set': r = M.setEmblems(s.account, s.char, msg.ids); break;
+      case 'cosmetic_set': { const kind = msg.kind === 'frame' ? 'frame' : msg.kind === 'mount' ? 'mount' : 'costume'; r = M.setCosmetic(s.account, kind, msg.id === null ? null : String(msg.id ?? '')); if (r.ok && ent?.p) { ent.p.costume = meta.cosmetics.costume; if (kind === 'mount' && !meta.mount) ent.p.mount = null; } break; }
+      case 'mount_toggle': {
+        if (!ent?.p) return;
+        if (ent.p.mount) { ent.p.mount = null; ent.dirty = true; return; }
+        if (!meta.mount) return s.send({ t: 'err', msg: 'You have no mount yet — buy one in the Shop or earn one from Benefits' });
+        if (ent.p.combatT < 3 || ent.dead) return s.send({ t: 'err', msg: 'Cannot mount while in combat' });
+        if (room.kind === 'dungeon') return s.send({ t: 'err', msg: 'Mounts are for towns and the open world' });
+        ent.p.mount = meta.mount; ent.dirty = true; return;
+      }
+      case 'wish': { const n = Number(msg.n) === 10 ? 10 : 1; r = M.wish(s.account, s.char, n, this.rng, now); if (r.ok) s.send({ t: 'wish_result', prizes: r.value.map((x: any) => ({ id: x.prize.id, r: x.prize.r, name: x.prize.name, got: x.got })) }); break; }
+      default: return;
+    }
+    if (!r.ok) return s.send({ t: 'err', msg: r.reason });
+    this.tx({ characters: [s.char], accounts: [{ id: s.accountId, progress: s.account }] });
+    this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: msg.t, data: { id: msg.id ?? msg.n ?? null } });
+    if (text) this.toast(s, text);
+    if (ent) ent.dirty = true;
+    s.dirty = true;
+    this.sendChar(s);
+  }
+
   // ─────────── Tutorial ───────────
   /** Advance only when the observed action matches the current step (no skipping ahead by accident). */
   private tutorial(s: Session, id: string) {
@@ -1462,7 +1500,7 @@ export class GameCore {
     const known = (s.netCache ??= { room: '', ents: new Map<number, string>(), projs: new Map<number, string>(), areas: new Map<number, string>() });
     if (known.room !== s.roomId) { known.room = s.roomId; known.ents.clear(); known.projs.clear(); known.areas.clear(); }
     const ents = (snap.ents as any[][]).map((e) => {
-      const key = `${e[1]}|${e[6]}|${e[8]}|${e[9]}|${e[10]}|${e[12]}|${e[16]}|${e[20]}|${e[21]}|${e[22]}`;
+      const key = `${e[1]}|${e[6]}|${e[8]}|${e[9]}|${e[10]}|${e[12]}|${e[16]}|${e[20]}|${e[21]}|${e[22]}|${e[23]}`;
       if (known.ents.get(e[0]) === key) return [e[0], e[2], e[3], e[4], e[5], e[7], e[11], e[13], e[14], e[15], e[17], e[18], e[19]];
       known.ents.set(e[0], key);
       return e;
@@ -1617,7 +1655,7 @@ export function expandEntities(statics: Map<number, any[]>, ents: any[][]): any[
   const seen = new Set<number>();
   for (const raw of ents) {
     seen.add(raw[0]);
-    if (raw.length === 13) { const st = statics.get(raw[0]); if (!st) continue; out.push([raw[0], st[1], raw[1], raw[2], raw[3], raw[4], st[6], raw[5], st[8], st[9], st[10], raw[6], st[12], raw[7], raw[8], raw[9], st[16], raw[10], raw[11], raw[12], st[20], st[21], st[22]]); }
+    if (raw.length === 13) { const st = statics.get(raw[0]); if (!st) continue; out.push([raw[0], st[1], raw[1], raw[2], raw[3], raw[4], st[6], raw[5], st[8], st[9], st[10], raw[6], st[12], raw[7], raw[8], raw[9], st[16], raw[10], raw[11], raw[12], st[20], st[21], st[22], st[23]]); }
     else { statics.set(raw[0], raw); out.push(raw); }
   }
   for (const id of statics.keys()) if (!seen.has(id)) statics.delete(id);

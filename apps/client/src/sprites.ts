@@ -424,3 +424,13 @@ export function drawMinionSprite(ctx: CanvasRenderingContext2D, e: { id: number;
   pixShadow(ctx, e.rx, e.ry + 5, radius, radius * 0.4);
   blit(ctx, s, e.rx, e.def === 'hawk' || e.def === 'wraith' ? e.ry - 14 : e.ry + 5, 1, pz.flip);
 }
+
+/** Mount drawn under its rider: a beast body (wings for the drake), galloping while moving. */
+export function drawMountSprite(ctx: CanvasRenderingContext2D, id: string, color: string, facing: number, moving: boolean, _t: number) {
+  const pz = pose(facing, moving, 0, 7);
+  const l: EnemyLook = { def: id === 'mount_eclipse' ? 'cinder_drake' : id === 'mount_ashwolf' ? 'gloomfang' : 'mount', family: 'wildlife', color, r: 26, boss: false, elite: false, eye: id === 'mount_eclipse' ? '#ffd36a' : '#2a2440' };
+  const key = `mt|${id}|${pz.walk}|${Math.cos(facing) < 0 ? 1 : 0}`;
+  const s = cached(key, () => buildBeast(l, pz), false);
+  pixShadow(ctx, 0, 8, 30, 8);
+  blit(ctx, s, 0, 10, 1, Math.cos(facing) < 0);
+}
