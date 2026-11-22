@@ -20,6 +20,7 @@ type fakeStore struct {
 	rewards map[string]store.Reward
 	audits  []store.AuditEntry
 	saves   int
+	binds   []string
 }
 
 func (f *fakeStore) ApplyReward(_ context.Context, r store.Reward) error {
@@ -208,7 +209,7 @@ func TestKillRewardPersistsOncePerContributor(t *testing.T) {
 		t.Fatalf("rewards persisted = %d", len(fs.rewards))
 	}
 	for _, r := range fs.rewards {
-		if r.CharID != 1 || r.XPDelta <= 0 || s.xp != r.XPDelta || s.gold != r.GoldDelta {
+		if r.CharID != 1 || r.XPDelta <= 0 || s.xp != r.XPDelta || r.GoldDelta != 0 {
 			t.Fatalf("reward %+v session xp=%d gold=%d", r, s.xp, s.gold)
 		}
 	}
@@ -225,4 +226,25 @@ func TestLevelCurve(t *testing.T) {
 	if start != pr.XPToNext(1) || next != start+pr.XPToNext(2) {
 		t.Fatal("level bounds")
 	}
+}
+
+func (f *fakeStore) BindPower(_ context.Context, _ string, _ int64, powerID, _ string, _ []byte) error {
+	f.mu.Lock()
+	f.binds = append(f.binds, "bind:"+powerID)
+	f.mu.Unlock()
+	return nil
+}
+func (f *fakeStore) UnbindPower(_ context.Context, _ string, _ int64, powerID string) error {
+	f.mu.Lock()
+	f.binds = append(f.binds, "destroy:"+powerID)
+	f.mu.Unlock()
+	return nil
+}
+func (f *fakeStore) SaveLoadout(context.Context, int64, string, []byte) error  { return nil }
+func (f *fakeStore) SaveProficiency(context.Context, int64, string, int) error { return nil }
+func (f *fakeStore) SaveHotbar(context.Context, int64, []byte) error           { return nil }
+func (f *fakeStore) SaveAutoSettings(context.Context, int64, []byte) error     { return nil }
+func (f *fakeStore) SetWeapon(context.Context, int64, string) error            { return nil }
+func (f *fakeStore) Craft(context.Context, string, int64, []store.ItemStack, store.ItemStack) error {
+	return nil
 }

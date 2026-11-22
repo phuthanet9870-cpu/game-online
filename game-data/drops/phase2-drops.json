@@ -1,11 +1,107 @@
 {
-  "contentVersion": "phase2-0.1.0",
-  "_note": "[TUNING] drop tables. Rewards are personal per eligible contributor (>= minContributionShare of damage), never last-hit-takes-all.",
-  "minContributionShare": 0.15,
-  "tables": [
-    { "id": "DROP-SLIME-001", "monsterId": "MON-SLIME-001", "xp": 12, "gold": [2, 5],
-      "items": [ { "itemId": "TRD-DEV-001", "chance": 0.6, "min": 1, "max": 2 }, { "itemId": "CON-001", "chance": 0.08, "min": 1, "max": 1 } ] },
-    { "id": "DROP-WOLF-001", "monsterId": "MON-WOLF-001", "xp": 25, "gold": [5, 12],
-      "items": [ { "itemId": "TRD-DEV-002", "chance": 0.5, "min": 1, "max": 1 }, { "itemId": "CON-001", "chance": 0.12, "min": 1, "max": 1 } ] }
-  ]
+ "contentVersion": "phase3-0.1.0",
+ "_note": "[TUNING] drop tables. Rewards are personal per eligible contributor (>= minContributionShare of damage), never last-hit-takes-all. Power fruits: rare full drop (1%) or deterministic fragment crafting (10 fragments) so progress is always possible (spec §7.6). [TUNING]",
+ "minContributionShare": 0.15,
+ "tables": [
+  {
+   "id": "DROP-SLIME-001",
+   "monsterId": "MON-SLIME-001",
+   "xp": 12,
+   "gold": [
+    2,
+    5
+   ],
+   "items": [
+    {
+     "itemId": "TRD-DEV-001",
+     "chance": 0.6,
+     "min": 1,
+     "max": 2
+    },
+    {
+     "itemId": "CON-001",
+     "chance": 0.08,
+     "min": 1,
+     "max": 1
+    },
+    {
+     "itemId": "MAT-PWR-001",
+     "chance": 0.25,
+     "min": 1,
+     "max": 1
+    }
+   ]
+  },
+  {
+   "id": "DROP-WOLF-001",
+   "monsterId": "MON-WOLF-001",
+   "xp": 25,
+   "gold": [
+    5,
+    12
+   ],
+   "items": [
+    {
+     "itemId": "TRD-DEV-002",
+     "chance": 0.5,
+     "min": 1,
+     "max": 1
+    },
+    {
+     "itemId": "CON-001",
+     "chance": 0.12,
+     "min": 1,
+     "max": 1
+    },
+    {
+     "itemId": "MAT-PWR-002",
+     "chance": 0.3,
+     "min": 1,
+     "max": 1
+    },
+    {
+     "itemId": "PWR-001",
+     "chance": 0.01,
+     "min": 1,
+     "max": 1
+    },
+    {
+     "itemId": "PWR-003",
+     "chance": 0.01,
+     "min": 1,
+     "max": 1
+    }
+   ]
+  }
+ ],
+ "recipes": [
+  {
+   "id": "RCP-PWR-001",
+   "name": "Inferno Fruit",
+   "inputs": [
+    {
+     "itemId": "MAT-PWR-001",
+     "quantity": 10
+    }
+   ],
+   "output": {
+    "itemId": "PWR-001",
+    "quantity": 1
+   }
+  },
+  {
+   "id": "RCP-PWR-003",
+   "name": "Abyss Shadow Fruit",
+   "inputs": [
+    {
+     "itemId": "MAT-PWR-002",
+     "quantity": 10
+    }
+   ],
+   "output": {
+    "itemId": "PWR-003",
+    "quantity": 1
+   }
+  }
+ ]
 }

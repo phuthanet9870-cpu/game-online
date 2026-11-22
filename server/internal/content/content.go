@@ -10,21 +10,66 @@ import (
 	"path/filepath"
 )
 
+// StatusDef is both a registry entry (statuses.json) and an application (id + duration [+ overrides]).
 type StatusDef struct {
-	ID                string  `json:"id"`
-	DurationMs        float64 `json:"durationMs"`
-	DefenseMultiplier float64 `json:"defenseMultiplier"`
+	ID                    string  `json:"id"`
+	DurationMs            float64 `json:"durationMs,omitempty"`
+	DefenseMultiplier     float64 `json:"defenseMultiplier,omitempty"`
+	SpeedMultiplier       float64 `json:"speedMultiplier,omitempty"`
+	DamageTakenMultiplier float64 `json:"damageTakenMultiplier,omitempty"`
+	Stun                  bool    `json:"stun,omitempty"`
+	Root                  bool    `json:"root,omitempty"`
+	Stealth               bool    `json:"stealth,omitempty"`
+	ShieldPctMaxHp        float64 `json:"shieldPctMaxHp,omitempty"`
+	EnergyRegenPerSec     float64 `json:"energyRegenPerSec,omitempty"`
+	StaminaRegenPerSec    float64 `json:"staminaRegenPerSec,omitempty"`
+	Dot                   *DotDef `json:"dot,omitempty"`
+	AtMs                  float64 `json:"atMs,omitempty"` // for selfStatus entries
+}
+
+type DotDef struct {
+	TickMs   float64 `json:"tickMs"`
+	Modifier float64 `json:"modifier"`
+}
+
+// Merge returns the registry definition overlaid with the per-skill application values.
+func (c *Content) Status(app StatusDef) StatusDef {
+	base, ok := c.Statuses[app.ID]
+	if !ok {
+		return app
+	}
+	if app.DurationMs > 0 {
+		base.DurationMs = app.DurationMs
+	}
+	if app.DefenseMultiplier > 0 {
+		base.DefenseMultiplier = app.DefenseMultiplier
+	}
+	return base
 }
 
 type HitDef struct {
 	AtMs        float64    `json:"atMs"`
-	Shape       string     `json:"shape"`
+	Shape       string     `json:"shape"` // arc | circle | projectile
 	Radius      float64    `json:"radius"`
 	ArcDeg      float64    `json:"arcDeg"`
 	Modifier    float64    `json:"modifier"`
 	Knockback   float64    `json:"knockback"`
 	ApplyStatus *StatusDef `json:"applyStatus,omitempty"`
 	Interrupt   bool       `json:"interrupt,omitempty"`
+	Speed       float64    `json:"speed,omitempty"`
+	Range       float64    `json:"range,omitempty"`
+	Pierce      bool       `json:"pierce,omitempty"`
+	AtAim       bool       `json:"atAim,omitempty"`
+	BonusBehind float64    `json:"bonusBehind,omitempty"`
+}
+
+type MoveDef struct {
+	AtMs       float64 `json:"atMs"`
+	Type       string  `json:"type"` // dash | back | blink
+	Distance   float64 `json:"distance"`
+	DurationMs float64 `json:"durationMs"`
+	IFrames    bool    `json:"iframes"`
+	ToAim      bool    `json:"toAim,omitempty"` // dash stops just past the aim point
 }
 
 type CounterDef struct {
@@ -36,20 +81,125 @@ type CounterDef struct {
 }
 
 type ActionDef struct {
-	ID          string      `json:"id"`
-	Name        string      `json:"name"`
-	Kind        string      `json:"kind"`
-	CooldownMs  float64     `json:"cooldownMs"`
-	StaminaCost float64     `json:"staminaCost"`
-	WindupMs    float64     `json:"windupMs"`
-	ActiveMs    float64     `json:"activeMs"`
-	RecoveryMs  float64     `json:"recoveryMs"`
-	Hits        []HitDef    `json:"hits,omitempty"`
-	Counter     *CounterDef `json:"counter,omitempty"`
+	ID          string          `json:"id"`
+	Name        string          `json:"name"`
+	Kind        string          `json:"kind"`
+	Category    string          `json:"category,omitempty"` // power-active | power-ultimate | power-passive (powers only)
+	CooldownMs  float64         `json:"cooldownMs"`
+	StaminaCost float64         `json:"staminaCost"`
+	EnergyCost  float64         `json:"energyCost,omitempty"`
+	WindupMs    float64         `json:"windupMs"`
+	ActiveMs    float64         `json:"activeMs"`
+	RecoveryMs  float64         `json:"recoveryMs"`
+	Hits        []HitDef        `json:"hits,omitempty"`
+	Counter     *CounterDef     `json:"counter,omitempty"`
+	Move        *MoveDef        `json:"move,omitempty"`
+	SelfStatus  []StatusDef     `json:"selfStatus,omitempty"`
+	Telegraph   bool            `json:"telegraph,omitempty"`
+	Description string          `json:"description,omitempty"`
+	ImplFlag    *bool           `json:"implemented,omitempty"`
+	Effects     *PassiveEffects `json:"effects,omitempty"`
 }
 
 // Implemented reports whether the skill carries real numbers (vs. a name-only entry).
-func (a ActionDef) Implemented() bool { return a.CooldownMs > 0 || a.Counter != nil || len(a.Hits) > 0 }
+func (a ActionDef) Implemented() bool {
+	if a.ImplFlag != nil {
+		return *a.ImplFlag
+	}
+	return a.CooldownMs > 0 || a.Counter != nil || len(a.Hits) > 0
+}
+
+type PassiveEffects struct {
+	PowerDamageMult     float64            `json:"powerDamageMult,omitempty"`
+	DotMult             map[string]float64 `json:"dotMult,omitempty"`
+	StatusDurationAddMs map[string]float64 `json:"statusDurationAddMs,omitempty"`
+	StealthBonusMult    float64            `json:"stealthBonusMult,omitempty"`
+	BackAttackMult      float64            `json:"backAttackMult,omitempty"`
+}
+
+type PowerDef struct {
+	ID             string      `json:"id"`
+	Name           string      `json:"name"`
+	Type           string      `json:"type"`
+	AllowedWeapons []string    `json:"allowedWeapons"`
+	FruitItemID    string      `json:"fruitItemId"`
+	Obtainable     bool        `json:"obtainable"`
+	Active         []ActionDef `json:"active"`
+	Ultimate       []ActionDef `json:"ultimate"`
+	Passive        []ActionDef `json:"passive"`
+}
+
+func (p *PowerDef) AllowsWeapon(w string) bool {
+	for _, x := range p.AllowedWeapons {
+		if x == w {
+			return true
+		}
+	}
+	return false
+}
+
+// Skill finds a skill by id in any category.
+func (p *PowerDef) Skill(id string) *ActionDef {
+	for _, l := range [][]ActionDef{p.Active, p.Ultimate, p.Passive} {
+		for i := range l {
+			if l[i].ID == id {
+				return &l[i]
+			}
+		}
+	}
+	return nil
+}
+
+type RankDef struct {
+	Rank     int `json:"rank"`
+	Points   int `json:"points"`
+	Active   int `json:"active"`
+	Ultimate int `json:"ultimate"`
+	Passive  int `json:"passive"`
+}
+
+type PowerConfig struct {
+	Energy struct {
+		Max         float64 `json:"max"`
+		RegenPerSec float64 `json:"regenPerSec"`
+	} `json:"energy"`
+	Proficiency struct {
+		Ranks            []RankDef `json:"ranks"`
+		PointsPerCast    int       `json:"pointsPerCast"`
+		PointsPerHit     int       `json:"pointsPerHit"`
+		MaxPointsPerCast int       `json:"maxPointsPerCast"`
+	} `json:"proficiency"`
+	Loadout struct {
+		Active   int `json:"active"`
+		Ultimate int `json:"ultimate"`
+		Passive  int `json:"passive"`
+	} `json:"loadout"`
+	Powers []PowerDef `json:"powers"`
+}
+
+// RankFor returns the proficiency rank definition reached with the given points.
+func (pc *PowerConfig) RankFor(points int) RankDef {
+	r := pc.Proficiency.Ranks[0]
+	for _, x := range pc.Proficiency.Ranks {
+		if points >= x.Points {
+			r = x
+		}
+	}
+	return r
+}
+
+type Recipe struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Inputs []struct {
+		ItemID   string `json:"itemId"`
+		Quantity int    `json:"quantity"`
+	} `json:"inputs"`
+	Output struct {
+		ItemID   string `json:"itemId"`
+		Quantity int    `json:"quantity"`
+	} `json:"output"`
+}
 
 type WeaponDef struct {
 	ID                string      `json:"id"`
@@ -84,6 +234,8 @@ type MonsterDef struct {
 	PatrolRadius     float64 `json:"patrolRadius"`
 	RespawnMs        float64 `json:"respawnMs"`
 	CorpseMs         float64 `json:"corpseMs"`
+	Passive          bool    `json:"passive,omitempty"` // never aggroes/attacks (training dummy)
+	NoLoot           bool    `json:"noLoot,omitempty"`
 }
 
 type PlayerBase struct {
@@ -130,6 +282,8 @@ type ItemTemplate struct {
 	Tradable      bool     `json:"tradable"`
 	GmOnly        bool     `json:"gmOnly"`
 	Use           *ItemUse `json:"use,omitempty"`
+	WeaponType    string   `json:"weaponType,omitempty"`
+	PowerID       string   `json:"powerId,omitempty"`
 }
 
 type DropItem struct {
@@ -163,7 +317,8 @@ type Progression struct {
 		ItemID   string `json:"itemId"`
 		Quantity int    `json:"quantity"`
 	} `json:"starterItems"`
-	MaxCharactersPerAccount int `json:"maxCharactersPerAccount"`
+	MaxCharactersPerAccount int               `json:"maxCharactersPerAccount"`
+	StarterWeaponItems      map[string]string `json:"starterWeaponItems"`
 }
 
 // XPToNext returns the XP needed to go from level to level+1 ([TUNING] curve).
@@ -179,6 +334,12 @@ type MapData struct {
 	Collision     []uint8
 	PlayerSpawn   [2]float64
 	MonsterSpawns []MonsterSpawn
+	NPCs          []NPC
+}
+
+type NPC struct {
+	ID, Name string
+	X, Y     float64
 }
 
 type MonsterSpawn struct {
@@ -196,6 +357,27 @@ type Content struct {
 	Drops                map[string]*DropTable // by monster id
 	MinContributionShare float64
 	Progression          Progression
+	Statuses             map[string]StatusDef
+	Powers               *PowerConfig
+	Recipes              map[string]*Recipe
+}
+
+func (c *Content) Power(id string) *PowerDef {
+	for i := range c.Powers.Powers {
+		if c.Powers.Powers[i].ID == id {
+			return &c.Powers.Powers[i]
+		}
+	}
+	return nil
+}
+
+func (c *Content) NPC(id string) *NPC {
+	for i := range c.Map.NPCs {
+		if c.Map.NPCs[i].ID == id {
+			return &c.Map.NPCs[i]
+		}
+	}
+	return nil
 }
 
 func (c *Content) Weapon(id string) *WeaponDef {
@@ -268,6 +450,17 @@ func parseMap(t tiledMap) (*MapData, error) {
 				case "player_spawn":
 					m.PlayerSpawn = [2]float64{o.X, o.Y}
 					foundSpawn = true
+				case "npc":
+					n := NPC{X: o.X, Y: o.Y}
+					for _, p := range o.Properties {
+						switch p.Name {
+						case "npcId":
+							n.ID = fmt.Sprint(p.Value)
+						case "displayName":
+							n.Name = fmt.Sprint(p.Value)
+						}
+					}
+					m.NPCs = append(m.NPCs, n)
 				case "monster_spawn":
 					s := MonsterSpawn{ID: o.Name, X: o.X, Y: o.Y}
 					for _, p := range o.Properties {
@@ -291,7 +484,21 @@ func parseMap(t tiledMap) (*MapData, error) {
 
 // Load reads and validates all content under dir (the repository's game-data folder).
 func Load(dir string) (*Content, error) {
-	c := &Content{Monsters: map[string]*MonsterDef{}, Items: map[string]*ItemTemplate{}, Drops: map[string]*DropTable{}}
+	c := &Content{Monsters: map[string]*MonsterDef{}, Items: map[string]*ItemTemplate{}, Drops: map[string]*DropTable{},
+		Statuses: map[string]StatusDef{}, Recipes: map[string]*Recipe{}}
+	var sts struct {
+		Statuses []StatusDef `json:"statuses"`
+	}
+	if err := readJSON(dir, "weapons/statuses.json", &sts); err != nil {
+		return nil, err
+	}
+	for _, s := range sts.Statuses {
+		c.Statuses[s.ID] = s
+	}
+	c.Powers = &PowerConfig{}
+	if err := readJSON(dir, "powers/powers.json", c.Powers); err != nil {
+		return nil, err
+	}
 	var w struct {
 		Weapons []WeaponDef `json:"weapons"`
 	}
@@ -332,6 +539,7 @@ func Load(dir string) (*Content, error) {
 	var dr struct {
 		MinContributionShare float64     `json:"minContributionShare"`
 		Tables               []DropTable `json:"tables"`
+		Recipes              []Recipe    `json:"recipes"`
 	}
 	if err := readJSON(dir, "drops/phase2-drops.json", &dr); err != nil {
 		return nil, err
@@ -339,6 +547,9 @@ func Load(dir string) (*Content, error) {
 	c.MinContributionShare = dr.MinContributionShare
 	for i := range dr.Tables {
 		c.Drops[dr.Tables[i].MonsterID] = &dr.Tables[i]
+	}
+	for i := range dr.Recipes {
+		c.Recipes[dr.Recipes[i].ID] = &dr.Recipes[i]
 	}
 	if err := readJSON(dir, "progression/progression.json", &c.Progression); err != nil {
 		return nil, err
@@ -388,6 +599,48 @@ func (c *Content) Validate() []string {
 	for _, s := range c.Progression.StarterItems {
 		if c.Items[s.ItemID] == nil {
 			errs = append(errs, "starter item unknown "+s.ItemID)
+		}
+	}
+	for _, id := range lockedWeapons {
+		it := c.Items[c.Progression.StarterWeaponItems[id]]
+		if it == nil || it.WeaponType != id {
+			errs = append(errs, "starter weapon item missing for "+id)
+		}
+	}
+	// LOCKED §2.4: every Power has exactly 15 Active + 5 Ultimate + 5 Passive, unique ids
+	if len(c.Powers.Powers) < 6 {
+		errs = append(errs, "expected at least 6 powers")
+	}
+	seen := map[string]bool{}
+	for _, p := range c.Powers.Powers {
+		if len(p.Active) != 15 || len(p.Ultimate) != 5 || len(p.Passive) != 5 {
+			errs = append(errs, fmt.Sprintf("power %s has %d/%d/%d skills (must be 15/5/5)", p.ID, len(p.Active), len(p.Ultimate), len(p.Passive)))
+		}
+		if it := c.Items[p.FruitItemID]; it == nil || it.PowerID != p.ID {
+			errs = append(errs, "fruit item missing for power "+p.ID)
+		}
+		for _, l := range [][]ActionDef{p.Active, p.Ultimate, p.Passive} {
+			for _, s := range l {
+				if seen[s.ID] {
+					errs = append(errs, "duplicate power skill "+s.ID)
+				}
+				seen[s.ID] = true
+			}
+		}
+	}
+	for _, r := range c.Recipes {
+		for _, in := range r.Inputs {
+			if c.Items[in.ItemID] == nil {
+				errs = append(errs, "recipe "+r.ID+" unknown input "+in.ItemID)
+			}
+		}
+		if c.Items[r.Output.ItemID] == nil {
+			errs = append(errs, "recipe "+r.ID+" unknown output")
+		}
+	}
+	for _, n := range c.Map.NPCs {
+		if n.ID == "" || c.Map.Collision[int(n.Y/c.Map.TileSize)*c.Map.Width+int(n.X/c.Map.TileSize)] == 1 {
+			errs = append(errs, "npc "+n.Name+" invalid or inside a wall")
 		}
 	}
 	return errs

@@ -1,18 +1,80 @@
 {
-  "contentVersion": "phase1-0.1.0",
-  "_note": "[TUNING] placeholder stats for Phase 1 prototype only. Not final balance.",
-  "monsters": [
-    {
-      "id": "MON-SLIME-001", "name": "Green Slime", "tier": "Normal", "level": 1, "sprite": "slime",
-      "maxHp": 120, "attack": 14, "defense": 2, "critChance": 0.05, "moveSpeed": 38, "chaseSpeed": 52, "radius": 7,
-      "aggroRadius": 80, "leashRadius": 190, "attackRange": 15, "attackWindupMs": 520, "attackRecoveryMs": 380,
-      "attackCooldownMs": 1300, "alertMs": 450, "patrolRadius": 40, "respawnMs": 5000, "corpseMs": 900
-    },
-    {
-      "id": "MON-WOLF-001", "name": "Grey Wolf", "tier": "Normal", "level": 2, "sprite": "wolf",
-      "maxHp": 220, "attack": 22, "defense": 6, "critChance": 0.08, "moveSpeed": 50, "chaseSpeed": 78, "radius": 8,
-      "aggroRadius": 105, "leashRadius": 230, "attackRange": 17, "attackWindupMs": 380, "attackRecoveryMs": 300,
-      "attackCooldownMs": 1050, "alertMs": 350, "patrolRadius": 56, "respawnMs": 7000, "corpseMs": 900
-    }
-  ]
+ "contentVersion": "phase1-0.1.0",
+ "_note": "[TUNING] placeholder stats for Phase 1 prototype only. Not final balance.",
+ "monsters": [
+  {
+   "id": "MON-SLIME-001",
+   "name": "Green Slime",
+   "tier": "Normal",
+   "level": 1,
+   "sprite": "slime",
+   "maxHp": 120,
+   "attack": 14,
+   "defense": 2,
+   "critChance": 0.05,
+   "moveSpeed": 38,
+   "chaseSpeed": 52,
+   "radius": 7,
+   "aggroRadius": 80,
+   "leashRadius": 190,
+   "attackRange": 15,
+   "attackWindupMs": 520,
+   "attackRecoveryMs": 380,
+   "attackCooldownMs": 1300,
+   "alertMs": 450,
+   "patrolRadius": 40,
+   "respawnMs": 5000,
+   "corpseMs": 900
+  },
+  {
+   "id": "MON-WOLF-001",
+   "name": "Grey Wolf",
+   "tier": "Normal",
+   "level": 2,
+   "sprite": "wolf",
+   "maxHp": 220,
+   "attack": 22,
+   "defense": 6,
+   "critChance": 0.08,
+   "moveSpeed": 50,
+   "chaseSpeed": 78,
+   "radius": 8,
+   "aggroRadius": 105,
+   "leashRadius": 230,
+   "attackRange": 17,
+   "attackWindupMs": 380,
+   "attackRecoveryMs": 300,
+   "attackCooldownMs": 1050,
+   "alertMs": 350,
+   "patrolRadius": 56,
+   "respawnMs": 7000,
+   "corpseMs": 900
+  },
+  {
+   "id": "MON-DUMMY-001",
+   "name": "Training Dummy",
+   "tier": "Normal",
+   "level": 1,
+   "sprite": "dummy",
+   "maxHp": 3000,
+   "attack": 0,
+   "defense": 5,
+   "critChance": 0,
+   "moveSpeed": 0,
+   "chaseSpeed": 0,
+   "radius": 8,
+   "aggroRadius": 1,
+   "leashRadius": 2,
+   "attackRange": 0,
+   "attackWindupMs": 1000,
+   "attackRecoveryMs": 1000,
+   "attackCooldownMs": 99999,
+   "alertMs": 99999,
+   "patrolRadius": 0,
+   "respawnMs": 2000,
+   "corpseMs": 500,
+   "passive": true,
+   "noLoot": true
+  }
+ ]
 }

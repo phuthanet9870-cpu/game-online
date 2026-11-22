@@ -1,0 +1,53 @@
+{
+ "contentVersion": "phase3-0.1.0",
+ "_note": "[TUNING] status definitions. dot.modifier is a fraction of the source's attack per tick.",
+ "statuses": [
+  {
+   "id": "guard_break",
+   "defenseMultiplier": 0.5
+  },
+  {
+   "id": "burn",
+   "dot": {
+    "tickMs": 500,
+    "modifier": 0.15
+   }
+  },
+  {
+   "id": "bleed",
+   "dot": {
+    "tickMs": 500,
+    "modifier": 0.12
+   }
+  },
+  {
+   "id": "slow",
+   "speedMultiplier": 0.5
+  },
+  {
+   "id": "stun",
+   "stun": true
+  },
+  {
+   "id": "root",
+   "root": true
+  },
+  {
+   "id": "mark",
+   "damageTakenMultiplier": 1.2
+  },
+  {
+   "id": "shield",
+   "shieldPctMaxHp": 0.3
+  },
+  {
+   "id": "stealth",
+   "stealth": true
+  },
+  {
+   "id": "channel_regen",
+   "energyRegenPerSec": 30,
+   "staminaRegenPerSec": 30
+  }
+ ]
+}

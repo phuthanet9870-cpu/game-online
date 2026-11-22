@@ -374,26 +374,7 @@ func (s *Store) ConsumeItem(ctx context.Context, txID string, charID int64, temp
 		if err := claim(ctx, tx, txID, "consume", charID); err != nil {
 			return err
 		}
-		var have int
-		err := tx.QueryRow(ctx, `select quantity from item_instances where character_id = $1 and template_id = $2 for update`, charID, templateID).Scan(&have)
-		if errors.Is(err, pgx.ErrNoRows) || (err == nil && have < qty) {
-			return ErrInsufficient
-		}
-		if err != nil {
-			return err
-		}
-		after := have - qty
-		if after == 0 {
-			_, err = tx.Exec(ctx, `delete from item_instances where character_id = $1 and template_id = $2`, charID, templateID)
-		} else {
-			_, err = tx.Exec(ctx, `update item_instances set quantity = $3, version = version + 1 where character_id = $1 and template_id = $2`, charID, templateID, after)
-		}
-		if err != nil {
-			return err
-		}
-		_, err = tx.Exec(ctx, `insert into item_ledger(tx_id, character_id, template_id, delta, qty_after, reason) values ($1,$2,$3,$4,$5,$6)`,
-			txID, charID, templateID, -qty, after, reason)
-		return err
+		return consumeTx(ctx, tx, txID, charID, templateID, qty, reason)
 	})
 }
 

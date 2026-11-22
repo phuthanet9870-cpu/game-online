@@ -66,6 +66,11 @@ for (let y = 15; y < 19; y++) set(11, y, T.WALL, 1);
 
 const objects = [
   { id: 1, name: 'player_spawn', type: 'player_spawn', x: 7 * TS + 8, y: 19 * TS + 8 },
+  // Phase 3 stand-in for the city NPC (moves to Aetheria Capital in Phase 4)
+  {
+    id: 2, name: 'npc_severer', type: 'npc', x: 4 * TS + 8, y: 16 * TS + 8,
+    properties: [{ name: 'npcId', type: 'string', value: 'severer' }, { name: 'displayName', type: 'string', value: 'The Severer' }],
+  },
   ...[
     [20, 18],
     [24, 23],

@@ -1,10 +1,192 @@
 {
-  "contentVersion": "phase2-0.1.0",
-  "_note": "Phase 2 starter subset of the 1,350-template catalog. IDs follow the catalog prefixes; DEV ids belong to the dev training map (not one of the 30 farm maps). Prices/stack sizes are [TUNING].",
-  "items": [
-    { "id": "TRD-DEV-001", "name": "Slime Gel", "category": "TRD", "rarity": "Common", "maxStack": 999, "sellPriceGold": 3, "tradable": true, "gmOnly": false },
-    { "id": "TRD-DEV-002", "name": "Wolf Fang", "category": "TRD", "rarity": "Common", "maxStack": 999, "sellPriceGold": 8, "tradable": true, "gmOnly": false },
-    { "id": "CON-001", "name": "Minor HP Potion", "category": "CON", "rarity": "Common", "maxStack": 99, "sellPriceGold": 2, "tradable": true, "gmOnly": false,
-      "use": { "healPctMaxHp": 0.3, "cooldownMs": 10000 } }
-  ]
+ "contentVersion": "phase3-0.1.0",
+ "_note": "Phase 2 starter subset of the 1,350-template catalog. IDs follow the catalog prefixes; DEV ids belong to the dev training map (not one of the 30 farm maps). Prices/stack sizes are [TUNING].",
+ "items": [
+  {
+   "id": "TRD-DEV-001",
+   "name": "Slime Gel",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 3,
+   "tradable": true,
+   "gmOnly": false
+  },
+  {
+   "id": "TRD-DEV-002",
+   "name": "Wolf Fang",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 8,
+   "tradable": true,
+   "gmOnly": false
+  },
+  {
+   "id": "CON-001",
+   "name": "Minor HP Potion",
+   "category": "CON",
+   "rarity": "Common",
+   "maxStack": 99,
+   "sellPriceGold": 2,
+   "tradable": true,
+   "gmOnly": false,
+   "use": {
+    "healPctMaxHp": 0.3,
+    "cooldownMs": 10000
+   }
+  },
+  {
+   "id": "WPN-STF-001",
+   "name": "Apprentice Staff",
+   "category": "WPN",
+   "rarity": "Common",
+   "maxStack": 1,
+   "sellPriceGold": 5,
+   "tradable": false,
+   "gmOnly": false,
+   "weaponType": "staff"
+  },
+  {
+   "id": "WPN-SWD-001",
+   "name": "Apprentice Sword",
+   "category": "WPN",
+   "rarity": "Common",
+   "maxStack": 1,
+   "sellPriceGold": 5,
+   "tradable": false,
+   "gmOnly": false,
+   "weaponType": "sword"
+  },
+  {
+   "id": "WPN-DGR-001",
+   "name": "Apprentice Dagger",
+   "category": "WPN",
+   "rarity": "Common",
+   "maxStack": 1,
+   "sellPriceGold": 5,
+   "tradable": false,
+   "gmOnly": false,
+   "weaponType": "dagger"
+  },
+  {
+   "id": "WPN-BOW-001",
+   "name": "Apprentice Bow",
+   "category": "WPN",
+   "rarity": "Common",
+   "maxStack": 1,
+   "sellPriceGold": 5,
+   "tradable": false,
+   "gmOnly": false,
+   "weaponType": "bow"
+  },
+  {
+   "id": "WPN-GRM-001",
+   "name": "Apprentice Grimoire",
+   "category": "WPN",
+   "rarity": "Common",
+   "maxStack": 1,
+   "sellPriceGold": 5,
+   "tradable": false,
+   "gmOnly": false,
+   "weaponType": "grimoire"
+  },
+  {
+   "id": "WPN-GNT-001",
+   "name": "Apprentice Gauntlet",
+   "category": "WPN",
+   "rarity": "Common",
+   "maxStack": 1,
+   "sellPriceGold": 5,
+   "tradable": false,
+   "gmOnly": false,
+   "weaponType": "gauntlet"
+  },
+  {
+   "id": "PWR-001",
+   "name": "Inferno Fruit",
+   "category": "PWR",
+   "rarity": "Legendary",
+   "maxStack": 1,
+   "sellPriceGold": 0,
+   "tradable": true,
+   "gmOnly": false,
+   "powerId": "inferno"
+  },
+  {
+   "id": "PWR-002",
+   "name": "Tempest Fruit",
+   "category": "PWR",
+   "rarity": "Legendary",
+   "maxStack": 1,
+   "sellPriceGold": 0,
+   "tradable": true,
+   "gmOnly": false,
+   "powerId": "tempest"
+  },
+  {
+   "id": "PWR-003",
+   "name": "Abyss Shadow Fruit",
+   "category": "PWR",
+   "rarity": "Legendary",
+   "maxStack": 1,
+   "sellPriceGold": 0,
+   "tradable": true,
+   "gmOnly": false,
+   "powerId": "abyss_shadow"
+  },
+  {
+   "id": "PWR-004",
+   "name": "Eternal Frost Fruit",
+   "category": "PWR",
+   "rarity": "Legendary",
+   "maxStack": 1,
+   "sellPriceGold": 0,
+   "tradable": true,
+   "gmOnly": false,
+   "powerId": "eternal_frost"
+  },
+  {
+   "id": "PWR-005",
+   "name": "Genesis Fruit",
+   "category": "PWR",
+   "rarity": "Legendary",
+   "maxStack": 1,
+   "sellPriceGold": 0,
+   "tradable": true,
+   "gmOnly": false,
+   "powerId": "genesis"
+  },
+  {
+   "id": "PWR-006",
+   "name": "Void Dominion Fruit",
+   "category": "PWR",
+   "rarity": "Legendary",
+   "maxStack": 1,
+   "sellPriceGold": 0,
+   "tradable": true,
+   "gmOnly": false,
+   "powerId": "void_dominion"
+  },
+  {
+   "id": "MAT-PWR-001",
+   "name": "Ember Fragment",
+   "category": "MAT",
+   "rarity": "Rare",
+   "maxStack": 999,
+   "sellPriceGold": 1,
+   "tradable": true,
+   "gmOnly": false
+  },
+  {
+   "id": "MAT-PWR-002",
+   "name": "Shadow Fragment",
+   "category": "MAT",
+   "rarity": "Rare",
+   "maxStack": 999,
+   "sellPriceGold": 1,
+   "tradable": true,
+   "gmOnly": false
+  }
+ ]
 }

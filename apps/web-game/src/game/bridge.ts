@@ -143,6 +143,11 @@ export const REJECT_TEXT: Record<RejectReason, string> = {
   dead: 'ตัวละครเสียชีวิต',
   full: 'HP เต็มแล้ว',
   'no-item': 'ไม่มีไอเทมนี้ในกระเป๋า',
+  energy: 'Power Energy ไม่พอ',
+  stance: 'ต้อง Activate The Power ก่อน (ช่อง 11)',
+  'no-power': 'ยังไม่ได้ผูก The Power',
+  weapon: 'อาวุธนี้ใช้กับพลังนี้ไม่ได้',
+  empty: 'ช่องนี้ยังไม่ได้ใส่สกิลพลัง',
 };
 
 /** Counts uncaught runtime errors for the QA gate. */

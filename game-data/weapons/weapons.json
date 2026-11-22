@@ -1,60 +1,687 @@
 {
-  "contentVersion": "phase1-0.1.0",
-  "_note": "All numbers are [TUNING] placeholders for Phase 1. Only 'sword' is implemented in Phase 1; other weapons are listed for data integrity (exactly 3 skills each) and become playable in Phase 3.",
-  "weapons": [
+ "contentVersion": "phase3-0.1.0",
+ "_note": "All numbers are [TUNING]. Six LOCKED weapon types, each with exactly 3 active skills + a separate basic attack. Shapes: arc | circle | projectile. move: dash | back | blink.",
+ "weapons": [
+  {
+   "id": "staff",
+   "name": "Staff",
+   "role": "เวทระยะกลาง",
+   "implemented": true,
+   "weaponCoefficient": 1.0,
+   "basicAttack": {
+    "id": "staff_basic",
+    "name": "Basic Attack",
+    "kind": "basic",
+    "description": "",
+    "cooldownMs": 520,
+    "staminaCost": 0,
+    "windupMs": 90,
+    "activeMs": 80,
+    "recoveryMs": 160,
+    "hits": [
+     {
+      "atMs": 90,
+      "shape": "projectile",
+      "speed": 220,
+      "range": 140,
+      "radius": 4,
+      "modifier": 0.9,
+      "knockback": 8
+     }
+    ]
+   },
+   "skills": [
     {
-      "id": "staff", "name": "Staff", "role": "เวทระยะกลาง", "implemented": false,
-      "skills": [{ "id": "staff_arcane_bolt", "name": "Arcane Bolt" }, { "id": "staff_magic_pulse", "name": "Magic Pulse" }, { "id": "staff_mana_channel", "name": "Mana Channel" }]
+     "id": "staff_arcane_bolt",
+     "name": "Arcane Bolt",
+     "kind": "projectile",
+     "description": "ลูกเวทพลังสูงยิงตรง",
+     "cooldownMs": 3500,
+     "staminaCost": 15,
+     "windupMs": 200,
+     "activeMs": 80,
+     "recoveryMs": 200,
+     "hits": [
+      {
+       "atMs": 200,
+       "shape": "projectile",
+       "speed": 260,
+       "range": 170,
+       "radius": 5,
+       "modifier": 2.0,
+       "knockback": 40
+      }
+     ]
     },
     {
-      "id": "sword", "name": "Sword", "role": "ระยะประชิด/Counter", "implemented": true,
-      "weaponCoefficient": 1.0,
-      "basicAttack": {
-        "id": "sword_basic", "name": "Basic Attack", "kind": "basic",
-        "cooldownMs": 420, "staminaCost": 0, "windupMs": 70, "activeMs": 90, "recoveryMs": 140,
-        "hits": [{ "atMs": 70, "shape": "arc", "radius": 30, "arcDeg": 120, "modifier": 1.0, "knockback": 36 }]
-      },
-      "skills": [
-        {
-          "id": "sword_triple_slash", "name": "Triple Slash", "kind": "multi-hit",
-          "description": "ฟัน 3 ครั้งต่อเนื่องด้านหน้า ครั้งสุดท้ายแรงขึ้น",
-          "cooldownMs": 4000, "staminaCost": 15, "windupMs": 90, "activeMs": 380, "recoveryMs": 180,
-          "hits": [
-            { "atMs": 90, "shape": "arc", "radius": 32, "arcDeg": 130, "modifier": 0.7, "knockback": 10 },
-            { "atMs": 230, "shape": "arc", "radius": 32, "arcDeg": 130, "modifier": 0.7, "knockback": 10 },
-            { "atMs": 380, "shape": "arc", "radius": 36, "arcDeg": 150, "modifier": 1.2, "knockback": 60 }
-          ]
-        },
-        {
-          "id": "sword_guard_break", "name": "Guard Break", "kind": "debuff",
-          "description": "ฟันหนัก ทำลายการ์ด: ลดเกราะเป้าหมาย 50% 4 วิ และขัดจังหวะท่าโจมตี",
-          "cooldownMs": 6000, "staminaCost": 20, "windupMs": 240, "activeMs": 100, "recoveryMs": 220,
-          "hits": [{ "atMs": 240, "shape": "arc", "radius": 34, "arcDeg": 90, "modifier": 1.6, "knockback": 80,
-                     "applyStatus": { "id": "guard_break", "durationMs": 4000, "defenseMultiplier": 0.5 }, "interrupt": true }]
-        },
-        {
-          "id": "sword_counter_slash", "name": "Counter Slash", "kind": "counter",
-          "description": "ตั้งท่ารับ 0.7 วิ หากถูกโจมตีระหว่างนั้น จะไม่รับดาเมจและสวนกลับแรง 2.5 เท่า",
-          "cooldownMs": 8000, "staminaCost": 10, "windupMs": 0, "activeMs": 700, "recoveryMs": 300,
-          "counter": { "stanceMs": 700, "radius": 40, "arcDeg": 200, "modifier": 2.5, "knockback": 90 }
-        }
-      ]
+     "id": "staff_magic_pulse",
+     "name": "Magic Pulse",
+     "kind": "aoe",
+     "description": "คลื่นเวทรอบตัว ผลักศัตรูออก",
+     "cooldownMs": 6000,
+     "staminaCost": 20,
+     "windupMs": 200,
+     "activeMs": 100,
+     "recoveryMs": 250,
+     "hits": [
+      {
+       "atMs": 200,
+       "shape": "circle",
+       "radius": 40,
+       "modifier": 1.2,
+       "knockback": 70
+      }
+     ]
     },
     {
-      "id": "dagger", "name": "Dagger", "role": "ลอบโจมตี/เคลื่อนที่", "implemented": false,
-      "skills": [{ "id": "dagger_shadow_step", "name": "Shadow Step" }, { "id": "dagger_backstab", "name": "Backstab" }, { "id": "dagger_blade_flurry", "name": "Blade Flurry" }]
-    },
-    {
-      "id": "bow", "name": "Bow", "role": "ยิงไกล/เว้นระยะ", "implemented": false,
-      "skills": [{ "id": "bow_piercing_arrow", "name": "Piercing Arrow" }, { "id": "bow_rapid_shot", "name": "Rapid Shot" }, { "id": "bow_evasive_shot", "name": "Evasive Shot" }]
-    },
-    {
-      "id": "grimoire", "name": "Grimoire", "role": "เวทสถานะ/สนับสนุน", "implemented": false,
-      "skills": [{ "id": "grimoire_rune_burst", "name": "Rune Burst" }, { "id": "grimoire_magic_seal", "name": "Magic Seal" }, { "id": "grimoire_mystic_ward", "name": "Mystic Ward" }]
-    },
-    {
-      "id": "gauntlet", "name": "Gauntlet", "role": "คอมโบ/ประชิด", "implemented": false,
-      "skills": [{ "id": "gauntlet_rising_fist", "name": "Rising Fist" }, { "id": "gauntlet_iron_combo", "name": "Iron Combo" }, { "id": "gauntlet_impact_smash", "name": "Impact Smash" }]
+     "id": "staff_mana_channel",
+     "name": "Mana Channel",
+     "kind": "self-buff",
+     "description": "ทำสมาธิ 1.1 วิ ฟื้น Power Energy และ Stamina อย่างรวดเร็ว",
+     "cooldownMs": 12000,
+     "staminaCost": 0,
+     "windupMs": 100,
+     "activeMs": 1100,
+     "recoveryMs": 200,
+     "hits": [],
+     "selfStatus": [
+      {
+       "atMs": 100,
+       "id": "channel_regen",
+       "durationMs": 1200
+      }
+     ]
     }
-  ]
+   ]
+  },
+  {
+   "id": "sword",
+   "name": "Sword",
+   "role": "ระยะประชิด/Counter",
+   "implemented": true,
+   "weaponCoefficient": 1.0,
+   "basicAttack": {
+    "id": "sword_basic",
+    "name": "Basic Attack",
+    "kind": "basic",
+    "cooldownMs": 420,
+    "staminaCost": 0,
+    "windupMs": 70,
+    "activeMs": 90,
+    "recoveryMs": 140,
+    "hits": [
+     {
+      "atMs": 70,
+      "shape": "arc",
+      "radius": 30,
+      "arcDeg": 120,
+      "modifier": 1.0,
+      "knockback": 36
+     }
+    ]
+   },
+   "skills": [
+    {
+     "id": "sword_triple_slash",
+     "name": "Triple Slash",
+     "kind": "multi-hit",
+     "description": "ฟัน 3 ครั้งต่อเนื่องด้านหน้า ครั้งสุดท้ายแรงขึ้น",
+     "cooldownMs": 4000,
+     "staminaCost": 15,
+     "windupMs": 90,
+     "activeMs": 380,
+     "recoveryMs": 180,
+     "hits": [
+      {
+       "atMs": 90,
+       "shape": "arc",
+       "radius": 32,
+       "arcDeg": 130,
+       "modifier": 0.7,
+       "knockback": 10
+      },
+      {
+       "atMs": 230,
+       "shape": "arc",
+       "radius": 32,
+       "arcDeg": 130,
+       "modifier": 0.7,
+       "knockback": 10
+      },
+      {
+       "atMs": 380,
+       "shape": "arc",
+       "radius": 36,
+       "arcDeg": 150,
+       "modifier": 1.2,
+       "knockback": 60
+      }
+     ]
+    },
+    {
+     "id": "sword_guard_break",
+     "name": "Guard Break",
+     "kind": "debuff",
+     "description": "ฟันหนัก ทำลายการ์ด: ลดเกราะเป้าหมาย 50% 4 วิ และขัดจังหวะท่าโจมตี",
+     "cooldownMs": 6000,
+     "staminaCost": 20,
+     "windupMs": 240,
+     "activeMs": 100,
+     "recoveryMs": 220,
+     "hits": [
+      {
+       "atMs": 240,
+       "shape": "arc",
+       "radius": 34,
+       "arcDeg": 90,
+       "modifier": 1.6,
+       "knockback": 80,
+       "applyStatus": {
+        "id": "guard_break",
+        "durationMs": 4000,
+        "defenseMultiplier": 0.5
+       },
+       "interrupt": true
+      }
+     ]
+    },
+    {
+     "id": "sword_counter_slash",
+     "name": "Counter Slash",
+     "kind": "counter",
+     "description": "ตั้งท่ารับ 0.7 วิ หากถูกโจมตีระหว่างนั้น จะไม่รับดาเมจและสวนกลับแรง 2.5 เท่า",
+     "cooldownMs": 8000,
+     "staminaCost": 10,
+     "windupMs": 0,
+     "activeMs": 700,
+     "recoveryMs": 300,
+     "counter": {
+      "stanceMs": 700,
+      "radius": 40,
+      "arcDeg": 200,
+      "modifier": 2.5,
+      "knockback": 90
+     }
+    }
+   ]
+  },
+  {
+   "id": "dagger",
+   "name": "Dagger",
+   "role": "ลอบโจมตี/เคลื่อนที่",
+   "implemented": true,
+   "weaponCoefficient": 1.0,
+   "basicAttack": {
+    "id": "dagger_basic",
+    "name": "Basic Attack",
+    "kind": "basic",
+    "description": "",
+    "cooldownMs": 300,
+    "staminaCost": 0,
+    "windupMs": 50,
+    "activeMs": 70,
+    "recoveryMs": 110,
+    "hits": [
+     {
+      "atMs": 50,
+      "shape": "arc",
+      "radius": 24,
+      "arcDeg": 100,
+      "modifier": 0.6,
+      "knockback": 12
+     }
+    ]
+   },
+   "skills": [
+    {
+     "id": "dagger_shadow_step",
+     "name": "Shadow Step",
+     "kind": "dash-strike",
+     "description": "พุ่งเข้าหาจุดเล็ง (สูงสุด 72px, อมตะระหว่างพุ่ง) แล้วฟันรอบตัวที่จุดลง",
+     "cooldownMs": 5000,
+     "staminaCost": 15,
+     "windupMs": 40,
+     "activeMs": 180,
+     "recoveryMs": 140,
+     "hits": [
+      {
+       "atMs": 180,
+       "shape": "circle",
+       "radius": 30,
+       "modifier": 1.3,
+       "knockback": 20
+      }
+     ],
+     "move": {
+      "atMs": 40,
+      "type": "dash",
+      "distance": 72,
+      "durationMs": 140,
+      "iframes": true,
+      "toAim": true
+     }
+    },
+    {
+     "id": "dagger_backstab",
+     "name": "Backstab",
+     "kind": "single",
+     "description": "แทงแรง ×1.75 ถ้าโจมตีจากด้านหลังเป้าหมาย",
+     "cooldownMs": 6000,
+     "staminaCost": 15,
+     "windupMs": 120,
+     "activeMs": 80,
+     "recoveryMs": 180,
+     "hits": [
+      {
+       "atMs": 120,
+       "shape": "arc",
+       "radius": 26,
+       "arcDeg": 80,
+       "modifier": 1.8,
+       "knockback": 20,
+       "bonusBehind": 1.75
+      }
+     ]
+    },
+    {
+     "id": "dagger_blade_flurry",
+     "name": "Blade Flurry",
+     "kind": "multi-hit",
+     "description": "ฟันรัว 5 ครั้ง",
+     "cooldownMs": 7000,
+     "staminaCost": 20,
+     "windupMs": 60,
+     "activeMs": 400,
+     "recoveryMs": 160,
+     "hits": [
+      {
+       "atMs": 60,
+       "shape": "arc",
+       "radius": 26,
+       "arcDeg": 120,
+       "modifier": 0.45,
+       "knockback": 4
+      },
+      {
+       "atMs": 150,
+       "shape": "arc",
+       "radius": 26,
+       "arcDeg": 120,
+       "modifier": 0.45,
+       "knockback": 4
+      },
+      {
+       "atMs": 240,
+       "shape": "arc",
+       "radius": 26,
+       "arcDeg": 120,
+       "modifier": 0.45,
+       "knockback": 4
+      },
+      {
+       "atMs": 330,
+       "shape": "arc",
+       "radius": 26,
+       "arcDeg": 120,
+       "modifier": 0.45,
+       "knockback": 4
+      },
+      {
+       "atMs": 420,
+       "shape": "arc",
+       "radius": 26,
+       "arcDeg": 120,
+       "modifier": 0.45,
+       "knockback": 4
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "bow",
+   "name": "Bow",
+   "role": "ยิงไกล/เว้นระยะ",
+   "implemented": true,
+   "weaponCoefficient": 1.0,
+   "basicAttack": {
+    "id": "bow_basic",
+    "name": "Basic Attack",
+    "kind": "basic",
+    "description": "",
+    "cooldownMs": 480,
+    "staminaCost": 0,
+    "windupMs": 100,
+    "activeMs": 60,
+    "recoveryMs": 160,
+    "hits": [
+     {
+      "atMs": 100,
+      "shape": "projectile",
+      "speed": 300,
+      "range": 190,
+      "radius": 4,
+      "modifier": 0.85,
+      "knockback": 8
+     }
+    ]
+   },
+   "skills": [
+    {
+     "id": "bow_piercing_arrow",
+     "name": "Piercing Arrow",
+     "kind": "projectile",
+     "description": "ลูกธนูทะลุทุกเป้าในแนว",
+     "cooldownMs": 5000,
+     "staminaCost": 15,
+     "windupMs": 250,
+     "activeMs": 80,
+     "recoveryMs": 200,
+     "hits": [
+      {
+       "atMs": 250,
+       "shape": "projectile",
+       "speed": 340,
+       "range": 230,
+       "radius": 4,
+       "modifier": 1.8,
+       "knockback": 20,
+       "pierce": true
+      }
+     ]
+    },
+    {
+     "id": "bow_rapid_shot",
+     "name": "Rapid Shot",
+     "kind": "multi-hit",
+     "description": "ยิงต่อเนื่อง 3 ดอก",
+     "cooldownMs": 6000,
+     "staminaCost": 18,
+     "windupMs": 80,
+     "activeMs": 300,
+     "recoveryMs": 160,
+     "hits": [
+      {
+       "atMs": 80,
+       "shape": "projectile",
+       "speed": 320,
+       "range": 200,
+       "radius": 4,
+       "modifier": 0.7,
+       "knockback": 8
+      },
+      {
+       "atMs": 210,
+       "shape": "projectile",
+       "speed": 320,
+       "range": 200,
+       "radius": 4,
+       "modifier": 0.7,
+       "knockback": 8
+      },
+      {
+       "atMs": 340,
+       "shape": "projectile",
+       "speed": 320,
+       "range": 200,
+       "radius": 4,
+       "modifier": 0.7,
+       "knockback": 8
+      }
+     ]
+    },
+    {
+     "id": "bow_evasive_shot",
+     "name": "Evasive Shot",
+     "kind": "dash-strike",
+     "description": "กระโดดถอย 60px (อมตะ) พร้อมยิง",
+     "cooldownMs": 7000,
+     "staminaCost": 20,
+     "windupMs": 0,
+     "activeMs": 200,
+     "recoveryMs": 140,
+     "hits": [
+      {
+       "atMs": 60,
+       "shape": "projectile",
+       "speed": 320,
+       "range": 200,
+       "radius": 4,
+       "modifier": 1.1,
+       "knockback": 8
+      }
+     ],
+     "move": {
+      "atMs": 0,
+      "type": "back",
+      "distance": 60,
+      "durationMs": 160,
+      "iframes": true
+     }
+    }
+   ]
+  },
+  {
+   "id": "grimoire",
+   "name": "Grimoire",
+   "role": "เวทสถานะ/สนับสนุน",
+   "implemented": true,
+   "weaponCoefficient": 1.0,
+   "basicAttack": {
+    "id": "grimoire_basic",
+    "name": "Basic Attack",
+    "kind": "basic",
+    "description": "",
+    "cooldownMs": 500,
+    "staminaCost": 0,
+    "windupMs": 100,
+    "activeMs": 60,
+    "recoveryMs": 160,
+    "hits": [
+     {
+      "atMs": 100,
+      "shape": "projectile",
+      "speed": 200,
+      "range": 130,
+      "radius": 4,
+      "modifier": 0.85,
+      "knockback": 8
+     }
+    ]
+   },
+   "skills": [
+    {
+     "id": "grimoire_rune_burst",
+     "name": "Rune Burst",
+     "kind": "ground-aoe",
+     "description": "ระเบิดรูนที่จุดเล็ง (ระยะ 120)",
+     "cooldownMs": 5000,
+     "staminaCost": 15,
+     "windupMs": 300,
+     "activeMs": 80,
+     "recoveryMs": 200,
+     "hits": [
+      {
+       "atMs": 300,
+       "shape": "circle",
+       "radius": 32,
+       "modifier": 1.6,
+       "knockback": 20,
+       "atAim": true,
+       "range": 120
+      }
+     ]
+    },
+    {
+     "id": "grimoire_magic_seal",
+     "name": "Magic Seal",
+     "kind": "projectile",
+     "description": "ผนึกเวท ทำให้เป้าหมายมึน 1.2 วิ",
+     "cooldownMs": 9000,
+     "staminaCost": 15,
+     "windupMs": 150,
+     "activeMs": 60,
+     "recoveryMs": 200,
+     "hits": [
+      {
+       "atMs": 150,
+       "shape": "projectile",
+       "speed": 240,
+       "range": 160,
+       "radius": 4,
+       "modifier": 0.8,
+       "knockback": 8,
+       "applyStatus": {
+        "id": "stun",
+        "durationMs": 1200
+       }
+      }
+     ]
+    },
+    {
+     "id": "grimoire_mystic_ward",
+     "name": "Mystic Ward",
+     "kind": "self-buff",
+     "description": "โล่ดูดซับ 30% ของ HP สูงสุด 5 วิ",
+     "cooldownMs": 14000,
+     "staminaCost": 10,
+     "windupMs": 100,
+     "activeMs": 60,
+     "recoveryMs": 150,
+     "hits": [],
+     "selfStatus": [
+      {
+       "atMs": 100,
+       "id": "shield",
+       "durationMs": 5000
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "gauntlet",
+   "name": "Gauntlet",
+   "role": "คอมโบ/ประชิด",
+   "implemented": true,
+   "weaponCoefficient": 1.0,
+   "basicAttack": {
+    "id": "gauntlet_basic",
+    "name": "Basic Attack",
+    "kind": "basic",
+    "description": "",
+    "cooldownMs": 280,
+    "staminaCost": 0,
+    "windupMs": 40,
+    "activeMs": 60,
+    "recoveryMs": 100,
+    "hits": [
+     {
+      "atMs": 40,
+      "shape": "arc",
+      "radius": 22,
+      "arcDeg": 110,
+      "modifier": 0.55,
+      "knockback": 10
+     }
+    ]
+   },
+   "skills": [
+    {
+     "id": "gauntlet_rising_fist",
+     "name": "Rising Fist",
+     "kind": "single",
+     "description": "อัปเปอร์คัต ทำให้มึน 0.6 วิ",
+     "cooldownMs": 6000,
+     "staminaCost": 15,
+     "windupMs": 120,
+     "activeMs": 80,
+     "recoveryMs": 180,
+     "hits": [
+      {
+       "atMs": 120,
+       "shape": "arc",
+       "radius": 26,
+       "arcDeg": 100,
+       "modifier": 1.4,
+       "knockback": 30,
+       "applyStatus": {
+        "id": "stun",
+        "durationMs": 600
+       }
+      }
+     ]
+    },
+    {
+     "id": "gauntlet_iron_combo",
+     "name": "Iron Combo",
+     "kind": "multi-hit",
+     "description": "คอมโบ 4 หมัด หมัดสุดท้ายแรงขึ้น",
+     "cooldownMs": 6000,
+     "staminaCost": 18,
+     "windupMs": 60,
+     "activeMs": 360,
+     "recoveryMs": 160,
+     "hits": [
+      {
+       "atMs": 60,
+       "shape": "arc",
+       "radius": 24,
+       "arcDeg": 110,
+       "modifier": 0.55,
+       "knockback": 6
+      },
+      {
+       "atMs": 170,
+       "shape": "arc",
+       "radius": 24,
+       "arcDeg": 110,
+       "modifier": 0.55,
+       "knockback": 6
+      },
+      {
+       "atMs": 280,
+       "shape": "arc",
+       "radius": 24,
+       "arcDeg": 110,
+       "modifier": 0.55,
+       "knockback": 6
+      },
+      {
+       "atMs": 390,
+       "shape": "arc",
+       "radius": 24,
+       "arcDeg": 110,
+       "modifier": 1.0,
+       "knockback": 50
+      }
+     ]
+    },
+    {
+     "id": "gauntlet_impact_smash",
+     "name": "Impact Smash",
+     "kind": "aoe",
+     "description": "ทุบพื้น ทำให้ศัตรูรอบตัวช้าลง",
+     "cooldownMs": 8000,
+     "staminaCost": 22,
+     "windupMs": 280,
+     "activeMs": 100,
+     "recoveryMs": 220,
+     "hits": [
+      {
+       "atMs": 280,
+       "shape": "circle",
+       "radius": 42,
+       "modifier": 1.5,
+       "knockback": 40,
+       "applyStatus": {
+        "id": "slow",
+        "durationMs": 2500
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
 }

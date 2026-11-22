@@ -1,0 +1,499 @@
+{
+ "name": "bow-projectiles",
+ "seed": 11,
+ "weapon": "bow",
+ "spawns": [
+  [
+   "w1",
+   "MON-WOLF-001",
+   [
+    8,
+    7
+   ]
+  ],
+  [
+   "d1",
+   "MON-DUMMY-001",
+   [
+    9,
+    7
+   ]
+  ]
+ ],
+ "steps": 500,
+ "dtMs": 33.333333333333336,
+ "inputs": [
+  {
+   "step": 10,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 30,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "skill1"
+    }
+   ]
+  },
+  {
+   "step": 50,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 70,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "skill2"
+    }
+   ]
+  },
+  {
+   "step": 90,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 110,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "skill3"
+    }
+   ]
+  },
+  {
+   "step": 130,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 150,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "skill1"
+    }
+   ]
+  },
+  {
+   "step": 170,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 190,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "skill2"
+    }
+   ]
+  },
+  {
+   "step": 210,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 230,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "skill3"
+    }
+   ]
+  },
+  {
+   "step": 250,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 270,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "skill1"
+    }
+   ]
+  },
+  {
+   "step": 290,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 310,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "skill2"
+    }
+   ]
+  },
+  {
+   "step": 330,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 350,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "skill3"
+    }
+   ]
+  },
+  {
+   "step": 370,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 390,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "skill1"
+    }
+   ]
+  },
+  {
+   "step": 410,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 430,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "skill2"
+    }
+   ]
+  },
+  {
+   "step": 450,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 470,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "skill3"
+    }
+   ]
+  },
+  {
+   "step": 490,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  }
+ ],
+ "events": [
+  "33.333 ai w1 IDLE-\u003eALERT",
+  "400.000 ai w1 ALERT-\u003eCHASE",
+  "666.667 damage player-\u003ew1 15 false bow_basic",
+  "1233.333 ai w1 CHASE-\u003eATTACK",
+  "1333.333 damage player-\u003ew1 32 false bow_piercing_arrow",
+  "1533.333 damage player-\u003ed1 33 false bow_piercing_arrow",
+  "1933.333 ai w1 ATTACK-\u003eCHASE",
+  "1966.667 damage player-\u003ew1 15 false bow_basic",
+  "2366.667 ai w1 CHASE-\u003eATTACK",
+  "2500.000 damage player-\u003ew1 13 false bow_rapid_shot",
+  "2666.667 damage player-\u003ew1 13 false bow_rapid_shot",
+  "2833.333 damage player-\u003ew1 19 true bow_rapid_shot",
+  "3066.667 ai w1 ATTACK-\u003eCHASE",
+  "3233.333 damage player-\u003ew1 15 false bow_basic",
+  "3600.000 ai w1 CHASE-\u003eATTACK",
+  "3900.000 damage player-\u003ew1 20 false bow_evasive_shot",
+  "4300.000 ai w1 ATTACK-\u003eCHASE",
+  "4633.333 damage player-\u003ew1 15 false bow_basic",
+  "5033.333 rejected skill1 cooldown",
+  "5033.333 ai w1 CHASE-\u003eATTACK",
+  "5433.333 damage w1-\u003eplayer 20 false MON-WOLF-001:attack",
+  "5733.333 ai w1 ATTACK-\u003eCHASE",
+  "5866.667 damage player-\u003ew1 15 false bow_basic",
+  "6100.000 ai w1 CHASE-\u003eATTACK",
+  "6366.667 rejected skill2 cooldown",
+  "6500.000 damage w1-\u003eplayer 20 false MON-WOLF-001:attack",
+  "6800.000 ai w1 ATTACK-\u003eCHASE",
+  "7166.667 ai w1 CHASE-\u003eATTACK",
+  "7200.000 damage player-\u003ew1 15 false bow_basic",
+  "7566.667 damage w1-\u003eplayer 20 false MON-WOLF-001:attack",
+  "7700.000 rejected skill3 cooldown",
+  "7866.667 ai w1 ATTACK-\u003eCHASE",
+  "8233.333 ai w1 CHASE-\u003eATTACK",
+  "8500.000 damage player-\u003ew1 15 false bow_basic",
+  "8633.333 damage w1-\u003eplayer 20 false MON-WOLF-001:attack",
+  "8933.333 ai w1 ATTACK-\u003eCHASE",
+  "9300.000 damage player-\u003ew1 32 false bow_piercing_arrow",
+  "9300.000 ai w1 CHASE-\u003eDEAD",
+  "9300.000 death w1",
+  "9700.000 damage player-\u003ed1 33 false bow_piercing_arrow",
+  "13033.333 rejected skill1 cooldown",
+  "14366.667 rejected skill2 cooldown",
+  "15700.000 rejected skill3 cooldown",
+  "16300.000 ai w1 DEAD-\u003eIDLE",
+  "16300.000 respawn w1"
+ ]
+}

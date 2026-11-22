@@ -1,0 +1,663 @@
+{
+ "name": "sword-vs-slime-wolf",
+ "seed": 7,
+ "weapon": "sword",
+ "spawns": [
+  [
+   "s1",
+   "MON-SLIME-001",
+   [
+    6,
+    6
+   ]
+  ],
+  [
+   "w1",
+   "MON-WOLF-001",
+   [
+    8,
+    7
+   ]
+  ]
+ ],
+ "steps": 600,
+ "dtMs": 33.333333333333336,
+ "inputs": [
+  {
+   "step": 0,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 1,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 2,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 3,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 4,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 5,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 6,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 7,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 8,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 9,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 10,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 11,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 12,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 13,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 14,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 15,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 16,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 17,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 18,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 19,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 20,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 21,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 22,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 23,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 24,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 25,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 26,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 27,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 28,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 29,
+   "move": [
+    1,
+    0
+   ]
+  },
+  {
+   "step": 40,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    104,
+    104
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 60,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    104,
+    104
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "skill1"
+    }
+   ]
+  },
+  {
+   "step": 90,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    104,
+    104
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "skill2"
+    }
+   ]
+  },
+  {
+   "step": 120,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    104,
+    104
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 150,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    104,
+    104
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "skill3"
+    }
+   ]
+  },
+  {
+   "step": 200,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    104,
+    104
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 230,
+   "move": [
+    0,
+    1
+   ],
+   "actions": [
+    {
+     "type": "dash"
+    }
+   ]
+  },
+  {
+   "step": 240,
+   "move": [
+    0,
+    0
+   ]
+  },
+  {
+   "step": 260,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 285,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 310,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 335,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 360,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 385,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 410,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 435,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 460,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 485,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 510,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 535,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 560,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  },
+  {
+   "step": 585,
+   "move": [
+    0,
+    0
+   ],
+   "aim": [
+    136,
+    120
+   ],
+   "actions": [
+    {
+     "type": "attack",
+     "slot": "basic"
+    }
+   ]
+  }
+ ],
+ "events": [
+  "33.333 ai s1 IDLE-\u003eALERT",
+  "33.333 ai w1 IDLE-\u003eALERT",
+  "400.000 ai w1 ALERT-\u003eCHASE",
+  "500.000 ai s1 ALERT-\u003eCHASE",
+  "533.333 ai s1 CHASE-\u003eATTACK",
+  "533.333 ai w1 CHASE-\u003eATTACK",
+  "933.333 damage w1-\u003eplayer 30 true MON-WOLF-001:attack",
+  "1066.667 damage s1-\u003eplayer 13 false MON-SLIME-001:attack",
+  "1233.333 ai w1 ATTACK-\u003eCHASE",
+  "1466.667 damage player-\u003es1 19 false sword_basic",
+  "1466.667 damage player-\u003ew1 18 false sword_basic",
+  "1466.667 ai s1 ATTACK-\u003eCHASE",
+  "1966.667 ai w1 CHASE-\u003eATTACK",
+  "2133.333 damage player-\u003es1 13 false sword_triple_slash",
+  "2133.333 damage player-\u003ew1 13 false sword_triple_slash",
+  "2433.333 damage player-\u003es1 23 false sword_triple_slash",
+  "2433.333 damage player-\u003ew1 21 false sword_triple_slash",
+  "2666.667 ai w1 ATTACK-\u003eCHASE",
+  "3800.000 ai w1 CHASE-\u003eATTACK",
+  "3933.333 ai s1 CHASE-\u003eATTACK",
+  "4133.333 damage player-\u003es1 19 false sword_basic",
+  "4133.333 damage player-\u003ew1 18 false sword_basic",
+  "4500.000 ai w1 ATTACK-\u003eCHASE",
+  "4866.667 ai s1 ATTACK-\u003eCHASE",
+  "5066.667 ai w1 CHASE-\u003eATTACK",
+  "5466.667 damage player-\u003es1 48 false sword_counter_slash",
+  "5466.667 ai s1 CHASE-\u003eDEAD",
+  "5466.667 death s1",
+  "5466.667 damage player-\u003ew1 45 false sword_counter_slash",
+  "5766.667 ai w1 ATTACK-\u003eCHASE",
+  "6800.000 damage player-\u003ew1 18 false sword_basic",
+  "7433.333 ai w1 CHASE-\u003eATTACK",
+  "8133.333 ai w1 ATTACK-\u003eCHASE",
+  "8566.667 ai w1 CHASE-\u003eATTACK",
+  "8800.000 damage player-\u003ew1 18 false sword_basic",
+  "9266.667 ai w1 ATTACK-\u003eCHASE",
+  "9866.667 ai w1 CHASE-\u003eATTACK",
+  "10266.667 damage w1-\u003eplayer 20 false MON-WOLF-001:attack",
+  "10466.667 damage player-\u003ew1 18 false sword_basic",
+  "10466.667 ai s1 DEAD-\u003eIDLE",
+  "10466.667 respawn s1",
+  "10566.667 ai w1 ATTACK-\u003eCHASE",
+  "11133.333 ai w1 CHASE-\u003eATTACK",
+  "11266.667 ai s1 IDLE-\u003ePATROL",
+  "11300.000 damage player-\u003ew1 18 false sword_basic",
+  "11833.333 ai w1 ATTACK-\u003eCHASE",
+  "11933.333 ai s1 PATROL-\u003eIDLE",
+  "12433.333 ai w1 CHASE-\u003eATTACK",
+  "12833.333 damage w1-\u003eplayer 20 false MON-WOLF-001:attack",
+  "12966.667 damage player-\u003ew1 18 false sword_basic",
+  "13133.333 ai w1 ATTACK-\u003eCHASE",
+  "13700.000 ai w1 CHASE-\u003eATTACK",
+  "13800.000 damage player-\u003ew1 18 false sword_basic",
+  "13800.000 ai w1 ATTACK-\u003eDEAD",
+  "13800.000 death w1",
+  "14433.333 ai s1 IDLE-\u003ePATROL",
+  "14633.333 ai s1 PATROL-\u003eALERT",
+  "15100.000 ai s1 ALERT-\u003eCHASE",
+  "16133.333 ai s1 CHASE-\u003eATTACK",
+  "16300.000 damage player-\u003es1 19 false sword_basic",
+  "17066.667 ai s1 ATTACK-\u003eCHASE",
+  "17933.333 ai s1 CHASE-\u003eATTACK",
+  "17966.667 damage player-\u003es1 19 false sword_basic",
+  "18866.667 ai s1 ATTACK-\u003eCHASE",
+  "19633.333 damage player-\u003es1 19 false sword_basic"
+ ]
+}

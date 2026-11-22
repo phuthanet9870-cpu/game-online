@@ -3,6 +3,9 @@ import monstersJson from '@data/monsters/phase1-monsters.json';
 import playerJson from '@data/weapons/player-base.json';
 import mapJson from '@data/maps/training-ground.json';
 import itemsJson from '@data/items/phase2-items.json';
+import statusesJson from '@data/weapons/statuses.json';
+import powersJson from '@data/powers/powers.json';
+import dropsJson from '@data/drops/phase2-drops.json';
 
 export type WeaponType = 'staff' | 'sword' | 'dagger' | 'bow' | 'grimoire' | 'gauntlet';
 export const WEAPON_TYPES: readonly WeaponType[] = [
@@ -14,21 +17,54 @@ export const WEAPON_TYPES: readonly WeaponType[] = [
   'gauntlet',
 ];
 
+/** Registry entry (statuses.json) and per-skill application (id + duration [+ overrides]). */
 export interface StatusDef {
   id: string;
-  durationMs: number;
+  durationMs?: number;
   defenseMultiplier?: number;
+  speedMultiplier?: number;
+  damageTakenMultiplier?: number;
+  stun?: boolean;
+  root?: boolean;
+  stealth?: boolean;
+  shieldPctMaxHp?: number;
+  energyRegenPerSec?: number;
+  staminaRegenPerSec?: number;
+  dot?: { tickMs: number; modifier: number };
+  atMs?: number;
 }
 
 export interface HitDef {
   atMs: number;
-  shape: 'arc';
+  shape: 'arc' | 'circle' | 'projectile';
   radius: number;
-  arcDeg: number;
+  arcDeg?: number;
   modifier: number;
   knockback: number;
   applyStatus?: StatusDef;
   interrupt?: boolean;
+  speed?: number;
+  range?: number;
+  pierce?: boolean;
+  atAim?: boolean;
+  bonusBehind?: number;
+}
+
+export interface MoveDef {
+  atMs: number;
+  type: 'dash' | 'back' | 'blink';
+  distance: number;
+  durationMs: number;
+  iframes: boolean;
+  toAim?: boolean;
+}
+
+export interface PassiveEffects {
+  powerDamageMult?: number;
+  dotMult?: Record<string, number>;
+  statusDurationAddMs?: Record<string, number>;
+  stealthBonusMult?: number;
+  backAttackMult?: number;
 }
 
 export interface CounterDef {
@@ -51,7 +87,51 @@ export interface ActionDef {
   recoveryMs: number;
   hits?: HitDef[];
   counter?: CounterDef;
+  energyCost?: number;
+  category?: 'power-active' | 'power-ultimate' | 'power-passive';
+  move?: MoveDef;
+  selfStatus?: StatusDef[];
+  telegraph?: boolean;
+  implemented?: boolean;
+  effects?: PassiveEffects;
 }
+
+export interface PowerDef {
+  id: string;
+  name: string;
+  type: string;
+  allowedWeapons: WeaponType[];
+  fruitItemId: string;
+  obtainable: boolean;
+  active: ActionDef[];
+  ultimate: ActionDef[];
+  passive: ActionDef[];
+}
+
+export interface RankDef {
+  rank: number;
+  points: number;
+  active: number;
+  ultimate: number;
+  passive: number;
+}
+
+export interface PowerConfig {
+  energy: { max: number; regenPerSec: number };
+  proficiency: { ranks: RankDef[]; pointsPerCast: number; pointsPerHit: number; maxPointsPerCast: number };
+  loadout: { active: number; ultimate: number; passive: number };
+  powers: PowerDef[];
+}
+
+export interface Recipe {
+  id: string;
+  name: string;
+  inputs: Array<{ itemId: string; quantity: number }>;
+  output: { itemId: string; quantity: number };
+}
+
+export const skillImplemented = (a: ActionDef): boolean =>
+  a.implemented ?? (a.cooldownMs > 0 || !!a.counter || (a.hits?.length ?? 0) > 0);
 
 export interface WeaponSkillRef {
   id: string;
@@ -73,7 +153,7 @@ export interface MonsterDef {
   name: string;
   tier: string;
   level: number;
-  sprite: 'slime' | 'wolf';
+  sprite: 'slime' | 'wolf' | 'dummy';
   maxHp: number;
   attack: number;
   defense: number;
@@ -91,6 +171,8 @@ export interface MonsterDef {
   patrolRadius: number;
   respawnMs: number;
   corpseMs: number;
+  passive?: boolean;
+  noLoot?: boolean;
 }
 
 export interface PlayerBaseDef {
@@ -137,6 +219,7 @@ export interface MapData {
   collision: number[];
   playerSpawn: { x: number; y: number };
   monsterSpawns: Array<{ id: string; monsterId: string; x: number; y: number }>;
+  npcs: Array<{ id: string; name: string; x: number; y: number }>;
 }
 
 interface RawLayer {
@@ -172,7 +255,16 @@ export function parseTiledMap(raw: {
       x: o.x,
       y: o.y,
     }));
+  const npcs = objects
+    .filter((o) => o.type === 'npc')
+    .map((o) => ({
+      id: String(o.properties?.find((p) => p.name === 'npcId')?.value ?? ''),
+      name: String(o.properties?.find((p) => p.name === 'displayName')?.value ?? ''),
+      x: o.x,
+      y: o.y,
+    }));
   return {
+    npcs,
     mapId: String(prop('mapId') ?? 'unknown'),
     displayName: String(prop('displayName') ?? 'Unknown'),
     width: raw.width,
@@ -197,6 +289,8 @@ export interface ItemTemplate {
   sellPriceGold: number;
   tradable: boolean;
   gmOnly: boolean;
+  weaponType?: WeaponType;
+  powerId?: string;
 }
 
 export const CONTENT = {
@@ -205,6 +299,25 @@ export const CONTENT = {
   monsters: monstersJson.monsters as unknown as MonsterDef[],
   player: playerJson as unknown as PlayerBaseDef,
   trainingMap: parseTiledMap(mapJson as unknown as Parameters<typeof parseTiledMap>[0]),
+  statuses: statusesJson.statuses as unknown as StatusDef[],
+  powers: powersJson as unknown as PowerConfig,
+  recipes: (dropsJson as unknown as { recipes: Recipe[] }).recipes,
+};
+
+export const getPower = (id: string): PowerDef | undefined => CONTENT.powers.powers.find((p) => p.id === id);
+export const statusDef = (app: StatusDef): StatusDef => {
+  const base = CONTENT.statuses.find((x) => x.id === app.id);
+  if (!base) return app;
+  return {
+    ...base,
+    durationMs: app.durationMs ?? base.durationMs,
+    defenseMultiplier: app.defenseMultiplier ?? base.defenseMultiplier,
+  };
+};
+export const rankFor = (points: number): RankDef => {
+  let r = CONTENT.powers.proficiency.ranks[0] as RankDef;
+  for (const x of CONTENT.powers.proficiency.ranks) if (points >= x.points) r = x;
+  return r;
 };
 
 export const itemName = (id: string): string => CONTENT.items.find((i) => i.id === id)?.name ?? id;
@@ -241,6 +354,11 @@ export function validateContent(c: typeof CONTENT): string[] {
     seen(m.id);
     if (m.maxHp <= 0 || m.attack < 0 || m.leashRadius <= m.aggroRadius)
       errors.push(`${m.id} invalid stats (hp>0, leash>aggro required)`);
+  }
+  for (const p of c.powers.powers) {
+    if (p.active.length !== 15 || p.ultimate.length !== 5 || p.passive.length !== 5)
+      errors.push(`power ${p.id} must be 15/5/5, has ${p.active.length}/${p.ultimate.length}/${p.passive.length}`);
+    for (const sk of [...p.active, ...p.ultimate, ...p.passive]) seen(sk.id);
   }
   const map = c.trainingMap;
   if (map.ground.length !== map.width * map.height) errors.push('map ground size mismatch');

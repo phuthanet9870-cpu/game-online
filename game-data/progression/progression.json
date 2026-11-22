@@ -1,10 +1,30 @@
 {
-  "contentVersion": "phase2-0.1.0",
-  "_note": "[TUNING] XP curve xpToNext(level) = round(base * level^exponent). Level cap 100 [DESIGN]. Per-level gains are placeholders until StatCalculationService (main stats) lands.",
-  "maxLevel": 100,
-  "xpCurve": { "base": 50, "exponent": 1.6 },
-  "perLevel": { "maxHp": 12, "attack": 2, "defense": 1 },
-  "inventorySlots": 40,
-  "starterItems": [ { "itemId": "CON-001", "quantity": 3 } ],
-  "maxCharactersPerAccount": 3
+ "contentVersion": "phase2-0.1.0",
+ "_note": "[TUNING] XP curve xpToNext(level) = round(base * level^exponent). Level cap 100 [DESIGN]. Per-level gains are placeholders until StatCalculationService (main stats) lands.",
+ "maxLevel": 100,
+ "xpCurve": {
+  "base": 50,
+  "exponent": 1.6
+ },
+ "perLevel": {
+  "maxHp": 12,
+  "attack": 2,
+  "defense": 1
+ },
+ "inventorySlots": 40,
+ "starterItems": [
+  {
+   "itemId": "CON-001",
+   "quantity": 3
+  }
+ ],
+ "maxCharactersPerAccount": 3,
+ "starterWeaponItems": {
+  "staff": "WPN-STF-001",
+  "sword": "WPN-SWD-001",
+  "dagger": "WPN-DGR-001",
+  "bow": "WPN-BOW-001",
+  "grimoire": "WPN-GRM-001",
+  "gauntlet": "WPN-GNT-001"
+ }
 }

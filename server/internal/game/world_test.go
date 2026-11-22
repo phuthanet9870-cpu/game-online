@@ -187,14 +187,6 @@ func TestPotionUsesInventoryHook(t *testing.T) {
 	}
 }
 
-func TestWeaponFallsBackToSwordBeforePhase3(t *testing.T) {
-	w := arena(t)
-	p := w.AddPlayer(PlayerInit{ID: "p", Name: "P", WeaponID: "bow", Level: 1})
-	if p.Weapon.ID != "sword" {
-		t.Fatalf("weapon %s", p.Weapon.ID)
-	}
-}
-
 func TestRollLootDeterministic(t *testing.T) {
 	c := loadContent(t)
 	a := RollLoot(c.Drops["MON-SLIME-001"], NewRng(9))

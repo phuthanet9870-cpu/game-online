@@ -42,6 +42,14 @@ type Store interface {
 	ConsumeItem(ctx context.Context, txID string, charID int64, templateID string, qty int, reason string) error
 	SaveState(ctx context.Context, charID int64, x, y float64, hp int) error
 	Audit(ctx context.Context, e store.AuditEntry) error
+	BindPower(ctx context.Context, txID string, charID int64, powerID, fruitItemID string, loadout []byte) error
+	UnbindPower(ctx context.Context, txID string, charID int64, powerID string) error
+	SaveLoadout(ctx context.Context, charID int64, powerID string, loadout []byte) error
+	SaveProficiency(ctx context.Context, charID int64, powerID string, points int) error
+	SaveHotbar(ctx context.Context, charID int64, hotbar []byte) error
+	SaveAutoSettings(ctx context.Context, charID int64, settings []byte) error
+	SetWeapon(ctx context.Context, charID int64, weapon string) error
+	Craft(ctx context.Context, txID string, charID int64, inputs []store.ItemStack, output store.ItemStack) error
 }
 
 type Client struct {
@@ -90,12 +98,19 @@ type session struct {
 	inBucket   *ratelimit.Bucket
 	violations int
 	dropped    int
+	archive    map[string]int // power id -> proficiency points (Power Archive)
+	profDirty  bool
+	hotbar     json.RawMessage
+	auto       game.AutoState
+	autoCfg    game.AutoSettings
+	manualMove bool
 }
 
 type JoinRequest struct {
 	Account   *store.Account
 	Character *store.Character
 	Items     []store.ItemStack
+	Extras    *store.CharacterExtras
 	Client    *Client
 	Reply     chan error
 }
@@ -268,9 +283,10 @@ func (h *Hub) join(r JoinRequest) error {
 		if ch.Hp != nil && *ch.Hp > 0 {
 			init.Hp = float64(*ch.Hp)
 		}
-		h.world.AddPlayer(init)
+		p := h.world.AddPlayer(init)
 		h.sessions[pid] = s
 		h.present.Store(pid, struct{}{})
+		h.loadExtras(s, p, r.Extras)
 	}
 	s.role = r.Account.Role // role changes apply on next connect
 	h.Online.Add(1)
@@ -281,6 +297,9 @@ func (h *Hub) join(r JoinRequest) error {
 		"map": h.c.Map.MapID, "testWorld": h.cfg.TestWorld,
 	})
 	h.sendInventory(s)
+	h.sendPower(s)
+	h.send(s.client, map[string]any{"t": "hotbar", "slots": s.hotbar})
+	h.sendAuto(s, nil)
 	h.broadcastSys(fmt.Sprintf("%s เข้าสู่โลก", s.name), "normal", pid)
 	h.log.Info("player joined", "pid", pid, "name", s.name, "online", h.Online.Load())
 	return nil
@@ -296,9 +315,25 @@ type clientMsg struct {
 	Act  []game.ActionRequest `json:"act"`
 	Text string               `json:"text"`
 	C    float64              `json:"c"`
+	// Phase 3 commands
+	Weapon   string             `json:"weapon"`
+	ItemID   string             `json:"itemId"`
+	Confirm  string             `json:"confirm"`
+	Recipe   string             `json:"recipe"`
+	DropID   string             `json:"id"`
+	Enabled  *bool              `json:"enabled"`
+	Settings *game.AutoSettings `json:"settings"`
+	Loadout  *game.Loadout      `json:"loadout"`
+	Slots    []hotbarSlot       `json:"slots"`
+	Op       string             `json:"op"`
+	Target   string             `json:"target"`
+	Qty      int                `json:"qty"`
+	Count    int                `json:"count"`
+	Points   int                `json:"points"`
 }
 
 var validSlots = map[string]bool{"basic": true, "skill1": true, "skill2": true, "skill3": true}
+var validPowerSlots = map[string]bool{"p1": true, "p2": true, "p3": true, "p4": true, "p5": true, "ult": true}
 
 func finite(f float64) bool { return !math.IsNaN(f) && !math.IsInf(f, 0) }
 
@@ -327,6 +362,7 @@ func (h *Hub) onMessage(s *session, m clientMsg) {
 		s.lastSeq = m.Seq
 		if len(m.Mv) == 2 && finite(m.Mv[0]) && finite(m.Mv[1]) {
 			s.move = game.ClampUnit(game.Vec{X: m.Mv[0], Y: m.Mv[1]})
+			s.manualMove = !s.move.IsZero()
 		}
 		if len(m.Aim) == 2 && finite(m.Aim[0]) && finite(m.Aim[1]) {
 			s.aim = &game.Vec{X: m.Aim[0], Y: m.Aim[1]}
@@ -336,7 +372,8 @@ func (h *Hub) onMessage(s *session, m clientMsg) {
 			m.Act = m.Act[:4]
 		}
 		for _, a := range m.Act {
-			ok := (a.Type == "attack" && validSlots[a.Slot]) || a.Type == "dash" || a.Type == "potion"
+			ok := (a.Type == "attack" && validSlots[a.Slot]) || a.Type == "dash" || a.Type == "potion" || a.Type == "stance" ||
+				(a.Type == "power" && validPowerSlots[a.Slot])
 			if !ok {
 				h.violation(s, "bad action")
 				continue
@@ -362,6 +399,8 @@ func (h *Hub) onMessage(s *session, m clientMsg) {
 		h.broadcast(map[string]any{"t": "chat", "from": s.name, "text": text, "ch": "world"}, "")
 	case "ping":
 		h.send(s.client, map[string]any{"t": "pong", "c": m.C, "s": h.world.Time})
+	case "equip", "bind", "unbind", "loadout", "craft", "hotbar", "auto", "pickup", "gm":
+		h.onPhase3(s, m)
 	default:
 		h.violation(s, "unknown message")
 	}
@@ -490,6 +529,9 @@ func (h *Hub) step(dt float64) {
 	inputs := make(map[string]game.Input, len(h.sessions))
 	for pid, s := range h.sessions {
 		in := game.Input{Move: s.move, Aim: s.aim, Actions: s.actions}
+		if s.auto.Enabled {
+			in = h.autoInput(s, in)
+		}
 		inputs[pid] = in
 		s.actions, s.aim = nil, nil
 	}
@@ -507,6 +549,9 @@ func (h *Hub) step(dt float64) {
 		}
 		p := h.world.Player(pid)
 		if p == nil || h.world.Time-p.DisconnectedAt >= h.cfg.GraceMs {
+			if s.auto.Enabled {
+				s.auto.Stop(h.world.Time, "disconnected")
+			}
 			h.saveState(s)
 			h.world.RemovePlayer(pid)
 			delete(h.sessions, pid)
@@ -533,6 +578,7 @@ func (h *Hub) saveState(s *session) {
 		x, y, hp = sp.X, sp.Y, int(p.MaxHp)
 	}
 	h.persist.Enqueue(fmt.Sprintf("save:%d", id), func(ctx context.Context) error { return h.st.SaveState(ctx, id, x, y, hp) })
+	h.saveProficiency(s)
 }
 
 // LevelForXP returns the level reached with total accumulated XP ([TUNING] curve).
@@ -565,29 +611,32 @@ func (h *Hub) processRewards() {
 		}
 		for _, pid := range r.PlayerIDs {
 			s := h.sessions[pid]
-			if s == nil {
+			p := h.world.Player(pid)
+			if s == nil || p == nil {
 				continue
 			}
 			loot := game.RollLoot(table, h.lootRng)
-			granted := h.addItems(s, loot.Items)
-			s.gold += loot.Gold
+			// XP is credited immediately; Gold and items go into a personal loot bag (pickup / Auto Loot)
 			s.xp += loot.XP
 			newLevel := LevelForXP(h.c.Progression, s.xp)
 			levelUp := newLevel > s.level
 			if levelUp {
 				s.level = newLevel
-				if p := h.world.Player(pid); p != nil {
-					h.world.SetLevel(p, newLevel)
-				}
+				h.world.SetLevel(p, newLevel)
 			}
-			txID := fmt.Sprintf("kill:%s:%s:%d:%d", h.instanceID, r.MonsterID, r.DeathSeq, s.charID)
-			rw := store.Reward{TxID: txID, CharID: s.charID, XPDelta: loot.XP, LevelAfter: s.level, GoldDelta: loot.Gold, Reason: "kill:" + r.MonsterDef}
-			for _, it := range granted {
-				rw.Items = append(rw.Items, store.ItemStack{TemplateID: it.ItemID, Quantity: it.Quantity})
+			base := fmt.Sprintf("%s:%s:%d:%d", h.instanceID, r.MonsterID, r.DeathSeq, s.charID)
+			rw := store.Reward{TxID: "kill:" + base, CharID: s.charID, XPDelta: loot.XP, LevelAfter: s.level, Reason: "kill:" + r.MonsterDef}
+			h.persist.Enqueue(rw.TxID, func(ctx context.Context) error { return h.st.ApplyReward(ctx, rw) })
+			if s.auto.Enabled {
+				s.auto.Report.Kills++
+				s.auto.Report.XP += loot.XP
 			}
-			h.persist.Enqueue(txID, func(ctx context.Context) error { return h.st.ApplyReward(ctx, rw) })
+			if loot.Gold > 0 || len(loot.Items) > 0 {
+				jit := game.Vec{X: r.Pos.X + h.lootRng.Range(-6, 6), Y: r.Pos.Y + h.lootRng.Range(-6, 6)}
+				h.world.AddDrop(p, jit, loot.Gold, loot.Items, "loot:"+base, r.MonsterDef)
+			}
 			if s.client != nil {
-				h.send(s.client, map[string]any{"t": "reward", "monster": r.MonsterDef, "xp": loot.XP, "gold": loot.Gold, "items": granted, "levelUp": levelUp, "level": s.level})
+				h.send(s.client, map[string]any{"t": "reward", "monster": r.MonsterDef, "xp": loot.XP, "levelUp": levelUp, "level": s.level})
 				h.sendInventory(s)
 			}
 		}
@@ -629,6 +678,9 @@ func (h *Hub) consumeItem(p *game.Player, itemID string) bool {
 	s.inv[itemID]--
 	if s.inv[itemID] == 0 {
 		delete(s.inv, itemID)
+	}
+	if s.auto.Enabled {
+		s.auto.Report.PotionsUsed++
 	}
 	txID := "use:" + randomID(10)
 	id := s.charID
@@ -717,6 +769,9 @@ type playerView struct {
 	Action      *actionView `json:"action"`
 	InvUntil    float64     `json:"invUntil"`
 	Connected   bool        `json:"connected"`
+	Weapon      string      `json:"weapon"`
+	Stance      bool        `json:"stance"`
+	Stealth     bool        `json:"stealth"`
 }
 
 type monsterView struct {
@@ -740,13 +795,30 @@ type selfView struct {
 	RespawnAt  float64               `json:"respawnAt"`
 	Recap      []game.RecapEntry     `json:"recap,omitempty"`
 	SpawnProt  float64               `json:"spawnProt"`
+	Energy     float64               `json:"energy"`
+	MaxEnergy  float64               `json:"maxEnergy"`
+	Statuses   []statusView          `json:"statuses"`
+	Drops      []dropView            `json:"drops"`
+	PowerPts   int                   `json:"powerPts"`
+}
+
+type statusView struct {
+	ID        string  `json:"id"`
+	ExpiresAt float64 `json:"expiresAt"`
+}
+
+type dropView struct {
+	ID string  `json:"id"`
+	X  float64 `json:"x"`
+	Y  float64 `json:"y"`
 }
 
 func r1(f float64) float64 { return math.Round(f*10) / 10 }
 
 func viewOf(p *game.Player) playerView {
 	v := playerView{ID: p.ID, Name: p.Name, X: r1(p.Pos.X), Y: r1(p.Pos.Y), Facing: p.Facing, Hp: int(math.Ceil(p.Hp)), MaxHp: int(p.MaxHp),
-		Level: p.Level, CharState: p.CharState, CombatState: p.CombatState, Moving: p.Moving, Dashing: p.Dashing(), InvUntil: p.InvulnerableUntil, Connected: p.Connected}
+		Level: p.Level, CharState: p.CharState, CombatState: p.CombatState, Moving: p.Moving, Dashing: p.Dashing(), InvUntil: p.InvulnerableUntil, Connected: p.Connected,
+		Weapon: p.Weapon.ID, Stance: p.Power != nil && p.Power.Stance, Stealth: p.HasStatus("stealth")}
 	if id, st, ang, ok := p.ActionView(); ok {
 		v.Action = &actionView{ID: id, StartedAt: st, Angle: ang}
 	}
@@ -786,13 +858,27 @@ func (h *Hub) broadcastSnapshots() {
 			continue
 		}
 		self := selfView{playerView: viewOf(p), Stamina: math.Floor(p.Stamina), MaxStamina: h.c.Player.Stamina.Max, RespawnAt: p.RespawnAt,
-			Cooldowns: map[string][2]float64{}, SpawnProt: p.SpawnProtectedUntil}
+			Cooldowns: map[string][2]float64{}, SpawnProt: p.SpawnProtectedUntil, Energy: math.Floor(p.Energy), MaxEnergy: h.c.Powers.Energy.Max,
+			Statuses: []statusView{}, Drops: []dropView{}}
+		for _, st := range p.Statuses {
+			self.Statuses = append(self.Statuses, statusView{ID: st.ID, ExpiresAt: st.ExpiresAt})
+		}
+		for _, d := range h.world.DropsOf(pid) {
+			self.Drops = append(self.Drops, dropView{ID: d.ID, X: r1(d.Pos.X), Y: r1(d.Pos.Y)})
+		}
+		if p.Power != nil {
+			self.PowerPts = p.Power.Points
+		}
 		ids := append([]string{}, cdIDs...)
 		if p.Weapon.BasicAttack != nil {
 			ids = append(ids, p.Weapon.BasicAttack.ID)
 		}
 		for _, sk := range p.Weapon.Skills {
 			ids = append(ids, sk.ID)
+		}
+		if p.Power != nil {
+			ids = append(ids, p.Power.Loadout.Actives...)
+			ids = append(ids, p.Power.Loadout.Ultimate)
 		}
 		for _, id := range ids {
 			if rem := p.CooldownRemaining(id, h.world.Time); rem > 0 {

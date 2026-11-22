@@ -1,0 +1,1323 @@
+{
+ "contentVersion": "phase3-0.1.0",
+ "_note": "6 initial Powers, each EXACTLY 15 Active + 5 Ultimate + 5 Passive (150 skills, names from MASTER_PROMPT §7.3). Loadout 5/1/2. Phase 3 implements the rank-1+2 MVP subset of Inferno and Abyss Shadow; other entries are name-only until Phase 7. Unlock order = list order. Numbers are [TUNING].",
+ "energy": {
+  "max": 100,
+  "regenPerSec": 5
+ },
+ "proficiency": {
+  "ranks": [
+   {
+    "rank": 1,
+    "points": 0,
+    "active": 5,
+    "ultimate": 1,
+    "passive": 1
+   },
+   {
+    "rank": 2,
+    "points": 60,
+    "active": 10,
+    "ultimate": 3,
+    "passive": 3
+   },
+   {
+    "rank": 3,
+    "points": 200,
+    "active": 15,
+    "ultimate": 5,
+    "passive": 5
+   }
+  ],
+  "pointsPerCast": 1,
+  "pointsPerHit": 1,
+  "maxPointsPerCast": 4
+ },
+ "loadout": {
+  "active": 5,
+  "ultimate": 1,
+  "passive": 2
+ },
+ "powers": [
+  {
+   "id": "inferno",
+   "name": "Inferno",
+   "type": "Fire / Burn / AoE",
+   "allowedWeapons": [
+    "staff",
+    "sword",
+    "dagger",
+    "bow",
+    "grimoire",
+    "gauntlet"
+   ],
+   "fruitItemId": "PWR-001",
+   "obtainable": true,
+   "active": [
+    {
+     "id": "inferno_flame_shot",
+     "name": "Flame Shot",
+     "category": "power-active",
+     "cooldownMs": 3000,
+     "staminaCost": 0,
+     "energyCost": 10,
+     "windupMs": 120,
+     "activeMs": 80,
+     "recoveryMs": 160,
+     "hits": [
+      {
+       "atMs": 120,
+       "shape": "projectile",
+       "speed": 260,
+       "range": 170,
+       "radius": 5,
+       "modifier": 1.2,
+       "knockback": 8,
+       "applyStatus": {
+        "id": "burn",
+        "durationMs": 3000
+       }
+      }
+     ],
+     "description": "ลูกไฟพุ่งตรง ติด Burn 3 วิ",
+     "implemented": true
+    },
+    {
+     "id": "inferno_burning_slash",
+     "name": "Burning Slash",
+     "category": "power-active",
+     "cooldownMs": 4000,
+     "staminaCost": 0,
+     "energyCost": 12,
+     "windupMs": 120,
+     "activeMs": 80,
+     "recoveryMs": 180,
+     "hits": [
+      {
+       "atMs": 120,
+       "shape": "arc",
+       "radius": 32,
+       "arcDeg": 120,
+       "modifier": 1.4,
+       "knockback": 20,
+       "applyStatus": {
+        "id": "burn",
+        "durationMs": 3000
+       }
+      }
+     ],
+     "description": "ฟันเปลวไฟด้านหน้า ติด Burn",
+     "implemented": true
+    },
+    {
+     "id": "inferno_fire_step",
+     "name": "Fire Step",
+     "category": "power-active",
+     "cooldownMs": 6000,
+     "staminaCost": 0,
+     "energyCost": 12,
+     "windupMs": 30,
+     "activeMs": 190,
+     "recoveryMs": 140,
+     "hits": [
+      {
+       "atMs": 190,
+       "shape": "circle",
+       "radius": 26,
+       "modifier": 1.0,
+       "knockback": 30,
+       "applyStatus": {
+        "id": "burn",
+        "durationMs": 3000
+       }
+      }
+     ],
+     "description": "พุ่งไปข้างหน้า 64px (อมตะ) แล้วระเบิดไฟรอบตัว",
+     "move": {
+      "atMs": 30,
+      "type": "dash",
+      "distance": 64,
+      "durationMs": 150,
+      "iframes": true
+     },
+     "implemented": true
+    },
+    {
+     "id": "inferno_flame_ring",
+     "name": "Flame Ring",
+     "category": "power-active",
+     "cooldownMs": 7000,
+     "staminaCost": 0,
+     "energyCost": 18,
+     "windupMs": 200,
+     "activeMs": 100,
+     "recoveryMs": 200,
+     "hits": [
+      {
+       "atMs": 200,
+       "shape": "circle",
+       "radius": 44,
+       "modifier": 1.3,
+       "knockback": 40,
+       "applyStatus": {
+        "id": "burn",
+        "durationMs": 3000
+       }
+      }
+     ],
+     "description": "วงแหวนไฟรอบตัว ติด Burn",
+     "implemented": true
+    },
+    {
+     "id": "inferno_heat_wave",
+     "name": "Heat Wave",
+     "category": "power-active",
+     "cooldownMs": 8000,
+     "staminaCost": 0,
+     "energyCost": 18,
+     "windupMs": 220,
+     "activeMs": 100,
+     "recoveryMs": 220,
+     "hits": [
+      {
+       "atMs": 220,
+       "shape": "arc",
+       "radius": 50,
+       "arcDeg": 70,
+       "modifier": 1.6,
+       "knockback": 90
+      }
+     ],
+     "description": "คลื่นความร้อนรูปกรวย ผลักศัตรูไกล",
+     "implemented": true
+    },
+    {
+     "id": "inferno_lava_burst",
+     "name": "Lava Burst",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "inferno_blazing_chain",
+     "name": "Blazing Chain",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "inferno_fire_mine",
+     "name": "Fire Mine",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "inferno_flame_spear",
+     "name": "Flame Spear",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "inferno_ember_rain",
+     "name": "Ember Rain",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "inferno_magma_wall",
+     "name": "Magma Wall",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "inferno_combustion",
+     "name": "Combustion",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "inferno_phoenix_dash",
+     "name": "Phoenix Dash",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "inferno_hellfire_field",
+     "name": "Hellfire Field",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "inferno_infernal_eruption",
+     "name": "Infernal Eruption",
+     "category": "power-active",
+     "implemented": false
+    }
+   ],
+   "ultimate": [
+    {
+     "id": "inferno_meteor_fall",
+     "name": "Meteor Fall",
+     "category": "power-ultimate",
+     "cooldownMs": 45000,
+     "staminaCost": 0,
+     "energyCost": 50,
+     "windupMs": 300,
+     "activeMs": 700,
+     "recoveryMs": 300,
+     "hits": [
+      {
+       "atMs": 900,
+       "shape": "circle",
+       "radius": 48,
+       "modifier": 4.0,
+       "knockback": 60,
+       "atAim": true,
+       "range": 150,
+       "applyStatus": {
+        "id": "burn",
+        "durationMs": 4000
+       }
+      }
+     ],
+     "description": "เรียกอุกกาบาตตกที่จุดเล็งหลัง 0.9 วิ (มีวงเตือน)",
+     "telegraph": true,
+     "implemented": true
+    },
+    {
+     "id": "inferno_phoenix_rebirth",
+     "name": "Phoenix Rebirth",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "inferno_hellfire_dragon",
+     "name": "Hellfire Dragon",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "inferno_volcanic_cataclysm",
+     "name": "Volcanic Cataclysm",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "inferno_world_ignition",
+     "name": "World Ignition",
+     "category": "power-ultimate",
+     "implemented": false
+    }
+   ],
+   "passive": [
+    {
+     "id": "inferno_pyromancer",
+     "name": "Pyromancer",
+     "category": "power-passive",
+     "description": "สกิลพลังแรงขึ้น 15%",
+     "effects": {
+      "powerDamageMult": 1.15
+     },
+     "implemented": true
+    },
+    {
+     "id": "inferno_heat_mastery",
+     "name": "Heat Mastery",
+     "category": "power-passive",
+     "description": "Burn แรงขึ้น 40% และนานขึ้น 1 วิ",
+     "effects": {
+      "dotMult": {
+       "burn": 1.4
+      },
+      "statusDurationAddMs": {
+       "burn": 1000
+      }
+     },
+     "implemented": true
+    },
+    {
+     "id": "inferno_burning_soul",
+     "name": "Burning Soul",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "inferno_ash_guard",
+     "name": "Ash Guard",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "inferno_last_ember",
+     "name": "Last Ember",
+     "category": "power-passive",
+     "implemented": false
+    }
+   ]
+  },
+  {
+   "id": "tempest",
+   "name": "Tempest",
+   "type": "Lightning / Mobility / Burst",
+   "allowedWeapons": [
+    "staff",
+    "sword",
+    "dagger",
+    "bow",
+    "grimoire",
+    "gauntlet"
+   ],
+   "fruitItemId": "PWR-002",
+   "obtainable": false,
+   "active": [
+    {
+     "id": "tempest_lightning_bolt",
+     "name": "Lightning Bolt",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "tempest_thunder_kick",
+     "name": "Thunder Kick",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "tempest_volt_dash",
+     "name": "Volt Dash",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "tempest_static_field",
+     "name": "Static Field",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "tempest_chain_lightning",
+     "name": "Chain Lightning",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "tempest_thunder_spear",
+     "name": "Thunder Spear",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "tempest_flash_strike",
+     "name": "Flash Strike",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "tempest_overcharge",
+     "name": "Overcharge",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "tempest_storm_pull",
+     "name": "Storm Pull",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "tempest_lightning_trap",
+     "name": "Lightning Trap",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "tempest_volt_counter",
+     "name": "Volt Counter",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "tempest_thunder_crash",
+     "name": "Thunder Crash",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "tempest_arc_step",
+     "name": "Arc Step",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "tempest_storm_barrage",
+     "name": "Storm Barrage",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "tempest_discharge",
+     "name": "Discharge",
+     "category": "power-active",
+     "implemented": false
+    }
+   ],
+   "ultimate": [
+    {
+     "id": "tempest_thunder_god_descent",
+     "name": "Thunder God Descent",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "tempest_heaven_s_judgment",
+     "name": "Heaven's Judgment",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "tempest_storm_apocalypse",
+     "name": "Storm Apocalypse",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "tempest_lightning_overdrive",
+     "name": "Lightning Overdrive",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "tempest_thousand_bolts",
+     "name": "Thousand Bolts",
+     "category": "power-ultimate",
+     "implemented": false
+    }
+   ],
+   "passive": [
+    {
+     "id": "tempest_static_charge",
+     "name": "Static Charge",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "tempest_lightning_reflex",
+     "name": "Lightning Reflex",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "tempest_volt_recovery",
+     "name": "Volt Recovery",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "tempest_chain_mastery",
+     "name": "Chain Mastery",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "tempest_storm_hunter",
+     "name": "Storm Hunter",
+     "category": "power-passive",
+     "implemented": false
+    }
+   ]
+  },
+  {
+   "id": "abyss_shadow",
+   "name": "Abyss Shadow",
+   "type": "Shadow / Stealth / Assassin",
+   "allowedWeapons": [
+    "dagger"
+   ],
+   "fruitItemId": "PWR-003",
+   "obtainable": true,
+   "active": [
+    {
+     "id": "abyss_shadow_shadow_cut",
+     "name": "Shadow Cut",
+     "category": "power-active",
+     "cooldownMs": 3000,
+     "staminaCost": 0,
+     "energyCost": 10,
+     "windupMs": 80,
+     "activeMs": 80,
+     "recoveryMs": 150,
+     "hits": [
+      {
+       "atMs": 80,
+       "shape": "arc",
+       "radius": 28,
+       "arcDeg": 110,
+       "modifier": 1.3,
+       "knockback": 20,
+       "applyStatus": {
+        "id": "mark",
+        "durationMs": 4000
+       }
+      }
+     ],
+     "description": "ฟันเงา ติด Mark (รับดาเมจ +20%)",
+     "implemented": true
+    },
+    {
+     "id": "abyss_shadow_dark_shuriken",
+     "name": "Dark Shuriken",
+     "category": "power-active",
+     "cooldownMs": 4000,
+     "staminaCost": 0,
+     "energyCost": 10,
+     "windupMs": 100,
+     "activeMs": 60,
+     "recoveryMs": 150,
+     "hits": [
+      {
+       "atMs": 100,
+       "shape": "projectile",
+       "speed": 300,
+       "range": 180,
+       "radius": 4,
+       "modifier": 1.0,
+       "knockback": 8,
+       "pierce": true
+      }
+     ],
+     "description": "ดาวกระจายเงาทะลุเป้า",
+     "implemented": true
+    },
+    {
+     "id": "abyss_shadow_smoke_veil",
+     "name": "Smoke Veil",
+     "category": "power-active",
+     "cooldownMs": 12000,
+     "staminaCost": 0,
+     "energyCost": 15,
+     "windupMs": 80,
+     "activeMs": 60,
+     "recoveryMs": 120,
+     "hits": [],
+     "description": "ม่านควัน: ล่องหน 3 วิ มอนสเตอร์เลิกไล่ การโจมตีแรกแรงขึ้น",
+     "selfStatus": [
+      {
+       "atMs": 80,
+       "id": "stealth",
+       "durationMs": 3000
+      }
+     ],
+     "implemented": true
+    },
+    {
+     "id": "abyss_shadow_shadow_blink",
+     "name": "Shadow Blink",
+     "category": "power-active",
+     "cooldownMs": 6000,
+     "staminaCost": 0,
+     "energyCost": 12,
+     "windupMs": 60,
+     "activeMs": 60,
+     "recoveryMs": 100,
+     "hits": [],
+     "description": "วาร์ปไปจุดเล็ง (สูงสุด 96px) อมตะ 0.2 วิ",
+     "move": {
+      "atMs": 60,
+      "type": "blink",
+      "distance": 96,
+      "durationMs": 0,
+      "iframes": true
+     },
+     "implemented": true
+    },
+    {
+     "id": "abyss_shadow_night_fang",
+     "name": "Night Fang",
+     "category": "power-active",
+     "cooldownMs": 7000,
+     "staminaCost": 0,
+     "energyCost": 18,
+     "windupMs": 150,
+     "activeMs": 80,
+     "recoveryMs": 200,
+     "hits": [
+      {
+       "atMs": 150,
+       "shape": "arc",
+       "radius": 30,
+       "arcDeg": 80,
+       "modifier": 2.0,
+       "knockback": 20,
+       "applyStatus": {
+        "id": "bleed",
+        "durationMs": 3000
+       }
+      }
+     ],
+     "description": "เขี้ยวรัตติกาล ดาเมจสูง ติด Bleed",
+     "implemented": true
+    },
+    {
+     "id": "abyss_shadow_dark_clone",
+     "name": "Dark Clone",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "abyss_shadow_silent_mark",
+     "name": "Silent Mark",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "abyss_shadow_shadow_bind",
+     "name": "Shadow Bind",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "abyss_shadow_assassin_rush",
+     "name": "Assassin Rush",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "abyss_shadow_nightfall",
+     "name": "Nightfall",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "abyss_shadow_backstab_curse",
+     "name": "Backstab Curse",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "abyss_shadow_shadow_swap",
+     "name": "Shadow Swap",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "abyss_shadow_dark_needle",
+     "name": "Dark Needle",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "abyss_shadow_execution_mark",
+     "name": "Execution Mark",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "abyss_shadow_phantom_dance",
+     "name": "Phantom Dance",
+     "category": "power-active",
+     "implemented": false
+    }
+   ],
+   "ultimate": [
+    {
+     "id": "abyss_shadow_eternal_night",
+     "name": "Eternal Night",
+     "category": "power-ultimate",
+     "cooldownMs": 45000,
+     "staminaCost": 0,
+     "energyCost": 50,
+     "windupMs": 250,
+     "activeMs": 120,
+     "recoveryMs": 250,
+     "hits": [
+      {
+       "atMs": 250,
+       "shape": "circle",
+       "radius": 70,
+       "modifier": 2.4,
+       "knockback": 10,
+       "applyStatus": {
+        "id": "stun",
+        "durationMs": 1500
+       }
+      }
+     ],
+     "description": "ราตรีนิรันดร์: ระเบิดเงารอบตัว มึน 1.5 วิ",
+     "implemented": true
+    },
+    {
+     "id": "abyss_shadow_shadow_execution",
+     "name": "Shadow Execution",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "abyss_shadow_thousand_shadows",
+     "name": "Thousand Shadows",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "abyss_shadow_void_assassination",
+     "name": "Void Assassination",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "abyss_shadow_demon_ninja",
+     "name": "Demon Ninja",
+     "category": "power-ultimate",
+     "implemented": false
+    }
+   ],
+   "passive": [
+    {
+     "id": "abyss_shadow_silent_killer",
+     "name": "Silent Killer",
+     "category": "power-passive",
+     "description": "โจมตีครั้งแรกจากการล่องหนแรงขึ้น 50% และล่องหนนานขึ้น 1 วิ",
+     "effects": {
+      "stealthBonusMult": 1.5,
+      "statusDurationAddMs": {
+       "stealth": 1000
+      }
+     },
+     "implemented": true
+    },
+    {
+     "id": "abyss_shadow_back_attack",
+     "name": "Back Attack",
+     "category": "power-passive",
+     "description": "โจมตีจากด้านหลังแรงขึ้น 25%",
+     "effects": {
+      "backAttackMult": 1.25
+     },
+     "implemented": true
+    },
+    {
+     "id": "abyss_shadow_shadow_escape",
+     "name": "Shadow Escape",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "abyss_shadow_dark_instinct",
+     "name": "Dark Instinct",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "abyss_shadow_executioner",
+     "name": "Executioner",
+     "category": "power-passive",
+     "implemented": false
+    }
+   ]
+  },
+  {
+   "id": "eternal_frost",
+   "name": "Eternal Frost",
+   "type": "Ice / Control / Defense",
+   "allowedWeapons": [
+    "staff",
+    "sword",
+    "grimoire"
+   ],
+   "fruitItemId": "PWR-004",
+   "obtainable": false,
+   "active": [
+    {
+     "id": "eternal_frost_ice_shard",
+     "name": "Ice Shard",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_frost_slash",
+     "name": "Frost Slash",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_snow_step",
+     "name": "Snow Step",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_ice_wall",
+     "name": "Ice Wall",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_frost_nova",
+     "name": "Frost Nova",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_glacial_spear",
+     "name": "Glacial Spear",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_frozen_trap",
+     "name": "Frozen Trap",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_crystal_shield",
+     "name": "Crystal Shield",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_blizzard",
+     "name": "Blizzard",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_winter_chains",
+     "name": "Winter Chains",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_ice_prison",
+     "name": "Ice Prison",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_frost_wave",
+     "name": "Frost Wave",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_crystal_lance",
+     "name": "Crystal Lance",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_permafrost",
+     "name": "Permafrost",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_shatter",
+     "name": "Shatter",
+     "category": "power-active",
+     "implemented": false
+    }
+   ],
+   "ultimate": [
+    {
+     "id": "eternal_frost_absolute_zero",
+     "name": "Absolute Zero",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_frozen_kingdom",
+     "name": "Frozen Kingdom",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_glacier_fall",
+     "name": "Glacier Fall",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_winter_guardian",
+     "name": "Winter Guardian",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_eternal_blizzard",
+     "name": "Eternal Blizzard",
+     "category": "power-ultimate",
+     "implemented": false
+    }
+   ],
+   "passive": [
+    {
+     "id": "eternal_frost_cold_blood",
+     "name": "Cold Blood",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_frostbite",
+     "name": "Frostbite",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_crystal_armor",
+     "name": "Crystal Armor",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_winter_s_gift",
+     "name": "Winter's Gift",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "eternal_frost_shatter_expert",
+     "name": "Shatter Expert",
+     "category": "power-passive",
+     "implemented": false
+    }
+   ]
+  },
+  {
+   "id": "genesis",
+   "name": "Genesis",
+   "type": "Nature / Heal / Support",
+   "allowedWeapons": [
+    "staff",
+    "sword",
+    "dagger",
+    "bow",
+    "grimoire",
+    "gauntlet"
+   ],
+   "fruitItemId": "PWR-005",
+   "obtainable": false,
+   "active": [
+    {
+     "id": "genesis_vine_whip",
+     "name": "Vine Whip",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "genesis_healing_seed",
+     "name": "Healing Seed",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "genesis_root_trap",
+     "name": "Root Trap",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "genesis_thorn_shot",
+     "name": "Thorn Shot",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "genesis_nature_pulse",
+     "name": "Nature Pulse",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "genesis_bloom_shield",
+     "name": "Bloom Shield",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "genesis_poison_thorn",
+     "name": "Poison Thorn",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "genesis_vine_pull",
+     "name": "Vine Pull",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "genesis_life_spring",
+     "name": "Life Spring",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "genesis_forest_step",
+     "name": "Forest Step",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "genesis_seed_bomb",
+     "name": "Seed Bomb",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "genesis_ancient_roots",
+     "name": "Ancient Roots",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "genesis_nature_cleanse",
+     "name": "Nature Cleanse",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "genesis_thorn_barrage",
+     "name": "Thorn Barrage",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "genesis_guardian_sapling",
+     "name": "Guardian Sapling",
+     "category": "power-active",
+     "implemented": false
+    }
+   ],
+   "ultimate": [
+    {
+     "id": "genesis_world_tree",
+     "name": "World Tree",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "genesis_nature_s_wrath",
+     "name": "Nature's Wrath",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "genesis_forest_guardian",
+     "name": "Forest Guardian",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "genesis_rebirth_bloom",
+     "name": "Rebirth Bloom",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "genesis_garden_of_eternity",
+     "name": "Garden of Eternity",
+     "category": "power-ultimate",
+     "implemented": false
+    }
+   ],
+   "passive": [
+    {
+     "id": "genesis_life_bloom",
+     "name": "Life Bloom",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "genesis_regeneration",
+     "name": "Regeneration",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "genesis_nature_s_bond",
+     "name": "Nature's Bond",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "genesis_thorn_armor",
+     "name": "Thorn Armor",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "genesis_forest_wisdom",
+     "name": "Forest Wisdom",
+     "category": "power-passive",
+     "implemented": false
+    }
+   ]
+  },
+  {
+   "id": "void_dominion",
+   "name": "Void Dominion",
+   "type": "Void / Gravity / Space",
+   "allowedWeapons": [
+    "staff",
+    "grimoire",
+    "gauntlet"
+   ],
+   "fruitItemId": "PWR-006",
+   "obtainable": false,
+   "active": [
+    {
+     "id": "void_dominion_void_orb",
+     "name": "Void Orb",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_gravity_push",
+     "name": "Gravity Push",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_void_step",
+     "name": "Void Step",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_dimensional_cut",
+     "name": "Dimensional Cut",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_gravity_well",
+     "name": "Gravity Well",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_rift_trap",
+     "name": "Rift Trap",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_spatial_swap",
+     "name": "Spatial Swap",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_abyss_spike",
+     "name": "Abyss Spike",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_null_pulse",
+     "name": "Null Pulse",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_void_shield",
+     "name": "Void Shield",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_rift_walk",
+     "name": "Rift Walk",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_gravity_crush",
+     "name": "Gravity Crush",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_void_chains",
+     "name": "Void Chains",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_distortion_field",
+     "name": "Distortion Field",
+     "category": "power-active",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_rift_collapse",
+     "name": "Rift Collapse",
+     "category": "power-active",
+     "implemented": false
+    }
+   ],
+   "ultimate": [
+    {
+     "id": "void_dominion_black_hole",
+     "name": "Black Hole",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_dimensional_prison",
+     "name": "Dimensional Prison",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_reality_break",
+     "name": "Reality Break",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_void_catastrophe",
+     "name": "Void Catastrophe",
+     "category": "power-ultimate",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_dominion_collapse",
+     "name": "Dominion Collapse",
+     "category": "power-ultimate",
+     "implemented": false
+    }
+   ],
+   "passive": [
+    {
+     "id": "void_dominion_void_affinity",
+     "name": "Void Affinity",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_spatial_sense",
+     "name": "Spatial Sense",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_gravity_master",
+     "name": "Gravity Master",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_rift_recovery",
+     "name": "Rift Recovery",
+     "category": "power-passive",
+     "implemented": false
+    },
+    {
+     "id": "void_dominion_null_resistance",
+     "name": "Null Resistance",
+     "category": "power-passive",
+     "implemented": false
+    }
+   ]
+  }
+ ]
+}

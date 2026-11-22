@@ -296,13 +296,14 @@ func (s *Server) createCharacter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !wd.Implemented {
-		writeErr(w, 400, wd.Name+" will be playable in Phase 3")
+		writeErr(w, 400, wd.Name+" is not available yet")
 		return
 	}
 	var starter []store.ItemStack
 	for _, it := range s.c.Progression.StarterItems {
 		starter = append(starter, store.ItemStack{TemplateID: it.ItemID, Quantity: it.Quantity})
 	}
+	starter = append(starter, store.ItemStack{TemplateID: s.c.Progression.StarterWeaponItems[in.Weapon], Quantity: 1})
 	ch, err := s.st.CreateCharacter(r.Context(), a.ID, in.Name, in.Weapon, s.c.Progression.MaxCharactersPerAccount, starter)
 	if errors.Is(err, store.ErrConflict) {
 		writeErr(w, 409, strings.TrimPrefix(err.Error(), "conflict: "))
@@ -370,6 +371,11 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 500, "internal error")
 		return
 	}
+	extras, err := s.st.Extras(r.Context(), ch.ID)
+	if err != nil {
+		writeErr(w, 500, "internal error")
+		return
+	}
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: s.cfg.AllowedOrigins})
 	if err != nil {
 		return // Accept already wrote the HTTP error (e.g. bad origin)
@@ -382,7 +388,7 @@ func (s *Server) ws(w http.ResponseWriter, r *http.Request) {
 		cancel()
 	})
 	pid := realtime.PlayerID(ch.ID)
-	if err := s.hub.Join(r.Context(), realtime.JoinRequest{Account: a, Character: ch, Items: items, Client: client}); err != nil {
+	if err := s.hub.Join(r.Context(), realtime.JoinRequest{Account: a, Character: ch, Items: items, Extras: extras, Client: client}); err != nil {
 		_ = conn.Close(websocket.StatusInternalError, "join failed")
 		return
 	}

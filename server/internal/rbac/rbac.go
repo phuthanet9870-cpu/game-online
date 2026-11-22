@@ -5,22 +5,24 @@ package rbac
 type Capability string
 
 const (
-	GMHudOpen      Capability = "gm.hud.open"
-	PlayersView    Capability = "gm.players.view"
-	PlayersKick    Capability = "gm.players.kick"
-	GodModeTest    Capability = "gm.godmode.test"     // test/dev worlds only
-	HealTest       Capability = "gm.heal.test"        // test/dev worlds only
-	ItemsGrantTest Capability = "gm.items.grant.test" // reserved for Phase 3 (needs approval flow)
+	GMHudOpen          Capability = "gm.hud.open"
+	PlayersView        Capability = "gm.players.view"
+	PlayersKick        Capability = "gm.players.kick"
+	GodModeTest        Capability = "gm.godmode.test"        // test/dev worlds only
+	HealTest           Capability = "gm.heal.test"           // test/dev worlds only
+	ItemsGrantTest     Capability = "gm.items.grant.test"    // test world only; live grants need approval flow (Phase 7)
+	MonstersSpawnTest  Capability = "gm.monsters.spawn.test" // test world only
+	ProficiencySetTest Capability = "gm.power.points.test"   // test world only
 )
 
 var roleCaps = map[string][]Capability{
 	"player":        {},
 	"helper":        {PlayersView},
 	"moderator":     {GMHudOpen, PlayersView, PlayersKick},
-	"gm":            {GMHudOpen, PlayersView, PlayersKick, GodModeTest, HealTest},
-	"senior_gm":     {GMHudOpen, PlayersView, PlayersKick, GodModeTest, HealTest, ItemsGrantTest},
-	"administrator": {GMHudOpen, PlayersView, PlayersKick, GodModeTest, HealTest, ItemsGrantTest},
-	"owner":         {GMHudOpen, PlayersView, PlayersKick, GodModeTest, HealTest, ItemsGrantTest},
+	"gm":            {GMHudOpen, PlayersView, PlayersKick, GodModeTest, HealTest, MonstersSpawnTest, ProficiencySetTest},
+	"senior_gm":     {GMHudOpen, PlayersView, PlayersKick, GodModeTest, HealTest, MonstersSpawnTest, ProficiencySetTest, ItemsGrantTest},
+	"administrator": {GMHudOpen, PlayersView, PlayersKick, GodModeTest, HealTest, MonstersSpawnTest, ProficiencySetTest, ItemsGrantTest},
+	"owner":         {GMHudOpen, PlayersView, PlayersKick, GodModeTest, HealTest, MonstersSpawnTest, ProficiencySetTest, ItemsGrantTest},
 }
 
 func ValidRole(r string) bool { _, ok := roleCaps[r]; return ok }

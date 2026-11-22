@@ -25,6 +25,7 @@ export function arenaMap(
     ground: new Array(w * h).fill(0),
     collision,
     playerSpawn: { x: 3 * ts + 8, y: 6 * ts + 8 },
+    npcs: [],
     monsterSpawns: spawns,
   };
 }
