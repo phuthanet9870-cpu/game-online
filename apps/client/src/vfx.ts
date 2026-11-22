@@ -18,7 +18,8 @@ const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const smooth = (a: number, b: number, x: number) => { const t = clamp01((x - a) / (b - a)); return t * t * (3 - 2 * t); };
 const easeOut = (t: number) => 1 - (1 - clamp01(t)) ** 3;
 function rgba(h: string) { const n = parseInt(h.slice(1), 16); return ((255 << 24) | ((n & 255) << 16) | (n & 0xff00) | ((n >> 16) & 255)) >>> 0; }
-const P = (...h: string[]): Pal => h.map(rgba);
+/** Ramps are resampled to 8 steps so any step index is valid for every palette. */
+const P = (...h: string[]): Pal => { const c = h.map(rgba); return Array.from({ length: 8 }, (_, i) => c[Math.min(c.length - 1, Math.floor((i / 8) * c.length))]!); };
 /** Element ramps, darkest → brightest (ASTRA's own). */
 export const PAL: Record<string, Pal> = {
   fire: P('#3a1010', '#7a1a14', '#c02a1a', '#ee5a1c', '#ff9230', '#ffc845', '#ffe98a', '#fffbe0'),
@@ -36,6 +37,9 @@ export const PAL: Record<string, Pal> = {
   spark: P('#c02a1a', '#ff9230', '#ffe98a', '#fffbe0'),
   smoke: P('#1a161e', '#2a2630', '#423c48', '#5c5660', '#7a7072'),
   dust: P('#3a3024', '#5e4e3a', '#8a7658', '#b8a27e'),
+  /** Enemy danger colour: telegraphs and enemy shots always read as red. */
+  enemy: P('#200008', '#4a0a18', '#8a1424', '#d02a3a', '#ff5a5a', '#ffb0a8', '#ffe8e0'),
+  orb: P('#1a0614', '#40102e', '#7a1a5a', '#c02a8a', '#ff4fa0', '#ffa0d0', '#fff0f8'),
 };
 /** Steel blade ramp for physical slashes: deep blue-steel cooling from a white edge. */
 const STEEL = P('#1a2240', '#2c3e6e', '#4a68a0', '#7a9ccc', '#b4cae8', '#e4eefc', '#ffffff');
@@ -191,7 +195,7 @@ function jag(b: PixBuf, x0: number, y0: number, x1: number, y1: number, pal: Pal
 // ─────────────────────────── particles & timed effects ───────────────────────────
 type PK = 'spark' | 'ember' | 'flame' | 'smoke' | 'flake' | 'plus' | 'mote' | 'chunk' | 'bubble' | 'drip' | 'wisp' | 'streak';
 interface Part { k: PK; x: number; y: number; vx: number; vy: number; t: number; life: number; pal: Pal; size: number; floor: number; seed: number; grav: number }
-interface Fx { kind: string; x: number; y: number; ang: number; t: number; life: number; r: number; pal: Pal; seed: number; owner?: number; data?: { rev?: boolean } }
+interface Fx { kind: string; x: number; y: number; ang: number; t: number; life: number; r: number; pal: Pal; seed: number; owner?: number; data?: { rev?: boolean; arc?: number; tx?: number; ty?: number } }
 
 export function skillPal(sk: SkillDef | undefined, base: string): Pal {
   if (sk?.cls === 'chronomancer' && base !== 'shadow') return PAL.time!;
@@ -201,7 +205,8 @@ export function skillPal(sk: SkillDef | undefined, base: string): Pal {
 function parseVisual(v: string) {
   const [b, sk] = v.split('@');
   const base = b!.replace('slash_', '').replace('enemy_', '').replace('_basic', '').replace('_heal', '');
-  return { base: ELEMS.includes(base) ? base : 'physical', skill: sk ? SKILL_MAP[sk] : undefined, basic: b!.includes('_basic'), heal: b!.endsWith('_heal'), enemy: b!.startsWith('enemy') };
+  const enemy = b!.startsWith('enemy');
+  return { base: ELEMS.includes(base) ? base : base === 'orb' ? 'orb' : 'physical', skill: sk && !enemy ? SKILL_MAP[sk] : undefined, kind: enemy ? sk ?? base : '', basic: b!.includes('_basic'), heal: b!.endsWith('_heal'), enemy };
 }
 function elemOf(sk: SkillDef) {
   for (const f of sk.effects) { const d = (f as { dmg?: { type: string } }).dmg; if (d?.type) return d.type; }
@@ -225,6 +230,8 @@ export class Vfx {
   private seenAreaQ: number[] = [];
   private trails = new Map<number, Array<{ x: number; y: number; t: number }>>();
   private dashUntil = new Map<number, number>();
+  private dashPal = new Map<number, Pal>();
+  private lastZap: { x: number; y: number; t: number } | null = null;
   private statusT = 0;
   private now = 0;
   private acc = 0;
@@ -287,7 +294,9 @@ export class Vfx {
         this.add('flare', e.rx, e.ry - 24, { life: 0.1, pal: PAL.fire!, r: 16 }); this.g.shake = Math.max(this.g.shake, 2.5);
         break;
       case 'dash':
-        this.dashUntil.set(e.id, this.now + 0.35);
+        this.dashUntil.set(e.id, this.now + 0.35); this.dashPal.set(e.id, f.invuln || sk.cls === 'assassin' ? PAL.shadow! : sk.cls === 'paladin' ? PAL.holy! : sk.id === 'mag_blink' ? PAL.lightning! : pal === PAL.physical ? PAL.dust! : pal);
+        if (sk.cls === 'assassin') this.spray('smoke', 8, e.rx, e.ry - 10, 50, 0.8, PAL.shadow!, { size: 7 });
+        if (sk.id === 'mag_blink' || sk.id === 'chr_blink') { this.add('flare', e.rx, e.ry - 18, { life: 0.1, pal, r: 18 }); this.spray('streak', 10, e.rx, e.ry - 16, 260, 0.15, pal); }
         this.add('speedlines', e.rx, e.ry, { life: 0.32, pal: f.invuln ? PAL.shadow! : pal, ang: f.backward ? aim + Math.PI : aim, owner: e.id });
         this.spray('smoke', 5, e.rx, e.ry - 2, 30, 0.5, PAL.dust!, { size: 4 });
         break;
@@ -310,6 +319,13 @@ export class Vfx {
       case 'asn_u_clone': this.add('portal', e.rx, e.ry, { life: 0.6, pal: PAL.shadow!, r: 24 }); break;
       case 'war_warcry': case 'pal_taunt': this.g.shake = Math.max(this.g.shake, 3); break;
       case 'rng_u_snipe': this.add('scope', ax, ay, { life: 0.35, pal: PAL.fire!, r: 26 }); break;
+      case 'nec_drain': { // life streams from the drained spot back into the caster
+        for (let i = 0; i < 18; i++) { const an = Math.random() * TAU, rr = Math.random() * 90, sx = ax + Math.cos(an) * rr, sy = ay + Math.sin(an) * rr - 10, t = 0.45 + Math.random() * 0.3; this.p('mote', sx, sy, (e.rx - sx) / t, (e.ry - 20 - sy) / t, t, PAL.blood!); }
+        break;
+      }
+      case 'nec_curse': this.add('hexsigil', ax, ay, { life: 2.2, pal: PAL.shadow!, r: 110 }); break;
+      case 'war_u_execution': this.add('flare', ax, ay - 16, { life: 0.12, pal: PAL.blood!, r: 34 }); this.g.shake = Math.max(this.g.shake, 5); break;
+      case 'pal_smite': this.add('flare', e.rx + Math.cos(Math.atan2(ay - e.ry, ax - e.rx)) * 50, e.ry - 14 + Math.sin(Math.atan2(ay - e.ry, ax - e.rx)) * 50, { life: 0.1, pal: PAL.holy!, r: 22 }); break;
       default: break;
     }
   }
@@ -328,6 +344,11 @@ export class Vfx {
       default: this.spray('spark', n, x, y, 230, 0.45, PAL.spark!, { grav: 950, up: 160, floor }); break;
     }
     if (mine) this.add('hitflash', x, y, { life: crit ? 0.16 : 0.1, pal, r: crit ? 14 : 9 });
+    if (mine && dt === 'lightning') { // consecutive lightning hits are joined by an arc (chains, tempests)
+      const z = this.lastZap;
+      if (z && this.now - z.t < 0.3 && Math.hypot(z.x - x, z.y - y) > 20 && Math.hypot(z.x - x, z.y - y) < 320) this.add('zap', z.x, z.y, { life: 0.18, pal: PAL.lightning!, data: { tx: x, ty: y } });
+      this.lastZap = { x, y, t: this.now };
+    }
     if (heavy) {
       this.hitstop = Math.max(this.hitstop, crit ? 0.12 : 0.07); // the freeze sells the weight
       this.g.shake = Math.max(this.g.shake, crit ? 3 : 2);
@@ -366,12 +387,13 @@ export class Vfx {
     // projectile trails
     const hq = this.g.quality === 'high';
     for (const p of this.g.projs) {
-      if (p.team !== 0 || (!hq && Math.random() < 0.5)) continue;
-      const v = parseVisual(p.v), pal = skillPal(v.skill, v.base), sp = Math.hypot(p.vx, p.vy) || 1, bx = p.x - (p.vx / sp) * p.r, by = p.y - 12 - (p.vy / sp) * p.r;
+      if ((!hq && Math.random() < 0.5) || (p.team !== 0 && Math.random() < 0.4)) continue;
+      const v = parseVisual(p.v), pal = v.base === 'orb' ? PAL.orb! : skillPal(v.skill, v.base), sp = Math.hypot(p.vx, p.vy) || 1, bx = p.x - (p.vx / sp) * p.r, by = p.y - 12 - (p.vy / sp) * p.r;
       if (pal === PAL.time) { if (Math.random() < 0.6) this.p('mote', bx, by, (Math.random() - 0.5) * 30, (Math.random() - 0.5) * 30, 0.4, pal); continue; }
       switch (v.base) {
         case 'fire': this.p('flame', bx, by, -p.vx * 0.08 + (Math.random() - 0.5) * 20, -p.vy * 0.08 - 20, 0.35, PAL.fire!, { size: Math.max(3, p.r * 0.6) }); if (Math.random() < 0.4) this.p('ember', bx, by, (Math.random() - 0.5) * 60, -30 - Math.random() * 40, 0.6, PAL.fire!); break;
         case 'ice': if (Math.random() < 0.5) this.p('flake', bx, by, (Math.random() - 0.5) * 30, (Math.random() - 0.5) * 30, 0.5, PAL.ice!); if (Math.random() < 0.25) this.p('smoke', bx, by, 0, -10, 0.5, PAL.ice!, { size: 4 }); break;
+        case 'orb': this.p('wisp', bx, by, (Math.random() - 0.5) * 20, -15, 0.5, PAL.orb!); break;
         case 'shadow': if (Math.random() < 0.6) this.p('wisp', bx, by, (Math.random() - 0.5) * 20, -15, 0.6, PAL.shadow!); break;
         case 'poison': if (Math.random() < 0.4) this.p('drip', bx, by, 0, 0, 0.5, PAL.poison!, { grav: 400, floor: by + 18 }); break;
         case 'holy': if (Math.random() < 0.5) this.p('mote', bx, by, (Math.random() - 0.5) * 20, (Math.random() - 0.5) * 20, 0.45, PAL.holy!); break;
@@ -381,7 +403,8 @@ export class Vfx {
     }
     // first sight of a player area: slash sparks / impact bursts
     for (const a of this.g.areas) {
-      if (a.team !== 0 || a.outside || this.seenArea.has(a.id)) continue;
+      if (a.outside || this.seenArea.has(a.id)) continue;
+      if (a.team !== 0) { if (a.fired) { this.markSeen(a.id); this.enemyImpact(a); } continue; }
       if (a.cone) { this.markSeen(a.id); this.slashSparks(a); continue; }
       if (!a.fired) continue;
       this.markSeen(a.id);
@@ -422,7 +445,6 @@ export class Vfx {
     if (s.includes('shock')) this.p('streak', x, y, (Math.random() - 0.5) * 220, (Math.random() - 0.5) * 220, 0.09, PAL.lightning!);
     if (s.includes('curse') || s.includes('weaken')) this.p('wisp', e.rx + (Math.random() - 0.5) * 26, e.ry - 34, 0, -14, 0.8, PAL.shadow!);
     if (s.includes('stun')) this.p('mote', e.rx + Math.cos(this.now * 6) * 12, e.ry - 44 + Math.sin(this.now * 6) * 3, 0, 0, 0.25, PAL.holy!);
-    if (s.includes('marked') || s.includes('vulnerable')) this.p('mote', e.rx + (Math.random() - 0.5) * 22, e.ry - 46, 0, -8, 0.5, PAL.fire!);
   }
   private slashSparks(a: Area) {
     const v = parseVisual(a.v);
@@ -438,8 +460,17 @@ export class Vfx {
     this.add('flare', a.x, a.y - 8, { life: 0.07, pal, r: Math.min(40, 10 + r * 0.2) });
     this.add('shock', a.x, a.y, { life: 0.5, pal, r: r * 1.05 });
     if (v.heal) { this.spray('plus', 16, a.x, a.y, r * 0.8, 1.0, PAL.heal!, { up: 50 }); this.add('pool', a.x, a.y, { life: 0.7, pal, r }); return; }
-    if (pal === PAL.time) { this.add('clock', a.x, a.y, { life: 0.7, pal, r: r * 0.8 }); this.spray('mote', 16, a.x, a.y, r * 1.5, 0.8, pal); return; }
-    switch (v.base) {
+    if (pal === PAL.time) {
+      this.add('clock', a.x, a.y, { life: 0.7, pal, r: r * 0.8 }); this.spray('mote', 16, a.x, a.y, r * 1.5, 0.8, pal);
+      if (id === 'chr_u_epoch') { this.add('pillar', a.x, a.y, { life: 0.9, pal, r: 40 }); this.add('cracks', a.x, a.y, { life: 2, pal: PAL.dust!, r }); this.g.shake = Math.max(this.g.shake, 6); this.hitstop = Math.max(this.hitstop, 0.12); }
+      return;
+    }
+    this.burstAt(v.base, a.x, a.y, r, id);
+  }
+  /** Element burst shared by player and enemy area impacts. */
+  private burstAt(base: string, x: number, y: number, r: number, id = '') {
+    const a = { x, y }, big = r >= 110;
+    switch (base) {
       case 'fire':
         this.add('blast', a.x, a.y, { life: 0.5, pal: PAL.fire!, r });
         this.spray('flame', big ? 26 : 12, a.x, a.y - 6, r * 2.2, 0.55, PAL.fire!, { size: big ? 9 : 6 });
@@ -478,8 +509,52 @@ export class Vfx {
         if (big) this.g.shake = Math.max(this.g.shake, 3);
     }
   }
+  /** Enemy attack resolving: the telegraph turns into the blow it promised. */
+  private enemyImpact(a: Area) {
+    const v = parseVisual(a.v), me = this.g.ents.get(this.g.pid), near = !!me && Math.hypot(me.rx - a.x, me.ry - a.y) < 320;
+    const pal = PAL[v.base] && v.base !== 'physical' ? PAL[v.base]! : PAL.enemy!;
+    if (v.kind === 'line') return; // charge lane: the charge itself is the effect
+    if (a.cone) { this.add('eslash', a.x, a.y, { life: 0.28, pal: v.base === 'physical' ? PAL.enemy! : pal, r: a.r, ang: a.ang, data: { arc: a.arc } }); this.spray('spark', 5, a.x + Math.cos(a.ang) * a.r * 0.8, a.y + Math.sin(a.ang) * a.r * 0.8 - 8, 180, 0.4, PAL.spark!, { grav: 950, up: 120 }); return; }
+    this.add('shock', a.x, a.y, { life: 0.45, pal: PAL.enemy!, r: a.r });
+    if (v.kind === 'slam') { this.add('cracks', a.x, a.y, { life: 1.4, pal: PAL.dust!, r: a.r }); this.spray('chunk', 12, a.x, a.y, a.r * 2.2, 0.9, PAL.dust!, { grav: 900, up: 220, floor: a.y + 8 }); this.spray('smoke', 6, a.x, a.y, a.r * 0.8, 1.0, PAL.dust!, { size: 10 }); if (v.base !== 'physical') this.burstAt(v.base, a.x, a.y, a.r * 0.7); }
+    else this.burstAt(v.base === 'physical' ? 'physical' : v.base, a.x, a.y, a.r);
+    if (near) this.g.shake = Math.max(this.g.shake, v.kind === 'slam' ? 4 : 2.5);
+  }
+  /** Boss enters a new phase: a column of eclipse light, a shockwave and a long shake. */
+  onPhase(e: CEnt) {
+    this.add('pillar', e.rx, e.ry, { life: 0.9, pal: PAL.orb!, r: 30 });
+    this.add('flare', e.rx, e.ry - 30, { life: 0.12, pal: PAL.orb!, r: 40 });
+    this.add('shock', e.rx, e.ry, { life: 0.8, pal: PAL.orb!, r: 220 });
+    this.spray('wisp', 24, e.rx, e.ry - 20, 160, 1.2, PAL.orb!);
+    this.hitstop = Math.max(this.hitstop, 0.15);
+  }
+  /** Break gauge shattered: the guard breaks apart in shards. */
+  onBreak(e: CEnt) {
+    this.add('flare', e.rx, e.ry - 24, { life: 0.1, pal: PAL.fire!, r: 30 });
+    this.spray('chunk', 22, e.rx, e.ry - 24, 260, 1.0, PAL.holy!, { grav: 900, up: 200, floor: e.ry + 4 });
+    this.spray('spark', 16, e.rx, e.ry - 24, 300, 0.5, PAL.spark!, { grav: 950, up: 150, floor: e.ry + 4 });
+    this.hitstop = Math.max(this.hitstop, 0.14);
+  }
+  private drawTelegraph(a: Area, time: number) {
+    const b = this.ground, v = parseVisual(a.v), E = PAL.enemy!, ph = Math.floor(time * 30);
+    if (!(a.delay > 0 && a.delayT > 0)) return; // resolved: enemyImpact spawned the blow
+    const p = 1 - a.delay / a.delayT, el = PAL[v.base] && v.base !== 'physical' ? PAL[v.base]! : null;
+    const inside = (dx: number, dy: number) => { const d = Math.hypot(dx, dy); if (d > a.r) return -1; if (a.cone) { let u = Math.atan2(dy, dx) - a.ang; u = Math.atan2(Math.sin(u), Math.cos(u)); if (Math.abs(u) > a.arc / 2) return -1; } return d / a.r; };
+    disc(b, a.x, a.y, a.r + PX, 1, (_d, dx, dy, bx, by) => {
+      const lx = dx * (a.r + PX), ly = dy * (a.r + PX), q = inside(lx, ly);
+      if (q < 0) return;
+      const dd = Math.hypot(lx, ly); let u = Math.atan2(ly, lx) - a.ang; u = Math.abs(Math.atan2(Math.sin(u), Math.cos(u)));
+      const edge = a.r - dd < PX * 1.5 || (a.cone && dd > PX && (a.arc / 2 - u) * dd < PX * 1.5);
+      if (edge) { b.pxb(bx, by, ((bx + by + (ph >> 2)) & 3) === 0 ? E[5]! : E[3]!); return; }
+      const filled = q <= p;
+      b.dotb(bx, by, filled ? E[3]! : E[2]!, filled ? 0.5 : 0.2);
+      if (filled && p - q < 0.04) b.pxb(bx, by, E[5]!); // the advancing front
+    });
+    if (el) for (let i = 0; i < 6; i++) { const f = (time * 1.6 + i / 6) % 1, an = (i / 6) * TAU + f; const rr = a.r * (1 - f) * 0.9; const x = a.cone ? a.x + Math.cos(a.ang + (i / 5 - 0.5) * a.arc * 0.8) * (a.r * (0.3 + 0.7 * (1 - f))) : a.x + Math.cos(an) * rr, y = a.cone ? a.y + Math.sin(a.ang + (i / 5 - 0.5) * a.arc * 0.8) * (a.r * (0.3 + 0.7 * (1 - f))) : a.y + Math.sin(an) * rr; b.dot(x, y, el[5]!, 1 - f * 0.4); b.add(b.bx(x), b.by(y), el[4]!, 0.4); }
+    if (p > 0.75) b.glow(a.x, a.y, a.r, E[4]!, (p - 0.75) * 0.8);
+  }
   private fieldEmit(a: Area) {
-    const v = parseVisual(a.v), an = Math.random() * TAU, rr = Math.sqrt(Math.random()) * a.r, x = a.x + Math.cos(an) * rr, y = a.y + Math.sin(an) * rr * 0.62;
+    const v = parseVisual(a.v), an = Math.random() * TAU, rr = Math.sqrt(Math.random()) * a.r, x = a.x + Math.cos(an) * rr, y = a.y + Math.sin(an) * rr * 1;
     const pal = v.heal ? PAL.heal! : skillPal(v.skill, v.base);
     if (v.heal) { this.p('plus', x, y, 0, -40, 0.9, pal); return; }
     switch (v.base) {
@@ -501,7 +576,8 @@ export class Vfx {
   }
   /** Player areas go into the ground buffer; enemy telegraphs keep the renderer's readable red style. */
   drawArea(_ctx: CanvasRenderingContext2D, a: Area, time: number): boolean {
-    if (a.team !== 0 || a.outside) return false;
+    if (a.outside) return false;
+    if (a.team !== 0) { this.drawTelegraph(a, time); return true; }
     const v = parseVisual(a.v), pal = v.heal ? PAL.heal! : skillPal(v.skill, v.base), id = v.skill?.id ?? '';
     if (a.cone) this.drawSlash(a, pal, v.basic, v.skill);
     else if (a.delay > 0 && a.delayT > 0) this.drawSigil(a, pal, id, v.base, time);
@@ -521,13 +597,13 @@ export class Vfx {
     const heavy = (sk && (sk.kind === 'ultimate' || a.r > 105)) || a.arc > 2.6;
     const W = a.r * (heavy ? 0.26 : basic ? 0.14 : 0.2);
     const lead = a.ang - a.arc / 2 + a.arc * sweep;
-    const sp = pal === PAL.physical ? STEEL : pal;
-    crescent(this.ground, a.x, a.y - 8, a.r * 0.92, W, lead, span, 1, sp, smooth(0.04, 0.3, age) * 0.55, 0.78);
-    if (heavy) crescent(this.ground, a.x, a.y - 8, a.r * 0.7, W * 0.5, lead - 0.15, span * 0.7, 1, sp, 0.25 + smooth(0.04, 0.3, age) * 0.5, 0.78); // echo
-    if (age < 0.14) { const tx = a.x + Math.cos(lead) * a.r * 0.92, ty = a.y - 8 + Math.sin(lead) * a.r * 0.92 * 0.78; sparkle(this.ground, tx, ty, heavy ? 6 : 4, sp, 1 - age / 0.14); }
+    const sp = sk?.cls === 'assassin' && pal === PAL.physical ? PAL.blood! : pal === PAL.physical ? STEEL : pal;
+    crescent(this.ground, a.x, a.y - 8, a.r * 0.92, W, lead, span, 1, sp, smooth(0.04, 0.3, age) * 0.55, 1);
+    if (heavy) crescent(this.ground, a.x, a.y - 8, a.r * 0.7, W * 0.5, lead - 0.15, span * 0.7, 1, sp, 0.25 + smooth(0.04, 0.3, age) * 0.5, 1); // echo
+    if (age < 0.14) { const tx = a.x + Math.cos(lead) * a.r * 0.92, ty = a.y - 8 + Math.sin(lead) * a.r * 0.92 * 1; sparkle(this.ground, tx, ty, heavy ? 6 : 4, sp, 1 - age / 0.14); }
   }
   private drawSigil(a: Area, pal: Pal, id: string, base: string, time: number) {
-    const b = this.ground, p = 1 - a.delay / a.delayT, ph = Math.floor(time * 30), sy = 0.62;
+    const b = this.ground, p = 1 - a.delay / a.delayT, ph = Math.floor(time * 30), sy = 1;
     // dithered pool that fills as the strike approaches
     disc(b, a.x, a.y, a.r * (0.3 + 0.7 * p), sy, (d, _dx, _dy, bx, by) => b.dotb(bx, by, at(pal, 0.2 + (1 - d) * 0.25), (0.15 + p * 0.3) * (1 - d * 0.5)));
     ring(b, a.x, a.y, a.r, sy, at(pal, 0.55 + p * 0.4), 1, 6, ph / 6, 0.15);
@@ -558,7 +634,7 @@ export class Vfx {
     }
   }
   private drawField(a: Area, pal: Pal, base: string, id: string, time: number, heal: boolean) {
-    const b = this.ground, R = a.r, sy = 0.62, ph = Math.floor(time * 30), seed = a.id * 131;
+    const b = this.ground, R = a.r, sy = 1, ph = Math.floor(time * 30), seed = a.id * 131;
     // spinning blades (cyclones, orbiting edges, auras that follow the caster)
     if (id === 'war_whirl' || id === 'war_u_blade_storm' || id === 'asn_blades' || id === 'pal_u_avatar') {
       const n = id === 'war_u_blade_storm' ? 4 : id === 'asn_blades' ? 3 : 2, spin = time * (id === 'asn_blades' ? 10 : 14);
@@ -661,6 +737,15 @@ export class Vfx {
   drawProjectile(_ctx: CanvasRenderingContext2D, p: Proj, time: number) {
     const b = this.top, v = parseVisual(p.v), id = v.skill?.id ?? '', pal = skillPal(v.skill, v.base);
     const sp = Math.hypot(p.vx, p.vy) || 1, cx = p.vx / sp, cy = p.vy / sp, x = p.x, y = p.y - 12, ph = Math.floor(time * 30);
+    if (v.enemy) { // enemy shots: element body inside a pulsing red danger rim, so they always read as hostile
+      const r = Math.max(5, p.r * 0.8), body = v.base === 'orb' ? PAL.orb! : v.base === 'physical' ? PAL.enemy! : PAL[v.base]!;
+      if (v.base === 'lightning') { const rnd = rng(p.id * 31 + ph); jag(b, x, y, x - cx * 18, y - cy * 18, body, rnd, 3); }
+      for (let i = 1; i <= 3; i++) disc(b, x - cx * r * i * 0.6, y - cy * r * i * 0.6, r * (1 - i * 0.22), 1, (d, _a, _c, bx, by) => b.dotb(bx, by, at(body, 0.7 - i * 0.15 - d * 0.3), 1.1 - i * 0.3));
+      ball(b, x, y, r, body, 1.05, 0.3);
+      ring(b, x, y, r + PX * 1.5, 1, ph % 6 < 3 ? PAL.enemy![4]! : PAL.enemy![3]!, 1);
+      b.glow(x, y, r * 3.5, body[4]!, 0.35);
+      return;
+    }
     if (pal === PAL.time) { // sand-glass bolt: teal core with a ring of ticking sand
       ball(b, x, y, Math.max(4, p.r * 0.6), pal, 1, 0.3);
       for (let i = 0; i < 4; i++) { const an = time * 8 + (i / 4) * TAU; b.dot(x + Math.cos(an) * (p.r + 4), y + Math.sin(an) * (p.r + 4) * 0.6, PAL.holy![5]!, 1); }
@@ -743,7 +828,13 @@ export class Vfx {
     const b = this.top;
     for (const [id, tr] of this.trails) { // dash: streaks left along the path
       if (!this.g.ents.get(id)) continue;
-      for (let i = 1; i < tr.length; i++) { const a = tr[i - 1]!, c = tr[i]!, k = 1 - (this.now - c.t) / 0.22; for (const off of [-30, -20, -10]) line(b, a.x, a.y + off, c.x, c.y + off, at(PAL.ice!, 0.4 + k * 0.5), k); }
+      const dp = this.dashPal.get(id) ?? PAL.ice!;
+      for (let i = 1; i < tr.length; i++) { const a = tr[i - 1]!, c = tr[i]!, k = 1 - (this.now - c.t) / 0.22; for (const off of [-30, -20, -10]) line(b, a.x, a.y + off, c.x, c.y + off, at(dp, 0.4 + k * 0.5), k, 0.15); }
+    }
+    for (const e of this.g.ents.values()) if (!e.dead && (e.st.includes('marked') || e.st.includes('vulnerable'))) { // crosshair over marked targets
+      const r = 16 + Math.sin(this.now * 6) * 2, cy = e.ry - 18, c = PAL.fire![4]!;
+      ring(b, e.rx, cy, r, 1, c, 1, 3, Math.floor(this.now * 10));
+      for (let i = 0; i < 4; i++) { const an = (i / 4) * TAU + Math.PI / 4; line(b, e.rx + Math.cos(an) * (r - 4), cy + Math.sin(an) * (r - 4), e.rx + Math.cos(an) * (r + 5), cy + Math.sin(an) * (r + 5), PAL.fire![5]!); }
     }
     for (const f of this.fx) if (!GROUND_FX.has(f.kind) && !(f.kind === 'clock' && f.r > 100)) this.drawFx(f, time, b);
     for (const p of this.parts) this.drawPart(p, time);
@@ -795,10 +886,19 @@ export class Vfx {
         break;
       }
       case 'flare': flare(b, x, y, f.r, f.pal, 1 - k * 0.5); break;
+      case 'zap': jag(b, x, y, f.data!.tx!, f.data!.ty!, f.pal, rng(f.seed + Math.floor(time * 20)), 6, 1.3 - k * 1.3); break;
+      case 'hexsigil': { // curse mark: rotating rune ring with a six-point star, fading after the curse lands
+        const a = Math.min(1, (1 - k) * 3) * Math.min(1, f.t * 6), r = f.r * 0.9;
+        ring(b, x, y, r, 1, f.pal[4]!, a, 0, 0, 0.15); ring(b, x, y, r * 0.86, 1, f.pal[3]!, a, 3, ph / 6);
+        for (let i = 0; i < 6; i++) { const a1 = (i / 6) * TAU + f.t * 0.6, a2 = ((i + 2) / 6) * TAU + f.t * 0.6; line(b, x + Math.cos(a1) * r * 0.86, y + Math.sin(a1) * r * 0.86, x + Math.cos(a2) * r * 0.86, y + Math.sin(a2) * r * 0.86, f.pal[3]!, a * 0.8); }
+        for (let i = 0; i < 6; i++) { const an = (i / 6) * TAU - f.t; b.dot(x + Math.cos(an) * r * 1.05, y + Math.sin(an) * r * 1.05, f.pal[6]!, a); }
+        break;
+      }
+      case 'eslash': { const arc = f.data?.arc ?? 1.6, sweep = easeOut(f.t / 0.07), lead = f.ang - arc / 2 + arc * sweep; crescent(b, x, y - 8, f.r * 0.92, f.r * 0.22, lead, arc * sweep * (1 - smooth(0.08, 0.28, f.t) * 0.85), 1, f.pal, smooth(0.04, 0.28, f.t) * 0.5); break; }
       case 'hitflash': { const r = f.r * (0.6 + k * 0.6); ring(b, x, y, r, 1, at(f.pal, 1 - k), 1.4 - k * 1.4); if (k < 0.5) sparkle(b, x, y, Math.round(f.r / 3), f.pal); break; }
       case 'shock': { // floor ring: eases out, cools down the ramp, dissolves through the dither
         const r = f.r * easeOut(k), a = 1.3 - k * 1.3;
-        ring(b, x, y, r, 0.62, at(f.pal, 0.86 - k * 0.6), a, 0, 0, 0.2); if (k < 0.5) ring(b, x, y, r - PX, 0.62, at(f.pal, 0.6 - k * 0.5), a * 0.8);
+        ring(b, x, y, r, 1, at(f.pal, 0.86 - k * 0.6), a, 0, 0, 0.2); if (k < 0.5) ring(b, x, y, r - PX, 1, at(f.pal, 0.6 - k * 0.5), a * 0.8);
         break;
       }
       case 'shout': { const r = f.r * easeOut(k); ring(b, x, y, r, 0.7, at(f.pal, 1 - k * 0.6), 1.4 - k * 1.4, 5, ph / 3, 0.2); break; }
@@ -863,7 +963,7 @@ export class Vfx {
       }
       case 'void': { // implodes, then bursts outward as a dark ring
         if (k < 0.35) { const q = k / 0.35, r = f.r * (1 - q); disc(b, x, y - 6, r * 0.6, 0.8, (d, _x, _y, bx, by) => b.pxb(bx, by, d > 0.8 ? f.pal[4]! : f.pal[0]!)); ring(b, x, y - 6, r, 0.62, f.pal[5]!, 1, 3, ph / 2, 0.2); }
-        else { const q = (k - 0.35) / 0.65, r = f.r * easeOut(q); ring(b, x, y, r, 0.62, at(f.pal, 0.9 - q * 0.6), 1.3 - q * 1.3, 0, 0, 0.2); ring(b, x, y, r * 0.85, 0.62, f.pal[1]!, 1.2 - q * 1.2); }
+        else { const q = (k - 0.35) / 0.65, r = f.r * easeOut(q); ring(b, x, y, r, 1, at(f.pal, 0.9 - q * 0.6), 1.3 - q * 1.3, 0, 0, 0.2); ring(b, x, y, r * 0.85, 1, f.pal[1]!, 1.2 - q * 1.2); }
         break;
       }
       case 'aura': { // bands rise up the body
@@ -905,5 +1005,5 @@ export class Vfx {
   }
 }
 /** Timed effects that lie on the floor (drawn under characters). */
-const GROUND_FX = new Set(['shock', 'scorch', 'cracks', 'portal', 'void']);
+const GROUND_FX = new Set(['shock', 'scorch', 'cracks', 'portal', 'void', 'eslash', 'hexsigil']);
 const PLUS = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]] as const;

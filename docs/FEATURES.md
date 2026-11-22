@@ -105,7 +105,8 @@ Last updated: 2026-11-22 (v0.9.0 — Phases 0-1, 4, 5, 6, 7, content expansion, 
 | Touch controls (joystick + buttons) | Implemented | Only checked in an emulated phone viewport. |
 | Thai / English UI | Tested | UI chrome + classes, 72 skills, quests, enemies, activities, blessings, modifiers, achievements, crafting in Thai (coverage test). Item names and stat labels still English. |
 | Audio (synthesized SFX + ambience, volume settings) | Implemented | No recorded music/voice. |
-| Pixel-art skill VFX (per-skill effects, light buffer, dither fades, hit-stop) | Implemented | Checked by screenshots in Chromium for all 7 classes; character sprites are still procedural. |
+| Pixel-art skill VFX (per-skill effects, light buffer, dither fades, hit-stop) | Implemented | Checked by screenshots in Chromium for all 7 classes. |
+| Pixel-art sprites (classes, NPCs, enemies, bosses, minions) + enemy/boss effects | Implemented | Generated in code; checked via sprite sheet and in-game screenshots (Chromium only). |
 
 ## Backlog (prioritised)
 - **B-1 Deployment**: HTTPS host, domain, TLS proxy, managed Postgres backups. Blocked on the owner choosing a host.
@@ -113,7 +114,7 @@ Last updated: 2026-11-22 (v0.9.0 — Phases 0-1, 4, 5, 6, 7, content expansion, 
 - **B-4 Endgame**: Endless Tower (reuse Rift generator with floor scaling), raids (4-8), world boss, arena.
 - **B-5 Life skills**: mining/fishing/cooking/alchemy recipes, housing, pets.
 - **B-6 Live ops**: editing whole new content records (not only tuning) from the console; patch-notes page.
-- **B-7 Audio & art pass**: sound effects/music, sprite art replacing procedural drawing.
+- **B-7 Audio & art pass**: recorded music; hand-drawn tiles/environment art (characters and effects are now pixel art).
 - **B-8 Netcode**: binary encoding (MessagePack) and per-entity update rates for very crowded zones.
 - **B-9 Localization**: Thai for item names, affix/stat labels and NPC dialogue.
 - **B-10 More tests**: party + reconnect integration tests, cross-browser runs, larger load tests.

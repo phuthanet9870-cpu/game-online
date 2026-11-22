@@ -1210,16 +1210,16 @@ export class World {
     es.pending = { atk, t: windup, total: windup, tx: target.x, ty: target.y, ang };
     const pk: Packet = { amount: es.power * atk.dmg, type: atk.type, critChance: 0, critMult: 1, src: e.id, tags: [], status: atk.status };
     // Telegraphs: visible danger zones that resolve when the windup ends.
-    if (atk.kind === 'melee') this.areas.push(this.mkArea(e, { x: e.x, y: e.y, r: atk.range + 16, shape: 'cone', ang, arc: (100 * Math.PI) / 180, delay: windup, packet: pk, visual: 'enemy' }));
-    else if (atk.kind === 'cleave') this.areas.push(this.mkArea(e, { x: e.x, y: e.y, r: atk.range + 20, shape: 'cone', ang, arc: (150 * Math.PI) / 180, delay: windup, packet: pk, visual: 'enemy' }));
-    else if (atk.kind === 'slam') this.areas.push(this.mkArea(e, { x: e.x, y: e.y, r: atk.radius ?? 90, delay: windup, packet: pk, visual: 'enemy' }));
+    if (atk.kind === 'melee') this.areas.push(this.mkArea(e, { x: e.x, y: e.y, r: atk.range + 16, shape: 'cone', ang, arc: (100 * Math.PI) / 180, delay: windup, packet: pk, visual: `enemy_${atk.type}@${atk.kind}` }));
+    else if (atk.kind === 'cleave') this.areas.push(this.mkArea(e, { x: e.x, y: e.y, r: atk.range + 20, shape: 'cone', ang, arc: (150 * Math.PI) / 180, delay: windup, packet: pk, visual: `enemy_${atk.type}@${atk.kind}` }));
+    else if (atk.kind === 'slam') this.areas.push(this.mkArea(e, { x: e.x, y: e.y, r: atk.radius ?? 90, delay: windup, packet: pk, visual: `enemy_${atk.type}@${atk.kind}` }));
     else if (atk.kind === 'eruption') {
       const n = atk.count ?? 1;
       const players = [...this.ents.values()].filter((o) => o.team !== e.team && !o.dead && dist(o.x, o.y, e.x, e.y) < atk.range + 200);
       for (let i = 0; i < n; i++) {
         const t = i === 0 ? target : players.length ? this.rng.pick(players) : target;
         const jitter = i === 0 ? 0 : 90;
-        this.areas.push(this.mkArea(e, { x: t.x + this.rng.range(-jitter, jitter), y: t.y + this.rng.range(-jitter, jitter), r: atk.radius ?? 70, delay: windup + i * 0.15, packet: pk, visual: 'enemy' }));
+        this.areas.push(this.mkArea(e, { x: t.x + this.rng.range(-jitter, jitter), y: t.y + this.rng.range(-jitter, jitter), r: atk.radius ?? 70, delay: windup + i * 0.15, packet: pk, visual: `enemy_${atk.type}@${atk.kind}` }));
       }
     } else if (atk.kind === 'eclipse') {
       // Raid mechanic: the whole arena is engulfed except one small circle of light. Players must gather in it.
@@ -1315,7 +1315,8 @@ export class World {
     if (!pr.explode) return;
     const owner = this.ents.get(pr.owner);
     if (!owner) return;
-    this.areas.push(this.mkArea(owner, { x: pr.x, y: pr.y, r: pr.explode.radius, packet: pr.explode.packet, visual: pr.explode.packet.type }));
+    const tag = pr.visual.includes('@') ? '@' + pr.visual.split('@')[1] : '';
+    this.areas.push(this.mkArea(owner, { x: pr.x, y: pr.y, r: pr.explode.radius, packet: pr.explode.packet, visual: pr.explode.packet.type + tag }));
   }
 
   private tickAreas(dt: number) {

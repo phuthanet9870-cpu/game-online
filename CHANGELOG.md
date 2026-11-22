@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.12.0] — 2026-11-22 — Pixel-art characters, enemy effects, skill polish
+### Added
+- **Pixel sprites** (`apps/client/src/sprites.ts`) on the same pixel grid as the effects: all 7 classes (front / side / back views, 4-frame walk, idle, wind-up → strike → follow-through, per-class headgear and weapons), NPCs, every enemy family (hooded Hollowborn with weapons, beasts, golems, imps, crystal seer, the Gloomheart tree, wisps, starlings) and bosses (Veyra's umbral wings, Nyx's eclipse halo, crowns), minions (skeletons, Bone Colossus, wraiths, hawks, turrets, sentinels); white hit-flash frames; dithered pixel shadows. Sprites are generated in code and cached per pose.
+- **Enemy effects**: telegraphs stay red but are now pixel danger zones with an advancing front and element motes; when they resolve they become the promised blow (red crescent for melee/cleave, cracks + debris for slams, element bursts for eruptions). Enemy shots show their element inside a pulsing red rim. Boss phase changes (eclipse pillar + shockwave + freeze) and Break (shattering shards) have their own effects.
+- Skill polish: chain lightning draws arcs between consecutive hits; dashes leave trails in their skill's colour (shadow smoke, lightning blink, holy charge); Drain Life pulls blood motes into the caster; Withering Hex leaves a rotating hex sigil; marked targets get a crosshair; assassin melee cuts in blood red; Epoch collapses with a time pillar and cracks; projectile explosions keep their skill id.
+### Fixed
+- Area effects were drawn as squashed ellipses although hit areas are true circles; area-bound effects are now drawn at their real size and shape.
+- A ranger summon could crash the renderer (palette with too few steps); all palettes are resampled to 8 steps.
+### Verified
+- Typecheck + 54 tests; all 7 classes casting every slot in Chromium with no page errors; enemy telegraph/impact/projectile harness; sprite sheet of every class pose and enemy. Firefox/Safari still untested.
+
 ## [0.11.0] — 2026-11-22 — Pixel-art skill effects
 ### Added
 - New client VFX engine (`apps/client/src/vfx.ts`), our own effects in a hand-made pixel-art VFX style (studied from the MIT pixelfx project's conventions; no code or art copied): effects rasterise into a low-res pixel buffer (1 art pixel = 2 world units) upscaled nearest-neighbour; an opaque COLOR buffer whose fades use a 4×4 ordered dither (only smoke/vapour is translucent) plus an additive LIGHT buffer; dark→bright palette ramps per element; particles step at 120 Hz.

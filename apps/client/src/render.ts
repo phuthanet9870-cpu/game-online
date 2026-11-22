@@ -1,3 +1,5 @@
+import { drawChibi, drawEnemySprite, drawMinionSprite, setAnimTime } from './sprites.js';
+export { drawChibi };
 import { CLASSES, ENEMIES, FURNITURE, MINIONS, RARITY_DEFS, TILE, type GameMap, type Interactable, type Rarity } from '@astra/shared';
 import { DMG_COLORS, type CEnt, type ClientGame } from './game.js';
 
@@ -121,6 +123,7 @@ export class Renderer {
 
   draw(dt: number) {
     this.time += dt;
+    setAnimTime(this.time);
     const { ctx, g } = this;
     const m = g.map;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
@@ -158,7 +161,7 @@ export class Renderer {
     for (const i of items) i.fn();
     // projectiles
     ctx.globalCompositeOperation = this.g.quality === 'low' ? 'source-over' : 'lighter';
-    for (const p of g.projs) if (p.team === 0) g.vfx.drawProjectile(ctx, p, this.time); else this.drawProj(p);
+    for (const p of g.projs) g.vfx.drawProjectile(ctx, p, this.time);
     for (const p of g.particles) { ctx.globalAlpha = 1 - p.t / p.life; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill(); }
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
@@ -330,7 +333,7 @@ export class Renderer {
       const au = AURA_COLORS[e.aura];
       if (au && !e.dead) { ctx.globalCompositeOperation = 'lighter'; const grd = ctx.createRadialGradient(0, -14, 6, 0, -14, 34); grd.addColorStop(0, au + '00'); grd.addColorStop(0.6, au + '55'); grd.addColorStop(1, au + '00'); ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(0, -14, 34, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = au + 'aa'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(0, 6, 18 + Math.sin(this.time * 3) * 2, 7, 0, 0, Math.PI * 2); ctx.stroke(); ctx.globalCompositeOperation = 'source-over'; }
       ctx.globalAlpha = e.dead ? 0.35 : e.invuln && e.id === g.pid ? 0.75 : 1;
-      drawChibi(ctx, 0, 0, scale, e.f, cd?.colors.body ?? '#888', cd?.colors.hair ?? '#333', cd?.colors.accent ?? '#ccc', e.swingT, bob, e.def);
+      drawChibi(ctx, 0, 0, scale, e.f, cd?.colors.body ?? '#888', cd?.colors.hair ?? '#333', cd?.colors.accent ?? '#ccc', e.swingT, e.moving > 0.2 ? 2 : 0, e.def, e.id, e.flash);
       ctx.globalAlpha = 1;
       if (e.id !== g.pid) { ctx.font = '700 12px system-ui'; ctx.textAlign = 'center'; label(ctx, `${e.name} · ${e.lv}`, 0, -54 * scale, '#bfe3ff'); bar(ctx, -20, -48 * scale, 40, 4, e.hp / e.mhp, '#5bd16a'); }
     } else if (e.kind === 1) {
@@ -346,7 +349,6 @@ export class Renderer {
       if (e.st.includes('stun') || e.st.includes('broken')) { ctx.fillStyle = '#ffe066'; for (let i = 0; i < 3; i++) { const a = this.time * 5 + i * 2.1; ctx.beginPath(); ctx.arc(Math.cos(a) * 12, -40 + Math.sin(a) * 3, 2.5, 0, Math.PI * 2); ctx.fill(); } }
     }
     if (e.barrier > 0) { ctx.strokeStyle = 'rgba(140,210,255,0.6)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, -14, 24 * scale, 0, Math.PI * 2); ctx.stroke(); }
-    if (e.flash > 0) { ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,255,255,${e.flash * 2})`; ctx.beginPath(); ctx.arc(0, -12, 16 * scale, 0, Math.PI * 2); ctx.fill(); ctx.globalCompositeOperation = 'source-over'; }
     ctx.restore();
   }
 
@@ -355,38 +357,9 @@ export class Renderer {
     const def = ENEMIES[e.def];
     const elite = (e.flags & 1) !== 0, boss = (e.flags & 2) !== 0;
     const r = (def?.radius ?? 15) * (elite ? 1.15 : 1);
-    shadow(ctx, 0, 6, r * 1.1, r * 0.45);
     if (e.windup > 0) { ctx.strokeStyle = `rgba(255,70,70,${0.4 + e.windup * 0.6})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, -r * 0.7, r + 6 + e.windup * 6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * e.windup); ctx.stroke(); }
     if (elite || boss) { const grd = ctx.createRadialGradient(0, -r * 0.6, r * 0.3, 0, -r * 0.6, r * 2); grd.addColorStop(0, boss ? 'rgba(255,60,140,0.35)' : 'rgba(255,190,60,0.3)'); grd.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(0, -r * 0.6, r * 2, 0, Math.PI * 2); ctx.fill(); }
-    const col = def?.color ?? '#666';
-    const fam = def?.family;
-    const fx = Math.cos(e.f), fy = Math.sin(e.f);
-    if (e.def === 'dummy') {
-      ctx.fillStyle = '#7a5a34'; ctx.fillRect(-3, -10, 6, 18); ctx.fillStyle = '#c8a46a'; ctx.beginPath(); ctx.ellipse(0, -22, 13, 16, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#a33'; ctx.beginPath(); ctx.arc(0, -24, 5, 0, Math.PI * 2); ctx.fill();
-    } else if ((fam === 'wildlife' && e.def !== 'wisp') || e.def === 'cinder_drake' || e.def === 'shard_stalker') {
-      // quadruped beast
-      ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(0, -r * 0.6 - bob * 0.5, r * 1.15, r * 0.7, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(fx * r * 0.9, -r * 0.7 + fy * r * 0.4 - bob * 0.5, r * 0.55, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#ffde5a'; ctx.beginPath(); ctx.arc(fx * r * 1.15 - fy * 3, -r * 0.8 + fy * r * 0.4, 2, 0, Math.PI * 2); ctx.arc(fx * r * 1.15 + fy * 3, -r * 0.8 + fy * r * 0.4, 2, 0, Math.PI * 2); ctx.fill();
-      if (e.def === 'thornback') { ctx.fillStyle = '#d8c8a0'; for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(i * 5 - 3, -r * 1.1); ctx.lineTo(i * 5, -r * 1.6); ctx.lineTo(i * 5 + 3, -r * 1.1); ctx.fill(); } }
-    } else if (e.def === 'wisp' || e.def === 'starling') {
-      const grd = ctx.createRadialGradient(0, -20 - bob, 2, 0, -20 - bob, r * 1.6); grd.addColorStop(0, '#ffffff'); grd.addColorStop(0.4, col); grd.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(0, -20 - bob, r * 1.6, 0, Math.PI * 2); ctx.fill();
-    } else {
-      // hooded hollowborn humanoid
-      const h = r * 2.4;
-      ctx.fillStyle = col;
-      ctx.beginPath(); ctx.moveTo(-r, 0); ctx.quadraticCurveTo(-r * 1.1, -h * 0.6, 0, -h - bob); ctx.quadraticCurveTo(r * 1.1, -h * 0.6, r, 0); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.beginPath(); ctx.ellipse(fx * 3, -h * 0.68 - bob, r * 0.55, r * 0.45, 0, 0, Math.PI * 2); ctx.fill();
-      const eye = boss ? '#ff4f9a' : elite ? '#ffb347' : '#c8a0ff';
-      ctx.fillStyle = eye; ctx.shadowColor = eye; ctx.shadowBlur = this.g.quality === 'high' ? 8 : 0;
-      ctx.beginPath(); ctx.arc(fx * 5 - 4, -h * 0.68 - bob + fy * 2, 2.2, 0, Math.PI * 2); ctx.arc(fx * 5 + 4, -h * 0.68 - bob + fy * 2, 2.2, 0, Math.PI * 2); ctx.fill();
-      ctx.shadowBlur = 0;
-      if (e.def === 'hollow_archer') { ctx.strokeStyle = '#a0907a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(fx * r, -h * 0.45, r * 0.9, e.f - 1.2, e.f + 1.2); ctx.stroke(); }
-      if (e.def === 'hollow_hexer') { ctx.fillStyle = '#ff6ad5'; ctx.beginPath(); ctx.arc(fx * r * 1.2, -h * 0.5 + Math.sin(this.time * 4) * 3, 4, 0, Math.PI * 2); ctx.fill(); }
-      if (e.def === 'hollow_grunt' || e.def === 'hollow_brute' || e.def === 'hollow_captain') { ctx.strokeStyle = '#9a9aa8'; ctx.lineWidth = e.def === 'hollow_grunt' ? 2 : 4; ctx.beginPath(); ctx.moveTo(fx * r * 0.6, -h * 0.4); ctx.lineTo(fx * r * 1.8, -h * 0.4 + fy * r * 0.8 - 6); ctx.stroke(); }
-      if (boss) { ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(0, -h - 8 - bob, r * 0.7, r * 0.22, 0, 0, Math.PI * 2); ctx.stroke(); }
-    }
+    drawEnemySprite(ctx, { ...e, rx: 0, ry: 0 }, def, elite, boss, scale);
     if (e.def !== 'dummy' || e.hp < e.mhp) {
       const w = boss ? 0 : Math.max(30, r * 2.4);
       if (w) bar(ctx, -w / 2, -r * 2.7 - 8, w, 4, e.hp / e.mhp, elite ? '#ffb347' : '#e04848');
@@ -399,32 +372,12 @@ export class Renderer {
     const md = MINIONS[e.def];
     const col = md?.color ?? '#ddd';
     const r = md?.radius ?? 12;
-    shadow(ctx, 0, 5, r, r * 0.4);
-    ctx.globalAlpha = 0.92;
-    if (e.def === 'wraith') { const grd = ctx.createRadialGradient(0, -18 - bob, 2, 0, -18 - bob, r * 1.8); grd.addColorStop(0, '#ffffff'); grd.addColorStop(0.5, col); grd.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(0, -18 - bob, r * 1.8, 0, Math.PI * 2); ctx.fill(); }
-    else if (e.def === 'hawk') { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(0, -30 - bob); ctx.lineTo(-14, -24 - bob + Math.sin(this.time * 18) * 5); ctx.lineTo(0, -20 - bob); ctx.lineTo(14, -24 - bob + Math.sin(this.time * 18) * 5); ctx.closePath(); ctx.fill(); }
-    else if (e.def === 'turret') { ctx.fillStyle = '#5a6b3a'; ctx.fillRect(-9, -16, 18, 18); ctx.fillStyle = col; ctx.save(); ctx.translate(0, -12); ctx.rotate(e.f); ctx.fillRect(0, -3, 16, 6); ctx.restore(); }
-    else { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(0, -r - bob, r * 0.8, r * 1.1, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(-3, -r * 1.6 - bob, 2, 0, Math.PI * 2); ctx.arc(3, -r * 1.6 - bob, 2, 0, Math.PI * 2); ctx.fill(); }
+    drawMinionSprite(ctx, { ...e, rx: 0, ry: 0 }, col, r);
     ctx.globalAlpha = 1;
     bar(ctx, -12, -r * 2.6, 24, 3, e.hp / e.mhp, '#7be0b5');
   }
 
-  private drawProj(p: ClientGame['projs'][number]) {
-    const { ctx } = this;
-    const type = p.v.split('@')[0]!.replace('enemy_', '').replace('_basic', '');
-    const enemy = p.team === 1;
-    const col = enemy ? (p.v === 'enemy_orb' ? '#ff4fa0' : '#ff6b6b') : DMG_COLORS[type] ?? '#fff';
-    const ang = Math.atan2(p.vy, p.vx);
-    if (type === 'physical' && !enemy && p.r <= 10) {
-      ctx.strokeStyle = '#f5e9c8'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(p.x - Math.cos(ang) * 16, p.y - Math.sin(ang) * 16); ctx.lineTo(p.x, p.y); ctx.stroke();
-      return;
-    }
-    const r = Math.max(4, p.r);
-    const grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 2.2);
-    grd.addColorStop(0, '#ffffff'); grd.addColorStop(0.35, col); grd.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(p.x, p.y, r * 2.2, 0, Math.PI * 2); ctx.fill();
-    if (this.g.quality === 'high') { ctx.strokeStyle = col; ctx.globalAlpha = 0.4; ctx.lineWidth = r; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - Math.cos(ang) * r * 3, p.y - Math.sin(ang) * r * 3); ctx.stroke(); ctx.globalAlpha = 1; }
-  }
+
 
   drawMinimap(c: HTMLCanvasElement, big: boolean) {
     const g = this.g; const m = g.map;
@@ -483,61 +436,3 @@ function label(ctx: CanvasRenderingContext2D, text: string, x: number, y: number
 function hexToRgb(h: string) { return `${parseInt(h.slice(1, 3), 16)},${parseInt(h.slice(3, 5), 16)},${parseInt(h.slice(5, 7), 16)}`; }
 
 /** Chibi anime-style humanoid: big head, expressive eyes, class weapon. */
-export function drawChibi(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, facing: number, body: string, hair: string, accent: string, swing: number, bob: number, cls: string) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(s, s);
-  shadow(ctx, 0, 6, 15, 6);
-  const fx = Math.cos(facing), fy = Math.sin(facing);
-  const back = fy < -0.3;
-  const drawWeapon = () => {
-    ctx.save();
-    ctx.translate(fx * 10, -16 - bob + fy * 4);
-    ctx.rotate(facing + (swing > 0 ? (0.25 - swing) * 8 - 1 : 0.4));
-    ctx.lineCap = 'round';
-    switch (cls) {
-      case 'warrior': ctx.strokeStyle = '#d8dde8'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(30, 0); ctx.stroke(); ctx.strokeStyle = accent; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(4, -6); ctx.lineTo(4, 6); ctx.stroke(); break;
-      case 'mage': ctx.strokeStyle = '#7a5a3a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(26, 0); ctx.stroke(); ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(28, 0, 5, 0, Math.PI * 2); ctx.fill(); break;
-      case 'assassin': ctx.strokeStyle = '#e8e8f0'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, -4); ctx.lineTo(16, -6); ctx.moveTo(0, 4); ctx.lineTo(16, 6); ctx.stroke(); break;
-      case 'ranger': ctx.strokeStyle = '#8a5a2b'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(4, 0, 14, -1.3, 1.3); ctx.stroke(); ctx.strokeStyle = '#eee'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(4 + Math.cos(-1.3) * 14, Math.sin(-1.3) * 14); ctx.lineTo(4 + Math.cos(1.3) * 14, Math.sin(1.3) * 14); ctx.stroke(); break;
-      case 'paladin': ctx.strokeStyle = '#c0c0d0'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(22, 0); ctx.stroke(); ctx.fillStyle = accent; ctx.fillRect(18, -6, 9, 12); break;
-      case 'chronomancer': ctx.fillStyle = '#d8b25f'; ctx.fillRect(8, -9, 14, 3); ctx.fillRect(8, 6, 14, 3); ctx.fillStyle = 'rgba(160,240,230,0.85)'; ctx.beginPath(); ctx.moveTo(10, -6); ctx.lineTo(20, -6); ctx.lineTo(15, 0); ctx.lineTo(20, 6); ctx.lineTo(10, 6); ctx.lineTo(15, 0); ctx.closePath(); ctx.fill(); break;
-      case 'necromancer': ctx.strokeStyle = '#3a3040'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(26, 0); ctx.stroke(); ctx.strokeStyle = accent; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(26, -8, 9, 0.2, 1.8); ctx.stroke(); break;
-      default: break;
-    }
-    ctx.restore();
-  };
-  if (back) drawWeapon();
-  // legs
-  ctx.fillStyle = '#2a2433';
-  ctx.fillRect(-6, -8 - bob * 0.3, 4, 10 + bob * 0.3); ctx.fillRect(2, -8 + bob * 0.3, 4, 10 - bob * 0.3);
-  // body
-  ctx.fillStyle = body;
-  ctx.beginPath(); ctx.moveTo(-10, -6 - bob); ctx.lineTo(10, -6 - bob); ctx.lineTo(8, -24 - bob); ctx.lineTo(-8, -24 - bob); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = accent; ctx.fillRect(-8, -14 - bob, 16, 2.5);
-  if (cls === 'paladin' && !back) { ctx.fillStyle = '#d8d8e8'; ctx.beginPath(); ctx.arc(-fx * 6 - 8, -16 - bob, 7, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = accent; ctx.fillRect(-fx * 6 - 9, -21 - bob, 2, 10); }
-  // head
-  const hy = -34 - bob;
-  ctx.fillStyle = '#ffe2cc'; ctx.beginPath(); ctx.arc(0, hy, 11, 0, Math.PI * 2); ctx.fill();
-  // hair
-  ctx.fillStyle = hair;
-  ctx.beginPath(); ctx.arc(0, hy - 2, 12, Math.PI * 0.95, Math.PI * 2.05); ctx.fill();
-  if (back) { ctx.beginPath(); ctx.arc(0, hy, 11.5, 0, Math.PI * 2); ctx.fill(); }
-  else {
-    ctx.beginPath(); ctx.moveTo(-12, hy - 2); ctx.lineTo(-13, hy + 8); ctx.lineTo(-8, hy + 1); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(12, hy - 2); ctx.lineTo(13, hy + 8); ctx.lineTo(8, hy + 1); ctx.fill();
-    // bangs
-    ctx.beginPath(); ctx.moveTo(-9, hy - 4); ctx.lineTo(-4 + fx * 2, hy + 1); ctx.lineTo(0 + fx * 2, hy - 4); ctx.lineTo(4 + fx * 2, hy + 1); ctx.lineTo(9, hy - 4); ctx.lineTo(0, hy - 12); ctx.closePath(); ctx.fill();
-    // eyes (anime: tall, with highlight)
-    const ex = fx * 3;
-    ctx.fillStyle = '#2b2440';
-    ctx.beginPath(); ctx.ellipse(ex - 4, hy + 2 + fy, 1.8, 2.8, 0, 0, Math.PI * 2); ctx.ellipse(ex + 4, hy + 2 + fy, 1.8, 2.8, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ex - 3.4, hy + 1 + fy, 0.8, 0, Math.PI * 2); ctx.arc(ex + 4.6, hy + 1 + fy, 0.8, 0, Math.PI * 2); ctx.fill();
-  }
-  if (cls === 'mage') { ctx.fillStyle = body; ctx.beginPath(); ctx.moveTo(-13, hy - 6); ctx.lineTo(13, hy - 6); ctx.lineTo(2, hy - 28); ctx.closePath(); ctx.fill(); }
-  if (cls === 'assassin' && !back) { ctx.fillStyle = '#1b1b24'; ctx.fillRect(-9, hy + 4, 18, 5); }
-  if (cls === 'chronomancer') { ctx.strokeStyle = accent; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, hy - 2, 15, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke(); for (let i = 0; i < 5; i++) { const a = Math.PI * (1.15 + i * 0.17); ctx.fillStyle = accent; ctx.fillRect(Math.cos(a) * 15 - 1, hy - 2 + Math.sin(a) * 15 - 1, 2, 2); } }
-  if (cls === 'necromancer') { ctx.fillStyle = body; ctx.beginPath(); ctx.arc(0, hy - 1, 13, Math.PI, Math.PI * 2); ctx.fill(); }
-  if (!back) drawWeapon();
-  ctx.restore();
-}

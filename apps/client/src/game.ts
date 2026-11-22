@@ -135,8 +135,8 @@ export class ClientGame {
         case 'death': if (e) { this.vfx.onDeath(e); if (e.id === this.pid) sound.death(); } break;
         case 'msg': if (ev.kind === 'warn') sound.warn(); break;
         case 'level': if (e && ev.id === this.pid) sound.levelUp(); if (e) { this.float(e.rx, e.ry - 50, 'LEVEL UP!', '#ffe47a', 22); this.burst(e.rx, e.ry, '#ffe47a', 30); } break;
-        case 'phase': sound.phase(); if (e) { this.shake = 10; this.burst(e.rx, e.ry, '#ff4f9a', 40); } break;
-        case 'broken': if (e) { this.float(e.rx, e.ry - 60, 'BROKEN!', '#ffb347', 24); this.shake = 6; } break;
+        case 'phase': sound.phase(); if (e) { this.shake = 10; this.vfx.onPhase(e); } break;
+        case 'broken': if (e) { this.float(e.rx, e.ry - 60, 'BROKEN!', '#ffb347', 24); this.shake = 6; this.vfx.onBreak(e); } break;
         case 'it_add': if (this.map && !this.map.interactables.some((i) => i.id === ev.it.id)) this.map.interactables.push(ev.it); break;
         case 'pickup': if (ev.item) sound.loot(ev.item.rarity); if (ev.gold) { sound.gold(); const me = this.ents.get(this.pid); if (me) this.float(me.rx, me.ry - 40, `+${ev.gold}g`, '#ffd76a', 13); } break;
         default: break;
