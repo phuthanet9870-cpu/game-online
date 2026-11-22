@@ -362,7 +362,7 @@ export class GameCore {
         case 'use_map': {
           if (s.char.treasure) return err('You are already following a treasure map');
           if ((s.char.mats.treasure_map ?? 0) < 1) return err('You have no Treasure Map');
-          if (room.kind !== 'field') return err('Read the map in the open world (Duskmeadow, Ashen Highlands or Starfall Wastes)');
+          if (room.kind !== 'field') return err('Read the map in the open world (any farm zone)');
           const m = room.world.map;
           const reach = reachableSet(m, m.spawn.x, m.spawn.y);
           let spot: [number, number] | null = null;

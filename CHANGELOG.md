@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.14.0] — 2026-11-22 — World expansion, enhancement, guild discovery, GM tools
+### Added
+- **10 farm zones, levels 1–100** (Duskmeadow → Ashen Highlands → Starfall Wastes → Sunken Mire → Frostpeak Tundra → Sandsea Dunes → Fungal Hollows → Obsidian Abyss → Celestial Gardens → Eclipse Throne). Each zone is 220×150 tiles (about 4× the old open-world area), chained by gates, with its own terrain palette, obstacles, gathering nodes, fishing, level band rising west → east, 3 field bosses and an Overlord.
+- **540 procedural monsters** (10 body archetypes × 5 regional variants × 10 zones + 40 bosses), each with its own name (English + Thai), colour, element, resistances, size and attacks. They are variants built from shared body archetypes, not 540 separately drawn designs.
+- **45 new item bases**: 28 runes, 12 relics, 10 rings/necklaces and 6 armour pieces. Zones favour their own runes, and loot is slot-weighted so runes do not crowd out gear.
+- **Enhancement +1..+15** (Forgemaster Kael), using the rules the player chose: +1–+6 always succeed; a failure at +7–+11 only costs materials; a failure at +12–+15 drops the item one level. Items never break. Results are saved immediately and audited.
+- **Bonus option slots** unlock at +5 / +10 / +15. Runesmith Sefa rerolls them; any slot can be locked, each lock raises the cost, and at least one slot must stay unlocked.
+- **One NPC per service**, with no combined vendors:
+  - Previously combined NPCs are now separate: forging, enchanting, salvage, selling, potions, alchemy, cooking, companions, bag tailor, enhancement and bonus options.
+  - New NPCs for the guild registrar, stylist, wish shrine, awakening, shop and the Waymaster (paid travel to the west gate of any zone you are strong enough for).
+  - Town rebuilt at 100×72 tiles with two shop rows and a grand plaza.
+- **Guild discovery**:
+  - Six categories, a searchable guild browser and a guild profile (category, description, minimum level, open recruitment).
+  - Join requests with an officer accept/decline queue. Requests to other guilds are cleared when you join one.
+  - Rankings by guild level, total power or members.
+- **Item discard** (single or multi-select, with confirmation). Items are destroyed rather than dropped on the ground, so the trade and bound-item rules cannot be bypassed. Discarded items are written to the audit log.
+- **NPC windows** in the reference style:
+  - Trainer: portrait, passive paths, points, partial/full reset with gold or token, info.
+  - Carpenter: categories with counts, item rows with size and cost, preview, materials.
+- Multi-select sell/store, GM console (`/gmadminonline01`, admin role only online) with a GM button, a monster browser per zone and teleport to every zone. Also friends, bag expansion, auto settings, collapsible HUD and pixel terrain.
+### Changed
+- Empty open-world zones no longer simulate at 30 Hz; they only advance respawn timers. This keeps the server cost of 10 large zones low (about 0.1–0.25 ms per tick for an occupied zone in tests).
+- Field bosses respawn after 4 minutes and Overlords after 10 minutes.
+### Fixed
+- Out-of-range inventory indexes in batch actions are now ignored instead of clamped to the last slot, which could have hit an item the player had not picked.
+### Verified
+- 73 tests (new: guild discovery, discard, enhancement rules, bonus locks, 10-zone connectivity and level bands, 500+ bestiary with Thai names and valid summons, town NPC reachability).
+- Chromium runs: Trainer/Carpenter/Guild windows, discard, enhancement to +9 with failures and a bonus slot, Waymaster, teleports into the new zones with spawned monsters. No page errors.
+- Not yet: PvP 5v5 arena. Firefox and Safari untested.
+
 ## [0.13.0] — 2026-11-22 — Concept UI, new systems, auto play
 ### Added
 - **Concept UI** (from the 10 concept images): gold-on-violet ornate theme with Cinzel display font; HUD laid out as in the concepts — portrait card (HP / resource / secondary bars, Combat Power, Renown badge, portrait frame), party box, feature menu with notification dots, location + round minimap, quest/activity tracker, tabbed chat, 20-slot hotbar (Active 1~8, Ultimate 9~12, Items/Utilities 13~20), round menu, EXP line with three currencies.

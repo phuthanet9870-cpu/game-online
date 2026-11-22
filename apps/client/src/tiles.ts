@@ -76,6 +76,12 @@ function ground(p: Px, theme: string, th: Pal, ox: number, oy: number, tx: numbe
     const x = 1 + Math.floor(hash(tx, ty, k + 21) * 13), y = 3 + Math.floor(hash(tx, ty, k + 31) * 11);
     if (theme === 'ash') { p.set(ox + x, oy + y, '#ff7a2e', 160); p.set(ox + x + 1, oy + y, shade('#ff7a2e', -0.4), 160); continue; } // ember crack
     if (theme === 'star') { p.set(ox + x, oy + y, '#bfe8ff'); p.set(ox + x, oy + y - 1, '#ffffff'); p.set(ox + x + 1, oy + y, '#7fb8d8'); continue; } // glass shard
+    if (theme === 'frost') { p.set(ox + x, oy + y, '#ffffff'); p.set(ox + x + 1, oy + y, '#bcd8f0'); continue; } // snow glint
+    if (theme === 'sand') { for (let i = 0; i < 4; i++) p.set(ox + x + i, oy + y + (i % 2), shade(f[0]!, -0.12)); continue; } // ripple
+    if (theme === 'fungal') { p.set(ox + x, oy + y, '#9fffd8', 200); p.set(ox + x, oy + y - 1, '#e8a8ff', 200); continue; } // glowing spores
+    if (theme === 'abyss') { p.set(ox + x, oy + y, '#ff4a2a', 170); p.set(ox + x + 1, oy + y, '#7a1a10', 170); continue; } // magma vein
+    if (theme === 'celestial') { p.set(ox + x, oy + y, '#ffffff'); p.set(ox + x + 1, oy + y, '#ffe8a0'); p.set(ox + x, oy + y - 1, '#ffd0f0'); continue; } // petals
+    if (theme === 'eclipse') { p.set(ox + x, oy + y, '#b06aff', 190); p.set(ox + x + 1, oy + y + 1, '#ff8a3a', 150); continue; } // eclipse motes
     const dark = shade(f[0]!, -0.3), lite = shade(f[0]!, 0.22);
     p.set(ox + x, oy + y, dark); p.set(ox + x, oy + y - 1, f[1]!); p.set(ox + x - 1, oy + y - 1, lite); p.set(ox + x + 1, oy + y - 2, lite); p.set(ox + x + 1, oy + y, dark);
   }
@@ -137,6 +143,33 @@ function obstacle(p: Px, theme: string, th: Pal, ox: number, oy: number, tx: num
   if (theme === 'star') { // crystal spire
     for (let j = -12; j < ART - 2; j++) { const w = Math.max(1, Math.round((j + 12) / 4)); for (let i = -w; i <= w; i++) p.set(ox + 8 + i, oy + j, Math.abs(i) === w ? '#3a5a8a' : i < 0 ? '#e8f8ff' : '#7fc8f0'); }
     p.set(ox + 7, oy - 6, '#ffffff'); p.set(ox + 7, oy - 5, '#ffffff');
+    return;
+  }
+  if (theme === 'sand') { // cactus
+    for (let j = -8; j < ART - 2; j++) for (let i = 6; i < 10; i++) p.set(ox + i, oy + j, i === 6 ? INK : i === 9 ? '#2e5a22' : '#4a8a3a');
+    for (let j = -2; j < 4; j++) { p.set(ox + 3, oy + j, '#4a8a3a'); p.set(ox + 12, oy + j + 3, '#4a8a3a'); }
+    p.set(ox + 4, oy + 3, '#4a8a3a'); p.set(ox + 5, oy + 3, '#4a8a3a'); p.set(ox + 10, oy + 6, '#4a8a3a'); p.set(ox + 11, oy + 6, '#4a8a3a'); p.set(ox + 8, oy - 9, '#ff9ad5');
+    return;
+  }
+  if (theme === 'fungal') { // giant glowing mushroom
+    for (let j = -2; j < ART - 2; j++) for (let i = 6; i < 10; i++) p.set(ox + i, oy + j, i === 6 ? INK : '#e8d8c8');
+    for (let j = -10; j < -1; j++) { const w = Math.round(8 - Math.abs(j + 6) * 0.9); for (let i = -w; i <= w; i++) p.set(ox + 8 + i, oy + j, Math.abs(i) === w || j === -10 ? INK : j < -7 ? '#e8a8ff' : '#b45aa8'); }
+    p.set(ox + 5, oy - 6, '#9fffd8'); p.set(ox + 10, oy - 5, '#9fffd8'); p.set(ox + 8, oy - 8, '#9fffd8');
+    return;
+  }
+  if (theme === 'celestial') { // rose-quartz crystal
+    for (let j = -12; j < ART - 2; j++) { const w = Math.max(1, Math.round((j + 12) / 4)); for (let i = -w; i <= w; i++) p.set(ox + 8 + i, oy + j, Math.abs(i) === w ? '#8a5a7a' : i < 0 ? '#fff0fa' : '#ffb8e0'); }
+    return;
+  }
+  if (theme === 'frost') { // snowy pine
+    for (let j = 8; j < ART - 2; j++) for (let i = 7; i < 9; i++) p.set(ox + i, oy + j, '#4a3020');
+    for (let j = -12; j < 9; j++) { const w = Math.max(0, Math.round(((j + 12) % 7) + (j + 12) / 4)); for (let i = -w; i <= w; i++) p.set(ox + 8 + i, oy + j, Math.abs(i) === w ? INK : (j + 12) % 7 < 2 ? '#ffffff' : i < 0 ? '#3e7a5e' : '#2a5a46'); }
+    return;
+  }
+  if (theme === 'abyss' || theme === 'eclipse') { // obsidian spire with glowing veins
+    const vein = theme === 'abyss' ? '#ff4a2a' : '#b06aff';
+    for (let j = -12; j < ART - 2; j++) { const w = Math.max(1, Math.round((j + 12) / 4)); for (let i = -w; i <= w; i++) p.set(ox + 8 + i, oy + j, Math.abs(i) === w ? INK : i < 0 ? '#3a2a3a' : '#1a121a'); }
+    for (let j = -6; j < 10; j += 2) p.set(ox + 8 + ((j / 2) % 2), oy + j, vein);
     return;
   }
   if (theme === 'ash') { // charred spire with ember veins

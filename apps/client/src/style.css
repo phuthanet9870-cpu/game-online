@@ -830,3 +830,20 @@ h3 { font-family: var(--f-display); color: var(--gold-2); }
 .gw-rank tr.me td { background: rgba(90,168,255,.15); }
 .gw-rank tr.top1 td:first-child, .gw-rank tr.top2 td:first-child, .gw-rank tr.top3 td:first-child { font-size: 18px; }
 @media (max-width: 720px) { .gw-browse { grid-template-columns: 1fr; } }
+/* ── Enhancement / bonus options / service NPCs ── */
+.icell .plus { position: absolute; top: 2px; right: 4px; font-size: 12px; color: #ffe08a; text-shadow: 0 1px 2px #000, 0 0 6px #ffb347; }
+.icell .plus.hi { color: #ff9af0; text-shadow: 0 1px 2px #000, 0 0 8px #ff4fd8; }
+.enh { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; padding: 10px; border-radius: 10px; background: rgba(20,14,40,.85); border: 1px solid rgba(255,211,106,.35); }
+.enh-head { display: flex; align-items: center; gap: 8px; }
+.enh-lv { font-size: 22px; color: #ffe08a; } .enh-lv.next { color: #8ff0ff; }
+.enh-rate { margin-left: auto; color: #8ff06a; font-weight: 700; } .enh-rate.low { color: #ff8a5a; }
+.enh-pips { display: flex; gap: 3px; } .enh-pips i { flex: 1; height: 8px; border-radius: 3px; background: rgba(255,255,255,.12); }
+.enh-pips i.on { background: linear-gradient(90deg, #ffb347, #ffe08a); } .enh-pips i.gate { outline: 1px solid #7fe0ff; }
+.enh-cost { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; color: #ffd98a; }
+.enh small.warn { color: #ff8a5a; } .enh-max { color: #ff9af0; text-align: center; }
+.bonus-row { display: flex; align-items: center; gap: 4px; padding: 5px 8px; border-radius: 8px; background: rgba(127,224,255,.08); border: 1px solid rgba(127,224,255,.25); color: #bfefff; }
+.bonus-row.locked { border-color: #ffd36a; background: rgba(255,211,106,.12); } .bonus-row.off { opacity: .5; }
+.tip-fx.bonus li, .icard-list.bonus li { color: #7fe0ff; }
+.svc-card { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: rgba(30,22,55,.75); border: 1px solid rgba(200,170,255,.18); margin-bottom: 6px; }
+.svc-card .grow { flex: 1; display: flex; flex-direction: column; } .svc-card.locked { opacity: .6; }
+.way-n { width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: #3a2a6a; color: #ffd36a; }

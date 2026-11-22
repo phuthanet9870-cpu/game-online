@@ -377,15 +377,16 @@ function buildOrb(l: EnemyLook) { // wisp / starling: glow core, flickering rim 
   return { p, ax: c, ay: W - 1 };
 }
 /** Draws an enemy sprite. Returns the sprite's approximate height (world units) for bars/labels. */
-export function drawEnemySprite(ctx: CanvasRenderingContext2D, e: { id: number; def: string; f: number; moving: number; windup: number; flash: number; rx: number; ry: number }, def: { family: string; color: string; radius: number } | undefined, elite: boolean, boss: boolean, scale: number) {
+export function drawEnemySprite(ctx: CanvasRenderingContext2D, e: { id: number; def: string; f: number; moving: number; windup: number; flash: number; rx: number; ry: number }, def: { family: string; color: string; radius: number; look?: string } | undefined, elite: boolean, boss: boolean, scale: number) {
   const fam = def?.family ?? 'hollowborn', col = def?.color ?? '#666', r = (def?.radius ?? 15) * (elite ? 1.15 : 1);
   const swing = e.windup > 0 ? 0.25 : 0;
   const pz = pose(e.f, e.moving > 0.2, swing, e.id);
-  if (fam !== 'hollowborn' && fam !== 'construct') pz.view = 'side';
+  if (fam !== 'hollowborn' && fam !== 'construct' && def?.look !== 'hollow' && def?.look !== 'golem') pz.view = 'side';
   const l: EnemyLook = { def: e.def, family: fam, color: col, r, boss, elite, eye: boss ? '#ff4f9a' : elite ? '#ffb347' : fam === 'cinderkin' ? '#ffe98a' : fam === 'shardborn' ? '#ffffff' : '#c8a0ff' };
-  const kind = e.def === 'dummy' ? 'dummy' : e.def === 'gloomheart' ? 'tree' : e.def === 'wisp' || e.def === 'starling' ? 'orb' : e.def === 'prism_seer' || e.def === 'ember_imp' ? 'caster'
+  const kind = def?.look ? def.look : e.def === 'dummy' ? 'dummy' : e.def === 'gloomheart' ? 'tree' : e.def === 'wisp' || e.def === 'starling' ? 'orb' : e.def === 'prism_seer' || e.def === 'ember_imp' ? 'caster'
     : fam === 'construct' || e.def === 'magma_golem' || e.def === 'glass_colossus' ? 'golem' : fam === 'wildlife' || e.def === 'cinder_drake' || e.def === 'shard_stalker' ? 'beast' : 'hollow';
   const animated = kind === 'orb' || kind === 'caster' || e.def === 'magma_golem';
+  if (def?.look) l.eye = boss ? '#ff4f9a' : elite ? '#ffb347' : shade(col, 0.7);
   const key = `e|${e.def}|${elite ? 1 : 0}|${boss ? 1 : 0}|${pz.view}|${pz.flip ? 1 : 0}|${pz.walk}|${pz.atk}${animated ? '|' + Math.floor(T * 12) % 24 : ''}`;
   const build = () => kind === 'dummy' ? buildDummy() : kind === 'tree' ? buildTree(l, pz) : kind === 'orb' ? buildOrb(l) : kind === 'caster' ? buildCaster(l, pz) : kind === 'golem' ? buildGolem(l, pz) : kind === 'beast' ? buildBeast(l, pz) : buildHollow(l, pz);
   const flip = kind === 'beast' || kind === 'caster' ? Math.cos(e.f) < 0 : pz.flip;

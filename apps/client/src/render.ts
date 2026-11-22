@@ -11,10 +11,17 @@ const THEMES: Record<string, { floor: string[]; path: string[]; wall: string; wa
   ash: { floor: ['#4a3a34', '#52403a', '#44352f'], path: ['#6e6259', '#776a60', '#655a52'], wall: '#2a1e1a', wallTop: '#3d2c26', water: '#c2481e', tree: '#2a201d', bg: '#1a120f' },
   star: { floor: ['#cfc4a8', '#d6ccb2', '#c6ba9c'], path: ['#b8aec8', '#c0b6d0', '#ada3bd'], wall: '#4a4660', wallTop: '#6c6890', water: '#2a2f5a', tree: '#8fd8ff', bg: '#1c1a2c' },
   house: { floor: ['#7a5a3c', '#81603f', '#735537'], path: ['#8a6844', '#916e48', '#82623f'], wall: '#3a2a22', wallTop: '#5a4232', water: '#2d6a96', tree: '#3a5a33', bg: '#140e0a' },
+  mire: { floor: ['#3d4a32', '#44523a', '#38452e'], path: ['#5a5238', '#625a3e', '#544c33'], wall: '#232a1c', wallTop: '#36402a', water: '#3a4a2a', tree: '#2a3a22', bg: '#121a0e' },
+  frost: { floor: ['#d8e4ee', '#e2ecf4', '#cfdbe6'], path: ['#a8b8c8', '#b2c2d2', '#9eaebe'], wall: '#5a6a7e', wallTop: '#8a9cb2', water: '#7ab8e0', tree: '#2e5a4a', bg: '#1a2432' },
+  sand: { floor: ['#d8b878', '#e0c082', '#cfae6e'], path: ['#b89a62', '#c2a46a', '#ae905a'], wall: '#8a6a3a', wallTop: '#a88250', water: '#3a9ab0', tree: '#6a8a3a', bg: '#2a2010' },
+  fungal: { floor: ['#3a2e4a', '#423452', '#352a44'], path: ['#5a4a6a', '#625272', '#544462'], wall: '#1e1628', wallTop: '#33284a', water: '#4a8a7a', tree: '#b45aa8', bg: '#120c1a' },
+  abyss: { floor: ['#2a2228', '#30272e', '#251e24'], path: ['#4a3a40', '#524248', '#44343a'], wall: '#120c10', wallTop: '#2a1c24', water: '#d03a2a', tree: '#1a1218', bg: '#0a0608' },
+  celestial: { floor: ['#e8e0c8', '#f0e8d2', '#e0d8be'], path: ['#d8c8a0', '#e2d2aa', '#cebe96'], wall: '#9a8a6a', wallTop: '#c8b890', water: '#8ad0f0', tree: '#ffd8f0', bg: '#2a2638' },
+  eclipse: { floor: ['#2a2240', '#30284a', '#26203a'], path: ['#463a62', '#4e426a', '#40355a'], wall: '#120e1e', wallTop: '#2e2448', water: '#6a2aa0', tree: '#ff8a3a', bg: '#08060e' },
   dungeon: { floor: ['#2d2a3d', '#322e44', '#2a2739'], path: ['#3a3450', '#3f3857', '#363049'], wall: '#17141f', wallTop: '#3b3352', water: '#2a2460', tree: '#4a3f66', bg: '#0b0910' },
 };
 
-export const NPC_COLORS: Record<string, [string, string]> = { npc_carpenter: ['#7a5a2a', '#c87a3a'], npc_alchemist: ['#3b7a6a', '#e8e0f0'], npc_auction: ['#6b4a8f', '#d8c08a'], npc_smith: ['#8a4b2b', '#2b1a10'], npc_trainer: ['#3b5c8f', '#e0e0e8'], npc_quartermaster: ['#5c7a3b', '#6b3b1f'], npc_quests: ['#8f2b3b', '#f0d070'] };
+export const NPC_COLORS: Record<string, [string, string]> = { npc_carpenter: ['#7a5a2a', '#c87a3a'], npc_alchemist: ['#3b7a6a', '#e8e0f0'], npc_auction: ['#6b4a8f', '#d8c08a'], npc_smith: ['#8a4b2b', '#2b1a10'], npc_trainer: ['#3b5c8f', '#e0e0e8'], npc_quartermaster: ['#5c7a3b', '#6b3b1f'], npc_quests: ['#8f2b3b', '#f0d070'], npc_enchanter: ['#5a3a9a', '#f0c8ff'], npc_salvager: ['#5a5a5a', '#3a2a1a'], npc_merchant: ['#2a6a4a', '#d8b060'], npc_apothecary: ['#9a3a4a', '#f0e8d0'], npc_cook: ['#e8e0d0', '#6a3a1a'], npc_stable: ['#6a4a2a', '#2a1a10'], npc_guild: ['#2a4a8a', '#c0c0c0'], npc_stylist: ['#c83a8a', '#ffd0e8'], npc_tailor: ['#7a6a3a', '#e0d0a0'], npc_wish: ['#3a5aa0', '#c8e0ff'], npc_awaken: ['#5a2a6a', '#ffffff'], npc_shop: ['#c87a2a', '#3a2010'], npc_waymaster: ['#2a7a8a', '#f0e070'], npc_forgemaster: ['#a03a1a', '#1a1010'], npc_runesmith: ['#2a6aa0', '#7fe0ff'] };
 const AURA_COLORS: Record<string, string> = { ember: '#ff7a2e', starlight: '#9fd8ff', eclipse: '#f2c46b' };
 const hash = (x: number, y: number) => { let h = (x * 374761393 + y * 668265263) >>> 0; h = ((h ^ (h >>> 13)) * 1274126177) >>> 0; return (h ^ (h >>> 16)) >>> 0; };
 
@@ -222,7 +229,7 @@ export class Renderer {
         break;
       }
       case 'fishing': ctx.strokeStyle = '#d8c9a0'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-6, 2); ctx.lineTo(10, -30); ctx.stroke(); ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(10, -30); ctx.lineTo(16, -2 + Math.sin(t * 3) * 2); ctx.stroke(); ctx.fillStyle = '#ff5a5a'; ctx.beginPath(); ctx.arc(16, -2 + Math.sin(t * 3) * 2, 2.5, 0, Math.PI * 2); ctx.fill(); break;
-      case 'gate_field': case 'gate_town': case 'gate_highlands': case 'gate_meadow':
+      case 'zone_gate': case 'gate_field': case 'gate_town': case 'gate_highlands': case 'gate_meadow':
         ctx.fillStyle = '#6b4a2b'; ctx.fillRect(-3, -40, 6, 46); ctx.fillStyle = '#c9a66b'; ctx.beginPath(); ctx.moveTo(-18, -38); ctx.lineTo(18, -38); ctx.lineTo(26, -30); ctx.lineTo(18, -22); ctx.lineTo(-18, -22); ctx.closePath(); ctx.fill();
         break;
       case 'chest':
@@ -248,6 +255,7 @@ export class Renderer {
       default: {
         // NPC: chibi townsfolk
         const colors = NPC_COLORS;
+        if (it.type === 'npc_wish') { ctx.fillStyle = '#c8c8e8'; ctx.fillRect(-10, -46, 20, 50); ctx.fillStyle = `rgba(160,200,255,${0.6 + Math.sin(t * 3) * 0.3})`; ctx.beginPath(); ctx.arc(0, -58, 12, 0, Math.PI * 2); ctx.fill(); break; }
         const [body, hair] = colors[it.type] ?? ['#777', '#333'];
         drawChibi(ctx, 0, 0, 1, Math.PI / 2, body, hair, '#ccc', 0, Math.sin(t * 2) * 1.5, '');
         ctx.fillStyle = '#ffd23a'; ctx.font = '900 18px system-ui'; ctx.textAlign = 'center'; if (it.type === 'npc_quests') ctx.fillText('!', 0, -58 + Math.sin(t * 4) * 2);

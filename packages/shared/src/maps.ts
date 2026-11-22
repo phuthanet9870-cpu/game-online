@@ -251,7 +251,7 @@ export function buildZone(zoneId: string): GameMap {
     if (x > w - 14) ry += Math.sign(mid - ry);
     if (x < 12) ry = mid;
     for (let dy = -2; dy <= 2; dy++) set(x, ry + dy, 2);
-    if (x % 24 === 12) for (let yy = 4; yy < h - 4; yy++) { const t = tiles[yy * w + x]; set(x, yy, t === 3 ? 2 : t === 4 ? 1 : t!); set(x + 1, yy, tiles[yy * w + x + 1] === 4 ? 1 : tiles[yy * w + x + 1]!); }
+    if (x % 24 === 12) for (let yy = 4; yy < h - 4; yy++) { const t = tiles[yy * w + x]; set(x, yy, t === 3 ? 2 : t === 4 ? 1 : t!); { const t2 = tiles[yy * w + x + 1]; set(x + 1, yy, t2 === 3 ? 2 : t2 === 4 ? 1 : t2!); } }
   }
   for (const yy of [Math.floor(h * 0.22), Math.floor(h * 0.78)]) for (let x = 10; x < w - 10; x++) { const t = tiles[yy * w + x]; set(x, yy, t === 4 ? 1 : t === 3 ? 2 : t!); }
   for (let x = 0; x < w; x++) { set(x, 0, 0); set(x, h - 1, 0); }

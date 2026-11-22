@@ -73,6 +73,7 @@ export function itemTooltip(it: Item, compare?: Item | null): HTMLElement {
     it.weaponPower ? h('div', { class: 'tip-big' }, `${it.weaponPower} Weapon Power`) : null,
     h('ul', { class: 'tip-fx implicit' }, it.implicit.map((m) => h('li', null, statText(m.stat, m.value)))),
     h('ul', { class: 'tip-fx' }, it.affixes.map((a) => h('li', null, AFFIX_MAP[a.id] ? AFFIX_MAP[a.id]!.label.replace('{v}', String(a.value)) : statText(a.stat, a.value), h('span', { class: 'tier' }, ` T${a.tier}`)))),
+    it.bonus?.length ? h('ul', { class: 'tip-fx bonus' }, it.bonus.map((a) => h('li', null, '◆ ', statText(a.stat, a.value), h('span', { class: 'tier' }, ` T${a.tier}`)))) : null,
     it.power ? h('p', { class: 'tip-legend' }, powerDesc(it.power)) : null,
     h('div', { class: 'tip-meta' }, [it.bound ? 'Bound to character' : 'Tradeable', it.hardcore ? 'Hardcore' : null].filter(Boolean).join(' · ')),
     cmp && cmp.length ? h('div', { class: 'tip-cmp' }, h('div', { class: 'tip-sub' }, `Compared to equipped ${compare!.name}:`), h('ul', { class: 'tip-fx' }, cmp.map(([k, v]) => h('li', { class: v > 0 ? 'up' : 'down' }, statText(k, Math.round(v * 100) / 100))))) : null,

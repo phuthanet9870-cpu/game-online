@@ -64,7 +64,15 @@ Last updated: 2026-11-22 (v0.9.0 — Phases 0-1, 4, 5, 6, 7, content expansion, 
 | Feature | Status | Notes |
 |---|---|---|
 | Shared Town (Lumenhold) with NPC services + training dummies | Tested | |
-| Open world zone (Duskmeadow) with respawning packs, level bands 2-9 | Implemented | |
+| 10 open-world farm zones (levels 1-100), 220×150 tiles each, chained by gates, per-zone palette/obstacles/nodes/fishing | Tested | Connectivity, level bands, gate chain and boss count tested for every zone. |
+| 540 procedural monsters (10 archetypes × 5 variants × 10 zones + 40 field bosses/Overlords), Thai names | Tested | Variants of shared body archetypes, not individually drawn. |
+| Waymaster zone travel (level gate, gold fare) | Implemented | Browser-checked. |
+| Enhancement +1..+15 (safe to +6, keep level to +11, drop one level above; never breaks) | Tested | |
+| Bonus option slots (+5/+10/+15) with lockable rerolls | Tested | |
+| One NPC per service in town (22 NPCs) | Tested | Reachability and uniqueness tested. |
+| Guild discovery: categories, browser, join requests, profile, rankings | Tested | Offline mode only ever has one player's guilds. |
+| Item discard (single + multi-select, audited) | Tested | |
+| Duskmeadow (zone 1) with respawning packs | Implemented | |
 | Second region: Ashen Highlands (levels 10-20), Cinderkin family (4 enemies), ore veins, lava fields | Tested | Connectivity and spawn bands tested. |
 | Seeded procedural Rift: rooms, branches, elite/treasure/shrine/rest/event rooms | Tested | 300 seeds validated navigable. |
 | Roguelike blessings + bargain curses (run-only) with end-of-run summary | Implemented | |

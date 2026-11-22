@@ -61,13 +61,15 @@ const ARCH: Arch[] = [
 const ELEM_ST: Record<DamageType, StatusId> = { physical: 'bleed', fire: 'burn', ice: 'chill', lightning: 'shock', holy: 'weaken', shadow: 'curse', poison: 'poison' };
 const RESIST: Record<DamageType, DamageType> = { physical: 'lightning', fire: 'ice', ice: 'fire', lightning: 'physical', holy: 'shadow', shadow: 'holy', poison: 'holy' };
 const BOSS_NOUN = ['Matriarch', 'Warlord', 'Hierophant'];
+/** Five signature colours per zone; every monster mixes one of them with an archetype shade. */
+const ZONE_COLORS: Record<string, string[]> = {
+  field: ['#5a7a3a', '#8a6a3a', '#3a6a5a', '#9a8a4a', '#6a4a7a'], highlands: ['#b4452a', '#d9742b', '#5a2a1e', '#8a3a2a', '#e0a040'],
+  wastes: ['#7fd8ff', '#c8b8ff', '#e8f4ff', '#5a8ac8', '#ffd8a0'], mire: ['#4a6a3a', '#6a5a2a', '#2a4a3a', '#8a9a4a', '#5a3a4a'],
+  frost: ['#a8d8f0', '#e8f4ff', '#5a8ab0', '#c0c8e0', '#3a6a8a'], dunes: ['#d8a040', '#b06a30', '#e8d090', '#8a4a2a', '#c85a3a'],
+  hollows: ['#b45aa8', '#7a4ac8', '#4ac8a0', '#e8a8ff', '#5a3a6a'], abyss: ['#3a1a2a', '#8a1a1a', '#5a2a4a', '#d0402a', '#2a2a3a'],
+  celestial: ['#fff0c0', '#ffd0f0', '#a0d8ff', '#e8c050', '#ffffff'], eclipse: ['#3a1a6a', '#6a2aa0', '#ff8a3a', '#1a1030', '#b06aff'],
+};
 
-function hsl(h: number, s: number, l: number): string {
-  s /= 100; l /= 100;
-  const k = (n: number) => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
-  const f = (n: number) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))))).toString(16).padStart(2, '0');
-  return `#${f(0)}${f(8)}${f(4)}`;
-}
 
 export interface BestiaryEntry extends EnemyDef { look: EnemyLook; zone: string }
 function build(): Record<string, BestiaryEntry> {
@@ -84,7 +86,7 @@ function build(): Record<string, BestiaryEntry> {
           hp: Math.round(a.hp * size * (1 + pi * 0.04)), power: Math.round(a.power * (1 + pi * 0.03) * 10) / 10, armor: Math.round(a.armor * size), speed: Math.round(a.speed / Math.sqrt(size)),
           radius: Math.round(a.radius * size), xp: Math.round(a.xp * (1 + pi * 0.05)), aggroRange: a.aggro, preferRange: a.prefer,
           res: { [el]: 35 + pi * 5, [RESIST[el]]: -25 } as EnemyDef['res'], attacks: atk,
-          color: hsl((z.hue + pi * 14 + ai * 5) % 360, 45 + (ai % 3) * 12, 32 + (pi % 3) * 8 + (a.look === 'orb' ? 14 : 0)), lootBonus: a.role === 'tank' ? 1 : undefined,
+          color: ZONE_COLORS[z.id]![(pi + ai) % 5]!, lootBonus: a.role === 'tank' ? 1 : undefined,
         };
       });
     });
@@ -100,7 +102,7 @@ function build(): Record<string, BestiaryEntry> {
       out[id] = {
         id, name: over ? `${z.prefixes[0]} Overlord` : `${z.prefixes[b + 1]} ${BOSS_NOUN[b]}`, family: z.family, role: 'boss', zone: z.id, look: a.look,
         hp: over ? 4200 : 1100 + b * 150, power: over ? 16 : 14.5, armor: over ? 70 : 55, speed: over ? 110 : 115, radius: over ? 36 : 28, xp: over ? 700 : 180, aggroRange: 420,
-        res: { [el]: 45, [RESIST[el]]: -15 } as EnemyDef['res'], attacks, color: hsl((z.hue + 180 + b * 20) % 360, 55, over ? 30 : 38),
+        res: { [el]: 45, [RESIST[el]]: -15 } as EnemyDef['res'], attacks, color: ZONE_COLORS[z.id]![(b * 2 + 1) % 5]!,
         boss: { phases: over ? [0.66, 0.33] : [0.5], breakGauge: over ? 900 : 400, title: over ? `Overlord of ${z.name}` : 'Field Boss' }, lootBonus: over ? 4 : 2, enrage: over ? 150 : undefined,
       };
     }

@@ -53,7 +53,11 @@ const POWER_TH: Record<string, [string, string]> = {
 const RARITY_TH: Record<string, string> = { common: 'ธรรมดา', uncommon: 'ไม่ธรรมดา', rare: 'หายาก', epic: 'มหากาพย์', legendary: 'ตำนาน', ancient: 'โบราณ' };
 const SLOT_TH: Record<string, string> = { weapon: 'อาวุธ', helmet: 'หมวก', chest: 'เกราะอก', gloves: 'ถุงมือ', boots: 'รองเท้า', ring: 'แหวน', ring1: 'แหวน 1', ring2: 'แหวน 2', necklace: 'สร้อยคอ', relic: 'วัตถุโบราณ', rune: 'รูน' };
 
-export function itemName(it: Pick<Item, 'baseId' | 'name' | 'power'>): string {
+export function itemName(it: Pick<Item, 'baseId' | 'name' | 'power'> & { plus?: number }): string {
+  const pre = it.plus ? `+${it.plus} ` : '';
+  return pre + itemNameBase(it);
+}
+function itemNameBase(it: Pick<Item, 'baseId' | 'name' | 'power'>): string {
   if (!th()) return it.name;
   const base = BASE_TH[it.baseId] ?? ITEM_BASE_MAP[it.baseId]?.name ?? it.name;
   return it.power && POWER_TH[it.power] ? `${base} ${POWER_TH[it.power]![0]}` : base;

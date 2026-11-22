@@ -1,4 +1,6 @@
 import * as NW from './npcwin.js';
+import { ZONE_MAP } from '@astra/shared';
+const zoneName = (id: string) => { const z = ZONE_MAP[id]; return z ? (getLang() === 'th' ? z.th : z.name) : id; };
 import { guildWindow, guildUI } from './guildwin.js';
 import { combatPower, weeklyObjectives, ACTIVITY_ORDER, QUESTS, FURNITURE, validatePlacement, applyContentPatch, ACTIVITIES, MATERIALS, CLASSES, DIFFICULTIES, DUNGEON_MODIFIERS, BLESSING_MAP, SKILL_MAP, ENEMIES, computeStats, xpToNext, type CharacterData } from '@astra/shared';
 import { ClientGame } from '../game.js';
@@ -23,7 +25,7 @@ import * as S from './social.js';
 import { sound } from '../audio.js';
 import { itemName, translateDom, trText } from '../l10n.js';
 
-type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 'codex' | 'social' | 'guild' | 'auction' | 'ladder' | 'alchemist' | 'season' | 'hearth' | 'carpenter' | 'settings' | 'dungeon' | 'smith' | 'quartermaster' | 'trainer' | 'stash' | 'map' | 'crafting' | 'login' | 'shop' | 'benefits' | 'wish' | 'awaken' | 'wardrobe' | 'friends' | 'gm' | 'auto';
+type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 'codex' | 'social' | 'guild' | 'auction' | 'ladder' | 'alchemist' | 'season' | 'hearth' | 'carpenter' | 'settings' | 'dungeon' | 'smith' | 'quartermaster' | 'trainer' | 'stash' | 'map' | 'crafting' | 'login' | 'shop' | 'benefits' | 'wish' | 'awaken' | 'wardrobe' | 'friends' | 'gm' | 'auto' | 'enchanter' | 'salvager' | 'merchant' | 'apothecary' | 'cook' | 'stable' | 'tailor' | 'waymaster' | 'forgemaster' | 'runesmith';
 
 export class GameUI {
   game = new ClientGame();
@@ -178,7 +180,7 @@ export class GameUI {
     const g = this.game;
     switch (m.t) {
       case 'content': applyContentPatch(m.patch); this.buildBar(); if (this.panel) this.renderPanel(); break;
-      case 'welcome': applyContentPatch(m.content ?? null); sound.ambience(m.room.kind === 'town' ? 'town' : m.room.id === 'highlands' ? 'ash' : m.room.kind === 'field' ? 'field' : m.room.mode === 'raid' ? 'raid' : 'dungeon'); g.welcome(m); this.status(null); this.buildBar(); this.updateZone(); this.closePanel(); this.renderWorldEvent(); if (m.mode === 'offline' && !this.offlineNoted) { this.offlineNoted = true; this.chatLine('system', 'Offline mode: this session is simulated locally in your browser.'); } this.chatLine('system', `Entered ${m.room.id.startsWith('house:') ? 'a Hearth' : m.room.kind === 'town' ? 'Lumenhold' : m.room.id === 'highlands' ? 'the Ashen Highlands (open world, levels 10-20)' : m.room.id === 'wastes' ? 'the Starfall Wastes (open world, levels 20-30)' : m.room.kind === 'field' ? 'Duskmeadow (open world, levels 2-9)' : 'an instance'}.`); break;
+      case 'welcome': applyContentPatch(m.content ?? null); sound.ambience(m.room.kind === 'town' ? 'town' : ['highlands', 'abyss', 'dunes'].includes(m.room.id) ? 'ash' : m.room.kind === 'field' ? 'field' : m.room.mode === 'raid' ? 'raid' : 'dungeon'); g.welcome(m); this.status(null); this.buildBar(); this.updateZone(); this.closePanel(); this.renderWorldEvent(); if (m.mode === 'offline' && !this.offlineNoted) { this.offlineNoted = true; this.chatLine('system', 'Offline mode: this session is simulated locally in your browser.'); } this.chatLine('system', `Entered ${m.room.id.startsWith('house:') ? 'a Hearth' : m.room.kind === 'town' ? 'Lumenhold' : m.room.kind === 'field' && ZONE_MAP[m.room.id] ? `${zoneName(m.room.id)} (open world, levels ${ZONE_MAP[m.room.id]!.levelMin}-${ZONE_MAP[m.room.id]!.levelMax})` : 'an instance'}.`); break;
       case 'snap': g.applySnap(m); break;
       case 'ev': g.events(m.list); for (const ev of m.list) if (ev.t === 'msg') this.chatLine('system', ev.text); else if (ev.t === 'pickup' && ev.item) toast(`Picked up ${itemName(ev.item)}`, 'good'); break;
       case 'char': g.char = m.char; g.account = m.account; this.buildBar(); if (!this.tut?.cur) this.renderGoal(); if (this.panel && this.panel !== 'map') this.renderPanel(); if (this.trade) this.showModal(S.tradeModal(g.char!, this.trade, (x) => this.send(x))); break;
@@ -546,7 +548,7 @@ export class GameUI {
     const z = clear(this.el.zone!);
     if (r.id.startsWith('house:')) z.append(h('b', null, this.houseData?.mine ? 'Your Hearth' : `${this.houseData?.owner ?? ''}'s Hearth`), h('button', { class: 'btn tiny ghost', onclick: () => this.openPanel('hearth') }, 'Furniture (U)'));
     else if (r.kind === 'town') z.append(h('b', null, t('townSafe')), h('small', null, `${t('trainingGround')}: west side`));
-    else if (r.kind === 'field') z.append(h('b', null, r.id === 'highlands' ? 'Ashen Highlands' : r.id === 'wastes' ? 'Starfall Wastes' : 'Duskmeadow'), h('small', null, `Open world · levels ${r.id === 'highlands' ? '10-20' : r.id === 'wastes' ? '20-30' : '2-9'} · shared with other players`));
+    else if (r.kind === 'field') z.append(h('b', null, zoneName(r.id)), h('small', null, `Open world · levels ${ZONE_MAP[r.id] ? `${ZONE_MAP[r.id]!.levelMin}-${ZONE_MAP[r.id]!.levelMax}` : '?'} · shared with other players`));
     else {
       const rr = r as any; const act = ACTIVITIES[(rr.mode ?? 'rift') as keyof typeof ACTIVITIES];
       const th = getLang() === 'th';
@@ -646,7 +648,7 @@ export class GameUI {
     const th = getLang() === 'th';
     if (r.id.startsWith('house:')) return th ? 'บ้านฮาร์ธ' : 'Hearthstone Lane';
     if (r.kind === 'town') return th ? 'ลูเมนโฮลด์' : 'Lumenhold';
-    if (r.kind === 'field') return r.id === 'highlands' ? 'Ashen Highlands' : r.id === 'wastes' ? 'Starfall Wastes' : 'Duskmeadow';
+    if (r.kind === 'field') return zoneName(r.id);
     return ACTIVITIES[((r as any).mode ?? 'rift') as keyof typeof ACTIVITIES]?.name ?? 'Rift';
   }
   private trackTab: 'quests' | 'activities' = 'quests';
@@ -721,15 +723,22 @@ export class GameUI {
     if (!p || !this.game.char) return;
     const ctx = this.ctx();
     const inTown = this.game.room?.kind === 'town';
-    const titles: Record<PanelName, string> = { inventory: t('inventory'), skills: t('skills'), passives: t('passives'), character: t('character'), quests: t('quests'), codex: t('codex'), social: t('social'), guild: 'Guild', ladder: 'Leaderboards', alchemist: 'Sister Maelis — alchemy & cooking', season: 'Season & weekly', hearth: 'Your Hearth', carpenter: 'Carpenter Odo — furniture', auction: 'Auctioneer Vell — auction house', settings: t('settings'), dungeon: 'Rift Gate', smith: 'Brenna the Smith — forge, salvage & enchant', quartermaster: 'Quartermaster Sol — potions & selling', trainer: 'Master Ilrin — trainer', stash: 'Astral Vault', map: t('map'), crafting: getLang() === 'th' ? 'คราฟต์และทักษะชีวิต' : 'Crafting & Life Skills', login: getLang() === 'th' ? 'รางวัลล็อกอิน' : 'Login Rewards', shop: getLang() === 'th' ? 'ร้านค้า' : 'Shop', benefits: getLang() === 'th' ? 'สิทธิประโยชน์' : 'Benefits', wish: getLang() === 'th' ? 'ขอพรแห่งดวงดาว' : 'Astral Wish', awaken: getLang() === 'th' ? 'ตื่นรู้และตราสัญลักษณ์' : 'Awakening & Emblems', wardrobe: getLang() === 'th' ? 'ตู้เสื้อผ้า' : 'Wardrobe', friends: getLang() === 'th' ? 'สังคมและชุมชน' : 'Social & Community', gm: 'GM Console', auto: getLang() === 'th' ? 'ตั้งค่าระบบออโต้' : 'Auto Settings' };
+    const titles: Record<PanelName, string> = { inventory: t('inventory'), skills: t('skills'), passives: t('passives'), character: t('character'), quests: t('quests'), codex: t('codex'), social: t('social'), guild: 'Guild', ladder: 'Leaderboards', alchemist: 'Sister Maelis — alchemy', season: 'Season & weekly', hearth: 'Your Hearth', carpenter: 'Carpenter Odo — furniture', auction: 'Auctioneer Vell — auction house', settings: t('settings'), dungeon: 'Rift Gate', smith: 'Brenna the Smith — forging', quartermaster: 'Merchant Tobin — selling', enchanter: 'Enchantress Lyra — affix enchanting', salvager: 'Salvager Grimm — salvage', merchant: 'Merchant Tobin — selling', apothecary: 'Apothecary Fenna — potions', cook: 'Chef Bramble — cooking', stable: 'Stablemaster Rook — companions & mounts', tailor: 'Tailor Pim — bag expansion', waymaster: 'Waymaster Juno — zone travel', forgemaster: 'Forgemaster Kael — enhancement +15', runesmith: 'Runesmith Sefa — bonus options', trainer: 'Master Ilrin — trainer', stash: 'Astral Vault', map: t('map'), crafting: getLang() === 'th' ? 'คราฟต์และทักษะชีวิต' : 'Crafting & Life Skills', login: getLang() === 'th' ? 'รางวัลล็อกอิน' : 'Login Rewards', shop: getLang() === 'th' ? 'ร้านค้า' : 'Shop', benefits: getLang() === 'th' ? 'สิทธิประโยชน์' : 'Benefits', wish: getLang() === 'th' ? 'ขอพรแห่งดวงดาว' : 'Astral Wish', awaken: getLang() === 'th' ? 'ตื่นรู้และตราสัญลักษณ์' : 'Awakening & Emblems', wardrobe: getLang() === 'th' ? 'ตู้เสื้อผ้า' : 'Wardrobe', friends: getLang() === 'th' ? 'สังคมและชุมชน' : 'Social & Community', gm: 'GM Console', auto: getLang() === 'th' ? 'ตั้งค่าระบบออโต้' : 'Auto Settings' };
     let body: HTMLElement;
     switch (p) {
       case 'inventory': body = inventoryWindow(ctx, 'normal', () => this.renderPanel()); break;
-      case 'smith': body = h('div', null, inventoryWindow(ctx, 'smith', () => this.renderPanel()), craftingWindow(ctx.ch, ['smithing'], (m) => this.send(m), () => this.renderPanel())); break;
+      case 'smith': body = craftingWindow(ctx.ch, ['smithing'], (m) => this.send(m), () => this.renderPanel()); break;
+      case 'enchanter': case 'salvager': case 'merchant': case 'forgemaster': case 'runesmith': body = inventoryWindow(ctx, p, () => this.renderPanel()); break;
+      case 'quartermaster': body = inventoryWindow(ctx, 'merchant', () => this.renderPanel()); break;
+      case 'cook': body = craftingWindow(ctx.ch, ['cooking'], (m) => this.send(m), () => this.renderPanel()); break;
+      case 'apothecary': body = NW.apothecaryWindow(ctx.ch, (m) => this.send(m)); break;
+      case 'stable': body = NW.stableWindow(ctx.account, (m) => this.send(m)); break;
+      case 'tailor': body = NW.tailorWindow(ctx.ch, (m) => this.send(m)); break;
+      case 'waymaster': body = NW.waymasterWindow(ctx.ch, (m) => this.send(m)); break;
       case 'hearth': body = S.hearthPanel(this.houseData, (m) => this.send(m), (id) => this.startPlacing(id)); break;
       case 'carpenter': body = NW.carpenterWindow(ctx.ch, ctx.account, (m) => this.send(m), () => this.renderPanel()); break;
       case 'season': body = S.seasonPanel(this.seasonData, ctx.ch, ctx.account, (m) => this.send(m)); break;
-      case 'alchemist': body = craftingWindow(ctx.ch, ['alchemy', 'cooking'], (m) => this.send(m), () => this.renderPanel()); break;
+      case 'alchemist': body = craftingWindow(ctx.ch, ['alchemy'], (m) => this.send(m), () => this.renderPanel()); break;
       case 'crafting': body = craftingWindow(ctx.ch, [], (m) => this.send(m), () => this.renderPanel()); break;
       case 'login': body = MW.loginWindow(ctx.ch, ctx.account, (m) => this.send(m)); break;
       case 'shop': body = MW.shopWindow(ctx.ch, ctx.account, (m) => this.send(m), this.shopState, () => this.renderPanel()); break;
@@ -740,7 +749,6 @@ export class GameUI {
       case 'auto': body = this.autoWindow(); break;
       case 'gm': body = gmWindow(ctx.ch.level, (m) => this.send(m), () => this.renderPanel()); break;
       case 'friends': body = S.friendsPanel(this.friendsData, (m) => this.send(m), (n) => { const i = this.el.chatIn as HTMLInputElement; i.value = `/w ${n} `; i.focus(); }); break;
-      case 'quartermaster': body = inventoryWindow(ctx, 'quartermaster', () => this.renderPanel()); break;
       case 'stash': body = inventoryWindow(ctx, 'stash', () => this.renderPanel()); break;
       case 'skills': body = P.skillsPanel(ctx); break;
       case 'passives': body = passiveTreePanel(ctx.ch, ctx.send, inTown); break;
@@ -760,7 +768,7 @@ export class GameUI {
     const panel = clear(this.el.panel!);
     panel.hidden = false;
     panel.classList.toggle('wide', p === 'passives' || p === 'map' || (p === 'trainer' && NW.trainerState.tab === 'tree'));
-    panel.classList.toggle('win', ['inventory', 'smith', 'quartermaster', 'stash', 'crafting', 'alchemist', 'auction', 'social', 'guild', 'skills', 'passives', 'character', 'season', 'dungeon', 'friends', 'gm', 'auto', 'login', 'shop', 'benefits', 'wish', 'awaken', 'wardrobe', 'trainer', 'carpenter'].includes(p));
+    panel.classList.toggle('win', ['inventory', 'smith', 'quartermaster', 'stash', 'crafting', 'alchemist', 'auction', 'social', 'guild', 'skills', 'passives', 'character', 'season', 'dungeon', 'friends', 'gm', 'auto', 'login', 'shop', 'benefits', 'wish', 'awaken', 'wardrobe', 'trainer', 'carpenter', 'enchanter', 'salvager', 'merchant', 'forgemaster', 'runesmith', 'cook', 'apothecary', 'stable', 'tailor', 'waymaster'].includes(p));
     const th = getLang() === 'th';
     const socialTabs = ['social', 'guild', 'auction', 'friends'].includes(p) ? h('div', { class: 'win-tabs' }, ...([['auction', 'gavel', th ? 'ห้องประมูล' : 'Auction House'], ['guild', 'crest', th ? 'กิลด์' : 'Guild'], ['social', 'people', th ? 'ปาร์ตี้และเทรด' : 'Party & Trade'], ['friends', 'person', th ? 'เพื่อน' : 'Friends']] as const).map(([id, ic, label]) => h('button', { class: 'wt icon' + (p === id ? ' on' : ''), onclick: () => { this.openPanel(id); if (id === 'friends') this.send({ t: 'friend_list' }); if (id === 'auction') { this.send({ t: 'ah_search', q: this.ah.q }); this.send({ t: 'ah_mine' }); } } }, uiIcon(ic, 22), label))) : null;
     if (socialTabs) titles[p] = th ? 'สังคมและชุมชน' : 'Social & Community';

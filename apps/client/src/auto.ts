@@ -1,16 +1,20 @@
 // AutoPilot — optional automation that plays through the same messages a player sends (the server still validates
 // everything): auto-combat (target, approach, basic attack, skill rotation), auto-potion, auto-loot and auto-quest
 // travel (A* inside a zone, zone-to-zone through the gates). Any manual movement or click pauses it briefly.
-import { CLASSES, ENEMIES, QUESTS, RARITIES, SKILL_MAP, findPath, clearPath, type CharacterData, type GameMap } from '@astra/shared';
+import { ZONES, CLASSES, ENEMIES, QUESTS, RARITIES, SKILL_MAP, findPath, clearPath, type CharacterData, type GameMap } from '@astra/shared';
 import type { ClientGame, CEnt } from './game.js';
 import { store } from './net.js';
 
 export interface AutoSettings { combat: boolean; potion: boolean; loot: boolean; potionPct: number; lootMin: string; useUlts: boolean; leash: number; skillsOff: string[]; autoMount: boolean; stopBagFull: boolean; dodge: boolean; townIdle: boolean }
 const DEFAULTS: AutoSettings = { combat: false, potion: true, loot: true, potionPct: 40, lootMin: 'uncommon', useUlts: true, leash: 700, skillsOff: [], autoMount: true, stopBagFull: true, dodge: true, townIdle: true };
-type Zone = 'town' | 'field' | 'highlands' | 'wastes';
-/** Which gate in each zone leads where. */
-const GATES: Record<Zone, Partial<Record<Zone, string>>> = { town: { field: 'gate_field' }, field: { town: 'gate_town', highlands: 'gate_highlands' }, highlands: { field: 'gate_meadow', wastes: 'gate_wastes' }, wastes: { highlands: 'gate_ash' } };
-const FAMILY_ZONE: Record<string, Zone | 'rift'> = { wildlife: 'field', cinderkin: 'highlands', shardborn: 'wastes', hollowborn: 'rift', construct: 'rift' };
+type Zone = string;
+/** Zone graph: town ↔ zone 1 ↔ zone 2 … (each link is a zone_gate with `to`). */
+const GATES: Record<Zone, Record<Zone, string>> = (() => {
+  const ids = ['town', ...ZONES.map((z) => z.id)], g: Record<Zone, Record<Zone, string>> = {};
+  ids.forEach((id, i) => { g[id] = {}; if (i > 0) g[id]![ids[i - 1]!] = `gate:${ids[i - 1]}`; if (i < ids.length - 1) g[id]![ids[i + 1]!] = `gate:${ids[i + 1]}`; });
+  return g;
+})();
+const FAMILY_ZONE: Record<string, Zone | 'rift'> = { wildlife: 'field', cinderkin: 'highlands', shardborn: 'wastes', hollowborn: 'rift', construct: 'rift', ...Object.fromEntries(ZONES.map((z) => [z.family, z.id])) };
 
 export interface QuestGoal { label: string; zone: Zone; target?: string /* interactable type */; farm?: boolean }
 /** Where should the player go for a quest right now? */
@@ -23,7 +27,7 @@ export function questGoal(ch: CharacterData, questId: string): QuestGoal | null 
   const fam = o.kind === 'kill_family' ? o.target : o.kind === 'kill_enemy' && o.target ? ENEMIES[o.target]?.family : null;
   if (fam) { const z = FAMILY_ZONE[fam] ?? 'rift'; return z === 'rift' ? { label: 'Rift Gate', zone: 'town', target: 'portal_dungeon' } : { label: z, zone: z, farm: true }; }
   if (o.kind === 'gather') return { label: 'gather', zone: o.target === 'iron_ore' || o.target === 'emberbloom' || o.target === 'starsteel' ? 'highlands' : 'field', farm: true };
-  if (o.kind === 'craft') return { label: 'crafting', zone: 'town', target: o.target === 'smithing' ? 'npc_smith' : 'npc_alchemist' };
+  if (o.kind === 'craft') return { label: 'crafting', zone: 'town', target: o.target === 'smithing' ? 'npc_smith' : o.target === 'cooking' ? 'npc_cook' : 'npc_alchemist' };
   if (o.kind === 'house') return { label: 'Hearth', zone: 'town', target: 'house_door' };
   if (o.kind === 'treasure') return { label: 'treasure', zone: 'field', farm: true };
   return { label: 'Rift Gate', zone: 'town', target: 'portal_dungeon' };
@@ -161,7 +165,7 @@ export class AutoPilot {
   private cast(k: 'a' | 'u', s: number, tgt: CEnt) { this.castT = 0.35; this.send({ t: 'cast', k, s, ax: Math.round(tgt.rx), ay: Math.round(tgt.ry), tid: tgt.id }); }
   /** Walks to an interactable of the given type and presses Interact when there. */
   private goInteract(map: GameMap, me: CEnt, type: string) {
-    const it = map.interactables.find((i) => i.type === type);
+    const it = type.startsWith('gate:') ? map.interactables.find((i) => i.type === 'zone_gate' && i.to === type.slice(5)) : map.interactables.find((i) => i.type === type);
     if (!it) return null;
     const d = Math.hypot(it.x - me.rx, it.y - me.ry);
     if (d < 70) {
@@ -197,7 +201,7 @@ export class AutoPilot {
   /** Direction toward a point: straight if clear, else along an A* path (recomputed now and then). */
   private steer(map: GameMap, me: CEnt, x: number, y: number, key: string): [number, number] {
     if (clearPath(map, me.rx, me.ry, x, y, 14)) { this.path = null; const d = Math.hypot(x - me.rx, y - me.ry) || 1; return [(x - me.rx) / d, (y - me.ry) / d]; }
-    if (!this.path || this.pathGoal !== key || this.pathT <= 0) { this.path = findPath(map, me.rx, me.ry, x, y, 4000); this.pathGoal = key; this.pathT = 1.5; }
+    if (!this.path || this.pathGoal !== key || this.pathT <= 0) { this.path = findPath(map, me.rx, me.ry, x, y, 30000); this.pathGoal = key; this.pathT = 3; }
     const wp = this.path?.find((w) => Math.hypot(w[0] - me.rx, w[1] - me.ry) > 20);
     if (!wp) return [0, 0];
     const d = Math.hypot(wp[0] - me.rx, wp[1] - me.ry) || 1;

@@ -1,6 +1,6 @@
 // Inventory & equipment window (concept 07): character card + paper doll, filtered item grid, Equipped vs Selected
 // comparison cards and context actions. All numbers come from the real item data; actions are the server's.
-import { BAG_MAX_EXTRA, BAG_STEP, INVENTORY_SIZE, bagExpandCost, AFFIX_MAP, CLASSES, EQUIP_SLOTS, ITEM_BASE_MAP, MATERIALS, PETS, POTION, RARITIES, RARITY_DEFS, AURAS, ACHIEVEMENTS, ENEMIES, combatPower, computeStats, enchantCost, itemMods, salvageValue, sellValue, type EquipSlot, type Item } from '@astra/shared';
+import { BONUS_UNLOCK, ENHANCE_MAX, ENHANCE_RATE, bonusRerollCost, bonusSlots, enhanceCost, failRule, plusMult, BAG_MAX_EXTRA, BAG_STEP, INVENTORY_SIZE, bagExpandCost, AFFIX_MAP, CLASSES, EQUIP_SLOTS, ITEM_BASE_MAP, MATERIALS, PETS, POTION, RARITIES, RARITY_DEFS, AURAS, ACHIEVEMENTS, ENEMIES, combatPower, computeStats, enchantCost, itemMods, salvageValue, sellValue, type EquipSlot, type Item } from '@astra/shared';
 import { getLang, t } from '../i18n.js';
 import { itemName, powerDesc, rarityName, slotName, statText } from '../l10n.js';
 import { clear, confirmDialog, h } from './dom.js';
@@ -9,7 +9,7 @@ import { itemIcon, matIcon, uiIcon, tileIcon } from './icons.js';
 import { drawChibi } from '../sprites.js';
 import type { PanelCtx } from './panels.js';
 
-type Mode = 'normal' | 'smith' | 'quartermaster' | 'stash';
+export type Mode = 'normal' | 'salvager' | 'enchanter' | 'merchant' | 'stash' | 'forgemaster' | 'runesmith';
 type Filter = 'all' | 'weapon' | 'armor' | 'jewelry' | 'relic';
 const FILTERS: Array<[Filter, string, string]> = [['all', 'grid', 'All'], ['weapon', 'crossed', 'Weapons'], ['armor', 'chest_plate', 'Armor'], ['jewelry', 'ring', 'Jewelry'], ['relic', 'relic_star', 'Relics & runes']];
 const inFilter = (it: Item, f: Filter) => f === 'all' || (f === 'weapon' && it.slot === 'weapon') || (f === 'armor' && ['helmet', 'chest', 'gloves', 'boots'].includes(it.slot)) || (f === 'jewelry' && ['ring', 'necklace'].includes(it.slot)) || (f === 'relic' && ['relic', 'rune'].includes(it.slot));
@@ -37,6 +37,8 @@ function itemCard(it: Item | null, label: string, other: Item | null, cls: strin
     h('ul', { class: 'icard-list' }, it.implicit.map((m) => h('li', null, statText(m.stat, m.value), delta(m.stat, mine[m.stat] ?? 0)))),
     h('div', { class: 'icard-sec' }, `${th ? 'ค่าเสริม' : 'Affixes'} (${it.affixes.length}/${rd.affixes[1]})`),
     h('ul', { class: 'icard-list aff' }, it.affixes.map((a) => h('li', null, uiIcon('shard', 14, rd.color), AFFIX_MAP[a.id] ? AFFIX_MAP[a.id]!.label.replace('{v}', String(a.value)) : statText(a.stat, a.value), h('small', { class: 'muted' }, ` T${a.tier}`), newStats.includes(a.stat) ? h('span', { class: 'new' }, th ? ' (ใหม่)' : ' (New)') : delta(a.stat, mine[a.stat] ?? 0)))),
+    it.bonus?.length ? h('div', { class: 'icard-sec' }, getLang() === 'th' ? `ออปชั่นเสริม (${it.bonus.length}/3)` : `Bonus options (${it.bonus.length}/3)`) : null,
+    it.bonus?.length ? h('ul', { class: 'icard-list aff bonus' }, it.bonus.map((a) => h('li', null, uiIcon('rune', 14, '#7fe0ff'), statText(a.stat, a.value)))) : null,
     it.power ? h('div', { class: 'icard-trait' }, h('div', { class: 'icard-sec' }, uiIcon('star', 16, '#ffd36a'), th ? ' พลังพิเศษ (ตำนาน)' : ' Unique Trait'), h('p', null, powerDesc(it.power))) : null,
     h('div', { class: 'icard-foot muted' }, [it.bound ? (th ? 'ผูกกับตัวละคร' : 'Bound to character') : (th ? 'แลกเปลี่ยนได้' : 'Tradeable'), it.hardcore ? 'Hardcore' : null].filter(Boolean).join(' · ')));
 }
@@ -70,8 +72,7 @@ export function inventoryWindow(ctx: PanelCtx, mode: Mode, rerender: () => void)
     h('div', { class: 'cos-row' },
       ...Object.entries(AURAS).map(([id, a]) => cosmetic(a.name, tileIcon('awaken', a.color, ctx.account.auras?.includes(id) ? 'epic' : 'common', 44), ctx.account.aura === id, !!ctx.account.auras?.includes(id), () => { if (ctx.account.auras?.includes(id)) send({ t: 'set_aura', id: ctx.account.aura === id ? null : id }); })),
       ...Object.entries(PETS).map(([id, p]) => cosmetic(p.name, tileIcon('mount', p.color, ctx.account.pets?.includes(id) ? 'rare' : 'common', 44), ctx.account.pet === id, !!ctx.account.pets?.includes(id), () => { if (ctx.account.pets?.includes(id)) send({ t: 'pet_set', id: ctx.account.pet === id ? null : id }); }))),
-    mode === 'quartermaster' ? h('div', { class: 'adopt' }, ...Object.entries(PETS).filter(([id]) => !ctx.account.pets?.includes(id)).map(([id, p]) => h('button', { class: 'btn tiny', onclick: () => send({ t: 'pet_buy', id }) }, `${th ? 'รับ' : 'Adopt'} ${p.name} (${p.cost.gold}g${Object.entries(p.cost.mats ?? {}).map(([m, n]) => ` + ${n} ${MATERIALS[m]?.name ?? m}`).join('')})`))) : null,
-    h('small', { class: 'muted' }, th ? 'ออร่าได้จากซีซันพาส · สัตว์เลี้ยงรับได้ที่ Quartermaster Sol' : 'Auras come from the Season Pass · companions from Quartermaster Sol'));
+    h('small', { class: 'muted' }, th ? 'ออร่าได้จากซีซันพาส · สัตว์เลี้ยงรับได้ที่ Stablemaster Rook' : 'Auras come from the Season Pass · companions from Stablemaster Rook'));
 
   // ── middle: filters + grid ──
   const order = ch.inventory.map((it, i) => ({ it, i })).filter((x) => x.it && inFilter(x.it, ui.filter));
@@ -80,7 +81,7 @@ export function inventoryWindow(ctx: PanelCtx, mode: Mode, rerender: () => void)
   const used = ch.inventory.filter(Boolean).length;
   const grid = h('div', { class: 'igrid' });
   for (const { it, i } of order) {
-    const c = h('button', { class: 'icell' + (ui.sel === i ? ' sel' : ''), style: `--rc:${RARITY_DEFS[it!.rarity].color}` }, itemIcon(it!, 58), h('em', { class: 'ilv' }, String(it!.ilvl)), h('i', { class: 'st' }, stars(it!.rarity)));
+    const c = h('button', { class: 'icell' + (ui.sel === i ? ' sel' : ''), style: `--rc:${RARITY_DEFS[it!.rarity].color}` }, itemIcon(it!, 58), h('em', { class: 'ilv' }, String(it!.ilvl)), h('i', { class: 'st' }, stars(it!.rarity)), it!.plus ? h('b', { class: 'plus' + (it!.plus >= 12 ? ' hi' : '') }, `+${it!.plus}`) : null);
     bindTip(c, () => itemTooltip(it!, equippedFor(ch, it!)));
     if (ui.multi && ui.picked.has(i)) c.classList.add('picked');
     c.onclick = () => { hideTip(); if (ui.multi) { if (ui.picked.has(i)) ui.picked.delete(i); else ui.picked.add(i); } else ui.sel = i; rerender(); };
@@ -95,8 +96,7 @@ export function inventoryWindow(ctx: PanelCtx, mode: Mode, rerender: () => void)
       (ch.bagSlots ?? 0) < BAG_MAX_EXTRA ? (() => { const c = bagExpandCost(ch.bagSlots ?? 0); const b = h('button', { class: 'btn tiny gold', disabled: ch.gold < c.gold || ch.dust < c.dust, onclick: () => send({ t: 'bag_expand' }) }, `+${BAG_STEP} ${th ? 'ช่อง' : 'slots'} · ${c.gold.toLocaleString()}g ${c.dust}✦`); b.title = th ? `ขยายกระเป๋า (สูงสุด ${INVENTORY_SIZE + BAG_MAX_EXTRA} ช่อง)` : `Expand bags (max ${INVENTORY_SIZE + BAG_MAX_EXTRA} slots)`; return b; })() : h('small', { class: 'muted' }, th ? 'กระเป๋าเต็มขนาดแล้ว' : 'Max size'),
       h('select', { class: 'sortsel', 'aria-label': 'Sort', onchange: (e: Event) => { ui.sort = (e.target as HTMLSelectElement).value as typeof ui.sort; rerender(); } }, ...([['rarity', th ? 'ความหายาก' : 'Rarity'], ['level', th ? 'เลเวลไอเทม' : 'Item level'], ['slot', th ? 'ช่องสวมใส่' : 'Slot']] as const).map(([v, l]) => h('option', { value: v, selected: ui.sort === v }, l)))),
     grid,
-    h('div', { class: 'inv-foot' }, h('span', null, uiIcon('potion', 20, '#ff4a5a'), ` ${t('potion')} ${ch.potions}/${POTION.maxCharges}`), (ch.mats?.treasure_map ?? 0) > 0 || ch.treasure ? h('span', null, matIcon('treasure_map', 20), ` ${ch.mats?.treasure_map ?? 0}`, ch.treasure ? h('small', { class: 'muted' }, th ? ' กำลังล่าสมบัติ' : ' hunt active') : h('button', { class: 'btn tiny', onclick: () => send({ t: 'use_map' }) }, th ? 'อ่านแผนที่' : 'Read map')) : null,
-      mode === 'quartermaster' ? h('button', { class: 'btn tiny gold', onclick: () => send({ t: 'buy_potion' }) }, `${th ? 'ซื้อยา' : 'Buy potion'} (${POTION.buyPrice}g)`) : null));
+    h('div', { class: 'inv-foot' }, h('span', null, uiIcon('potion', 20, '#ff4a5a'), ` ${t('potion')} ${ch.potions}/${POTION.maxCharges}`), (ch.mats?.treasure_map ?? 0) > 0 || ch.treasure ? h('span', null, matIcon('treasure_map', 20), ` ${ch.mats?.treasure_map ?? 0}`, ch.treasure ? h('small', { class: 'muted' }, th ? ' กำลังล่าสมบัติ' : ' hunt active') : h('button', { class: 'btn tiny', onclick: () => send({ t: 'use_map' }) }, th ? 'อ่านแผนที่' : 'Read map')) : null));
 
   // ── right: compare + actions ──
   const sel = ui.sel !== null ? ch.inventory[ui.sel] ?? null : null;
@@ -113,7 +113,7 @@ export function inventoryWindow(ctx: PanelCtx, mode: Mode, rerender: () => void)
     ui.multi ? h('button', { class: 'btn tiny', onclick: () => { for (const x of order) if (!x.it!.bound || mode !== 'stash') ui.picked.add(x.i); rerender(); } }, th ? 'เลือกทั้งหมด' : 'Select all') : null,
     ui.multi ? h('button', { class: 'btn tiny', onclick: () => { ui.picked.clear(); rerender(); } }, th ? 'ล้าง' : 'Clear') : null,
     ui.multi ? h('b', null, `${picked.length} ${th ? 'ชิ้น' : 'selected'}`) : null,
-    ui.multi ? (() => { const b = h('button', { class: 'btn tiny gold', disabled: !picked.length || mode !== 'quartermaster', onclick: () => { send({ t: 'sell_many', inv: picked }); ui.picked.clear(); } }, `${th ? 'ขายที่เลือก' : 'Sell selected'} (+${pickedGold.toLocaleString()}g)`); if (mode !== 'quartermaster') b.title = th ? 'ไปหา Quartermaster Sol เพื่อขาย' : 'Visit Quartermaster Sol to sell'; return b; })() : null,
+    ui.multi ? (() => { const b = h('button', { class: 'btn tiny gold', disabled: !picked.length || mode !== 'merchant', onclick: () => { send({ t: 'sell_many', inv: picked }); ui.picked.clear(); } }, `${th ? 'ขายที่เลือก' : 'Sell selected'} (+${pickedGold.toLocaleString()}g)`); if (mode !== 'merchant') b.title = th ? 'ไปหา Merchant Tobin เพื่อขาย' : 'Visit Merchant Tobin to sell'; return b; })() : null,
     ui.multi ? (() => { const b = h('button', { class: 'btn tiny', disabled: !picked.length || mode !== 'stash', onclick: () => { send({ t: 'stash_put_many', inv: picked }); ui.picked.clear(); } }, th ? 'ฝากคลังที่เลือก' : 'Store selected'); if (mode !== 'stash') b.title = th ? 'ไปที่ Astral Vault เพื่อฝาก' : 'Visit the Astral Vault to store'; return b; })() : null,
     ui.multi ? h('button', { class: 'btn tiny danger', disabled: !picked.length, onclick: async () => { if (await confirmDialog(th ? 'ทิ้งไอเทมที่เลือก' : 'Discard selected', th ? `ทิ้ง ${picked.length} ชิ้นถาวร? กู้คืนเองไม่ได้` : `Permanently destroy ${picked.length} item(s)? This cannot be undone.`, th ? 'ทิ้งทั้งหมด' : 'Discard all', t('cancel'))) { send({ t: 'discard', inv: picked }); ui.picked.clear(); } } }, `🗑 ${th ? 'ทิ้งที่เลือก' : 'Discard selected'}`) : null);
   mid.insertBefore(multiBar, grid);
@@ -122,11 +122,13 @@ export function inventoryWindow(ctx: PanelCtx, mode: Mode, rerender: () => void)
     h('div', { class: 'actions' },
       act(t('equip'), 'person', !!sel, '', () => send({ t: 'equip', inv: i })),
       sel?.slot === 'ring' ? act(th ? 'ใส่แหวนขวา' : 'Equip ring (R)', 'ring', true, '', () => send({ t: 'equip', inv: i, slot: 'ring2' })) : null,
-      act(th ? `แยกชิ้นส่วน${sel ? ` (+${salvageValue(sel)}✦)` : ''}` : `Salvage${sel ? ` (+${salvageValue(sel)}✦)` : ''}`, 'anvil', mode === 'smith' && !!sel, need('Brenna the Smith'), () => send({ t: 'salvage', inv: i }), 'gold'),
-      act(th ? `ขาย${sel ? ` (+${sellValue(sel)}g)` : ''}` : `Sell${sel ? ` (+${sellValue(sel)}g)` : ''}`, 'coin', mode === 'quartermaster' && !!sel, need('Quartermaster Sol'), () => send({ t: 'sell', inv: i }), 'gold'),
+      act(th ? `แยกชิ้นส่วน${sel ? ` (+${salvageValue(sel)}✦)` : ''}` : `Salvage${sel ? ` (+${salvageValue(sel)}✦)` : ''}`, 'anvil', mode === 'salvager' && !!sel, need('Salvager Grimm'), () => send({ t: 'salvage', inv: i }), 'gold'),
+      act(th ? `ขาย${sel ? ` (+${sellValue(sel)}g)` : ''}` : `Sell${sel ? ` (+${sellValue(sel)}g)` : ''}`, 'coin', mode === 'merchant' && !!sel, need('Merchant Tobin'), () => send({ t: 'sell', inv: i }), 'gold'),
       act(th ? 'ทิ้งไอเทม' : 'Discard', 'trash', !!sel, '', async () => { if (sel && await confirmDialog(th ? 'ทิ้งไอเทม' : 'Discard item', th ? `ทิ้ง "${sel.name}" ถาวร? ไอเทมจะหายไปและกู้คืนเองไม่ได้` : `Permanently destroy "${sel.name}"? This cannot be undone.`, th ? 'ทิ้ง' : 'Discard', t('cancel'))) send({ t: 'discard', inv: [i] }); }, 'danger'),
       act(th ? 'ฝากคลัง' : 'Store', 'chestbox', mode === 'stash' && !!sel && !sel.bound, sel?.bound ? (th ? 'ไอเทมผูกกับตัวละคร' : 'Bound items cannot be stored') : need('the Astral Vault'), () => send({ t: 'stash_put', inv: i }))),
-    mode === 'smith' && sel && sel.affixes.length ? h('div', { class: 'reroll' }, h('small', { class: 'muted' }, th ? `เสริมพลัง (${enchantCost(sel).dust}✦ ${enchantCost(sel).gold}g) — เลือกค่าเสริมที่จะสุ่มใหม่:` : `Enchant (${enchantCost(sel).dust}✦ ${enchantCost(sel).gold}g) — choose an affix to reroll:`), ...sel.affixes.map((a, ai) => h('button', { class: 'btn tiny', onclick: () => send({ t: 'enchant', inv: i, affix: ai }) }, `↻ ${AFFIX_MAP[a.id]?.label.replace('{v}', String(a.value)) ?? a.stat}`))) : null,
+    mode === 'enchanter' && sel && sel.affixes.length ? h('div', { class: 'reroll' }, h('small', { class: 'muted' }, th ? `เสริมพลัง (${enchantCost(sel).dust}✦ ${enchantCost(sel).gold}g) — เลือกค่าเสริมที่จะสุ่มใหม่:` : `Enchant (${enchantCost(sel).dust}✦ ${enchantCost(sel).gold}g) — choose an affix to reroll:`), ...sel.affixes.map((a, ai) => h('button', { class: 'btn tiny', onclick: () => send({ t: 'enchant', inv: i, affix: ai }) }, `↻ ${AFFIX_MAP[a.id]?.label.replace('{v}', String(a.value)) ?? a.stat}`))) : null,
+    mode === 'forgemaster' && sel ? enhancePanel(sel, i, send) : null,
+    mode === 'runesmith' && sel ? bonusPanel(sel, i, send, rerender) : null,
     !sel ? h('p', { class: 'hint' }, th ? 'คลิกไอเทมเพื่อเลือก · คลิกขวาเพื่อสวมทันที' : 'Click an item to compare · right-click to equip') : null);
   const stash = mode === 'stash' ? h('div', { class: 'stash-row' }, h('div', { class: 'sec-title' }, uiIcon('chestbox', 20), `${t('stash')} (${ch.hardcore ? 'Hardcore' : 'Normal'})`), h('div', { class: 'igrid small' }, ...(ch.hardcore ? ctx.account.stash.hardcore : ctx.account.stash.normal).map((it, k) => it ? (() => { const c = h('button', { class: 'icell', style: `--rc:${RARITY_DEFS[it.rarity].color}` }, itemIcon(it, 44)); bindTip(c, () => itemTooltip(it)); c.onclick = () => { hideTip(); send({ t: 'stash_take', idx: k }); }; return c; })() : h('div', { class: 'icell empty' })))) : null;
   return h('div', { class: 'invwin' }, tabs, h('div', { class: 'inv-cols' }, left, mid, right), stash);
@@ -149,4 +151,32 @@ function collectionsTab(ctx: PanelCtx): HTMLElement {
     h('div', { class: 'ach-grid' }, ...ach.map(([id, a]) => { const got = ctx.account.achievements.includes(id); const c = h('div', { class: 'achv' + (got ? ' got' : '') }, tileIcon('trophy', got ? '#ffd36a' : '#555', got ? 'legendary' : 'common', 44), h('b', null, a.name), h('small', { class: 'muted' }, a.desc)); return c; })),
     h('div', { class: 'sec-title' }, uiIcon('book', 20), `${th ? 'สารานุกรมศัตรู' : 'Bestiary'} (${Object.keys(known).length}/${Object.keys(ENEMIES).length - 1})`),
     h('div', { class: 'ach-grid' }, ...Object.values(ENEMIES).filter((e) => e.id !== 'dummy').map((e) => { const n = known[e.id] ?? 0; return h('div', { class: 'achv' + (n ? ' got' : '') }, tileIcon(e.boss ? 'skull' : 'ghost', n ? e.color : '#333', e.boss ? 'ancient' : 'common', 44), h('b', null, n ? e.name : '???'), h('small', { class: 'muted' }, n ? `${e.family} · ×${n}` : (th ? 'ยังไม่พบ' : 'Not yet encountered'))); })));
+}
+
+// ── Forgemaster Kael: enhancement +1..+15 ──
+function enhancePanel(it: Item, i: number, send: (m: any) => void): HTMLElement {
+  const th = getLang() === 'th', p = it.plus ?? 0;
+  if (p >= ENHANCE_MAX) return h('div', { class: 'enh' }, h('b', { class: 'enh-max' }, th ? '★ ตีบวกสูงสุด +15 แล้ว' : '★ Maximum +15 reached'));
+  const c = enhanceCost(it), rate = Math.round(ENHANCE_RATE[p + 1]! * 100), rule = failRule(p + 1);
+  return h('div', { class: 'enh' },
+    h('div', { class: 'enh-head' }, h('b', { class: 'enh-lv' }, `+${p}`), uiIcon('awaken', 22, '#ffd36a'), h('b', { class: 'enh-lv next' }, `+${p + 1}`), h('span', { class: 'enh-rate' + (rate < 50 ? ' low' : '') }, `${th ? 'โอกาสสำเร็จ' : 'Success'} ${rate}%`)),
+    h('div', { class: 'enh-pips' }, ...Array.from({ length: 15 }, (_, k) => h('i', { class: (k < p ? 'on' : '') + ([4, 9, 14].includes(k) ? ' gate' : '') }))),
+    h('small', { class: rule === 'drop' ? 'warn' : 'muted' }, rule === 'none' ? (th ? 'ขั้นนี้สำเร็จแน่นอน' : 'This step cannot fail') : rule === 'keep' ? (th ? 'ถ้าล้มเหลว: เสียแค่วัตถุดิบ ระดับไม่ลด' : 'On failure: materials are used, level is kept') : (th ? 'ถ้าล้มเหลว: ระดับลดลง 1 ขั้น (ไอเทมไม่แตก)' : 'On failure: drops one level (never breaks)')),
+    h('div', { class: 'enh-cost' }, uiIcon('coin', 18), ` ${c.gold.toLocaleString()}  `, uiIcon('dust', 18, '#b48aff'), ` ${c.dust}  `, ...Object.entries(c.mats).map(([m, n]) => h('span', null, matIcon(m, 18), ` ${n} `))),
+    h('small', { class: 'muted' }, th ? `ปลดช่องออปชั่นเสริมที่ +5 / +10 / +15 · พลังพื้นฐาน ×${plusMult(p + 1).toFixed(2)}` : `Bonus option slots unlock at +5 / +10 / +15 · base stats ×${plusMult(p + 1).toFixed(2)}`),
+    h('button', { class: 'btn gold', onclick: () => send({ t: 'enhance', inv: i }) }, th ? `ตีบวก +${p + 1}` : `Enhance to +${p + 1}`));
+}
+// ── Runesmith Sefa: bonus option slots ──
+const locks = new Set<number>();
+function bonusPanel(it: Item, i: number, send: (m: any) => void, rerender: () => void): HTMLElement {
+  const th = getLang() === 'th', n = bonusSlots(it), b = it.bonus ?? [];
+  if (!n) return h('div', { class: 'enh' }, h('p', { class: 'muted' }, th ? 'ตีบวกไอเทมถึง +5 ที่ Forgemaster Kael เพื่อปลดช่องออปชั่นเสริมช่องแรก' : 'Enhance this item to +5 at Forgemaster Kael to unlock its first bonus option slot.'));
+  for (const k of [...locks]) if (k >= n) locks.delete(k);
+  const c = bonusRerollCost(it, locks.size);
+  return h('div', { class: 'enh' }, h('div', { class: 'sec-title' }, uiIcon('rune', 20, '#7fe0ff'), th ? `ออปชั่นเสริม (${n}/3)` : `Bonus options (${n}/3)`),
+    ...[0, 1, 2].map((k) => k < n ? h('label', { class: 'bonus-row' + (locks.has(k) ? ' locked' : '') }, h('input', { type: 'checkbox', checked: locks.has(k), onchange: () => { if (locks.has(k)) locks.delete(k); else locks.add(k); rerender(); } }), ` 🔒 `, b[k] ? statText(b[k]!.stat, b[k]!.value) : (th ? '(ยังไม่สุ่ม)' : '(not rolled)'), b[k] ? h('em', null, ` T${b[k]!.tier}`) : null)
+      : h('div', { class: 'bonus-row off' }, th ? `🔒 ปลดที่ +${BONUS_UNLOCK[k]}` : `🔒 Unlocks at +${BONUS_UNLOCK[k]}`)),
+    h('small', { class: 'muted' }, th ? 'ติ๊กช่องที่ต้องการล็อกไว้ ช่องที่ไม่ล็อกจะถูกสุ่มใหม่ (ล็อกยิ่งมาก ค่าใช้จ่ายยิ่งสูง)' : 'Tick slots to keep; unlocked slots are rerolled (each lock raises the cost).'),
+    h('div', { class: 'enh-cost' }, uiIcon('coin', 18), ` ${c.gold.toLocaleString()}  `, uiIcon('dust', 18, '#b48aff'), ` ${c.dust}`),
+    h('button', { class: 'btn gold', disabled: locks.size >= n, onclick: () => send({ t: 'bonus_reroll', inv: i, locks: [...locks] }) }, th ? 'สุ่มออปชั่นเสริม' : 'Reroll bonus options'));
 }

@@ -1,6 +1,6 @@
 // NPC service windows: a framed portrait of the NPC with their line, then the service. Trainer (passive paths,
 // skills, resets, info) and Carpenter (furniture catalogue) follow the reference layouts.
-import { CLASSES, CLASS_IDS, FURNITURE, MATERIALS, PASSIVE_MAP, passivePointsFor, respecCost, refundCost, type AccountProgress, type CharacterData } from '@astra/shared';
+import { BAG_MAX_EXTRA, BAG_STEP, MOUNTS, PETS, POTION, ZONES, bagExpandCost, waypointCost, CLASSES, CLASS_IDS, FURNITURE, MATERIALS, PASSIVE_MAP, passivePointsFor, respecCost, refundCost, type AccountProgress, type CharacterData } from '@astra/shared';
 import { getLang, t } from '../i18n.js';
 import { confirmDialog, h } from './dom.js';
 import { tileIcon, uiIcon, matIcon } from './icons.js';
@@ -71,4 +71,39 @@ export function carpenterWindow(ch: CharacterData, acc: AccountProgress, send: S
           h('button', { class: 'btn gold', disabled: !!locked || lack, title: locked ? (th ? 'ปลดล็อกด้วยความสำเร็จ' : 'Unlocked by an achievement') : lack ? (th ? 'ทองหรือวัตถุดิบไม่พอ' : 'Not enough gold or materials') : '', onclick: (e: Event) => { e.stopPropagation(); send({ t: 'house_buy', id: f.id }); } }, locked ? `🔒 ${th ? 'ล็อก' : 'Locked'}` : `🛒 ${th ? 'ซื้อ' : 'Buy'}`));
       }))),
     h('p', { class: 'hint' }, th ? `วัตถุดิบ: ${Object.entries(MATERIALS).filter(([k]) => ch.mats[k]).map(([k, m]) => `${m.name} ${ch.mats[k]}`).join(' · ') || '—'}` : `Materials: ${Object.entries(MATERIALS).filter(([k]) => ch.mats[k]).map(([k, m]) => `${m.name} ${ch.mats[k]}`).join(' · ') || '—'}`));
+}
+
+// ── Small single-purpose NPC windows (each service has its own NPC) ──
+export function apothecaryWindow(ch: CharacterData, send: Send): HTMLElement {
+  const th = getLang() === 'th';
+  return h('div', { class: 'npcwin' }, npcHeader('npc_apothecary', 'Apothecary Fenna', th ? 'ยาฟื้นพลังสดใหม่ทุกวัน เติมเข็มขัดยาให้เต็มก่อนออกเดินทางนะ' : 'Fresh restoratives every day. Fill your belt before you head out.'),
+    h('div', { class: 'svc-card' }, uiIcon('potion', 56, '#ff4a5a'), h('div', { class: 'grow' }, h('b', null, th ? 'ยาฟื้นพลัง' : 'Healing potion'), h('small', { class: 'muted' }, `${th ? 'มีอยู่' : 'Carried'} ${ch.potions}/${POTION.maxCharges} · ${POTION.buyPrice}g`)),
+      h('button', { class: 'btn gold', disabled: ch.potions >= POTION.maxCharges || ch.gold < POTION.buyPrice, onclick: () => send({ t: 'buy_potion' }) }, th ? 'ซื้อ 1 ขวด' : 'Buy 1'),
+      h('button', { class: 'btn', disabled: ch.potions >= POTION.maxCharges, onclick: () => { for (let k = ch.potions; k < POTION.maxCharges; k++) send({ t: 'buy_potion' }); } }, th ? 'เติมให้เต็ม' : 'Fill belt')));
+}
+export function stableWindow(acc: AccountProgress, send: Send): HTMLElement {
+  const th = getLang() === 'th';
+  return h('div', { class: 'npcwin' }, npcHeader('npc_stable', 'Stablemaster Rook', th ? 'สัตว์เลี้ยงและพาหนะทุกตัวที่นี่ได้รับการดูแลอย่างดี เลือกเพื่อนร่วมทางได้เลย' : 'Every companion and mount here is well cared for. Pick a travelling friend.'),
+    h('div', { class: 'sec-title' }, uiIcon('mount', 20), th ? 'สัตว์เลี้ยง' : 'Companions'),
+    ...Object.entries(PETS).map(([id, p]) => h('div', { class: 'svc-card' }, tileIcon('mount', p.color, 'rare', 48), h('div', { class: 'grow' }, h('b', null, p.name), h('small', { class: 'muted' }, p.desc)),
+      acc.pets?.includes(id) ? h('button', { class: 'btn', onclick: () => send({ t: 'pet_set', id: acc.pet === id ? null : id }) }, acc.pet === id ? (th ? 'เก็บ' : 'Dismiss') : (th ? 'เรียก' : 'Summon'))
+        : h('button', { class: 'btn gold', onclick: () => send({ t: 'pet_buy', id }) }, `${th ? 'รับเลี้ยง' : 'Adopt'} ${p.cost.gold}g${p.cost.mats ? ' + ' + Object.entries(p.cost.mats).map(([m, n]) => `${n} ${MATERIALS[m]?.name ?? m}`).join(', ') : ''}`))),
+    h('div', { class: 'sec-title' }, uiIcon('mount', 20, '#ffd36a'), th ? 'พาหนะ' : 'Mounts'),
+    ...Object.values(MOUNTS).map((m) => h('div', { class: 'svc-card' }, tileIcon('mount', m.color, m.rarity === 'SSR' ? 'legendary' : m.rarity === 'SR' ? 'epic' : 'rare', 48), h('div', { class: 'grow' }, h('b', null, `${m.name} (${m.rarity})`), h('small', { class: 'muted' }, `+${Math.round(m.speed * 100)}% ${th ? 'ความเร็ว' : 'speed'}`)),
+      h('small', { class: 'muted' }, th ? 'ได้จากร้านค้า/ขอพร · ขี่ด้วยปุ่มบนแถบ' : 'From the Shop / Wish · ride from the hotbar'))));
+}
+export function tailorWindow(ch: CharacterData, send: Send): HTMLElement {
+  const th = getLang() === 'th', extra = ch.bagSlots ?? 0, c = bagExpandCost(extra);
+  return h('div', { class: 'npcwin' }, npcHeader('npc_tailor', 'Tailor Pim', th ? 'กระเป๋าเต็มอีกแล้วเหรอ? เดี๋ยวข้าเย็บช่องเพิ่มให้' : 'Bag full again? I will stitch you some more room.'),
+    h('div', { class: 'svc-card' }, uiIcon('bag', 56), h('div', { class: 'grow' }, h('b', null, `${th ? 'ช่องกระเป๋า' : 'Bag slots'} ${ch.inventory.length}`), h('small', { class: 'muted' }, `${th ? 'ขยายได้อีก' : 'Can still add'} ${BAG_MAX_EXTRA - extra}`)),
+      extra < BAG_MAX_EXTRA ? h('button', { class: 'btn gold', disabled: ch.gold < c.gold || ch.dust < c.dust, onclick: () => send({ t: 'bag_expand' }) }, `+${BAG_STEP} · ${c.gold}g ${c.dust}✦`) : h('b', null, th ? 'สูงสุดแล้ว' : 'Maxed')));
+}
+export function waymasterWindow(ch: CharacterData, send: Send): HTMLElement {
+  const th = getLang() === 'th';
+  return h('div', { class: 'npcwin' }, npcHeader('npc_waymaster', 'Waymaster Juno', th ? 'ข้าส่งเจ้าไปถึงประตูทิศตะวันตกของทุกเขต ขอแค่เลเวลพอและจ่ายค่าเดินทาง' : 'I can send you to the west gate of any zone — if you are strong enough and pay the fare.'),
+    h('div', { class: 'way-list' }, ...ZONES.map((z, i) => {
+      const cost = waypointCost(z.id), ok = i === 0 || ch.level >= z.levelMin - 5;
+      return h('div', { class: 'svc-card' + (ok ? '' : ' locked') }, h('b', { class: 'way-n' }, String(i + 1)), h('div', { class: 'grow' }, h('b', null, th ? z.th : z.name), h('small', { class: 'muted' }, `Lv ${z.levelMin}-${z.levelMax} · ${z.familyName}`)),
+        h('button', { class: 'btn gold', disabled: !ok || ch.gold < cost, title: ok ? '' : (th ? `ต้องเลเวล ${z.levelMin - 5}+` : `Requires level ${z.levelMin - 5}+`), onclick: () => send({ t: 'waypoint', zone: z.id }) }, ok ? (cost ? `${cost}g` : (th ? 'ฟรี' : 'Free')) : `🔒 Lv ${z.levelMin - 5}`));
+    })));
 }
