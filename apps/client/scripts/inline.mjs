@@ -15,6 +15,7 @@ for (const f of readdirSync(assets)) {
 writeFileSync(join(dir, 'astra-offline.html'), html);
 const artifact = `<title>Astra: Eclipse Chronicles</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Noto+Sans+Thai:wght@400;600;700&display=swap">
 <style>${css}</style>
 <div id="app"><div class="screen center"><p>Loading…</p></div></div>
 <script type="module">${js}</script>

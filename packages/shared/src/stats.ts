@@ -144,3 +144,14 @@ export function statLabel(key: string, v: number): string {
   return lbl.startsWith('%') || lbl.startsWith(' ') ? `${sign}${val}${lbl}` : `${sign}${val} ${lbl}`;
 }
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** Combat Power (CP): one number summarising offence and survivability, shown on the HUD and character sheet.
+ *  Offence = power × average crit multiplier × average action speed × (1 + cooldown reduction);
+ *  survivability = life × armour mitigation × average resistance. Purely informational. */
+export function combatPower(d: Derived): number {
+  const crit = 1 + (Math.min(100, d.critChance) / 100) * (d.critMult / 100 - 1);
+  const offence = d.power * crit * ((d.atkSpeed + d.castSpeed) / 2) * (1 + d.cdr);
+  const resAvg = Object.values(d.res).reduce((a, b) => a + b, 0) / Math.max(1, Object.values(d.res).length);
+  const surv = d.maxHp * (1 + d.armor / (d.armor + 500)) * (1 + Math.max(-50, resAvg) / 100);
+  return Math.round(offence * 12 + surv * 0.6);
+}

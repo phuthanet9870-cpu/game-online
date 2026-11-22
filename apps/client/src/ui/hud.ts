@@ -1,11 +1,13 @@
-import { QUESTS, FURNITURE, validatePlacement, applyContentPatch, ACTIVITIES, MATERIALS, CLASSES, DIFFICULTIES, DUNGEON_MODIFIERS, BLESSING_MAP, SKILL_MAP, ENEMIES, computeStats, xpToNext, type CharacterData } from '@astra/shared';
+import { combatPower, weeklyObjectives, ACTIVITY_ORDER, QUESTS, FURNITURE, validatePlacement, applyContentPatch, ACTIVITIES, MATERIALS, CLASSES, DIFFICULTIES, DUNGEON_MODIFIERS, BLESSING_MAP, SKILL_MAP, ENEMIES, computeStats, xpToNext, type CharacterData } from '@astra/shared';
 import { ClientGame } from '../game.js';
 import { Renderer } from '../render.js';
 import { Input, keyLabel } from '../input.js';
 import { store, type Backend, type Conn } from '../net.js';
 import { ct, getLang, t } from '../i18n.js';
 import { clear, confirmDialog, h, toast } from './dom.js';
-import { bindTip, hideTip, icon, skillColor, skillTooltip } from './tooltip.js';
+import { bindTip, hideTip, skillTooltip } from './tooltip.js';
+import { currencyIcon, skillIcon, uiIcon, tileIcon } from './icons.js';
+import { drawChibi } from '../sprites.js';
 import * as P from './panels.js';
 import { passiveTreePanel } from './passive.js';
 import { modeBanner } from './screens.js';
@@ -13,7 +15,7 @@ import * as S from './social.js';
 import { sound } from '../audio.js';
 import { itemName, translateDom, trText } from '../l10n.js';
 
-type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 'codex' | 'social' | 'guild' | 'auction' | 'ladder' | 'alchemist' | 'season' | 'hearth' | 'carpenter' | 'settings' | 'dungeon' | 'smith' | 'quartermaster' | 'trainer' | 'stash' | 'map';
+type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 'codex' | 'social' | 'guild' | 'auction' | 'ladder' | 'alchemist' | 'season' | 'hearth' | 'carpenter' | 'settings' | 'dungeon' | 'smith' | 'quartermaster' | 'trainer' | 'stash' | 'map' | 'crafting';
 
 export class GameUI {
   game = new ClientGame();
@@ -45,37 +47,55 @@ export class GameUI {
     clear(this.root);
     const canvas = h('canvas', { class: 'game-canvas', 'aria-label': 'Game view' });
     const E = this.el;
+    const th = getLang() === 'th';
     E.wrap = h('div', { class: 'game', style: `--ui:${this.settings.uiScale}` },
       canvas,
       modeBanner(this.backend, true),
       E.status = h('div', { class: 'status-overlay', hidden: true }),
+      // ── top-left: brand, mode pill, portrait card, party ──
       h('div', { class: 'hud-tl' },
-        E.name = h('div', { class: 'hud-name' }),
-        E.hp = h('div', { class: 'bar hp' }, h('i'), h('b'), h('span')),
-        E.res = h('div', { class: 'bar res' }, h('i'), h('span')),
-        E.sec = h('div', { class: 'pips' }),
-        E.buffs = h('div', { class: 'buffs' })),
-      E.target = h('div', { class: 'target-frame', hidden: true }),
-      E.boss = h('div', { class: 'boss-bar', hidden: true }),
-      h('div', { class: 'hud-tr' }, E.mini = h('canvas', { class: 'minimap', width: 180, height: 140, onclick: () => this.toggle('map') }), E.zone = h('div', { class: 'zone' }), E.wevent = h('div', { class: 'wevent', hidden: true }), E.party = h('div', { class: 'party-frames' })),
-      E.goal = h('div', { class: 'goal', hidden: true }),
+        h('div', { class: 'brand-row' }, h('div', { class: 'brand' }, 'ASTRA', h('span', null, ':'), h('small', null, 'ECLIPSE CHRONICLES')), E.pill = h('div', { class: 'pill' })),
+        h('div', { class: 'pcard' },
+          h('div', { class: 'portrait' }, E.portrait = h('canvas', { width: 96, height: 96 }), E.plv = h('div', { class: 'p-emblem' })),
+          h('div', { class: 'pinfo' },
+            E.name = h('div', { class: 'p-name' }),
+            E.hp = h('div', { class: 'gbar hp' }, h('i'), h('b'), h('label', null, 'HP'), h('span')),
+            E.res = h('div', { class: 'gbar mp' }, h('i'), h('label', null, 'MP'), h('span')),
+            E.sec = h('div', { class: 'gbar fp' }, h('i'), h('label', null, 'FP'), h('span')),
+            h('div', { class: 'cp-row' }, uiIcon('crossed', 20, '#ffd36a'), E.cp = h('b', { class: 'cp' }), E.buffs = h('div', { class: 'buffs' })))),
+        E.party = h('div', { class: 'party-box', hidden: true })),
+      // ── top-centre: public event, boss, target ──
+      h('div', { class: 'hud-tc' }, E.wevent = h('div', { class: 'wevent', hidden: true }), E.boss = h('div', { class: 'boss-bar', hidden: true }), E.target = h('div', { class: 'target-frame', hidden: true })),
+      // ── top-right: feature menu, location, minimap, tracker ──
+      h('div', { class: 'hud-tr' },
+        h('div', { class: 'tr-top' }, E.topmenu = h('nav', { class: 'topmenu', 'aria-label': 'Features' }),
+          h('div', { class: 'loc-col' }, E.loc = h('div', { class: 'loc' }), h('div', { class: 'mini-wrap' }, E.mini = h('canvas', { class: 'minimap', width: 168, height: 168, onclick: () => this.toggle('map') }), h('i', { class: 'compass' }, 'N')))),
+        E.tracker = h('div', { class: 'tracker' }), E.zone = h('div', { class: 'zone' })),
       E.prompt = h('div', { class: 'interact-prompt', hidden: true }),
       E.dps = h('div', { class: 'dps', hidden: true }),
-      E.bar = h('div', { class: 'skillbar' }),
-      E.xp = h('div', { class: 'xpbar' }, h('i'), h('span')),
-      E.menu = h('nav', { class: 'menu', 'aria-label': 'Game menu' }),
-      E.chat = h('div', { class: 'chat' }, E.chatLog = h('div', { class: 'chat-log', role: 'log', 'aria-live': 'polite' }), E.chatIn = h('input', { class: 'chat-in', maxLength: 200, placeholder: t('chatHint'), 'aria-label': 'Chat' })),
+      // ── bottom: chat, hotbar, round menu, EXP + currencies ──
+      E.chat = h('div', { class: 'chat' },
+        E.chatTabs = h('div', { class: 'chat-tabs' }),
+        E.chatLog = h('div', { class: 'chat-log', role: 'log', 'aria-live': 'polite' }),
+        h('div', { class: 'chat-row' }, E.chatCh = h('select', { class: 'chat-ch', 'aria-label': 'Channel' }, h('option', { value: 'local' }, th ? 'โลก' : 'World'), h('option', { value: 'party' }, th ? 'ปาร์ตี้' : 'Party'), h('option', { value: 'guild' }, th ? 'กิลด์' : 'Guild')),
+          E.chatIn = h('input', { class: 'chat-in', maxLength: 200, placeholder: th ? 'พิมพ์ข้อความ…' : 'Type a message…', 'aria-label': 'Chat' }),
+          h('button', { class: 'chat-send', 'aria-label': 'Send', onclick: () => this.sendChat() }, '➤'))),
+      E.bar = h('div', { class: 'hotbar' }),
+      E.menu = h('nav', { class: 'rmenu', 'aria-label': 'Game menu' }),
+      h('div', { class: 'xpline' }, E.xp = h('div', { class: 'xpbar' }, h('i'), h('span')), E.cur = h('div', { class: 'currencies' })),
       E.panel = h('aside', { class: 'panel', hidden: true, role: 'dialog' }),
       E.modal = h('div', { class: 'modal-host' }),
       E.joy = h('div', { class: 'joy', hidden: true }, E.knob = h('div', { class: 'knob' })),
       E.touchBtns = h('div', { class: 'touch-btns', hidden: !this.touch }),
     );
+    E.goal = h('div', { class: 'goal', hidden: true });
     this.root.append(E.wrap);
     this.renderer = new Renderer(canvas, this.game);
     this.input = new Input(canvas);
     this.input.onAction = (a) => this.onAction(a);
     if (this.touch) this.input.attachTouch(E.joy, E.knob);
     this.buildMenu();
+    this.buildChatTabs();
     this.buildTouch();
     canvas.addEventListener('wheel', (e) => { e.preventDefault(); this.renderer.cam.zoom = Math.max(0.6, Math.min(1.7, this.renderer.cam.zoom * (e.deltaY > 0 ? 0.92 : 1.08))); }, { passive: false });
     (E.chatIn as HTMLInputElement).addEventListener('keydown', (e) => { if (e.key === 'Enter') { this.sendChat(); (E.chatIn as HTMLInputElement).blur(); } if (e.key === 'Escape') (E.chatIn as HTMLInputElement).blur(); e.stopPropagation(); });
@@ -166,25 +186,7 @@ export class GameUI {
   private seasonData: any = null;
   private tut: any = null;
   /** Tutorial card while learning; afterwards a "next goal" card from the quest log. */
-  private renderGoal() {
-    const el = clear(this.el.goal!);
-    const th = getLang() === 'th';
-    const ch = this.game.char;
-    if (this.tut?.cur) {
-      const c = this.tut.cur;
-      el.hidden = false;
-      el.append(h('div', { class: 'row between' }, h('b', null, `${th ? 'บทสอน' : 'Tutorial'} ${this.tut.step + 1}/${this.tut.total}`), h('button', { class: 'btn ghost tiny', onclick: () => this.send({ t: 'tutorial_skip' }) }, th ? 'ข้าม' : 'Skip')),
-        h('div', { class: 'goal-title' }, th ? c.th : c.en), h('small', null, th ? c.hintTh : c.hintEn), h('small', { class: 'muted' }, `${th ? 'รางวัล' : 'Reward'}: ${c.gold}g`));
-      return;
-    }
-    if (!ch) { el.hidden = true; return; }
-    const active = QUESTS.find((q) => ch.quests[q.id] && !ch.quests[q.id]!.claimed);
-    const next = active ? null : QUESTS.find((q) => !ch.quests[q.id] && (!q.requires || ch.quests[q.requires]?.claimed));
-    el.hidden = false;
-    if (active) { const st = ch.quests[active.id]!; el.append(h('b', null, th ? 'เป้าหมายถัดไป' : 'Next goal'), h('div', { class: 'goal-title' }, ct(`quest.${active.id}.name`, active.name)), h('small', null, st.done ? (th ? 'สำเร็จแล้ว — กลับไปหาผู้บัญชาการอเวลีน' : 'Complete — return to Commander Aveline') : `${st.progress}/${active.objective.count}`)); }
-    else if (next) el.append(h('b', null, th ? 'เป้าหมายถัดไป' : 'Next goal'), h('div', { class: 'goal-title' }, ct(`quest.${next.id}.name`, next.name)), h('small', null, th ? 'รับเควสต์จากผู้บัญชาการอเวลีน' : 'Accept it from Commander Aveline in Lumenhold'));
-    else el.hidden = true;
-  }
+  private renderGoal() { this.renderTracker(); }
   private houseData: any = null;
   private placing: string | null = null;
   private startPlacing(id: string) { this.placing = id; this.closePanel(); toast('Click a spot to place · right-click or Esc to cancel'); }
@@ -315,25 +317,71 @@ export class GameUI {
 
   // ─────────── HUD ───────────
   private buildMenu() {
-    const items: Array<[PanelName, string, string]> = [['inventory', t('inventory'), 'inventory'], ['skills', t('skills'), 'skills'], ['passives', t('passives'), 'passives'], ['character', t('character'), 'character'], ['quests', t('quests'), 'quests'], ['codex', t('codex'), 'codex'], ['social', t('social'), 'social'], ['guild', 'Guild', 'guild'], ['ladder', 'Leaderboards', 'ladder'], ['season', 'Season', 'season'], ['settings', t('settings'), '']];
-    clear(this.el.menu!).append(...items.map(([p, label, bind]) => h('button', { class: 'menu-btn', onclick: () => this.toggle(p), title: label }, label, bind ? h('kbd', null, keyLabel(this.input?.binds[bind] ?? '')) : h('kbd', null, 'Esc'))));
+    const th = getLang() === 'th';
+    // feature menu (top-right): only entries backed by a real system
+    const top: Array<[string, string, string, () => void]> = [
+      ['events', th ? 'อีเวนต์' : 'Events', '#ff6a8a', () => this.toggle('season')],
+      ['pass', th ? 'ซีซันพาส' : 'Season Pass', '#9b6cff', () => this.toggle('season')],
+      ['trophy', th ? 'อันดับ' : 'Rankings', '#ffd36a', () => this.toggle('ladder')],
+      ['book', th ? 'โคเด็กซ์' : 'Codex', '#3a5ab0', () => this.toggle('codex')],
+    ];
+    clear(this.el.topmenu!).append(...top.map(([ic, label, col, fn]) => h('button', { class: 'tm-btn', onclick: fn, title: label }, uiIcon(ic, 34, col), h('span', null, label))));
+    const right: Array<[string, string, string, () => void, string]> = [
+      ['people', th ? 'สังคม' : 'Social', '#ffb36a', () => this.toggle('social'), 'social'],
+      ['crest', th ? 'กิลด์' : 'Guild', '#3a5ab0', () => this.toggle('guild'), 'guild'],
+      ['mapicon', th ? 'แผนที่' : 'Map', '', () => this.toggle('map'), 'map'],
+      ['anvil', th ? 'คราฟต์' : 'Crafting', '', () => this.toggle('crafting'), ''],
+      ['gear', th ? 'ตั้งค่า' : 'Settings', '', () => this.toggle('settings'), ''],
+    ];
+    clear(this.el.menu!).append(...right.map(([ic, label, col, fn, bind]) => h('button', { class: 'rm-btn', onclick: fn, title: label + (bind ? ` (${keyLabel(this.input?.binds[bind] ?? '')})` : '') }, h('div', { class: 'rm-ring' }, uiIcon(ic, 38, col || '#9b6cff')), h('span', null, label))));
+  }
+  private buildChatTabs() {
+    const th = getLang() === 'th';
+    const tabs: Array<[string, string]> = [['all', th ? 'ทั้งหมด' : 'All'], ['local', th ? 'โลก' : 'World'], ['guild', th ? 'กิลด์' : 'Guild'], ['party', th ? 'ปาร์ตี้' : 'Party'], ['system', th ? 'ระบบ' : 'System']];
+    clear(this.el.chatTabs!).append(...tabs.map(([id, label]) => h('button', { class: 'ct' + (this.chatTab === id ? ' on' : ''), onclick: () => { this.chatTab = id; this.buildChatTabs(); this.filterChat(); } }, label)));
+  }
+  private chatTab = 'all';
+  private filterChat() { for (const el of Array.from(this.el.chatLog!.children) as HTMLElement[]) el.hidden = this.chatTab !== 'all' && el.dataset.ch !== this.chatTab && !(this.chatTab === 'local' && el.dataset.ch === 'whisper'); this.el.chatLog!.scrollTop = this.el.chatLog!.scrollHeight; }
+  private menuGrid() {
+    const th = getLang() === 'th';
+    const items: Array<[PanelName, string, string, string]> = [['inventory', 'bag', t('inventory'), 'inventory'], ['character', 'person', t('character'), 'character'], ['skills', 'book', t('skills'), 'skills'], ['passives', 'tree', t('passives'), 'passives'], ['quests', 'scroll', t('quests'), 'quests'], ['codex', 'book', t('codex'), 'codex'], ['social', 'people', t('social'), 'social'], ['guild', 'crest', 'Guild', 'guild'], ['ladder', 'trophy', th ? 'อันดับ' : 'Leaderboards', 'ladder'], ['season', 'pass', th ? 'ซีซัน' : 'Season', 'season'], ['crafting', 'anvil', th ? 'คราฟต์' : 'Crafting', ''], ['hearth', 'house', th ? 'บ้าน' : 'Hearth', 'hearth'], ['map', 'mapicon', t('map'), 'map'], ['settings', 'gear', t('settings'), '']];
+    const close = () => this.closeModal();
+    this.showModal(h('div', { class: 'modal-wrap', onclick: (e: Event) => { if (e.target === e.currentTarget) close(); } }, h('div', { class: 'modal menu-grid' }, h('header', { class: 'row between' }, h('h2', null, th ? 'เมนู' : 'Menu'), h('button', { class: 'btn ghost tiny', onclick: close }, '✕')),
+      h('div', { class: 'mg' }, ...items.map(([p, ic, label, bind]) => h('button', { class: 'mg-btn', onclick: () => { close(); this.openPanel(p); } }, uiIcon(ic, 40), h('span', null, label), bind ? h('kbd', null, keyLabel(this.input.binds[bind] ?? '')) : null))))));
   }
 
   private buildBar() {
     const g = this.game; const ch = g.char;
     if (!ch) return;
+    const th = getLang() === 'th';
     const bar = clear(this.el.bar!);
     const keys = ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8'], ukeys = ['u1', 'u2', 'u3', 'u4'];
     const mk = (kind: 'a' | 'u', i: number, id: string | null) => {
       const sk = id ? SKILL_MAP[id] : null;
-      const el = h('button', { class: 'slot' + (kind === 'u' ? ' ult' : ''), 'data-k': kind, 'data-i': i, 'aria-label': sk?.name ?? 'empty slot' }, sk ? icon(sk.icon, skillColor(sk), 26) : null, h('div', { class: 'cd' }), h('kbd', null, keyLabel(this.input.binds[(kind === 'a' ? keys : ukeys)[i]!] ?? '')));
+      const n = kind === 'a' ? i + 1 : i + 9;
+      const el = h('button', { class: 'slot' + (kind === 'u' ? ' ult' : '') + (sk ? '' : ' empty'), 'data-k': kind, 'data-i': i, 'aria-label': sk?.name ?? 'empty slot' }, sk ? skillIcon(sk, 46) : null, h('div', { class: 'cd' }), h('kbd', null, keyLabel(this.input.binds[(kind === 'a' ? keys : ukeys)[i]!] ?? '')), h('em', { class: 'num' }, String(n)));
       if (sk) bindTip(el, () => skillTooltip(sk, ch));
       el.onclick = () => (sk ? this.cast(kind, i) : this.openPanel('skills'));
       return el;
     };
-    bar.append(h('div', { class: 'slots' }, ...ch.loadout.active.map((id, i) => mk('a', i, id))), h('div', { class: 'slots ults' }, ...ch.loadout.ultimate.map((id, i) => mk('u', i, id))),
-      this.el.pot = h('button', { class: 'slot pot', onclick: () => this.send({ t: 'potion' }), 'aria-label': t('potion') }, icon('heal', '#ff6b7a', 24), h('div', { class: 'cd' }), h('kbd', null, keyLabel(this.input.binds.potion!)), h('em', null, '')),
-      this.el.dodgeSlot = h('button', { class: 'slot pot', onclick: () => this.onAction('dodge'), 'aria-label': t('dodge') }, icon('blink', '#9fd8ff', 24), h('div', { class: 'cd' }), h('kbd', null, 'Spc')));
+    const util = (n: number, ic: string, col: string, label: string, bind: string, fn: () => void, extraCls = '') => {
+      const el = h('button', { class: 'slot util ' + extraCls, 'aria-label': label, onclick: fn }, uiIcon(ic, 40, col), h('div', { class: 'cd' }), bind ? h('kbd', null, keyLabel(this.input.binds[bind] ?? bind)) : null, h('em', { class: 'num' }, String(n)), h('b', { class: 'qty' }));
+      bindTip(el, () => h('div', { class: 'tip' }, h('div', { class: 'tip-title' }, label), bind ? h('small', null, `${th ? 'ปุ่มลัด' : 'Key'}: ${keyLabel(this.input.binds[bind] ?? bind)}`) : null));
+      return el;
+    };
+    const group = (title: string, ...els: HTMLElement[]) => h('div', { class: 'hb-group' }, h('div', { class: 'hb-title' }, title), h('div', { class: 'hb-slots' }, ...els));
+    bar.append(
+      group(th ? 'สกิลแอคทีฟ (1~8)' : 'Active Skills (1~8)', ...ch.loadout.active.map((id, i) => mk('a', i, id))),
+      group(th ? 'สกิลอัลติเมต (9~12)' : 'Ultimate Skills (9~12)', ...ch.loadout.ultimate.map((id, i) => mk('u', i, id))),
+      group(th ? 'ไอเทม / ยูทิลิตี้ (13~20)' : 'Items / Utilities (13~20)',
+        this.el.pot = util(13, 'potion', '#ff4a5a', t('potion'), 'potion', () => { sound.potion(); this.send({ t: 'potion' }); }),
+        this.el.dodgeSlot = util(14, 'dodge', '#8fd8ff', t('dodge'), 'dodge', () => this.onAction('dodge')),
+        util(15, 'chestbox', '', th ? 'เก็บของใกล้ตัว' : 'Pick up nearest item', 'pickup', () => this.pickupNearest()),
+        util(16, 'eye', '#ff6a4a', th ? 'เลือกเป้าหมายถัดไป' : 'Cycle target', 'target', () => this.onAction('target')),
+        util(17, 'chat', '#9b6cff', th ? 'แชท' : 'Chat', '', () => (this.el.chatIn as HTMLInputElement).focus()),
+        util(18, 'bag', '', t('inventory'), 'inventory', () => this.toggle('inventory')),
+        util(19, 'scroll', '', t('quests'), 'quests', () => this.toggle('quests')),
+        util(20, 'grid', '#9b6cff', th ? 'เมนูทั้งหมด' : 'All menus', '', () => this.menuGrid())));
   }
 
   private buildTouch() {
@@ -351,21 +399,34 @@ export class GameUI {
     if (!ch || !me || !s) return;
     const d = CLASSES[ch.cls];
     const E = this.el;
-    E.name!.textContent = `${ch.name} · ${d.name} ${ch.level}${ch.hardcore ? ' · HC' : ''}`;
+    const th = getLang() === 'th';
+    E.name!.replaceChildren(h('em', null, `Lv.${ch.level}`), ` ${ch.name}`, ch.hardcore ? h('span', { class: 'hc-badge' }, 'HC') : '');
     const hpPct = me.hp / me.mhp;
     (E.hp!.children[0] as HTMLElement).style.width = `${hpPct * 100}%`;
     (E.hp!.children[1] as HTMLElement).style.width = `${Math.min(1, me.barrier / me.mhp) * 100}%`;
-    E.hp!.children[2]!.textContent = `${me.hp} / ${me.mhp}${me.barrier ? ` (+${me.barrier})` : ''}`;
+    E.hp!.children[3]!.textContent = `${me.hp.toLocaleString()} / ${me.mhp.toLocaleString()}${me.barrier ? ` (+${me.barrier})` : ''}`;
     E.hp!.classList.toggle('low', hpPct < 0.3);
     (E.res!.children[0] as HTMLElement).style.width = `${(s.res / s.maxRes) * 100}%`;
-    (E.res!.children[0] as HTMLElement).style.background = d.resource.color;
-    E.res!.children[1]!.textContent = `${d.resource.name} ${s.res}/${s.maxRes}`;
-    if (d.secondary) { const n = Math.floor(s.sec); clear(E.sec!).append(h('small', null, d.secondary.name), ...Array.from({ length: s.secMax }, (_, i) => h('i', { class: i < n ? 'on' : '', style: `--c:${d.secondary!.color}` }))); }
-    clear(E.buffs!).append(...s.buffs.map(([n, tt]: [string, number]) => h('span', { class: 'buff' }, `${n} ${Math.ceil(tt)}s`)), ...g.blessings.map((b) => h('span', { class: 'buff run', title: BLESSING_MAP[b]?.desc ?? '' }, '✧ ' + (BLESSING_MAP[b]?.name ?? b))));
-    (E.xp!.children[0] as HTMLElement).style.width = `${(ch.xp / xpToNext(ch.level)) * 100}%`;
-    E.xp!.children[1]!.textContent = `${t('level')} ${ch.level} · ${ch.xp}/${xpToNext(ch.level)} XP`;
+    E.res!.children[1]!.textContent = d.resource.name.slice(0, 2).toUpperCase();
+    E.res!.title = d.resource.name;
+    E.res!.style.setProperty('--bc', d.resource.color);
+    E.res!.children[2]!.textContent = `${Math.floor(s.res)} / ${s.maxRes}`;
+    if (d.secondary) { E.sec!.hidden = false; (E.sec!.children[0] as HTMLElement).style.width = `${(s.sec / Math.max(1, s.secMax)) * 100}%`; E.sec!.children[1]!.textContent = d.secondary.name.slice(0, 2).toUpperCase(); E.sec!.title = d.secondary.name; E.sec!.children[2]!.textContent = `${Math.floor(s.sec)} / ${s.secMax}`; } else E.sec!.hidden = true;
+    const st0 = this.statsCache(ch);
+    E.cp!.textContent = `CP ${combatPower(st0).toLocaleString()}`;
+    clear(E.buffs!).append(...s.buffs.slice(0, 6).map(([n, tt]: [string, number]) => { const b = h('span', { class: 'buff' }, uiIcon('awaken', 18, '#9b6cff'), h('i', null, String(Math.ceil(tt)))); bindTip(b, () => h('div', { class: 'tip' }, `${n} · ${Math.ceil(tt)}s`)); return b; }),
+      ...g.blessings.map((b) => { const el = h('span', { class: 'buff run' }, uiIcon('star', 18, '#ffd36a')); bindTip(el, () => h('div', { class: 'tip' }, h('b', null, BLESSING_MAP[b]?.name ?? b), h('p', null, BLESSING_MAP[b]?.desc ?? ''))); return el; }));
+    const need = xpToNext(ch.level);
+    (E.xp!.children[0] as HTMLElement).style.width = `${(ch.xp / need) * 100}%`;
+    E.xp!.children[1]!.textContent = `EXP ${((ch.xp / need) * 100).toFixed(2)}% (${ch.xp.toLocaleString()} / ${need.toLocaleString()})`;
+    if (this.portraitKey !== ch.cls) this.drawPortrait();
+    const shards = g.account?.season?.shards ?? 0;
+    const curKey = `${ch.gold}|${ch.dust}|${shards}`;
+    if (this.curKey !== curKey) { this.curKey = curKey; clear(E.cur!).append(...([['gold', ch.gold, th ? 'ทอง' : 'Gold'], ['dust', ch.dust, th ? 'ผงดวงดาว' : 'Astral Dust'], ['shard', shards, th ? 'เศษอัมเบอร์ (ซีซัน)' : 'Ember Shards (season)']] as const).map(([k, v, label]) => { const el = h('div', { class: 'cur' }, currencyIcon(k, 24), h('b', null, v.toLocaleString())); bindTip(el, () => h('div', { class: 'tip' }, label)); return el; })); }
+    this.trackerT -= 0.1;
+    if (this.trackerT <= 0) { this.trackerT = 1; this.renderTracker(); this.renderParty(); this.renderPill(); }
     // skill cooldowns + affordability
-    const st = this.statsCache(ch);
+    const st = st0;
     for (const el of Array.from(E.bar!.querySelectorAll<HTMLElement>('.slot[data-k]'))) {
       const kind = el.dataset.k, i = Number(el.dataset.i);
       const id = (kind === 'a' ? ch.loadout.active : ch.loadout.ultimate)[i];
@@ -378,7 +439,7 @@ export class GameUI {
       const cost = sk ? Math.round(sk.cost * (1 + (st.m.costPct ?? 0) / 100)) : 0;
       el.classList.toggle('nores', !!sk && (s.res < cost || (sk.requireSecondary ? s.sec < sk.requireSecondary : false)));
     }
-    if (E.pot) { const c = E.pot.querySelector<HTMLElement>('.cd')!; c.style.setProperty('--p', String(s.potCd / 6)); c.textContent = s.potCd > 0 ? String(Math.ceil(s.potCd)) : ''; E.pot.querySelector('em')!.textContent = String(s.potions); }
+    if (E.pot) { const c = E.pot.querySelector<HTMLElement>('.cd')!; c.style.setProperty('--p', String(s.potCd / 6)); c.textContent = s.potCd > 0 ? String(Math.ceil(s.potCd)) : ''; E.pot.querySelector('.qty')!.textContent = String(s.potions); }
     if (E.dodgeSlot) { const c = E.dodgeSlot.querySelector<HTMLElement>('.cd')!; c.style.setProperty('--p', String(s.dodge / 3)); c.textContent = s.dodge > 0 ? s.dodge.toFixed(1) : ''; }
     // target frame
     const tgt = s.target ? g.ents.get(s.target) : null;
@@ -392,9 +453,13 @@ export class GameUI {
     if (boss) {
       E.boss!.hidden = false;
       const def = ENEMIES[boss.def];
-      clear(E.boss!).append(h('div', { class: 'row between' }, h('b', null, ct(`enemy.${boss.def}`, boss.name)), h('small', null, `${def?.boss?.title ?? ''} · Phase ${boss.phase + 1}${boss.affixes.length ? ' · ' + boss.affixes.join(', ') : ''}`)),
-        h('div', { class: 'bar hp boss' }, h('i', { style: `width:${(boss.hp / boss.mhp) * 100}%` }), h('span', null, `${Math.round((boss.hp / boss.mhp) * 100)}%`)),
-        h('div', { class: 'bar brk' }, h('i', { style: `width:${Math.min(1, boss.breakG) * 100}%` }), h('span', null, boss.st.includes('broken') ? 'BROKEN — +30% damage taken!' : 'Break gauge (crowd control & heavy hits)')));
+      const phases = def?.boss?.phases ?? [];
+      clear(E.boss!).append(
+        h('div', { class: 'bb-head' }, tileIcon('skull', '#ff4f9a', 'ancient', 44), h('div', { class: 'grow' },
+          h('div', { class: 'row between' }, h('b', { class: 'bb-name' }, h('em', null, `Lv.${boss.lv} `), ct(`enemy.${boss.def}`, boss.name)), h('small', null, def?.boss?.title ?? '')),
+          h('div', { class: 'bar hp boss' }, h('i', { style: `width:${(boss.hp / boss.mhp) * 100}%` }), h('span', null, `${boss.hp.toLocaleString()} / ${boss.mhp.toLocaleString()} (${((boss.hp / boss.mhp) * 100).toFixed(1)}%)`)))),
+        h('div', { class: 'bb-phases' }, ...[1, ...phases].map((thr, i) => h('span', { class: 'ph' + (i < boss.phase ? ' done' : i === boss.phase ? ' cur' : '') }, `P${i + 1} ${Math.round(thr * 100)}%`)), boss.affixes.length ? h('span', { class: 'ph aff' }, boss.affixes.join(' · ')) : null),
+        h('div', { class: 'bar brk' }, h('i', { style: `width:${Math.min(1, boss.breakG) * 100}%` }), h('span', null, boss.st.includes('broken') ? (th ? 'เกราะแตก — รับดาเมจ +30%!' : 'BROKEN — +30% damage taken!') : (th ? 'เกจเบรก (ควบคุมฝูงชนและการโจมตีหนัก)' : 'Break gauge (crowd control & heavy hits)'))));
     } else E.boss!.hidden = true;
     // interaction prompt
     const it = g.map?.interactables.filter((i) => !(i.used || g.usedIts.has(i.id)) || i.type === 'exit').map((i) => ({ i, d: Math.hypot(i.x - me.rx, i.y - me.ry) })).sort((a, b) => a.d - b.d)[0];
@@ -428,13 +493,75 @@ export class GameUI {
   }
 
   private renderParty() {
-    const p = this.game.party;
-    clear(this.el.party!).append(...p.members.filter((m) => m.name !== this.game.char?.name).map((m) => h('div', { class: 'pf' }, `${m.name === p.leader ? '♛ ' : ''}${m.name} · ${m.level} · ${m.room}`)));
+    const p = this.game.party, el = this.el.party!;
+    const th = getLang() === 'th';
+    if (!p.members.length) { el.hidden = true; return; }
+    el.hidden = false;
+    const byName = new Map([...this.game.ents.values()].filter((e) => e.kind === 0).map((e) => [e.name.split(' ‹')[0]!, e]));
+    clear(el).append(h('div', { class: 'pb-head' }, h('b', null, `${th ? 'ปาร์ตี้' : 'Party'} (${p.members.length}/4)`), h('button', { class: 'icon-btn', title: t('social'), onclick: () => this.toggle('social') }, uiIcon('gear', 18))),
+      ...p.members.map((m) => { const e = byName.get(m.name); const cd = CLASSES[m.cls as keyof typeof CLASSES];
+        return h('div', { class: 'pm' }, h('div', { class: 'pm-av', style: `--c:${cd?.colors.body ?? '#555'}` }, (m.cls[0] ?? '?').toUpperCase()), h('div', { class: 'grow' }, h('div', { class: 'pm-n' }, m.name === p.leader ? uiIcon('crown', 14) : null, h('em', null, `Lv.${m.level}`), ` ${m.name}`), e ? h('div', { class: 'gbar thin hp' }, h('i', { style: `width:${(e.hp / e.mhp) * 100}%` })) : h('small', { class: 'muted' }, m.room))); }));
+  }
+  private trackerT = 0;
+  private curKey = '';
+  private portraitKey = '';
+  private drawPortrait() {
+    const ch = this.game.char; if (!ch) return;
+    this.portraitKey = ch.cls;
+    const c = this.el.portrait as HTMLCanvasElement, x = c.getContext('2d')!;
+    const d = CLASSES[ch.cls];
+    x.clearRect(0, 0, 96, 96);
+    const grd = x.createRadialGradient(48, 40, 6, 48, 48, 50); grd.addColorStop(0, '#4a3a7a'); grd.addColorStop(1, '#120c22');
+    x.fillStyle = grd; x.fillRect(0, 0, 96, 96);
+    drawChibi(x, 48, 150, 3.4, Math.PI / 2, d.colors.body, d.colors.hair, d.colors.accent, 0, 0, ch.cls);
+    clear(this.el.plv!).append(uiIcon('emblem', 30, d.colors.accent));
+  }
+  private renderPill() {
+    const r = this.game.room; if (!r) return;
+    const th = getLang() === 'th';
+    const chapter = Math.max(1, ...QUESTS.filter((q) => this.game.char?.quests[q.id]).map((q) => q.chapter));
+    const zone = r.id.startsWith('house:') ? (th ? 'บ้าน' : 'Hearth') : r.kind === 'town' ? (th ? 'เมือง' : 'Town') : r.kind === 'field' ? (th ? 'โลกเปิด' : 'Open World') : (th ? 'อินสแตนซ์' : 'Instance');
+    clear(this.el.pill!).append(h('span', { class: 'dot ' + this.backend.mode }), h('b', null, this.backend.mode === 'offline' ? (th ? 'ออฟไลน์' : 'Offline') : 'Online'), h('span', { class: 'sep' }), `CH.${String(chapter).padStart(2, '0')} (${zone})`);
+    const me = this.game.me();
+    if (me) clear(this.el.loc!).append(h('b', null, this.zoneName()), h('small', null, `(${Math.round(me.rx / 32)}, ${Math.round(me.ry / 32)})`));
+  }
+  private zoneName() {
+    const r = this.game.room; if (!r) return '';
+    const th = getLang() === 'th';
+    if (r.id.startsWith('house:')) return th ? 'บ้านฮาร์ธ' : 'Hearthstone Lane';
+    if (r.kind === 'town') return th ? 'ลูเมนโฮลด์' : 'Lumenhold';
+    if (r.kind === 'field') return r.id === 'highlands' ? 'Ashen Highlands' : r.id === 'wastes' ? 'Starfall Wastes' : 'Duskmeadow';
+    return ACTIVITIES[((r as any).mode ?? 'rift') as keyof typeof ACTIVITIES]?.name ?? 'Rift';
+  }
+  private trackTab: 'quests' | 'activities' = 'quests';
+  /** Right-side tracker: tutorial / quests (with chapter tags) or activities (weekly objectives + activity list). */
+  private renderTracker() {
+    const g = this.game, ch = g.char, el = this.el.tracker!;
+    if (!ch) return;
+    const th = getLang() === 'th';
+    const tab = (id: 'quests' | 'activities', label: string) => h('button', { class: 'tt' + (this.trackTab === id ? ' on' : ''), onclick: () => { this.trackTab = id; this.renderTracker(); } }, label);
+    const body = h('div', { class: 'tr-body' });
+    if (this.trackTab === 'quests') {
+      if (this.tut?.cur) { const c = this.tut.cur; body.append(h('div', { class: 'tq tut' }, h('div', { class: 'tq-t' }, uiIcon('star', 16, '#ffd36a'), h('b', null, `[${th ? 'บทสอน' : 'Tutorial'} ${this.tut.step + 1}/${this.tut.total}] `), th ? c.th : c.en), h('small', null, th ? c.hintTh : c.hintEn), h('div', { class: 'row between' }, h('small', { class: 'gold' }, `${th ? 'รางวัล' : 'Reward'}: ${c.gold}g`), h('button', { class: 'btn ghost tiny', onclick: () => this.send({ t: 'tutorial_skip' }) }, th ? 'ข้าม' : 'Skip')))); }
+      const active = QUESTS.filter((q) => ch.quests[q.id] && !ch.quests[q.id]!.claimed);
+      const next = QUESTS.find((q) => !ch.quests[q.id] && (!q.requires || ch.quests[q.requires]?.claimed));
+      for (const q of active.slice(0, 4)) { const st = ch.quests[q.id]!; body.append(h('button', { class: 'tq', onclick: () => this.toggle('quests') }, h('div', { class: 'tq-t' }, h('b', { class: 'tag-main' }, `[${th ? 'หลัก' : 'Main'}] `), ct(`quest.${q.id}.name`, q.name)), h('small', null, st.done ? (th ? '• สำเร็จ — กลับไปส่งเควสต์' : '• Complete — return to the quest giver') : `• ${th ? 'ความคืบหน้า' : 'Progress'} (${st.progress}/${q.objective.count})`))); }
+      if (next) body.append(h('button', { class: 'tq', onclick: () => this.toggle('quests') }, h('div', { class: 'tq-t' }, h('b', { class: 'tag-story' }, `[${th ? 'เนื้อเรื่อง' : 'Story'}] `), ct(`quest.${next.id}.name`, next.name)), h('small', null, `• ${th ? 'รับเควสต์จาก' : 'Accept from'} ${next.giver}`)));
+      const wk = weeklyObjectives(Date.now()), prog = g.account?.season;
+      for (const o of wk) { const v = prog?.weekly?.[o.id] ?? 0, done = prog?.weeklyDone?.includes(o.id); body.append(h('button', { class: 'tq', onclick: () => this.toggle('season') }, h('div', { class: 'tq-t' }, h('b', { class: 'tag-weekly' }, `[${th ? 'รายสัปดาห์' : 'Weekly'}] `), o.name), h('small', null, done ? (th ? '• สำเร็จ ✓' : '• Done ✓') : `• (${Math.min(v, o.count)}/${o.count})`))); }
+    } else {
+      for (const id of ACTIVITY_ORDER) { const a = ACTIVITIES[id]; const ok = ch.level >= a.minLevel; body.append(h('div', { class: 'ta' + (ok ? '' : ' locked') }, uiIcon(id === 'raid' ? 'crown' : id === 'arena' ? 'trophy' : id === 'tower' ? 'pillar' : 'sigil', 20, '#9b6cff'), h('span', { class: 'grow' }, ct(`activity.${id}.name`, a.name)), h('small', null, ok ? (th ? 'เข้าได้ที่ประตูริฟต์' : 'Rift Gate') : `Lv.${a.minLevel}`))); }
+      const we = g.worldEvent; if (we) body.append(h('div', { class: 'ta' }, uiIcon('events', 20, '#ff6a8a'), h('span', { class: 'grow' }, we.name ?? (th ? 'อีเวนต์โลก' : 'World event')), h('small', { class: we.active ? 'good' : '' }, we.active ? (th ? 'กำลังเกิด' : 'Ongoing') : `${Math.max(0, Math.ceil(((we.next ?? Date.now()) - Date.now()) / 60000))}m`)));
+    }
+    clear(el).append(h('div', { class: 'tr-tabs' }, tab('quests', th ? 'เควสต์' : 'Quests'), tab('activities', th ? 'กิจกรรม' : 'Activities')), body);
   }
 
   private chatLine(ch: string, text: string) {
     const log = this.el.chatLog!;
-    log.append(h('div', { class: 'cl ' + ch }, ch !== 'system' && ch !== 'local' ? `[${ch}] ` : '', ch === 'system' ? trText(text) : text));
+    const tagName: Record<string, string> = { local: 'World', party: 'Party', guild: 'Guild', whisper: 'Whisper', system: 'System' };
+    const line = h('div', { class: 'cl ' + ch, 'data-ch': ch }, h('b', { class: 'cl-tag' }, `[${tagName[ch] ?? ch}] `), ch === 'system' ? trText(text) : text);
+    line.hidden = this.chatTab !== 'all' && this.chatTab !== ch;
+    log.append(line);
     while (log.children.length > 60) log.firstChild?.remove();
     log.scrollTop = log.scrollHeight;
   }
@@ -445,7 +572,7 @@ export class GameUI {
     inp.value = '';
     if (!v) return;
     const m = v.match(/^\/(\w+)\s*(.*)$/);
-    if (!m) return this.send({ t: 'chat', ch: 'local', text: v });
+    if (!m) return this.send({ t: 'chat', ch: (this.el.chatCh as HTMLSelectElement)?.value || 'local', text: v });
     const [, cmd, rest] = m;
     const [arg, ...more] = rest!.split(' ');
     switch (cmd) {
@@ -475,7 +602,7 @@ export class GameUI {
     if (!p || !this.game.char) return;
     const ctx = this.ctx();
     const inTown = this.game.room?.kind === 'town';
-    const titles: Record<PanelName, string> = { inventory: t('inventory'), skills: t('skills'), passives: t('passives'), character: t('character'), quests: t('quests'), codex: t('codex'), social: t('social'), guild: 'Guild', ladder: 'Leaderboards', alchemist: 'Sister Maelis — alchemy & cooking', season: 'Season & weekly', hearth: 'Your Hearth', carpenter: 'Carpenter Odo — furniture', auction: 'Auctioneer Vell — auction house', settings: t('settings'), dungeon: 'Rift Gate', smith: 'Brenna the Smith — forge, salvage & enchant', quartermaster: 'Quartermaster Sol — potions & selling', trainer: 'Master Ilrin — trainer', stash: 'Astral Vault', map: t('map') };
+    const titles: Record<PanelName, string> = { inventory: t('inventory'), skills: t('skills'), passives: t('passives'), character: t('character'), quests: t('quests'), codex: t('codex'), social: t('social'), guild: 'Guild', ladder: 'Leaderboards', alchemist: 'Sister Maelis — alchemy & cooking', season: 'Season & weekly', hearth: 'Your Hearth', carpenter: 'Carpenter Odo — furniture', auction: 'Auctioneer Vell — auction house', settings: t('settings'), dungeon: 'Rift Gate', smith: 'Brenna the Smith — forge, salvage & enchant', quartermaster: 'Quartermaster Sol — potions & selling', trainer: 'Master Ilrin — trainer', stash: 'Astral Vault', map: t('map'), crafting: getLang() === 'th' ? 'คราฟต์และทักษะชีวิต' : 'Crafting & Life Skills' };
     let body: HTMLElement;
     switch (p) {
       case 'inventory': body = P.inventoryPanel(ctx); break;
@@ -484,6 +611,7 @@ export class GameUI {
       case 'carpenter': body = S.carpenterPanel(ctx.ch, ctx.account, (m) => this.send(m)); break;
       case 'season': body = S.seasonPanel(this.seasonData, ctx.ch, ctx.account, (m) => this.send(m)); break;
       case 'alchemist': body = S.craftingSection(ctx.ch, ['alchemy', 'cooking'], (m) => this.send(m)); break;
+      case 'crafting': body = S.craftingSection(ctx.ch, ['smithing', 'alchemy', 'cooking'], (m) => this.send(m)); break;
       case 'quartermaster': body = P.inventoryPanel(ctx, 'quartermaster'); break;
       case 'stash': body = P.inventoryPanel(ctx, 'stash'); break;
       case 'skills': body = P.skillsPanel(ctx); break;
