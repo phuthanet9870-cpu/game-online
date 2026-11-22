@@ -1,9 +1,9 @@
-import { FURNITURE, validatePlacement, applyContentPatch, ACTIVITIES, MATERIALS, CLASSES, DIFFICULTIES, DUNGEON_MODIFIERS, BLESSING_MAP, SKILL_MAP, ENEMIES, computeStats, xpToNext, type CharacterData } from '@astra/shared';
+import { QUESTS, FURNITURE, validatePlacement, applyContentPatch, ACTIVITIES, MATERIALS, CLASSES, DIFFICULTIES, DUNGEON_MODIFIERS, BLESSING_MAP, SKILL_MAP, ENEMIES, computeStats, xpToNext, type CharacterData } from '@astra/shared';
 import { ClientGame } from '../game.js';
 import { Renderer } from '../render.js';
 import { Input, keyLabel } from '../input.js';
 import { store, type Backend, type Conn } from '../net.js';
-import { ct, t } from '../i18n.js';
+import { ct, getLang, t } from '../i18n.js';
 import { clear, confirmDialog, h, toast } from './dom.js';
 import { bindTip, hideTip, icon, skillColor, skillTooltip } from './tooltip.js';
 import * as P from './panels.js';
@@ -58,6 +58,7 @@ export class GameUI {
       E.target = h('div', { class: 'target-frame', hidden: true }),
       E.boss = h('div', { class: 'boss-bar', hidden: true }),
       h('div', { class: 'hud-tr' }, E.mini = h('canvas', { class: 'minimap', width: 180, height: 140, onclick: () => this.toggle('map') }), E.zone = h('div', { class: 'zone' }), E.wevent = h('div', { class: 'wevent', hidden: true }), E.party = h('div', { class: 'party-frames' })),
+      E.goal = h('div', { class: 'goal', hidden: true }),
       E.prompt = h('div', { class: 'interact-prompt', hidden: true }),
       E.dps = h('div', { class: 'dps', hidden: true }),
       E.bar = h('div', { class: 'skillbar' }),
@@ -121,7 +122,7 @@ export class GameUI {
       case 'welcome': applyContentPatch(m.content ?? null); sound.ambience(m.room.kind === 'town' ? 'town' : m.room.id === 'highlands' ? 'ash' : m.room.kind === 'field' ? 'field' : m.room.mode === 'raid' ? 'raid' : 'dungeon'); g.welcome(m); this.status(null); this.buildBar(); this.updateZone(); this.closePanel(); this.renderWorldEvent(); if (m.mode === 'offline' && !this.offlineNoted) { this.offlineNoted = true; this.chatLine('system', 'Offline mode: this session is simulated locally in your browser.'); } this.chatLine('system', `Entered ${m.room.id.startsWith('house:') ? 'a Hearth' : m.room.kind === 'town' ? 'Lumenhold' : m.room.id === 'highlands' ? 'the Ashen Highlands (open world, levels 10-20)' : m.room.id === 'wastes' ? 'the Starfall Wastes (open world, levels 20-30)' : m.room.kind === 'field' ? 'Duskmeadow (open world, levels 2-9)' : 'an instance'}.`); break;
       case 'snap': g.applySnap(m); break;
       case 'ev': g.events(m.list); for (const ev of m.list) if (ev.t === 'msg') this.chatLine('system', ev.text); else if (ev.t === 'pickup' && ev.item) toast(`Picked up ${itemName(ev.item)}`, 'good'); break;
-      case 'char': g.char = m.char; g.account = m.account; this.buildBar(); if (this.panel && this.panel !== 'map') this.renderPanel(); if (this.trade) this.showModal(S.tradeModal(g.char!, this.trade, (x) => this.send(x))); break;
+      case 'char': g.char = m.char; g.account = m.account; this.buildBar(); if (!this.tut?.cur) this.renderGoal(); if (this.panel && this.panel !== 'map') this.renderPanel(); if (this.trade) this.showModal(S.tradeModal(g.char!, this.trade, (x) => this.send(x))); break;
       case 'err': if (m.fatal) { toast(m.msg, 'error'); this.status(m.msg); setTimeout(() => this.leave(), 2500); } else this.flashErr(m.msg); break;
       case 'toast': toast(m.msg); this.chatLine('system', m.msg); break;
       case 'chat': this.chatLine(m.ch, `${m.ch === 'whisper' && m.to ? `→ ${m.to}` : m.from}: ${m.text}`); break;
@@ -140,6 +141,8 @@ export class GameUI {
       case 'fish': if (m.state === 'cast') this.status('Fishing… press Interact (E) the moment a fish bites'); else if (m.state === 'bite') { this.status('!!! A fish is biting — press E now !!!'); sound.warn(); } else this.status(null); break;
       case 'map_update': if (g.map) { g.map = m.map; } this.stopPlacing(); if (this.panel === 'hearth') this.renderPanel(); break;
       case 'house': this.houseData = m; this.updateZone(); if (m.mine && this.panel !== 'hearth' && m.house && g.room?.id?.startsWith('house:')) this.openPanel('hearth'); else if (this.panel === 'hearth') this.renderPanel(); break;
+      case 'tutorial': this.tut = m; this.renderGoal(); break;
+      case 'tutorial_done': toast(getLang() === 'th' ? `สำเร็จ! +${m.gold} ทอง` : `Tutorial step done! +${m.gold} gold`, 'good'); sound.loot('rare'); break;
       case 'mats': toast('+ ' + Object.entries(m.got).map(([k, v]) => `${v} ${MATERIALS[k]?.name ?? k}`).join(', '), 'good'); break;
       case 'world_event': g.worldEvent = m; this.renderWorldEvent(); break;
       case 'ladder': this.ladderData = m.boards; if (this.panel === 'ladder') this.renderPanel(); break;
@@ -161,6 +164,27 @@ export class GameUI {
   private guildData: any = null;
   private ladderData: any = null;
   private seasonData: any = null;
+  private tut: any = null;
+  /** Tutorial card while learning; afterwards a "next goal" card from the quest log. */
+  private renderGoal() {
+    const el = clear(this.el.goal!);
+    const th = getLang() === 'th';
+    const ch = this.game.char;
+    if (this.tut?.cur) {
+      const c = this.tut.cur;
+      el.hidden = false;
+      el.append(h('div', { class: 'row between' }, h('b', null, `${th ? 'บทสอน' : 'Tutorial'} ${this.tut.step + 1}/${this.tut.total}`), h('button', { class: 'btn ghost tiny', onclick: () => this.send({ t: 'tutorial_skip' }) }, th ? 'ข้าม' : 'Skip')),
+        h('div', { class: 'goal-title' }, th ? c.th : c.en), h('small', null, th ? c.hintTh : c.hintEn), h('small', { class: 'muted' }, `${th ? 'รางวัล' : 'Reward'}: ${c.gold}g`));
+      return;
+    }
+    if (!ch) { el.hidden = true; return; }
+    const active = QUESTS.find((q) => ch.quests[q.id] && !ch.quests[q.id]!.claimed);
+    const next = active ? null : QUESTS.find((q) => !ch.quests[q.id] && (!q.requires || ch.quests[q.requires]?.claimed));
+    el.hidden = false;
+    if (active) { const st = ch.quests[active.id]!; el.append(h('b', null, th ? 'เป้าหมายถัดไป' : 'Next goal'), h('div', { class: 'goal-title' }, ct(`quest.${active.id}.name`, active.name)), h('small', null, st.done ? (th ? 'สำเร็จแล้ว — กลับไปหาผู้บัญชาการอเวลีน' : 'Complete — return to Commander Aveline') : `${st.progress}/${active.objective.count}`)); }
+    else if (next) el.append(h('b', null, th ? 'เป้าหมายถัดไป' : 'Next goal'), h('div', { class: 'goal-title' }, ct(`quest.${next.id}.name`, next.name)), h('small', null, th ? 'รับเควสต์จากผู้บัญชาการอเวลีน' : 'Accept it from Commander Aveline in Lumenhold'));
+    else el.hidden = true;
+  }
   private houseData: any = null;
   private placing: string | null = null;
   private startPlacing(id: string) { this.placing = id; this.closePanel(); toast('Click a spot to place · right-click or Esc to cancel'); }

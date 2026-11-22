@@ -62,6 +62,7 @@ export function normalizeCharacter(raw: CharacterData): CharacterData {
   ch.presets ??= []; ch.quests ??= {}; ch.mastery ??= { level: 1, xp: 0 };
   ch.stats ??= { kills: 0, deaths: 0, bossKills: 0, runsCleared: 0, highestTier: 0 };
   ch.mats ??= {}; ch.prof ??= {}; ch.elixir ??= null; ch.treasure ??= null;
+  if (ch.tutorial === undefined) ch.tutorial = ch.level > 2 || ch.stats.kills > 0 ? -1 : 0; // existing characters skip it
   ch.version = CHARACTER_VERSION;
   return ch;
 }

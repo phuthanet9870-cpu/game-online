@@ -1155,7 +1155,7 @@ export class World {
         e.facing = Math.atan2(ny, nx);
         if (dist(e.x, e.y, es.wander.x, es.wander.y) < 12) es.wander = null;
       }
-      if (dh > 300) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.05 * dt);
+      if (dh > 300 && this.opts.kind === 'field') e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.05 * dt); // open-world leash only; instance bosses keep their wounds
       return;
     }
     const d = dist(e.x, e.y, target.x, target.y) - target.r;

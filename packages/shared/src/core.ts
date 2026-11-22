@@ -16,6 +16,7 @@ import { buildArena, buildField, buildHighlands, buildHouse, buildTown, buildWas
 import { ACTIVITIES, ACTIVITY_ORDER, ECLIPSE_POOL, NIGHTMARE_MODS, towerScale, type Activity } from './data/activities.js';
 import { MATERIALS, PROFESSIONS, RECIPE_MAP } from './data/crafting.js';
 import { PETS } from './data/pets.js';
+import { TUTORIAL } from './data/tutorial.js';
 import { FURNITURE, emptyHouse, type HouseState } from './data/housing.js';
 import { AURAS, DEFAULT_LIVE, SEASON_XP_PER_TIER, SHARD_SOURCES, currentSeason, weekIndex, weeklyEvent, weeklyObjectives, type LiveConfig, type SeasonDef } from './data/seasons.js';
 import type { AccountProgress, CharacterData, DifficultyId, EquipSlot } from './types.js';
@@ -165,6 +166,7 @@ export class GameCore {
       this.toast(s, 'Reconnected to your previous instance.');
     } else this.joinRoom(s, 'town');
     if (this.announcement) this.toast(s, this.announcement);
+    this.sendTutorial(s);
     const g = this.guildOf(char.id);
     if (g) { const m = g.members.find((x) => x.charId === char.id)!; m.level = char.level; m.name = char.name; this.sendGuild(s); }
   }
@@ -242,9 +244,10 @@ export class GameCore {
     try {
       switch (msg.t) {
         case 'ping': s.send({ t: 'pong', c: msg.c }); break;
-        case 'input': w.setInput(pid, { mx: msg.mx, my: msg.my, ax: msg.ax, ay: msg.ay, attack: msg.atk, seq: Math.floor(Number(msg.q)) || 0 }); break;
-        case 'cast': err(w.castSkill(pid, msg.k === 'u' ? 'ultimate' : 'active', clampInt(msg.s, 0, msg.k === 'u' ? 3 : 7), +msg.ax, +msg.ay, +msg.tid || 0)); break;
-        case 'dodge': err(w.dodge(pid, +msg.dx, +msg.dy)); break;
+        case 'input': if (msg.mx || msg.my) this.tutorial(s, 'move'); w.setInput(pid, { mx: msg.mx, my: msg.my, ax: msg.ax, ay: msg.ay, attack: msg.atk, seq: Math.floor(Number(msg.q)) || 0 }); break;
+        case 'cast': { const e = w.castSkill(pid, msg.k === 'u' ? 'ultimate' : 'active', clampInt(msg.s, 0, msg.k === 'u' ? 3 : 7), +msg.ax, +msg.ay, +msg.tid || 0); err(e); if (!e) this.tutorial(s, 'skill'); break; }
+        case 'dodge': { const e = w.dodge(pid, +msg.dx, +msg.dy); err(e); if (!e) this.tutorial(s, 'dodge'); break; }
+        case 'tutorial_skip': if ((s.char.tutorial ?? -1) >= 0) { s.char.tutorial = -1; s.dirty = true; this.sendTutorial(s); } break;
         case 'potion': err(w.usePotion(pid)); this.sendChar(s); break;
         case 'target': w.setTarget(pid, +msg.id || 0); break;
         case 'pickup': { const e = w.pickup(pid, +msg.id); if (e) err(e); else { s.dirty = true; } break; }
@@ -256,7 +259,7 @@ export class GameCore {
         case 'season_claim': this.seasonClaim(s, clampInt(msg.tier, 1, 100)); break;
         case 'set_aura': { const id = msg.id === null ? null : String(msg.id); if (id && !s.account.auras.includes(id)) return err('You have not unlocked that aura'); s.account.aura = id; const en = room.world.ents.get(s.entId); if (en?.p) en.p.aura = id; this.saveAcct(s.accountId, s.account); this.sendChar(s); break; }
         case 'leave': if (room.kind !== 'town') this.returnToTown(s, room, false); break;
-        case 'equip': this.mutate(s, C.equipFromInventory(s.char, clampInt(msg.inv, 0, 39), EQUIP_SLOTS.includes(msg.slot) ? msg.slot : undefined), 'equip'); break;
+        case 'equip': { const r = C.equipFromInventory(s.char, clampInt(msg.inv, 0, 39), EQUIP_SLOTS.includes(msg.slot) ? msg.slot : undefined); this.mutate(s, r, 'equip'); if (r.ok) this.tutorial(s, 'equip'); break; }
         case 'unequip': this.mutate(s, EQUIP_SLOTS.includes(msg.slot) ? C.unequip(s.char, msg.slot as EquipSlot) : { ok: false, reason: 'Bad slot' }, 'unequip'); break;
         case 'move_inv': this.mutate(s, C.moveInventory(s.char, clampInt(msg.from, 0, 39), clampInt(msg.to, 0, 39)), null); break;
         case 'salvage': { if (!this.nearNpc(s, room, 'npc_smith')) return err('Visit the Blacksmith to salvage'); const it = s.char.inventory[clampInt(msg.inv, 0, 39)]; const r = C.salvageItem(s.char, clampInt(msg.inv, 0, 39)); this.mutate(s, r, 'salvage', { item: it?.uid, dust: r.ok ? r.value : 0 }); break; }
@@ -271,7 +274,7 @@ export class GameCore {
           break;
         }
         case 'loadout': { const r = Array.isArray(msg.active) && Array.isArray(msg.ultimate) ? C.setLoadout(s.char, msg.active.map(str), msg.ultimate.map(str)) : { ok: false as const, reason: 'Bad loadout' }; this.mutate(s, r, null); break; }
-        case 'passive_alloc': this.mutateStats(s, C.allocatePassive(s.char, String(msg.node))); break;
+        case 'passive_alloc': { const r = C.allocatePassive(s.char, String(msg.node)); this.mutateStats(s, r); if (r.ok) this.tutorial(s, 'passive'); break; }
         case 'passive_refund': this.mutateStats(s, C.refundPassive(s.char, String(msg.node))); break;
         case 'respec': if (room.kind !== 'town') return err('Respec is only available in town'); this.mutateStats(s, C.respecAll(s.char, !!msg.token)); break;
         case 'preset_save': {
@@ -568,6 +571,7 @@ export class GameCore {
     const id = this.openInstance(mode, diff, seed, level, 1, members.length, party?.id ?? null);
     for (const m of members) {
       m.run = { kills: 0, gold: 0, items: 0, xp: 0, startGold: m.char.gold };
+      this.tutorial(m, 'rift');
       this.moveTo(m, id);
       this.toast(m, `Entered ${act.name} (${act.chooseDifficulty ? DIFFICULTIES[diff].name : 'scaling'}). Seed ${seed}.`);
       if (mode === 'raid' && members.length < 4) this.toast(m, 'The raid is tuned for 4-8 players — expect a hard fight.');
@@ -625,6 +629,7 @@ export class GameCore {
       const won = cleared && room.world.bossDefeated;
       if (won) {
         s.char.stats.runsCleared++;
+        this.tutorial(s, 'clear');
         const ti = DIFFICULTY_ORDER.indexOf(room.difficulty);
         if (mode === 'rift' || mode === 'nightmare') {
           s.char.stats.highestTier = Math.max(s.char.stats.highestTier, ti);
@@ -727,6 +732,7 @@ export class GameCore {
     if (s.char.quests[id]) return s.send({ t: 'err', msg: 'Already accepted' });
     if (q.requires && !s.char.quests[q.requires]?.claimed) return s.send({ t: 'err', msg: 'Complete the previous quest first' });
     s.char.quests[id] = { progress: 0, done: false, claimed: false };
+    this.tutorial(s, 'quest');
     this.mutate(s, { ok: true, value: undefined }, null);
   }
   private questClaim(s: Session, id: string) {
@@ -1258,6 +1264,24 @@ export class GameCore {
     this.markDirty(s); this.sendChar(s);
   }
 
+  // ─────────── Tutorial ───────────
+  /** Advance only when the observed action matches the current step (no skipping ahead by accident). */
+  private tutorial(s: Session, id: string) {
+    const i = s.char.tutorial ?? -1;
+    if (i < 0 || TUTORIAL[i]?.id !== id) return;
+    s.char.gold += TUTORIAL[i]!.gold;
+    s.char.tutorial = i + 1 >= TUTORIAL.length ? -1 : i + 1;
+    s.dirty = true;
+    this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'tutorial', data: { step: id } });
+    s.send({ t: 'tutorial_done', id, gold: TUTORIAL[i]!.gold });
+    this.sendChar(s);
+    this.sendTutorial(s);
+  }
+  private sendTutorial(s: Session) {
+    const i = s.char.tutorial ?? -1;
+    s.send({ t: 'tutorial', step: i, total: TUTORIAL.length, cur: i >= 0 ? TUTORIAL[i] : null });
+  }
+
   // ─────────── Hearth (player housing) ───────────
   private houseOf(s: Session): HouseState { return (s.account.house ??= emptyHouse()); }
   private enterHouse(s: Session, owner: Session) {
@@ -1526,7 +1550,7 @@ export class GameCore {
             } else if (room.world.opts.noRespawn) {
               this.toast(s, 'You are down! An ally can revive you (stand next to you and press Interact).');
             } else {
-              const loss = Math.floor(s.char.gold * 0.05);
+              const loss = s.char.level < 5 ? 0 : Math.floor(s.char.gold * 0.05); // no death penalty while learning
               s.char.gold -= loss;
               this.toast(s, `You have fallen. ${loss > 0 ? `Lost ${loss} gold. ` : ''}Respawning in 5s...`);
               s.dirty = true;
@@ -1540,6 +1564,7 @@ export class GameCore {
           if (s) {
             if (ev.item) {
               if (s.run) s.run.items++;
+              this.tutorial(s, 'loot');
               this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'loot', data: { uid: ev.item.uid, base: ev.item.baseId, rarity: ev.item.rarity } });
               if (ev.item.rarity === 'legendary' || ev.item.rarity === 'ancient') this.achieve(s, 'legendary');
               this.sendChar(s);
@@ -1550,6 +1575,7 @@ export class GameCore {
           break;
         }
         default:
+          if (ev.t === 'dmg' && room.world.ents.get(ev.id)?.e?.def.id === 'dummy') { const o = this.sessionByEnt(room, ev.src); if (o) this.tutorial(o, 'dummy'); }
           if ('to' in ev && typeof ev.to === 'number' && ev.t !== 'dmg') (priv.get(ev.to) ?? priv.set(ev.to, []).get(ev.to)!).push(ev);
           else pub.push(ev);
       }

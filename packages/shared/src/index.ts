@@ -21,3 +21,4 @@ export * from './data/seasons.js';
 export * from './content.js';
 export * from './data/pets.js';
 export * from './data/housing.js';
+export * from './data/tutorial.js';

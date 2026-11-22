@@ -250,6 +250,8 @@ export interface CharacterData {
   prof: Record<string, { lv: number; xp: number }>;
   elixir: { id: string; until: number } | null;
   /** Active treasure hunt: exact spot stays server-side knowledge but is persisted with the character. */
+  /** Tutorial step index; -1 = finished or skipped. */
+  tutorial?: number;
   treasure?: { zone: string; x: number; y: number; hx: number; hy: number; hr: number } | null;
 }
 

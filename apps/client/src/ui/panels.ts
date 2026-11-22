@@ -177,7 +177,8 @@ export function questsPanel(ctx: PanelCtx, atGiver: boolean): HTMLElement {
 
 export function dungeonPanel(ctx: PanelCtx, unlocked: string[], locks: Record<string, string | null> = {}): HTMLElement {
   let mode: Activity = 'rift';
-  let diff = unlocked.includes('normal') ? 'normal' : unlocked[0] ?? 'story';
+  const firstRun = ctx.ch.stats.runsCleared === 0;
+  let diff = firstRun ? 'story' : unlocked.includes('normal') ? 'normal' : unlocked[0] ?? 'story';
   const info = h('div', { class: 'diff-info' });
   const modeRow = h('div', { class: 'row wrap' });
   const diffRow = h('div', { class: 'row wrap' });
@@ -189,7 +190,7 @@ export function dungeonPanel(ctx: PanelCtx, unlocked: string[], locks: Record<st
     diffRow.hidden = !a.chooseDifficulty;
     for (const b of Array.from(diffRow.children)) (b as HTMLElement).classList.toggle('on', (b as HTMLElement).dataset.d === diff);
     const d = DIFFICULTIES[diff as keyof typeof DIFFICULTIES];
-    clear(info).append(h('h3', null, ct(`activity.${a.id}.name`, a.name)), h('p', null, ct(`activity.${a.id}.desc`, a.desc)), h('p', { class: 'muted' }, a.rules),
+    clear(info).append(firstRun && mode === 'rift' ? h('p', { class: 'good' }, getLang() === 'th' ? 'รอบแรก: แนะนำระดับ Story — เรียนรู้ท่าบอสก่อน แล้วค่อยเพิ่มความยาก' : 'First run: Story is recommended — learn the boss, then raise the difficulty.') : h('span'), h('h3', null, ct(`activity.${a.id}.name`, a.name)), h('p', null, ct(`activity.${a.id}.desc`, a.desc)), h('p', { class: 'muted' }, a.rules),
       h('p', { class: 'muted' }, `Party up to ${a.maxParty} · requires level ${a.minLevel}${a.needTier !== undefined ? ' and a cleared Hard Rift' : ''}`),
       h('p', { hidden: !a.chooseDifficulty }, `${d.name}: enemy life ×${d.hp} · damage ×${d.dmg} · rarity +${Math.round(d.loot * 100)}% · XP ×${d.xp}${d.extraMechanics.length ? ' · ' + d.extraMechanics.join(', ') : ''}`),
       h('p', { class: 'warn', hidden: !lock }, '🔒 ' + (lock ?? '')));

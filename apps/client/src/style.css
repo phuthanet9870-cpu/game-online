@@ -267,3 +267,6 @@ input[type=text], input[type=password], input[type=search], select { background:
 #admin { height: 100%; }
 .cfield { display: flex; flex-direction: column; gap: 1px; }
 .cfield input:disabled { opacity: .5; }
+.goal { position: absolute; left: calc(env(safe-area-inset-left, 0px) + 12px); top: calc(env(safe-area-inset-top, 0px) + 150px); width: calc(250px * var(--ui)); background: #160f24e6; border: 1px solid var(--corona); border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; gap: 2px; font-size: .9em; }
+.goal-title { font: 700 1.05em var(--f-display); color: var(--corona); }
+@media (pointer: coarse), (max-width: 820px) { .goal { top: calc(env(safe-area-inset-top, 0px) + 120px); width: 190px; font-size: .8em; } }

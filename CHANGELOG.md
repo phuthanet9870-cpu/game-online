@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.10.0] — 2026-11-22 — Onboarding
+### Added
+- 10-step guided tutorial tracked by the server (each step completes only when the real action is observed), gold rewards totalling 300, skippable, Thai/English; existing characters skip it automatically.
+- "Next goal" card: current tutorial step, then the active quest's progress or the next quest to accept.
+- First-run guidance: the Rift Gate pre-selects Story until your first clear.
+### Changed
+- Bosses inside instances no longer heal back to full when they lose their target (open-world leashing unchanged). Simulated starter-gear Veyra on Normal: 10/14 → 10/10 wins, 5.0 → 2.7 deaths.
+- No gold lost on death below level 5.
+
 ## [0.9.0] — 2026-11-22 — Phase 7 complete
 ### Added
 - **Starfall Wastes** (levels 20-30) beyond the Ashen Highlands: crystal desert, **Shardborn** family (Shard Stalker, Prism Seer, Glass Colossus, Starling Swarm), Starglass clusters (Mining 6+), Starbloom herbs, legendary Starglass forging (Smithing 8) and Starbloom Tonic.
