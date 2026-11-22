@@ -3,9 +3,10 @@ import { CONTENT } from '../core/content';
 import { DIR8, type Dir8 } from '../core/direction';
 import type { HotbarAction } from '../core/hotbar';
 import type { Vec2 } from '../core/math';
-import type { ActionRequest, ActionSlot, SimEvent } from '../core/simulation';
+import type { ActionRequest, ActionSlot, PowerSlot, SimEvent } from '../core/simulation';
 import type { MonsterView, OtherPlayerView, WorldSource } from '../core/worldSource';
 import {
+  requestUi,
   hudStore,
   onCommand,
   pushLog,
@@ -23,6 +24,7 @@ import {
   createSwordTexture,
   createTilesheet,
   createWolfSheet,
+  createDummySheet,
   PLAYER_COL_COUNT,
   PLAYER_COLS,
   PLAYER_FRAME,
@@ -38,6 +40,15 @@ const MAX_STEPS_PER_FRAME = 5;
 const HUD_INTERVAL_MS = 100;
 const LOGICAL_W = 640;
 const LOGICAL_H = 360;
+
+const POWER_SLOT: Partial<Record<HotbarAction, PowerSlot>> = {
+  power1: 'p1',
+  power2: 'p2',
+  power3: 'p3',
+  power4: 'p4',
+  power5: 'p5',
+  powerUlt: 'ult',
+};
 
 const ACTION_TO_SLOT: Partial<Record<HotbarAction, ActionSlot>> = {
   basic: 'basic',
@@ -68,6 +79,9 @@ export class WorldScene extends Phaser.Scene {
     { sprite: Phaser.GameObjects.Sprite; label: Phaser.GameObjects.Text; hpBar: Phaser.GameObjects.Graphics }
   >();
   private debugGfx!: Phaser.GameObjects.Graphics;
+  private dropGfx!: Phaser.GameObjects.Graphics;
+  private projectiles = new Map<string, Phaser.GameObjects.Arc>();
+  private dummySeen = new Set<string>();
   private collisionGfx!: Phaser.GameObjects.Graphics;
   private debug = false;
   private reducedEffects = false;
@@ -91,8 +105,15 @@ export class WorldScene extends Phaser.Scene {
 
   create(): void {
     const weapon = this.sim.weapon;
-    this.actionNames.set('sword_basic', 'Basic Attack');
-    for (const s of weapon.skills) this.actionNames.set(s.id, s.name);
+    void weapon;
+    for (const w of CONTENT.weapons) {
+      if (w.basicAttack) this.actionNames.set(w.basicAttack.id, `${w.name} Basic`);
+      for (const s of w.skills) this.actionNames.set(s.id, s.name);
+    }
+    for (const pw of CONTENT.powers.powers)
+      for (const s of [...pw.active, ...pw.ultimate]) this.actionNames.set(s.id, s.name);
+    for (const st of CONTENT.statuses)
+      this.actionNames.set(`dot:${st.id}`, st.id === 'burn' ? 'Burn' : st.id === 'bleed' ? 'Bleed' : st.id);
 
     this.registerTextures();
     this.buildMap();
@@ -113,6 +134,26 @@ export class WorldScene extends Phaser.Scene {
     this.keys = new KeyboardInput();
     this.keys.onToggleDebug = () => this.toggleDebug();
     this.keys.onFocusChat = () => document.getElementById('chat-input')?.focus();
+    this.keys.onInteract = () => this.interact();
+    for (const n of CONTENT.trainingMap.npcs) {
+      this.add
+        .sprite(n.x, n.y, 'player', 0)
+        .setOrigin(0.5, 26 / 32)
+        .setTint(0x6a3a8a)
+        .setDepth(n.y);
+      this.add
+        .text(n.x, n.y - 30, `${n.name}  [H]`, {
+          fontFamily: 'monospace',
+          fontSize: '6px',
+          color: '#e7c6ff',
+          stroke: '#140a1e',
+          strokeThickness: 2,
+        })
+        .setOrigin(0.5, 1)
+        .setResolution(4)
+        .setDepth(29000);
+    }
+    this.dropGfx = this.add.graphics().setDepth(5);
 
     this.input.mouse?.disableContextMenu();
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
@@ -184,6 +225,7 @@ export class WorldScene extends Phaser.Scene {
     sheet('player', createPlayerSheet(), PLAYER_FRAME.w, PLAYER_FRAME.h);
     sheet('slime', createSlimeSheet(), SLIME_FRAME.w, SLIME_FRAME.h);
     sheet('wolf', createWolfSheet(), WOLF_FRAME.w, WOLF_FRAME.h);
+    sheet('dummy', createDummySheet(), 16, 24);
     if (!this.textures.exists('tiles')) this.textures.addCanvas('tiles', createTilesheet());
     if (!this.textures.exists('sword')) this.textures.addCanvas('sword', createSwordTexture());
 
@@ -249,7 +291,7 @@ export class WorldScene extends Phaser.Scene {
   private createMonsterView(m: MonsterView): void {
     const key = m.def.sprite;
     const sprite = this.add.sprite(m.pos.x, m.pos.y, key, 0).setOrigin(0.5, 0.8);
-    sprite.play(key === 'slime' ? 'slime-idle' : 'wolf-idle');
+    if (key !== 'dummy') sprite.play(key === 'slime' ? 'slime-idle' : 'wolf-idle');
     const hpBar = this.add.graphics();
     const label = this.add
       .text(m.pos.x, m.pos.y, `Lv.${m.def.level} ${m.def.name}`, {
@@ -338,10 +380,25 @@ export class WorldScene extends Phaser.Scene {
     const slot = ACTION_TO_SLOT[a];
     if (slot) out.push({ type: 'attack', slot });
     else if (a === 'dodge') out.push({ type: 'dash' });
+    else if (a in POWER_SLOT) out.push({ type: 'power', slot: POWER_SLOT[a] as PowerSlot });
+    else if (a === 'powerToggle') out.push({ type: 'stance' });
     else if (a === 'hpPotion') {
-      if (this.sim.usePotion) this.sim.usePotion();
+      if (this.sim.mode === 'online') out.push({ type: 'potion' });
       else showToast('HP Potion ใช้ได้ในโหมดออนไลน์ (กระเป๋าอยู่บน server)');
     } else showToast('ช่องนี้จะปลดล็อกใน Phase ถัดไป');
+  }
+
+  /** H: talk to The Severer when close, otherwise pick up the nearest own loot bag. */
+  private interact(): void {
+    const p = this.sim.player;
+    const npc = CONTENT.trainingMap.npcs.find((n) => n.id === 'severer');
+    if (npc && Math.hypot(npc.x - p.pos.x, npc.y - p.pos.y) <= 40) {
+      requestUi('severer');
+      return;
+    }
+    const drop = this.sim.drops.find((d) => Math.hypot(d.x - p.pos.x, d.y - p.pos.y) <= 28);
+    if (drop && this.sim.pickup) this.sim.pickup(drop.id);
+    else showToast('ไม่มีอะไรให้โต้ตอบใกล้ ๆ (เดินไปที่ NPC หรือถุงของ แล้วกด H)');
   }
 
   /* -------------------------------------------------------------- events */
@@ -439,6 +496,70 @@ export class WorldScene extends Phaser.Scene {
         break;
       case 'interrupt':
         pushLog('combat', 'ขัดจังหวะท่าโจมตีของศัตรู!', 'good');
+        break;
+      case 'projectile': {
+        const color = e.actionId.startsWith('inferno')
+          ? 0xff7a2a
+          : e.actionId.startsWith('abyss')
+            ? 0x9b6cff
+            : e.actionId.startsWith('bow')
+              ? 0xe8e0c8
+              : 0x7fd8ff;
+        const c = this.add
+          .circle(e.origin.x, e.origin.y - 6, 3, color, 1)
+          .setDepth(25000)
+          .setStrokeStyle(1, 0xffffff, 0.7);
+        this.projectiles.set(e.projId, c);
+        const dur = (e.range / Math.max(1, e.speed)) * 1000;
+        this.tweens.add({
+          targets: c,
+          x: e.origin.x + Math.cos(e.angle) * e.range,
+          y: e.origin.y - 6 + Math.sin(e.angle) * e.range,
+          duration: dur,
+          onComplete: () => {
+            c.destroy();
+            this.projectiles.delete(e.projId);
+          },
+        });
+        break;
+      }
+      case 'projectile-end': {
+        const c = this.projectiles.get(e.projId);
+        if (c) {
+          this.tweens.killTweensOf(c);
+          c.destroy();
+          this.projectiles.delete(e.projId);
+          this.puff(e.pos, 0xffffff);
+        }
+        break;
+      }
+      case 'telegraph':
+        this.telegraph(e.pos, e.radius, e.windupMs);
+        break;
+      case 'blink':
+        this.puff(e.from, 0x9b6cff);
+        this.dashVfx();
+        break;
+      case 'stance':
+        if (e.entityId === 'player')
+          pushLog(
+            'combat',
+            e.on
+              ? 'Activate The Power — Stance เปิด'
+              : `The Power Stance ปิด${e.reason === 'weapon' ? ' (อาวุธไม่รองรับ)' : ''}`,
+            e.on ? 'good' : 'warn',
+          );
+        break;
+      case 'power-rank':
+        if (e.entityId === 'player')
+          pushLog(
+            'system',
+            `Power Proficiency ขึ้นเป็น Rank ${e.rank}! ปลดล็อกสกิลใหม่ (ตั้ง loadout ได้ที่แผง The Power)`,
+            'crit',
+          );
+        break;
+      case 'weapon':
+        if (e.entityId === 'player') pushLog('system', `เปลี่ยนอาวุธเป็น ${e.weapon}`, 'normal');
         break;
       case 'monster-windup':
         this.telegraph(e.pos, e.radius, e.windupMs);
@@ -570,7 +691,13 @@ export class WorldScene extends Phaser.Scene {
     const p = this.sim.player;
     this.player.setPosition(p.pos.x, p.pos.y).setDepth(p.pos.y);
     const blink = this.sim.time < p.invulnerableUntil && !p.dash && Math.floor(this.sim.time / 100) % 2 === 0;
-    this.player.setAlpha(blink ? 0.5 : 1);
+    const stealth = p.statuses.some((s) => s.id === 'stealth');
+    this.player.setAlpha(stealth ? 0.35 : blink ? 0.5 : 1);
+    if (p.statuses.some((s) => s.id === 'shield')) this.player.setTint(0xa8d8ff);
+    else if (this.sim.powerView()?.stance)
+      this.player.setTint(this.sim.powerView()?.id === 'inferno' ? 0xffc4a0 : 0xd2b8ff);
+    else this.player.clearTint();
+    this.drawDrops();
     if (p.charState === 'DEAD') {
       this.player.anims.stop();
       this.sword.setVisible(false);
@@ -610,9 +737,32 @@ export class WorldScene extends Phaser.Scene {
 
   private syncMonsters(): void {
     const now = this.sim.time;
+    const live = new Set(this.sim.monsters.map((m) => m.id));
+    for (const [id, v] of this.monsterViews)
+      if (!live.has(id)) {
+        v.sprite.destroy();
+        v.hpBar.destroy();
+        v.label.destroy();
+        v.statusText.destroy();
+        this.monsterViews.delete(id);
+      }
     for (const m of this.sim.monsters) {
+      if (!this.monsterViews.has(m.id)) this.createMonsterView(m);
       const v = this.monsterViews.get(m.id);
       if (!v) continue;
+      if (m.def.sprite === 'dummy') {
+        v.sprite.setPosition(m.pos.x, m.pos.y).setDepth(m.pos.y);
+        v.hpBar.clear();
+        const top = m.pos.y - 22;
+        v.hpBar.fillStyle(0x140a1e, 0.9).fillRect(m.pos.x - 10, top - 1, 20, 4);
+        v.hpBar.fillStyle(0xd23a4c, 1).fillRect(m.pos.x - 9, top, Math.max(0, (m.hp / m.def.maxHp) * 18), 2);
+        v.hpBar.setDepth(m.pos.y + 2);
+        v.statusText
+          .setText(m.statuses.map((x) => x.id.toUpperCase()).join(' '))
+          .setPosition(m.pos.x, top - 2)
+          .setDepth(29000);
+        continue;
+      }
       const { sprite, hpBar, label, statusText } = v;
       sprite.setPosition(m.pos.x, m.pos.y).setDepth(m.pos.y);
       if (m.ai === 'DEAD') {
@@ -652,7 +802,12 @@ export class WorldScene extends Phaser.Scene {
         hpBar.fillStyle(0x140a1e, 0.9).fillRect(m.pos.x - w / 2 - 1, top - 1, w + 2, 4);
         hpBar.fillStyle(0xd23a4c, 1).fillRect(m.pos.x - w / 2, top, Math.max(0, (m.hp / m.def.maxHp) * w), 2);
       }
+      const stx = m.statuses.map((x) => x.id).filter((x) => x !== 'guard_break');
       if (m.ai === 'ALERT') statusText.setText('!').setColor('#ffd24a');
+      else if (stx.length)
+        statusText
+          .setText(stx.join(' ').toUpperCase())
+          .setColor(stx.includes('stun') ? '#ffe14a' : stx.includes('burn') ? '#ff8a3c' : '#c9a8ff');
       else if (m.statuses.some((s) => s.id === 'guard_break'))
         statusText.setText('GUARD BREAK').setColor('#ff9b5c');
       else if (m.ai === 'RESET') statusText.setText('RESET').setColor('#9fe8ff');
@@ -663,6 +818,19 @@ export class WorldScene extends Phaser.Scene {
         .setText(this.debug ? `${m.def.name} [${m.ai}]` : `Lv.${m.def.level} ${m.def.name}`)
         .setPosition(m.pos.x, top - (statusText.text ? 9 : 2))
         .setDepth(29000);
+    }
+  }
+
+  private drawDrops(): void {
+    const g = this.dropGfx;
+    g.clear();
+    const t = this.time.now / 300;
+    for (const d of this.sim.drops) {
+      const bob = Math.sin(t + d.x) * 1.5;
+      g.fillStyle(0x000000, 0.3).fillEllipse(d.x, d.y + 3, 10, 4);
+      g.fillStyle(0xb0812a, 1).fillRect(d.x - 4, d.y - 6 + bob, 8, 7);
+      g.fillStyle(0xf0c24b, 1).fillRect(d.x - 3, d.y - 8 + bob, 6, 2);
+      g.lineStyle(1, 0xfff2b0, 0.8).strokeRect(d.x - 4, d.y - 6 + bob, 8, 7);
     }
   }
 
@@ -782,6 +950,25 @@ export class WorldScene extends Phaser.Scene {
       skill3: sim.getActionDef('skill3'),
     };
     const t = sim.getMonster(sim.targetId);
+    const pv = sim.powerView();
+    const powerCd: Partial<Record<HotbarAction, SlotCooldown>> = {};
+    const powerNames: Partial<Record<HotbarAction, string>> = {};
+    const energyCosts: Partial<Record<HotbarAction, number>> = {};
+    if (pv) {
+      const ids: Array<[HotbarAction, string]> = [
+        ...pv.loadout.actives.map((id, i) => [`power${i + 1}` as HotbarAction, id] as [HotbarAction, string]),
+        ['powerUlt', pv.loadout.ultimate],
+      ];
+      for (const [slot, id] of ids) {
+        const sk = pv.skills.find((x) => x.id === id);
+        if (!sk) continue;
+        powerCd[slot] = cd(id);
+        powerNames[slot] = sk.name;
+        if (sk.energyCost) energyCosts[slot] = sk.energyCost;
+      }
+      powerNames.powerToggle = pv.stance ? `${pv.name}: ON` : `Activate ${pv.name}`;
+    }
+    const npc = CONTENT.trainingMap.npcs.find((n) => n.id === 'severer');
     const snapshot: HudSnapshot = {
       ready: true,
       playerName: p.name,
@@ -798,6 +985,8 @@ export class WorldScene extends Phaser.Scene {
         skill2: cd(defs.skill2.id),
         skill3: cd(defs.skill3.id),
         dodge: cd('dash'),
+        hpPotion: cd('potion'),
+        ...powerCd,
       },
       staminaCosts: {
         skill1: defs.skill1.staminaCost,
@@ -811,6 +1000,7 @@ export class WorldScene extends Phaser.Scene {
         skill2: defs.skill2.name,
         skill3: defs.skill3.name,
         dodge: 'Dodge',
+        ...powerNames,
       },
       target:
         t && t.alive
@@ -844,6 +1034,16 @@ export class WorldScene extends Phaser.Scene {
       fps: Math.round(this.game.loop.actualFps),
       debug: this.debug,
       invulnerable: now < p.invulnerableUntil,
+      energy: Math.floor(p.energy),
+      maxEnergy: CONTENT.powers.energy.max,
+      weaponId: sim.weapon.id,
+      power: pv,
+      energyCosts,
+      statuses: p.statuses.map((x) => x.id),
+      auto: sim.auto,
+      gmResult: (sim as { gmResult?: Record<string, unknown> | null }).gmResult ?? null,
+      nearSeverer: !!npc && Math.hypot(npc.x - p.pos.x, npc.y - p.pos.y) <= 40,
+      dropsNearby: sim.drops.filter((d) => Math.hypot(d.x - p.pos.x, d.y - p.pos.y) <= 28).length,
     };
     hudStore.set(snapshot);
   }

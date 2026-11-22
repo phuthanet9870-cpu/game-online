@@ -357,7 +357,9 @@ export function validateContent(c: typeof CONTENT): string[] {
   }
   for (const p of c.powers.powers) {
     if (p.active.length !== 15 || p.ultimate.length !== 5 || p.passive.length !== 5)
-      errors.push(`power ${p.id} must be 15/5/5, has ${p.active.length}/${p.ultimate.length}/${p.passive.length}`);
+      errors.push(
+        `power ${p.id} must be 15/5/5, has ${p.active.length}/${p.ultimate.length}/${p.passive.length}`,
+      );
     for (const sk of [...p.active, ...p.ultimate, ...p.passive]) seen(sk.id);
   }
   const map = c.trainingMap;

@@ -57,3 +57,21 @@
 - `/gmstefanonline` = toggle GM HUD เฉพาะ `gm.hud.open`; ไม่มีสิทธิ์ → `Permission Denied` + audit `denied` + warn log
 - การให้ role ทำได้เฉพาะ CLI ฝั่ง server (`gameserver grant-role`) ซึ่งต้องมีสิทธิ์เข้าเครื่อง/DB; ไม่มีทางยกระดับจากในเกม
 - คำสั่งทดสอบ (`/gm god`, `/gm heal`) ใช้ได้เมื่อ `TEST_WORLD=true` เท่านั้น
+
+## ADR-012 — Engine เดียวกันสองภาษา + parity test — ACCEPTED (Phase 3)
+- กติกาการต่อสู้เขียนเป็น data-driven interpreter (shapes: arc/circle/projectile, moves: dash/back/blink, statuses, passives) ทั้ง Go (`internal/game`) และ TS (`src/core/simulation.ts`)
+- Go เป็น authority ออนไลน์; TS ใช้เฉพาะ sandbox/Power Trial ที่ไม่มีรางวัล — ทั้งสองถูกตรึงด้วย fixture `tests/parity/` (ใช้ RNG mulberry32 และลำดับการเรียกเดียวกัน)
+- พิจารณา Go→WASM ในเบราว์เซอร์แล้ว แต่ไม่ใช้เพราะ CSP ของอาร์ติแฟกต์อาจไม่อนุญาต WebAssembly
+
+## ADR-013 — Loot เป็นถุงส่วนตัว — ACCEPTED (Phase 3)
+- EXP ได้ทันทีเมื่อฆ่า; Gold/ไอเทมตกเป็นถุงที่เห็นและเก็บได้เฉพาะเจ้าของ (H หรือ Auto Loot) อยู่ 60 วินาที `[TUNING]`
+- ทุกถุงมี tx_id ของตัวเอง → เก็บซ้ำ/ส่งซ้ำไม่เพิ่มของ
+
+## ADR-014 — The Power transaction — ACCEPTED (Phase 3)
+- Bind: ตรวจ fruit ในกระเป๋า + อาวุธที่ถืออยู่ต้องรองรับ + ยังไม่มีพลังผูกอยู่ → ตัด fruit, `power_bindings` (PK = character_id บังคับ 1 ผล), `power_archive`, `power_events` ใน transaction เดียว
+- Unbind: เฉพาะยืนห่าง The Severer ≤ 40px, นอกการต่อสู้, พิมพ์ชื่อพลังยืนยัน → ลบ binding, `power_events: destroy`, ไม่คืนไอเทม; proficiency เก็บใน Archive
+- Proficiency: +1/cast, +1/hit (สูงสุด 4 ต่อ cast) `[TUNING]`; Rank ไม่เพิ่มพลัง แค่ปลดสกิล (สเปก §7.4)
+
+## ADR-015 — Hotbar keybinds — ACCEPTED (แทน ADR-004)
+- ค่าเริ่มต้นเดิม; ผู้เล่น rebind ได้ทุกช่องยกเว้นปุ่มสงวน (WASD/ลูกศร, H interact, J, Space/Shift, Enter, Esc, Tab, F3, F5, F11, F12, modifier)
+- ออนไลน์บันทึกบน server; sandbox ใช้ localStorage (แค่ค่าความชอบ UI)

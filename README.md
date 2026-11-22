@@ -3,7 +3,7 @@
 HTML5 web MMORPG (Phaser + TypeScript + React). Master specification: [`MASTER_PROMPT.md`](MASTER_PROMPT.md).
 **No Godot / no other engine export** (locked rule).
 
-**สถานะ:** Phase 2 — Online Authoritative Foundation (Go + PostgreSQL). ดู [`docs/DEVELOPMENT_STATUS.md`](docs/DEVELOPMENT_STATUS.md)
+**สถานะ:** Phase 3 — Weapons + The Power + Auto + GM HUD (Go + PostgreSQL). ดู [`docs/DEVELOPMENT_STATUS.md`](docs/DEVELOPMENT_STATUS.md)
 
 ## Quick start
 ```bash
@@ -23,12 +23,12 @@ Server env: `DATABASE_URL` (จำเป็น), `ADDR` (127.0.0.1:8080), `GAME_
 | `npm test` | Vitest unit tests |
 | `npm run test:e2e` | Playwright offline sandbox tests (รัน `npm run build` ก่อน) |
 | `E2E_DATABASE_URL=... npm run test:e2e:online` | Playwright + Go server + PostgreSQL (database ทิ้งได้) |
-| `cd server && TEST_DATABASE_URL=... go test -p 1 ./...` | Go unit + integration tests |
+| `cd server && TEST_DATABASE_URL=... go test -p 1 ./...` | Go unit + integration tests (+ parity fixtures; regenerate with `UPDATE_PARITY=1`) |
 | `npm run build:single` | สร้างไฟล์ HTML เดียว (`apps/web-game/dist-single/`) สำหรับแชร์ทดสอบ |
 | `npm run validate:data` | ตรวจ content JSON ใน `game-data/` |
 
 ## Controls
-WASD/ลูกศร เดิน · `1`/คลิกซ้าย Basic Attack · `2` Triple Slash · `3` Guard Break · `4` Counter Slash · `Space`/`E` Dodge · `T` HP Potion (ออนไลน์) · `Enter` แชท · `F3` Debug
+WASD/ลูกศร เดิน · `1`/คลิกซ้าย Basic Attack · `2` Triple Slash · `3` Guard Break · `4` Counter Slash · `Space`/`E` Dodge · `5`–`0` สกิลพลัง · `Q` Activate The Power · `T` HP Potion (ออนไลน์) · `H` คุย NPC / เก็บของ · `Enter` แชท · `F3` Debug · ปุ่มทั้งหมดแก้ได้ที่ 🔒 แก้ไข ใต้ hotbar
 
 ## Layout
 ```

@@ -1,4 +1,5 @@
-import { createDefaultHotbar, type HotbarAction } from '../core/hotbar';
+import type { HotbarAction } from '../core/hotbar';
+import { hotbarStore } from './bridge';
 import type { Vec2 } from '../core/math';
 import { axesToVector } from '../core/movement';
 
@@ -29,17 +30,26 @@ export class KeyboardInput {
   private readonly bindings = new Map<string, HotbarAction>();
   onToggleDebug: () => void = () => {};
   onFocusChat: () => void = () => {};
+  onInteract: () => void = () => {};
+  private unsubLayout: () => void;
 
   constructor() {
-    for (const s of createDefaultHotbar()) this.bindings.set(s.key, s.action);
-    for (const [k, a] of Object.entries(ALIASES)) this.bindings.set(k, a);
+    this.applyLayout();
+    this.unsubLayout = hotbarStore.subscribe(() => this.applyLayout());
     window.addEventListener('keydown', this.down);
     window.addEventListener('keyup', this.up);
     window.addEventListener('blur', this.clear);
     document.addEventListener('visibilitychange', this.clear);
   }
 
+  private applyLayout(): void {
+    this.bindings.clear();
+    for (const s of hotbarStore.get()) if (s.key) this.bindings.set(s.key, s.action);
+    for (const [k, a] of Object.entries(ALIASES)) this.bindings.set(k, a);
+  }
+
   destroy(): void {
+    this.unsubLayout();
     window.removeEventListener('keydown', this.down);
     window.removeEventListener('keyup', this.up);
     window.removeEventListener('blur', this.clear);
@@ -61,6 +71,10 @@ export class KeyboardInput {
     if (PREVENT.has(e.code)) e.preventDefault();
     if (e.code === 'F3') {
       this.onToggleDebug();
+      return;
+    }
+    if (e.code === 'KeyH') {
+      if (!e.repeat) this.onInteract();
       return;
     }
     if (e.code === 'Enter') {

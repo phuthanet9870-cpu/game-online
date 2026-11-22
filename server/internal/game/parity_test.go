@@ -24,16 +24,16 @@ type parityStep struct {
 }
 
 type parityScenario struct {
-	Name    string       `json:"name"`
-	Seed    uint32       `json:"seed"`
-	Weapon  string       `json:"weapon"`
-	Power   string       `json:"power,omitempty"`
-	Points  int          `json:"points,omitempty"`
-	Spawns  [][3]any     `json:"spawns"` // [id, monsterId, [tx,ty]]
-	Steps   int          `json:"steps"`
-	DtMs    float64      `json:"dtMs"`
-	Inputs  []parityStep `json:"inputs"`
-	Events  []string     `json:"events"`
+	Name   string       `json:"name"`
+	Seed   uint32       `json:"seed"`
+	Weapon string       `json:"weapon"`
+	Power  string       `json:"power,omitempty"`
+	Points int          `json:"points,omitempty"`
+	Spawns [][3]any     `json:"spawns"` // [id, monsterId, [tx,ty]]
+	Steps  int          `json:"steps"`
+	DtMs   float64      `json:"dtMs"`
+	Inputs []parityStep `json:"inputs"`
+	Events []string     `json:"events"`
 }
 
 func recordEvent(e Event) (string, bool) {

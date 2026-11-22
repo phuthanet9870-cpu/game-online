@@ -1,10 +1,10 @@
 # DEVELOPMENT_STATUS (สถานะจริง)
 
-_อัปเดต: 2026-11-21_
+_อัปเดต: 2026-11-22_
 
-- **Current Phase:** 02 — Online Authoritative Foundation → **Acceptance Gate ผ่าน (localhost)**, รออนุมัติขึ้น Phase 03
-- **Server:** Go (ADR-005) + PostgreSQL 16 — auth/session, characters (สูงสุด 3), WSS 30 Hz authoritative world, personal loot, XP/Level/Gold/Inventory พร้อม ledger idempotent, reconnect grace 15 s, chat + rate limits, GM RBAC + audit
-- **Client:** หน้า Login/สมัคร/เลือก-สร้าง-ลบตัวละคร, โหมดออนไลน์ (prediction + interpolation + auto-reconnect), HUD EXP/Gold/กระเป๋า/ผู้เล่นออนไลน์/GM panel; Phase 1 sandbox ออฟไลน์ยังใช้ได้
-- **Tests:** Go ทั้งหมดผ่าน (รวม integration PostgreSQL), Vitest 45/45, Playwright offline 3/3 + online 4/4, load 20 bots × 60 s ผ่าน, reconcile ledger = 0
-- **ยังไม่มี:** อาวุธอีก 5 ชนิด, The Power, Auto, hotbar remap, GM HUD เต็ม (Phase 3); เมือง/NPC/dungeon/party/PvP (Phase 4+); deploy จริง/TLS/MFA (Phase 8)
-- **Test artifact:** https://claude.ai/artifact/6wZeHUbzaG3BzGdJCAyvEn — เปิดได้เฉพาะ sandbox ออฟไลน์ (อาร์ติแฟกต์เชื่อม server ไม่ได้)
+- **Current Phase:** 03 — Weapons + The Power + Auto + GM HUD → **Acceptance Gate ผ่าน (localhost)**, รออนุมัติขึ้น Phase 04
+- **มีแล้ว:** 6 อาวุธ × 3 สกิล, The Power (6 ผล × 25 ชื่อสกิล; Inferno/Abyss Shadow ใช้ได้จริง 5/1/2), Power Energy/Stance/Proficiency/Archive, ผูกด้วย Fruit + ถอดที่ The Severer, คราฟต์ Fruit จาก Fragment, Auto Farm/Skill/Potion/Loot บน server, ถุง loot ส่วนตัว, hotbar 20 ช่องแก้ไข/บันทึกได้, GM HUD (inspect/spawn/proficiency) ใน test world, Power Trial ออฟไลน์
+- **Server:** Go + PostgreSQL (migration 001–002), WSS 30 Hz authoritative
+- **Tests:** Go ผ่านทั้งหมด, Vitest 48/48 (รวม Go↔TS parity), Playwright offline 4/4 + online 9/9, load 20 bots ผ่าน, reconcile 0
+- **ยังไม่มี:** เมือง Aetheria/NPC ร้านค้า/เควสต์/party/dungeon/1v1/trade (Phase 4), World Boss (Phase 5), Guild/PvP (Phase 6), แคตตาล็อกเต็ม (Phase 7), deploy/TLS/MFA (Phase 8)
+- **Test artifact:** https://claude.ai/artifact/6wZeHUbzaG3BzGdJCAyvEn — sandbox ออฟไลน์ + Power Trial (อาร์ติแฟกต์เชื่อม server ไม่ได้)

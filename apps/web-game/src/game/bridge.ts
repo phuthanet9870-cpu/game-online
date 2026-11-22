@@ -4,8 +4,8 @@
  */
 import type { GateItem } from './phaseGate';
 import type { CharacterState, CombatState, DeathRecapEntry, RejectReason } from '../core/simulation';
-import type { HotbarAction } from '../core/hotbar';
-import type { OnlineState } from '../core/worldSource';
+import { defaultLayout, type HotbarAction, type HotbarLayoutEntry } from '../core/hotbar';
+import type { AutoView, OnlineState, PowerView } from '../core/worldSource';
 
 export interface SlotCooldown {
   remainingMs: number;
@@ -50,6 +50,16 @@ export interface HudSnapshot {
   gate: GateItem[];
   mode: 'offline' | 'online';
   online: OnlineState | null;
+  energy: number;
+  maxEnergy: number;
+  weaponId: string;
+  power: PowerView | null;
+  energyCosts: Partial<Record<HotbarAction, number>>;
+  statuses: string[];
+  auto: AutoView | null;
+  gmResult: Record<string, unknown> | null;
+  nearSeverer: boolean;
+  dropsNearby: number;
   othersCount: number;
   fps: number;
   debug: boolean;
@@ -72,7 +82,7 @@ export type UiCommand =
 
 type Listener = () => void;
 
-class Store<T> {
+export class Store<T> {
   private listeners = new Set<Listener>();
   constructor(private state: T) {}
   get = (): T => this.state;
@@ -108,6 +118,16 @@ export const INITIAL_HUD: HudSnapshot = {
   gate: [],
   mode: 'offline',
   online: null,
+  energy: 0,
+  maxEnergy: 100,
+  weaponId: 'sword',
+  power: null,
+  energyCosts: {},
+  statuses: [],
+  auto: null,
+  gmResult: null,
+  nearSeverer: false,
+  dropsNearby: 0,
   othersCount: 0,
   fps: 0,
   debug: false,
@@ -115,6 +135,12 @@ export const INITIAL_HUD: HudSnapshot = {
 };
 
 export const hudStore = new Store<HudSnapshot>(INITIAL_HUD);
+/** Active hotbar layout (server-persisted online, browser-local in the offline sandbox). */
+export const hotbarStore = new Store<HotbarLayoutEntry[]>(defaultLayout());
+/** One-shot UI requests from the world (e.g. open The Severer dialog). */
+export const uiEventStore = new Store<{ id: number; kind: 'severer' | 'none' }>({ id: 0, kind: 'none' });
+let uiEventId = 0;
+export const requestUi = (kind: 'severer'): void => uiEventStore.set({ id: ++uiEventId, kind });
 export const logStore = new Store<LogEntry[]>([]);
 export const toastStore = new Store<{ id: number; text: string } | null>(null);
 

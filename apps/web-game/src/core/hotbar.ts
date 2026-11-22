@@ -53,13 +53,13 @@ const DEFAULTS: Array<[HotbarAction, string, number]> = [
   ['skill1', 'Weapon Skill 1', 1],
   ['skill2', 'Weapon Skill 2', 1],
   ['skill3', 'Weapon Skill 3', 1],
-  ['power1', 'Power Active 1', 3],
-  ['power2', 'Power Active 2', 3],
-  ['power3', 'Power Active 3', 3],
-  ['power4', 'Power Active 4', 3],
-  ['power5', 'Power Active 5', 3],
-  ['powerUlt', 'Power Ultimate', 3],
-  ['powerToggle', 'Activate/Deactivate The Power', 3],
+  ['power1', 'Power Active 1', 1],
+  ['power2', 'Power Active 2', 1],
+  ['power3', 'Power Active 3', 1],
+  ['power4', 'Power Active 4', 1],
+  ['power5', 'Power Active 5', 1],
+  ['powerUlt', 'Power Ultimate', 1],
+  ['powerToggle', 'Activate/Deactivate The Power', 1],
   ['dodge', 'Dodge', 1],
   ['guard', 'Guard', 3],
   ['hpPotion', 'HP Potion', 2],
@@ -71,7 +71,8 @@ const DEFAULTS: Array<[HotbarAction, string, number]> = [
   ['emote', 'Emote/Quick Action', 4],
 ];
 
-const keyLabel = (code: string) => code.replace('Digit', '').replace('Key', '');
+const keyLabel = (code: string) =>
+  code ? code.replace('Digit', '').replace('Key', '').replace('Numpad', 'N') : '—';
 
 export function createDefaultHotbar(): HotbarSlot[] {
   return DEFAULTS.map(([action, label, phase], i) => {
@@ -82,3 +83,92 @@ export function createDefaultHotbar(): HotbarSlot[] {
 
 export const HOTBAR_ROWS = 2;
 export const HOTBAR_COLS = 10;
+
+/* ------------------------------------------------ Phase 3: remappable layout */
+
+export interface HotbarLayoutEntry {
+  action: HotbarAction;
+  key: string; // KeyboardEvent.code, '' = unbound
+}
+
+export const HOTBAR_ACTIONS: readonly HotbarAction[] = DEFAULTS.map(([a]) => a);
+
+/** Keys that can never be bound (movement, chat, debug, interact, aliases, browser shortcuts). Mirrors the server. */
+export const RESERVED_KEYS = new Set([
+  'KeyW',
+  'KeyA',
+  'KeyS',
+  'KeyD',
+  'KeyH',
+  'KeyJ',
+  'Space',
+  'Enter',
+  'Escape',
+  'Tab',
+  'F3',
+  'F5',
+  'F11',
+  'F12',
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'ShiftLeft',
+  'ShiftRight',
+  'ControlLeft',
+  'ControlRight',
+  'AltLeft',
+  'AltRight',
+  'MetaLeft',
+  'MetaRight',
+]);
+
+export function isBindableKey(code: string): boolean {
+  if (RESERVED_KEYS.has(code)) return false;
+  return (
+    code === '' ||
+    /^Key[A-Z]$/.test(code) ||
+    /^Digit[0-9]$/.test(code) ||
+    /^Numpad[0-9]$/.test(code) ||
+    /^F([1-9]|1[0-2])$/.test(code) ||
+    [
+      'Minus',
+      'Equal',
+      'BracketLeft',
+      'BracketRight',
+      'Semicolon',
+      'Quote',
+      'Comma',
+      'Period',
+      'Slash',
+      'Backslash',
+      'Backquote',
+    ].includes(code)
+  );
+}
+
+export const defaultLayout = (): HotbarLayoutEntry[] =>
+  createDefaultHotbar().map((s) => ({ action: s.action, key: s.key }));
+
+/** LOCKED 20-slot validation: every action exactly once, unique bindable keys. */
+export function validateLayout(slots: HotbarLayoutEntry[]): boolean {
+  if (!Array.isArray(slots) || slots.length !== 20) return false;
+  const a = new Set<string>();
+  const k = new Set<string>();
+  for (const s of slots) {
+    if (!HOTBAR_ACTIONS.includes(s.action) || a.has(s.action) || !isBindableKey(s.key)) return false;
+    a.add(s.action);
+    if (s.key) {
+      if (k.has(s.key)) return false;
+      k.add(s.key);
+    }
+  }
+  return true;
+}
+
+export const slotMeta = (action: HotbarAction): { label: string; availableInPhase: number } => {
+  const d = DEFAULTS.find(([x]) => x === action);
+  return { label: d?.[1] ?? action, availableInPhase: d?.[2] ?? 99 };
+};
+
+export { keyLabel };

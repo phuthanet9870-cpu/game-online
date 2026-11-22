@@ -3,8 +3,8 @@
 | Phase | ชื่อ | ขอบเขตสิ้นสุด | สถานะ |
 |---|---|---|---|
 | 01 | HTML5 Combat Prototype | single-player combat ทดสอบในเบราว์เซอร์ | ✅ ผ่าน (อนุมัติแล้ว) |
-| 02 | Online Authoritative Foundation | multiplayer 10–20 clients + persistence + server validation | **Gate ผ่าน (Go) — รออนุมัติไป Phase 3** |
-| 03 | Weapons + The Power + Auto + GM HUD | 6 อาวุธ/18 สกิล, hotbar 20 ช่องครบ, Inferno+Abyss Shadow MVP, Auto, `/gmstefanonline` | ยังไม่เริ่ม |
+| 02 | Online Authoritative Foundation | multiplayer 10–20 clients + persistence + server validation | ✅ ผ่าน (อนุมัติแล้ว) |
+| 03 | Weapons + The Power + Auto + GM HUD | 6 อาวุธ/18 สกิล, hotbar 20 ช่องครบ, Inferno+Abyss Shadow MVP, Auto, `/gmstefanonline` | **Gate ผ่าน — รออนุมัติไป Phase 4** |
 | 04 | First Playable MVP | Aetheria + 3 farm maps, เมือง/NPC, party, dungeon ผ่าน Gatekeeper, 1v1, trade | ยังไม่เริ่ม |
 | 05 | World Boss + Dungeon/PvE Expansion | 8 farm maps, วงแดง, Ignivar/Yggdran | ยังไม่เริ่ม |
 | 06 | Guilds + PvP + War Alpha | guild, 3v3/5v5, territory, guild war 10v10 | ยังไม่เริ่ม |

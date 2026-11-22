@@ -1,4 +1,11 @@
-import { CONTENT, getWeapon, itemName, type ActionDef, type MonsterDef } from '../core/content';
+import {
+  CONTENT,
+  getWeapon,
+  itemName,
+  type ActionDef,
+  type MonsterDef,
+  type WeaponType,
+} from '../core/content';
 import { vectorToDir8, type Dir8 } from '../core/direction';
 import type { Vec2 } from '../core/math';
 import { CollisionGrid, moveWithCollision } from '../core/movement';
@@ -12,8 +19,19 @@ import type {
   SimEvent,
   Telemetry,
 } from '../core/simulation';
-import type { MonsterView, OnlineState, OtherPlayerView, PlayerView, WorldSource } from '../core/worldSource';
-import { pushLog } from '../game/bridge';
+import type {
+  AutoReport,
+  AutoSettings,
+  AutoView,
+  MonsterView,
+  OnlineState,
+  OtherPlayerView,
+  PlayerView,
+  PowerView,
+  WorldSource,
+} from '../core/worldSource';
+import { hotbarStore, pushLog, showToast } from '../game/bridge';
+import { defaultLayout, validateLayout, type HotbarLayoutEntry } from '../core/hotbar';
 
 /* ----------------------------------------------------------- wire types */
 
@@ -38,10 +56,18 @@ interface WirePlayer {
   action: WireAction | null;
   invUntil: number;
   connected: boolean;
+  weapon?: string;
+  stance?: boolean;
+  stealth?: boolean;
 }
 interface WireSelf extends WirePlayer {
   stamina: number;
   maxStamina: number;
+  energy: number;
+  maxEnergy: number;
+  statuses: Array<{ id: string; expiresAt: number }> | null;
+  drops: Array<{ id: string; x: number; y: number }> | null;
+  powerPts: number;
   cds: Record<string, [number, number]>;
   respawnAt: number;
   recap?: DeathRecapEntry[];
@@ -101,6 +127,8 @@ class NetPlayer implements PlayerView {
   stamina = { current: 0, max: 100 };
   respawnAt = 0;
   lastDeathRecap: DeathRecapEntry[] = [];
+  energy = 100;
+  statuses: Array<{ id: string; expiresAt: number }> = [];
   base: PlayerView['base'];
   private cds = new Map<string, { readyAt: number; duration: number }>();
   cooldowns = {
@@ -175,7 +203,6 @@ const blankTelemetry = (): Telemetry => ({
 export class NetWorld implements WorldSource {
   readonly mode = 'online' as const;
   readonly grid: CollisionGrid;
-  readonly weapon = getWeapon('sword');
   readonly player: NetPlayer;
   readonly monsters: NetMonster[] = [];
   others: OtherPlayerView[] = [];
@@ -316,17 +343,48 @@ export class NetWorld implements WorldSource {
         break;
       }
       case 'reward': {
-        const items = ((m.items as Array<{ itemId: string; quantity: number }>) ?? []).map(
-          (i) => `${itemName(i.itemId)} x${i.quantity}`,
-        );
-        pushLog(
-          'system',
-          `ได้รับ EXP +${m.xp} · Gold +${m.gold}${items.length ? ` · ${items.join(', ')}` : ''}`,
-          'good',
-        );
+        pushLog('system', `ได้รับ EXP +${m.xp} · ของดรอปอยู่ที่พื้น (เก็บด้วย H หรือ Auto Loot)`, 'good');
         if (m.levelUp) pushLog('system', `เลเวลอัป! ตอนนี้ Lv.${m.level}`, 'crit');
         break;
       }
+      case 'loot': {
+        const items = ((m.items as Array<{ itemId: string; quantity: number }>) ?? []).map(
+          (i) => `${itemName(i.itemId)} x${i.quantity}`,
+        );
+        pushLog('system', `เก็บของ: Gold +${m.gold}${items.length ? ` · ${items.join(', ')}` : ''}`, 'good');
+        break;
+      }
+      case 'power':
+        this.weaponId = String(m.weapon);
+        this.power = (m.bound as PowerView | null) ?? null;
+        break;
+      case 'hotbar':
+        if (Array.isArray(m.slots) && validateLayout(m.slots as HotbarLayoutEntry[]))
+          hotbarStore.set(m.slots as HotbarLayoutEntry[]);
+        else hotbarStore.set(defaultLayout());
+        break;
+      case 'auto':
+        this.autoView = {
+          enabled: Boolean(m.enabled),
+          settings: m.settings as AutoSettings,
+          live: (m.live as AutoReport) ?? null,
+          report: (m.report as AutoReport) ?? this.autoView?.report ?? null,
+        };
+        if (m.report)
+          pushLog(
+            'system',
+            `Auto Farm หยุด (${(m.report as AutoReport).reason}) — ดูรายงานในแผง Auto`,
+            'warn',
+          );
+        break;
+      case 'result':
+        if (!m.ok) showToast(String(m.error ?? 'ทำรายการไม่สำเร็จ'));
+        else if (m.op !== 'hotbar' && m.op !== 'loadout')
+          pushLog('system', `สำเร็จ: ${m.op}${m.msg ? ` — ${m.msg}` : ''}`, 'good');
+        break;
+      case 'gm-result':
+        this.gmResult = m;
+        break;
       case 'chat':
         pushLog('world', `${m.from}: ${m.text}`);
         break;
@@ -405,11 +463,26 @@ export class NetWorld implements WorldSource {
     for (const id of [...this.othersById.keys()]) if (!seen.has(id)) this.othersById.delete(id);
     this.others = [...this.othersById.values()];
 
-    // monsters
+    p.energy = y.energy ?? 0;
+    p.statuses = y.statuses ?? [];
+    this.drops = y.drops ?? [];
+    if (this.power) this.power.points = y.powerPts ?? this.power.points;
+    if (y.weapon) this.weaponId = y.weapon;
+    if (this.power) this.power.stance = !!y.stance;
+
+    // monsters (GM test spawns appear/disappear dynamically)
     const byId = new Map(this.monsters.map((m) => [m.id, m]));
+    const present = new Set(s.monsters.map((w) => w.id));
+    for (let i = this.monsters.length - 1; i >= 0; i--)
+      if (!present.has((this.monsters[i] as NetMonster).id)) this.monsters.splice(i, 1);
     for (const w of s.monsters) {
-      const m = byId.get(w.id);
-      if (!m) continue;
+      let m = byId.get(w.id);
+      if (!m) {
+        const def = CONTENT.monsters.find((d) => d.id === w.def);
+        if (!def) continue;
+        m = new NetMonster(w.id, def, { x: w.x, y: w.y });
+        this.monsters.push(m);
+      }
       m.hp = w.hp;
       m.ai = w.ai;
       m.facingX = w.fx;
@@ -518,9 +591,7 @@ export class NetWorld implements WorldSource {
   step(dtMs: number, input: PlayerInput): void {
     const now = performance.now();
     const p = this.player;
-    const acts = input.actions.map((a) =>
-      a.type === 'attack' ? { type: 'attack', slot: a.slot } : { type: 'dash' },
-    );
+    const acts = input.actions.map((a) => ('slot' in a ? { type: a.type, slot: a.slot } : { type: a.type }));
     const moveChanged = input.move.x !== this.lastMove.x || input.move.y !== this.lastMove.y;
     if (acts.length > 0 || moveChanged || input.aim || now - this.lastSendAt > 250) {
       if (acts.length > 0 || moveChanged || now - this.lastSendAt > 33) {
@@ -618,6 +689,50 @@ export class NetWorld implements WorldSource {
 
   sendChat(text: string): void {
     this.send({ t: 'chat', text });
+  }
+
+  /* ------------------------------------------------- Phase 3 commands */
+  power: PowerView | null = null;
+  weaponId = 'sword';
+  drops: Array<{ id: string; x: number; y: number }> = [];
+  autoView: AutoView | null = null;
+  gmResult: Record<string, unknown> | null = null;
+
+  get auto(): AutoView | null {
+    return this.autoView;
+  }
+  get weapon() {
+    return getWeapon(this.weaponId as WeaponType);
+  }
+  powerView(): PowerView | null {
+    return this.power;
+  }
+  equip(weapon: string): void {
+    this.send({ t: 'equip', weapon });
+  }
+  bind(itemId: string): void {
+    this.send({ t: 'bind', itemId });
+  }
+  unbind(confirm: string): void {
+    this.send({ t: 'unbind', confirm });
+  }
+  setLoadout(loadout: { actives: string[]; ultimate: string; passives: string[] }): void {
+    this.send({ t: 'loadout', loadout });
+  }
+  craft(recipe: string): void {
+    this.send({ t: 'craft', recipe });
+  }
+  saveHotbar(slots: Array<{ action: string; key: string }>): void {
+    this.send({ t: 'hotbar', slots });
+  }
+  setAuto(enabled: boolean | null, settings?: AutoSettings): void {
+    this.send({ t: 'auto', ...(enabled === null ? {} : { enabled }), ...(settings ? { settings } : {}) });
+  }
+  pickup(id: string): void {
+    this.send({ t: 'pickup', id });
+  }
+  gm(op: string, args: Record<string, unknown>): void {
+    this.send({ t: 'gm', op, ...args });
   }
 
   usePotion(): void {

@@ -33,6 +33,8 @@ export interface PlayerView {
   stamina: { current: number; max: number };
   cooldowns: { remaining(id: string, now: number): number; fraction(id: string, now: number): number };
   base: { radius: number; level: number; dash: { staminaCost: number } };
+  energy: number;
+  statuses: Array<{ id: string; expiresAt: number }>;
   respawnAt: number;
   lastDeathRecap: DeathRecapEntry[];
   readonly alive: boolean;
@@ -106,4 +108,73 @@ export interface WorldSource {
   sendChat?(text: string): void;
   usePotion?(): void;
   dispose?(): void;
+  /* Phase 3 */
+  powerView(): PowerView | null;
+  readonly drops: Array<{ id: string; x: number; y: number }>;
+  readonly auto: AutoView | null;
+  equip(weapon: string): void;
+  bind(itemOrPowerId: string): void;
+  unbind(confirm: string): void;
+  setLoadout(lo: { actives: string[]; ultimate: string; passives: string[] }): void;
+  craft?(recipe: string): void;
+  saveHotbar(slots: Array<{ action: string; key: string }>): void;
+  setAuto?(enabled: boolean | null, settings?: AutoSettings): void;
+  pickup?(id: string): void;
+  gm?(op: string, args: Record<string, unknown>): void;
+}
+
+export interface PowerSkillView {
+  id: string;
+  name: string;
+  category: 'power-active' | 'power-ultimate' | 'power-passive';
+  implemented: boolean;
+  unlocked: boolean;
+  energyCost?: number;
+  cooldownMs?: number;
+  description?: string;
+}
+
+export interface PowerView {
+  id: string;
+  name: string;
+  type: string;
+  allowedWeapons: string[];
+  weaponOk: boolean;
+  stance: boolean;
+  points: number;
+  rank: number;
+  nextRankPoints: number;
+  loadout: { actives: string[]; ultimate: string; passives: string[] };
+  skills: PowerSkillView[];
+}
+
+export interface AutoSettings {
+  radiusTiles: number;
+  useSkills: boolean;
+  skillOrder: string[];
+  autoPotion: boolean;
+  potionPct: number;
+  autoLoot: boolean;
+  lootCategories: string[];
+  targets: string[];
+  blacklist: string[];
+  stopNoPotion: boolean;
+  maxMinutes: number;
+}
+
+export interface AutoReport {
+  reason?: string;
+  durationMs: number;
+  kills: number;
+  xp: number;
+  gold: number;
+  items: Record<string, number>;
+  potionsUsed: number;
+}
+
+export interface AutoView {
+  enabled: boolean;
+  settings: AutoSettings;
+  live: AutoReport | null;
+  report: AutoReport | null;
 }

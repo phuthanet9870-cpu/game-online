@@ -5,8 +5,11 @@ import { CollisionGrid, moveWithCollision } from './movement';
 import { dist, normalize, sub, type Vec2 } from './math';
 import { CooldownTracker, Resource } from './resources';
 import { createRng, type Rng } from './rng';
+import { buildPowerView } from './powerView';
+import type { AutoView, PowerView } from './worldSource';
 import {
   CONTENT,
+  getPower,
   isActionDef,
   rankFor,
   skillImplemented,
@@ -26,7 +29,15 @@ import {
 /* ------------------------------------------------------------------ types */
 
 export type CharacterState = 'CREATED' | 'IN_WORLD' | 'IN_COMBAT' | 'DEAD' | 'RESPAWNING';
-export type CombatState = 'idle' | 'moving' | 'windup' | 'active' | 'recovery' | 'dashing' | 'counter' | 'dead';
+export type CombatState =
+  | 'idle'
+  | 'moving'
+  | 'windup'
+  | 'active'
+  | 'recovery'
+  | 'dashing'
+  | 'counter'
+  | 'dead';
 export type AiState = 'IDLE' | 'PATROL' | 'ALERT' | 'CHASE' | 'ATTACK' | 'RESET' | 'DEAD';
 export type ActionSlot = 'basic' | 'skill1' | 'skill2' | 'skill3';
 export type PowerSlot = 'p1' | 'p2' | 'p3' | 'p4' | 'p5' | 'ult';
@@ -59,16 +70,50 @@ export interface PlayerInput {
 export const EMPTY_INPUT: PlayerInput = { move: { x: 0, y: 0 }, actions: [] };
 
 export type SimEvent =
-  | { type: 'damage'; time: number; sourceId: string; targetId: string; amount: number; isCrit: boolean; pos: Vec2; actionId: string }
-  | { type: 'evade'; time: number; targetId: string; pos: Vec2; reason: 'dash' | 'reset' | 'protected' | 'shield' }
+  | {
+      type: 'damage';
+      time: number;
+      sourceId: string;
+      targetId: string;
+      amount: number;
+      isCrit: boolean;
+      pos: Vec2;
+      actionId: string;
+    }
+  | {
+      type: 'evade';
+      time: number;
+      targetId: string;
+      pos: Vec2;
+      reason: 'dash' | 'reset' | 'protected' | 'shield';
+    }
   | { type: 'heal'; time: number; targetId: string; amount: number; pos: Vec2; actionId: string }
   | { type: 'death'; time: number; entityId: string; killerId: string; pos: Vec2 }
   | { type: 'respawn'; time: number; entityId: string; pos: Vec2 }
   | { type: 'action'; time: number; actionId: string; slot: string; angle: number; entityId?: string }
-  | { type: 'swing'; time: number; actionId: string; origin: Vec2; angle: number; radius: number; arcDeg: number; entityId?: string }
+  | {
+      type: 'swing';
+      time: number;
+      actionId: string;
+      origin: Vec2;
+      angle: number;
+      radius: number;
+      arcDeg: number;
+      entityId?: string;
+    }
   | { type: 'dash'; time: number; from: Vec2; dir: Vec2; entityId?: string }
   | { type: 'blink'; time: number; from: Vec2; pos: Vec2; entityId?: string }
-  | { type: 'projectile'; time: number; projId: string; origin: Vec2; angle: number; speed: number; range: number; actionId: string; entityId?: string }
+  | {
+      type: 'projectile';
+      time: number;
+      projId: string;
+      origin: Vec2;
+      angle: number;
+      speed: number;
+      range: number;
+      actionId: string;
+      entityId?: string;
+    }
   | { type: 'projectile-end'; time: number; projId: string; pos: Vec2 }
   | { type: 'telegraph'; time: number; pos: Vec2; radius: number; windupMs: number; entityId?: string }
   | { type: 'rejected'; time: number; action: string; reason: RejectReason }
@@ -321,9 +366,14 @@ export class GameSimulation {
   constructor(opts: SimulationOptions) {
     const { map } = opts;
     this.grid = new CollisionGrid(map.width, map.height, map.tileSize, map.collision);
-    if (!opts.weapon.implemented || !opts.weapon.basicAttack) throw new Error(`weapon ${opts.weapon.id} is not implemented`);
+    if (!opts.weapon.implemented || !opts.weapon.basicAttack)
+      throw new Error(`weapon ${opts.weapon.id} is not implemented`);
     this.rng = createRng(opts.seed ?? 20261121);
-    this.damageConfig = { ...DEFAULT_DAMAGE_CONFIG, defenseK: opts.player.defenseK, maxDamage: opts.player.maxDamage };
+    this.damageConfig = {
+      ...DEFAULT_DAMAGE_CONFIG,
+      defenseK: opts.player.defenseK,
+      maxDamage: opts.player.maxDamage,
+    };
     this.spawnPoint = { ...map.playerSpawn };
     this.player = new PlayerEntity(opts.player, map.playerSpawn, opts.weapon, opts.playerName);
     this.monsters = map.monsterSpawns.map((s) => {
@@ -336,6 +386,45 @@ export class GameSimulation {
 
   get weapon(): WeaponDef {
     return this.player.weapon;
+  }
+
+  /* --------------------------------- Phase 3 sandbox commands (offline) */
+  readonly drops: Array<{ id: string; x: number; y: number }> = [];
+  readonly auto: AutoView | null = null;
+
+  powerView(): PowerView | null {
+    return this.player.power ? buildPowerView(this.player.power, this.player.weapon.id) : null;
+  }
+
+  equip(weapon: string): void {
+    this.equipWeapon(weapon as WeaponType);
+  }
+
+  /** Power Trial: bind any implemented Power at max proficiency — nothing is created or saved. */
+  bind(powerId: string): void {
+    const def = getPower(powerId);
+    if (!def) return;
+    this.bindPower(
+      def,
+      CONTENT.powers.proficiency.ranks[CONTENT.powers.proficiency.ranks.length - 1]?.points ?? 0,
+    );
+  }
+
+  unbind(): void {
+    this.unbindPower();
+  }
+
+  setLoadout(lo: Loadout): void {
+    const ps = this.player.power;
+    if (ps) ps.loadout = this.sanitizeLoadout(ps, lo);
+  }
+
+  saveHotbar(slots: Array<{ action: string; key: string }>): void {
+    try {
+      localStorage.setItem('tpe.hotbar', JSON.stringify(slots)); // UI preference only (spec §20.1)
+    } catch {
+      /* storage unavailable: layout lives for this session only */
+    }
   }
 
   drainEvents(): SimEvent[] {
@@ -372,7 +461,12 @@ export class GameSimulation {
 
   /** Power Trial / tests: bind without any item (nothing is persisted offline). */
   bindPower(def: PowerDef, points = 0, loadout?: Loadout): void {
-    const ps: PowerState = { def, points, loadout: { actives: [], ultimate: '', passives: [] }, stance: false };
+    const ps: PowerState = {
+      def,
+      points,
+      loadout: { actives: [], ultimate: '', passives: [] },
+      stance: false,
+    };
     ps.loadout = loadout ? this.sanitizeLoadout(ps, loadout) : this.defaultLoadout(ps);
     this.player.power = ps;
   }
@@ -383,7 +477,11 @@ export class GameSimulation {
 
   unlocked(ps: PowerState): { active: ActionDef[]; ultimate: ActionDef[]; passive: ActionDef[] } {
     const r = rankFor(ps.points);
-    return { active: ps.def.active.slice(0, r.active), ultimate: ps.def.ultimate.slice(0, r.ultimate), passive: ps.def.passive.slice(0, r.passive) };
+    return {
+      active: ps.def.active.slice(0, r.active),
+      ultimate: ps.def.ultimate.slice(0, r.ultimate),
+      passive: ps.def.passive.slice(0, r.passive),
+    };
   }
 
   sanitizeLoadout(ps: PowerState, lo: Loadout): Loadout {
@@ -447,7 +545,13 @@ export class GameSimulation {
 
   private passives() {
     const p = this.player;
-    const m = { powerDmg: 1, stealthBonus: 1, backAttack: 1, dotMult: {} as Record<string, number>, durAdd: {} as Record<string, number> };
+    const m = {
+      powerDmg: 1,
+      stealthBonus: 1,
+      backAttack: 1,
+      dotMult: {} as Record<string, number>,
+      durAdd: {} as Record<string, number>,
+    };
     if (!p.power || !p.power.def.allowedWeapons.includes(p.weapon.id)) return m;
     for (const id of p.power.loadout.passives) {
       const e = p.power.def.passive.find((x) => x.id === id)?.effects;
@@ -461,7 +565,12 @@ export class GameSimulation {
     return m;
   }
 
-  private applyStatus(list: ActiveStatus[], app: StatusDef, fromPlayer: boolean, maxHp: number): ActiveStatus {
+  private applyStatus(
+    list: ActiveStatus[],
+    app: StatusDef,
+    fromPlayer: boolean,
+    maxHp: number,
+  ): ActiveStatus {
     const def = statusDef(app);
     let dur = def.durationMs ?? 0;
     let dotMod = def.dot?.modifier ?? 0;
@@ -505,9 +614,13 @@ export class GameSimulation {
     }
     p.stamina.update(dt, now);
     if (stRegen > 0) p.stamina.current = Math.min(p.stamina.max, p.stamina.current + (stRegen * dt) / 1000);
-    p.energy = Math.min(CONTENT.powers.energy.max, p.energy + ((CONTENT.powers.energy.regenPerSec + enRegen) * dt) / 1000);
+    p.energy = Math.min(
+      CONTENT.powers.energy.max,
+      p.energy + ((CONTENT.powers.energy.regenPerSec + enRegen) * dt) / 1000,
+    );
 
-    if (p.charState === 'IN_COMBAT' && now - p.lastCombatAt >= p.base.outOfCombatMs) this.setCharState('IN_WORLD');
+    if (p.charState === 'IN_COMBAT' && now - p.lastCombatAt >= p.base.outOfCombatMs)
+      this.setCharState('IN_WORLD');
     if (p.charState === 'IN_WORLD' && p.hp < p.maxHp)
       p.hp = Math.min(p.maxHp, p.hp + (p.maxHp * p.base.outOfCombatRegenPctPerSec * dt) / 1000);
 
@@ -518,7 +631,12 @@ export class GameSimulation {
       const d = p.dash;
       const stepLen = (d.speed * dt) / 1000;
       const before = p.pos;
-      p.pos = moveWithCollision(p.pos, { x: d.dir.x * stepLen, y: d.dir.y * stepLen }, p.base.radius, this.grid).pos;
+      p.pos = moveWithCollision(
+        p.pos,
+        { x: d.dir.x * stepLen, y: d.dir.y * stepLen },
+        p.base.radius,
+        this.grid,
+      ).pos;
       this.telemetry.distanceMoved += dist(before, p.pos);
       if (now >= d.endsAt) {
         p.dash = null;
@@ -532,7 +650,8 @@ export class GameSimulation {
       const a = p.action;
       if (a) {
         const elapsed = now - a.startedAt;
-        if (elapsed >= a.def.windupMs + a.def.activeMs && (input.move.x !== 0 || input.move.y !== 0)) p.action = null;
+        if (elapsed >= a.def.windupMs + a.def.activeMs && (input.move.x !== 0 || input.move.y !== 0))
+          p.action = null;
         else return;
       }
     }
@@ -635,7 +754,12 @@ export class GameSimulation {
       dir = { x: Math.cos(a), y: Math.sin(a) };
     }
     p.action = null;
-    p.dash = { dir, startedAt: this.time, endsAt: this.time + cfg.durationMs, speed: (cfg.distance / cfg.durationMs) * 1000 };
+    p.dash = {
+      dir,
+      startedAt: this.time,
+      endsAt: this.time + cfg.durationMs,
+      speed: (cfg.distance / cfg.durationMs) * 1000,
+    };
     if (cfg.invulnerable) p.invulnerableUntil = Math.max(p.invulnerableUntil, this.time + cfg.durationMs);
     p.combatState = 'dashing';
     this.telemetry.dashes++;
@@ -687,7 +811,14 @@ export class GameSimulation {
     if (def.telegraph)
       for (const h of def.hits ?? [])
         if (h.shape === 'circle')
-          this.emit({ type: 'telegraph', time: this.time, pos: this.circleCenter(a, h), radius: h.radius, windupMs: h.atMs, entityId: p.id });
+          this.emit({
+            type: 'telegraph',
+            time: this.time,
+            pos: this.circleCenter(a, h),
+            radius: h.radius,
+            windupMs: h.atMs,
+            entityId: p.id,
+          });
     if (power) this.addProficiency(CONTENT.powers.proficiency.pointsPerCast, a);
     this.advanceAction(a);
   }
@@ -724,7 +855,13 @@ export class GameSimulation {
     while (a.selfDone < self.length && el >= (self[a.selfDone]?.atMs ?? 0)) {
       const s = this.applyStatus(p.statuses, self[a.selfDone] as StatusDef, true, p.maxHp);
       if (s.def.stealth) this.dropAggro();
-      this.emit({ type: 'status', time: this.time, targetId: p.id, statusId: s.id, durationMs: s.expiresAt - this.time });
+      this.emit({
+        type: 'status',
+        time: this.time,
+        targetId: p.id,
+        statusId: s.id,
+        durationMs: s.expiresAt - this.time,
+      });
       a.selfDone++;
     }
     const hits = d.hits ?? [];
@@ -747,7 +884,11 @@ export class GameSimulation {
     const p = this.player;
     let dir = { x: Math.cos(a.angle), y: Math.sin(a.angle) };
     if (mv.type === 'back') dir = { x: -dir.x, y: -dir.y };
-    if (mv.iframes) p.invulnerableUntil = Math.max(p.invulnerableUntil, this.time + (mv.type === 'blink' ? BLINK_IFRAME_MS : mv.durationMs));
+    if (mv.iframes)
+      p.invulnerableUntil = Math.max(
+        p.invulnerableUntil,
+        this.time + (mv.type === 'blink' ? BLINK_IFRAME_MS : mv.durationMs),
+      );
     if (mv.type === 'blink') {
       const maxD = Math.min(mv.distance, Math.hypot(a.aimPoint.x - p.pos.x, a.aimPoint.y - p.pos.y));
       const from = { ...p.pos };
@@ -763,7 +904,12 @@ export class GameSimulation {
     }
     let d = mv.distance;
     if (mv.toAim) d = Math.min(d, Math.hypot(a.aimPoint.x - p.pos.x, a.aimPoint.y - p.pos.y) + 10);
-    p.dash = { dir, startedAt: this.time, endsAt: this.time + mv.durationMs, speed: (d / Math.max(1, mv.durationMs)) * 1000 };
+    p.dash = {
+      dir,
+      startedAt: this.time,
+      endsAt: this.time + mv.durationMs,
+      speed: (d / Math.max(1, mv.durationMs)) * 1000,
+    };
     this.emit({ type: 'dash', time: this.time, from: { ...p.pos }, dir, entityId: p.id });
   }
 
@@ -782,12 +928,31 @@ export class GameSimulation {
         hits: new Set(),
       };
       this.projectiles.push(pr);
-      this.emit({ type: 'projectile', time: this.time, projId: pr.id, origin: { ...p.pos }, angle: a.angle, speed: pr.speed, range: pr.left, actionId: a.def.id, entityId: p.id });
+      this.emit({
+        type: 'projectile',
+        time: this.time,
+        projId: pr.id,
+        origin: { ...p.pos },
+        angle: a.angle,
+        speed: pr.speed,
+        range: pr.left,
+        actionId: a.def.id,
+        entityId: p.id,
+      });
       return;
     }
     if (h.shape === 'circle') {
       const c = this.circleCenter(a, h);
-      this.emit({ type: 'swing', time: this.time, actionId: a.def.id, origin: c, angle: a.angle, radius: h.radius, arcDeg: 360, entityId: p.id });
+      this.emit({
+        type: 'swing',
+        time: this.time,
+        actionId: a.def.id,
+        origin: c,
+        angle: a.angle,
+        radius: h.radius,
+        arcDeg: 360,
+        entityId: p.id,
+      });
       for (const m of this.monsters) {
         if (!m.alive || already.has(m.id) || dist(c, m.pos) > h.radius + m.def.radius) continue;
         if (!this.grid.hasLineOfSight(p.pos, m.pos) && dist(p.pos, m.pos) > h.radius + m.def.radius) continue;
@@ -797,7 +962,16 @@ export class GameSimulation {
       return;
     }
     const arc = h.arcDeg ?? 90;
-    this.emit({ type: 'swing', time: this.time, actionId: a.def.id, origin: { ...p.pos }, angle: a.angle, radius: h.radius, arcDeg: arc, entityId: p.id });
+    this.emit({
+      type: 'swing',
+      time: this.time,
+      actionId: a.def.id,
+      origin: { ...p.pos },
+      angle: a.angle,
+      radius: h.radius,
+      arcDeg: arc,
+      entityId: p.id,
+    });
     for (const m of this.monsters) {
       if (!m.alive || already.has(m.id)) continue;
       if (!arcHitsCircle(p.pos, a.angle, h.radius, arc, m.pos, m.def.radius)) continue;
@@ -887,7 +1061,13 @@ export class GameSimulation {
     if (!m.alive) return;
     if (h.applyStatus) {
       const s = this.applyStatus(m.statuses, h.applyStatus, true, m.def.maxHp);
-      this.emit({ type: 'status', time: this.time, targetId: m.id, statusId: s.id, durationMs: s.expiresAt - this.time });
+      this.emit({
+        type: 'status',
+        time: this.time,
+        targetId: m.id,
+        statusId: s.id,
+        durationMs: s.expiresAt - this.time,
+      });
       if (s.def.stun && m.ai === 'ATTACK' && !m.attackResolved) {
         this.setAi(m, 'CHASE');
         this.emit({ type: 'interrupt', time: this.time, entityId: m.id });
@@ -910,7 +1090,16 @@ export class GameSimulation {
     m.hp = Math.max(0, m.hp - amount);
     m.lastHitAt = this.time;
     this.telemetry.damageDealt += amount;
-    this.emit({ type: 'damage', time: this.time, sourceId: 'player', targetId: m.id, amount, isCrit, pos: { ...m.pos }, actionId });
+    this.emit({
+      type: 'damage',
+      time: this.time,
+      sourceId: 'player',
+      targetId: m.id,
+      amount,
+      isCrit,
+      pos: { ...m.pos },
+      actionId,
+    });
     if (m.hp <= 0) {
       this.killMonster(m);
       return;
@@ -940,7 +1129,13 @@ export class GameSimulation {
       }
     }
     if (this.time < p.invulnerableUntil || this.debugGodMode) {
-      this.emit({ type: 'evade', time: this.time, targetId: p.id, pos: { ...p.pos }, reason: p.dash ? 'dash' : 'protected' });
+      this.emit({
+        type: 'evade',
+        time: this.time,
+        targetId: p.id,
+        pos: { ...p.pos },
+        reason: p.dash ? 'dash' : 'protected',
+      });
       return;
     }
     const r = computeDamage(
@@ -980,12 +1175,25 @@ export class GameSimulation {
       mitigation: r.breakdown.mitigation,
     };
     p.recentDamage.push(entry);
-    while (p.recentDamage.length > 0 && (p.recentDamage[0] as DeathRecapEntry).time < this.time - RECAP_WINDOW_MS) p.recentDamage.shift();
+    while (
+      p.recentDamage.length > 0 &&
+      (p.recentDamage[0] as DeathRecapEntry).time < this.time - RECAP_WINDOW_MS
+    )
+      p.recentDamage.shift();
     if (amount <= 0) {
       this.emit({ type: 'evade', time: this.time, targetId: p.id, pos: { ...p.pos }, reason: 'shield' });
       return;
     }
-    this.emit({ type: 'damage', time: this.time, sourceId: m.id, targetId: p.id, amount, isCrit: r.isCrit, pos: { ...p.pos }, actionId: entry.actionId });
+    this.emit({
+      type: 'damage',
+      time: this.time,
+      sourceId: m.id,
+      targetId: p.id,
+      amount,
+      isCrit: r.isCrit,
+      pos: { ...p.pos },
+      actionId: entry.actionId,
+    });
     if (p.hp <= 0) this.killPlayer(m);
   }
 
@@ -998,9 +1206,32 @@ export class GameSimulation {
     const angle = Math.atan2(attacker.pos.y - p.pos.y, attacker.pos.x - p.pos.x);
     p.aimAngle = angle;
     p.facing = vectorToDir8({ x: Math.cos(angle), y: Math.sin(angle) }, p.facing);
-    this.emit({ type: 'counter', time: this.time, attackerId: attacker.id, pos: { ...p.pos }, entityId: p.id });
-    this.emit({ type: 'swing', time: this.time, actionId: a.def.id, origin: { ...p.pos }, angle, radius: c.radius, arcDeg: c.arcDeg, entityId: p.id });
-    const h: HitDef = { atMs: 0, shape: 'arc', radius: c.radius, arcDeg: c.arcDeg, modifier: c.modifier, knockback: c.knockback, interrupt: true };
+    this.emit({
+      type: 'counter',
+      time: this.time,
+      attackerId: attacker.id,
+      pos: { ...p.pos },
+      entityId: p.id,
+    });
+    this.emit({
+      type: 'swing',
+      time: this.time,
+      actionId: a.def.id,
+      origin: { ...p.pos },
+      angle,
+      radius: c.radius,
+      arcDeg: c.arcDeg,
+      entityId: p.id,
+    });
+    const h: HitDef = {
+      atMs: 0,
+      shape: 'arc',
+      radius: c.radius,
+      arcDeg: c.arcDeg,
+      modifier: c.modifier,
+      knockback: c.knockback,
+      interrupt: true,
+    };
     for (const m of this.monsters) {
       if (!m.alive || !arcHitsCircle(p.pos, angle, c.radius, c.arcDeg, m.pos, m.def.radius)) continue;
       this.damageMonster(m, a, h, p.pos);
@@ -1022,7 +1253,8 @@ export class GameSimulation {
     this.setCharState('DEAD');
     this.telemetry.playerDeaths++;
     this.emit({ type: 'death', time: this.time, entityId: p.id, killerId: killer.id, pos: { ...p.pos } });
-    for (const m of this.monsters) if (m.ai === 'CHASE' || m.ai === 'ATTACK' || m.ai === 'ALERT') this.setAi(m, 'RESET');
+    for (const m of this.monsters)
+      if (m.ai === 'CHASE' || m.ai === 'ATTACK' || m.ai === 'ALERT') this.setAi(m, 'RESET');
   }
 
   private respawnPlayer(): void {
@@ -1065,7 +1297,12 @@ export class GameSimulation {
     const d = Math.hypot(v.x, v.y);
     if (d < 0.5) return true;
     const stepLen = Math.min(d, (speed * dt) / 1000);
-    const r = moveWithCollision(m.pos, { x: (v.x / d) * stepLen, y: (v.y / d) * stepLen }, m.def.radius - 1, this.grid);
+    const r = moveWithCollision(
+      m.pos,
+      { x: (v.x / d) * stepLen, y: (v.y / d) * stepLen },
+      m.def.radius - 1,
+      this.grid,
+    );
     if (Math.abs(v.x) > 0.1) m.facingX = v.x > 0 ? 1 : -1;
     m.pos = r.pos;
     return r.blockedX && r.blockedY;
@@ -1103,7 +1340,12 @@ export class GameSimulation {
       return;
     }
     if (m.knock && now < m.knock.until)
-      m.pos = moveWithCollision(m.pos, { x: (m.knock.vx * dt) / 1000, y: (m.knock.vy * dt) / 1000 }, m.def.radius - 1, this.grid).pos;
+      m.pos = moveWithCollision(
+        m.pos,
+        { x: (m.knock.vx * dt) / 1000, y: (m.knock.vy * dt) / 1000 },
+        m.def.radius - 1,
+        this.grid,
+      ).pos;
     else m.knock = null;
     if (m.def.passive) {
       if (now - m.lastHitAt > 3000 && m.hp < m.def.maxHp) m.hp = m.def.maxHp;
@@ -1155,7 +1397,12 @@ export class GameSimulation {
         break;
       }
       case 'CHASE': {
-        if (!p.alive || p.hasStatus('stealth') || dist(m.pos, m.spawn) > m.def.leashRadius || dPlayer > m.def.leashRadius * 1.2) {
+        if (
+          !p.alive ||
+          p.hasStatus('stealth') ||
+          dist(m.pos, m.spawn) > m.def.leashRadius ||
+          dPlayer > m.def.leashRadius * 1.2
+        ) {
           this.setAi(m, 'RESET');
           break;
         }
@@ -1165,7 +1412,14 @@ export class GameSimulation {
           m.attackResolved = false;
           m.facingX = p.pos.x > m.pos.x ? 1 : -1;
           this.setAi(m, 'ATTACK');
-          this.emit({ type: 'monster-windup', time: now, entityId: m.id, windupMs: m.def.attackWindupMs, pos: { ...m.pos }, radius: reach });
+          this.emit({
+            type: 'monster-windup',
+            time: now,
+            entityId: m.id,
+            windupMs: m.def.attackWindupMs,
+            pos: { ...m.pos },
+            radius: reach,
+          });
           break;
         }
         if (dPlayer > reach * 0.8) this.moveMonster(m, p.pos, m.def.chaseSpeed, dt);
@@ -1175,7 +1429,8 @@ export class GameSimulation {
         const elapsed = now - m.attackStartedAt;
         if (!m.attackResolved && elapsed >= m.def.attackWindupMs) {
           m.attackResolved = true;
-          if (p.alive && dist(m.pos, p.pos) <= reach + 3 && this.grid.hasLineOfSight(m.pos, p.pos)) this.damagePlayer(m);
+          if (p.alive && dist(m.pos, p.pos) <= reach + 3 && this.grid.hasLineOfSight(m.pos, p.pos))
+            this.damagePlayer(m);
         }
         if (m.ai !== 'ATTACK') break;
         if (elapsed >= m.def.attackWindupMs + m.def.attackRecoveryMs) {

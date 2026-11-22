@@ -92,13 +92,38 @@ test('MVP online loop: register → character → kill → server rewards → re
   browser,
 }) => {
   const a = await newPlayer(browser, 'loop');
-  // locked weapons cannot be chosen before Phase 3
-  await expect(a.page.getByRole('button', { name: /Bow/ })).toBeDisabled();
+  // Phase 3: all six starter weapons are selectable
+  for (const w of ['Staff', 'Sword', 'Dagger', 'Bow', 'Grimoire', 'Gauntlet'])
+    await expect(a.page.getByRole('button', { name: new RegExp(w) })).toBeEnabled();
   await enterWorld(a.page, a.char);
   await a.page.keyboard.down('KeyD');
   await a.page.waitForTimeout(1500);
   await a.page.keyboard.up('KeyD');
   await huntOne(a.page);
+  // Phase 3: Gold/items drop as a personal loot bag — walk onto it and press H
+  for (let i = 0; i < 60 && (await hook(a.page)).gold === 0; i++) {
+    const d = await a.page.evaluate(() => {
+      const s = (window as any).__TPE__.sim;
+      const b = s.drops[0];
+      return b ? { dx: b.x - s.player.pos.x, dy: b.y - s.player.pos.y } : null;
+    });
+    if (!d) {
+      await a.page.waitForTimeout(150);
+      continue;
+    }
+    if (Math.hypot(d.dx, d.dy) > 16) {
+      const keys = [
+        d.dx > 4 ? 'KeyD' : d.dx < -4 ? 'KeyA' : '',
+        d.dy > 4 ? 'KeyS' : d.dy < -4 ? 'KeyW' : '',
+      ].filter(Boolean);
+      for (const k of keys) await a.page.keyboard.down(k);
+      await a.page.waitForTimeout(100);
+      for (const k of keys) await a.page.keyboard.up(k);
+    } else {
+      await a.page.keyboard.press('KeyH');
+      await a.page.waitForTimeout(300);
+    }
+  }
   await expect.poll(async () => (await hook(a.page)).gold, { timeout: 5000 }).toBeGreaterThan(0);
   const before = await hook(a.page);
   expect(before.xp).toBeGreaterThan(0);

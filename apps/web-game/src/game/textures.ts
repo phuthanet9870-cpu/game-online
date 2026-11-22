@@ -365,3 +365,19 @@ export function createSwordTexture(): HTMLCanvasElement {
   px(c, 1, 17, 3, 1, PAL.gold);
   return cv;
 }
+
+/** Training dummy (Power Trial / GM tests): straw target on a post. */
+export function createDummySheet(): HTMLCanvasElement {
+  const cv = document.createElement('canvas');
+  cv.width = 16;
+  cv.height = 24;
+  const c = cv.getContext('2d') as Ctx;
+  px(c, 3, 22, 10, 2, 'rgba(0,0,0,0.3)');
+  px(c, 7, 10, 2, 13, '#5b3b22');
+  px(c, 2, 9, 12, 2, '#5b3b22');
+  px(c, 4, 1, 8, 10, '#c9a35a');
+  px(c, 5, 2, 6, 8, '#e0bf72');
+  px(c, 6, 4, 4, 4, '#b02a3e');
+  px(c, 7, 5, 2, 2, '#f2ecff');
+  return cv;
+}

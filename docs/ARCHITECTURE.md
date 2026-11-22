@@ -33,3 +33,17 @@ Browser (HTML5)                                   Go server (modular monolith, 1
 ## Database (migration `001_init.sql`)
 `accounts`, `sessions`, `login_history`, `characters`, `transactions` (idempotency), `item_instances`, `item_ledger`, `currency_ledgers`, `xp_ledger`, `gm_audit_log` — ledger/audit ห้าม UPDATE/DELETE (trigger)
 ตรวจความสอดคล้อง: `psql "$DATABASE_URL" -f tools/ops/reconcile.sql` (ทุกค่าต้องเป็น 0)
+
+## Phase 3 additions
+| ทิศทาง | `t` | ฟิลด์ |
+|---|---|---|
+| C→S | `input.act` | เพิ่ม `{type:"power",slot:"p1".."p5"\|"ult"}`, `{type:"stance"}`, `{type:"potion"}` |
+| C→S | `equip` / `bind` / `unbind` / `loadout` / `craft` | `weapon` / `itemId` / `confirm` (ชื่อพลัง) / `loadout{actives,ultimate,passives}` / `recipe` |
+| C→S | `hotbar` | `slots[20]{action,key}` (validate ซ้ำบน server) |
+| C→S | `auto` | `enabled?`, `settings?{radiusTiles,useSkills,skillOrder,autoPotion,potionPct,autoLoot,...}` |
+| C→S | `pickup` | `id` (ถุง loot ของตัวเอง, ระยะ ≤ 28px) |
+| C→S | `gm` | `op: inspect\|spawnItem\|spawnMonster\|setPoints` (+ capability + test world + audit) |
+| S→C | `power` / `hotbar` / `auto` / `loot` / `result` / `gm-result` | สถานะพลัง+สกิล 25 ตัว, layout, สถานะ/รายงาน Auto, ของที่เก็บได้, ผลคำสั่ง |
+| S→C | `snap.you` | เพิ่ม `energy`, `statuses[]`, `drops[]` (ถุงของตัวเองเท่านั้น), `weapon`, `stance`, `powerPts` |
+
+Migration `002`: `power_bindings` (PK character_id = 1 พลัง/ตัวละคร), `power_archive`, `power_events` (append-only), `characters.hotbar`, `characters.auto_settings`

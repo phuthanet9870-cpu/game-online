@@ -171,3 +171,29 @@ test('resize keeps an integer pixel zoom and the 20-slot hotbar', async ({ page 
   expect(Number.isInteger(z)).toBe(true);
   await expect(page.getByTestId('hotbar').locator('.slot')).toHaveCount(20);
 });
+
+test('sandbox Power Trial: six weapons switchable, Inferno trial with stance and power skills, no server needed', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/');
+  await page.getByRole('button', { name: 'เล่น Sandbox ออฟไลน์' }).click();
+  await page.getByRole('button', { name: 'เริ่มทดสอบ' }).click();
+  await page.getByTestId('menu-char').click();
+  for (const w of ['staff', 'sword', 'dagger', 'bow', 'grimoire', 'gauntlet']) {
+    await page.getByTestId(`equip-${w}`).click();
+    expect(await page.evaluate(() => (window as any).__TPE__.sim.weapon.id)).toBe(w);
+  }
+  await page.getByTestId('menu-power').click();
+  await page.getByTestId('trial-inferno').click();
+  await expect(page.getByTestId('power-panel')).toContainText('Inferno');
+  await page.keyboard.press('KeyQ');
+  expect(await page.evaluate(() => (window as any).__TPE__.sim.powerView().stance)).toBe(true);
+  await page.keyboard.press('Digit5');
+  await page.waitForTimeout(300);
+  expect(
+    await page.evaluate(() => (window as any).__TPE__.sim.telemetry.actionsUsed.inferno_flame_shot),
+  ).toBe(1);
+  expect(errors).toEqual([]);
+});

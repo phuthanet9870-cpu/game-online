@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
-import { CONTENT, itemName } from '../core/content';
+import { CONTENT } from '../core/content';
 import type { WorldSource } from '../core/worldSource';
-import { createDefaultHotbar, type HotbarSlot } from '../core/hotbar';
 import { gatePassed } from '../game/phaseGate';
 import { createPortraitDataUrl } from '../game/textures';
 import {
@@ -14,15 +13,15 @@ import {
   type HudSnapshot,
   type LogEntry,
 } from '../game/bridge';
-import { SlotIcon } from './icons';
+import { AutoPanel, Bag3, CharPanel, GmHud, Hotbar3, PowerPanel, SevererDialog } from './Phase3Panels';
 
 const useHud = () => useSyncExternalStore(hudStore.subscribe, hudStore.get);
 const useLogs = () => useSyncExternalStore(logStore.subscribe, logStore.get);
 const useToast = () => useSyncExternalStore(toastStore.subscribe, toastStore.get);
 
 const PHASE_LABEL: Record<'offline' | 'online', string> = {
-  offline: 'PHASE 1 SANDBOX · ออฟไลน์ · ภาพ PLACEHOLDER',
-  online: 'PHASE 2 · ONLINE AUTHORITATIVE · TEST WORLD · ภาพ PLACEHOLDER',
+  offline: 'SANDBOX · POWER TRIAL · ออฟไลน์ ไม่บันทึก · ภาพ PLACEHOLDER',
+  online: 'PHASE 3 · ONLINE AUTHORITATIVE · TEST WORLD · ภาพ PLACEHOLDER',
 };
 
 export function GameHud({ world, onExit }: { world: WorldSource; onExit: () => void }) {
@@ -30,7 +29,7 @@ export function GameHud({ world, onExit }: { world: WorldSource; onExit: () => v
   const [started, setStarted] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [gateOpen, setGateOpen] = useState(world.mode === 'offline');
-  const [bagOpen, setBagOpen] = useState(false);
+  const [panel, setPanel] = useState<Panel | null>(null);
   const [uiScale, setUiScale] = useState(1);
   const [highContrast, setHighContrast] = useState(false);
 
@@ -59,18 +58,28 @@ export function GameHud({ world, onExit }: { world: WorldSource; onExit: () => v
           <StatusPanel hud={hud} />
           {world.mode === 'offline' && gateOpen && <GatePanel hud={hud} onClose={() => setGateOpen(false)} />}
           {hud.online && <NetPanel hud={hud} />}
-          {hud.online && bagOpen && <BagPanel hud={hud} onClose={() => setBagOpen(false)} />}
-          {hud.online?.gm?.open && <GmPanel hud={hud} />}
+          {panel === 'bag' && <Bag3 hud={hud} world={world} onClose={() => setPanel(null)} />}
+          {panel === 'power' && <PowerPanel hud={hud} world={world} onClose={() => setPanel(null)} />}
+          {panel === 'char' && <CharPanel hud={hud} world={world} onClose={() => setPanel(null)} />}
+          {panel === 'auto' && <AutoPanel hud={hud} world={world} onClose={() => setPanel(null)} />}
+          <GmHud hud={hud} world={world} />
+          <SevererDialog hud={hud} world={world} />
+          {(hud.nearSeverer || hud.dropsNearby > 0) && (
+            <div className="interact-hint">
+              [H] {hud.nearSeverer ? 'คุยกับ The Severer' : `เก็บของ (${hud.dropsNearby})`}
+            </div>
+          )}
+          {hud.auto?.enabled && <div className="auto-badge">AUTO · กำจัด {hud.auto.live?.kills ?? 0}</div>}
           {hud.online && hud.online.status !== 'online' && <ConnectionOverlay hud={hud} onExit={onExit} />}
           <TargetFrame hud={hud} />
           <Minimap hud={hud} />
-          <Hotbar hud={hud} />
+          <Hotbar3 hud={hud} world={world} />
           <ChatPanel world={world} />
           <MenuDock
             online={world.mode === 'online'}
             onSettings={() => setSettingsOpen((v) => !v)}
             onGate={() => setGateOpen((v) => !v)}
-            onBag={() => setBagOpen((v) => !v)}
+            onPanel={(p) => setPanel((cur) => (cur === p ? null : p))}
             onExit={onExit}
           />
           <Toast />
@@ -184,13 +193,14 @@ function StatusPanel({ hud }: { hud: HudSnapshot }) {
       </div>
       <div className="status-body">
         <div className="status-name">
-          {hud.playerName} <span className="weapon-tag">Sword</span>
+          {hud.playerName}{' '}
+          <span className="weapon-tag">{CONTENT.weapons.find((w) => w.id === hud.weaponId)?.name}</span>
           {hud.charState === 'IN_COMBAT' && <span className="combat-tag">IN COMBAT</span>}
           {hud.invulnerable && <span className="inv-tag">IMMUNE</span>}
         </div>
         <Bar label="HP" value={hud.hp} max={hud.maxHp} kind="hp" />
         <Bar label="ST" value={hud.stamina} max={hud.maxStamina} kind="st" />
-        <Bar label="PE" value={0} max={1} kind="pe" locked="Power Energy · Phase 3" />
+        <Bar label="PE" value={hud.energy} max={hud.maxEnergy} kind="pe" />
         {hud.online ? (
           <Bar
             label="EXP"
@@ -314,64 +324,6 @@ function Minimap({ hud }: { hud: HudSnapshot }) {
 
 /* --------------------------------------------------------------- hotbar */
 
-function HotbarSlotView({ slot, hud }: { slot: HotbarSlot; hud: HudSnapshot }) {
-  const locked = slot.availableInPhase > (hud.mode === 'online' ? 2 : 1);
-  const cd = hud.cooldowns[slot.action];
-  const cost = hud.staminaCosts[slot.action];
-  const name = hud.skillNames[slot.action] ?? slot.label;
-  const noStamina = cost !== undefined && hud.stamina < cost;
-  const deg = cd ? Math.round(cd.fraction * 360) : 0;
-  return (
-    <button
-      className={`slot ${locked ? 'locked' : ''} ${noStamina ? 'nostam' : ''}`}
-      data-testid={`slot-${slot.index}`}
-      title={
-        locked
-          ? `${slot.label} — ปลดล็อก Phase ${slot.availableInPhase}`
-          : `${name}${cost ? ` · Stamina ${cost}` : ''}`
-      }
-      onClick={() =>
-        locked
-          ? showToast(`${slot.label}: ปลดล็อกใน Phase ${slot.availableInPhase}`)
-          : sendCommand({ type: 'hotbar', action: slot.action })
-      }
-      tabIndex={-1}
-    >
-      <span className="slot-icon">
-        <SlotIcon action={slot.action} />
-      </span>
-      {deg > 0 && (
-        <span
-          className="cd"
-          style={{ background: `conic-gradient(rgba(8,4,14,0.78) ${deg}deg, transparent ${deg}deg)` }}
-        />
-      )}
-      {cd && cd.remainingMs > 500 && <span className="cd-text">{(cd.remainingMs / 1000).toFixed(1)}</span>}
-      <span className="key">{slot.keyLabel}</span>
-      {cost ? <span className="cost">{cost}</span> : null}
-      {locked && <span className="lock">🔒</span>}
-    </button>
-  );
-}
-
-function Hotbar({ hud }: { hud: HudSnapshot }) {
-  const slots = useMemo(() => createDefaultHotbar(), []);
-  return (
-    <div className="hotbar panel" data-testid="hotbar" aria-label="Hotbar 20 ช่อง">
-      <div className="hotbar-row">
-        {slots.slice(0, 10).map((s) => (
-          <HotbarSlotView key={s.index} slot={s} hud={hud} />
-        ))}
-      </div>
-      <div className="hotbar-row">
-        {slots.slice(10).map((s) => (
-          <HotbarSlotView key={s.index} slot={s} hud={hud} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 /* ----------------------------------------------------------------- chat */
 
 type Tab = 'all' | 'combat' | 'system' | 'world';
@@ -450,46 +402,56 @@ function ChatPanel({ world }: { world: WorldSource }) {
 
 /* ----------------------------------------------------------------- menu */
 
-const MENU: Array<{ id: string; label: string; icon: string; phase?: number }> = [
-  { id: 'char', label: 'ตัวละคร', icon: '👤', phase: 3 },
-  { id: 'bag', label: 'กระเป๋า', icon: '🎒', phase: 2 },
-  { id: 'skill', label: 'สกิล', icon: '📜', phase: 3 },
-  { id: 'power', label: 'The Power', icon: '🔮', phase: 3 },
+const MENU: Array<{
+  id: Panel | 'map' | 'gate' | 'settings' | 'exit';
+  label: string;
+  icon: string;
+  phase?: number;
+}> = [
+  { id: 'char', label: 'ตัวละคร', icon: '👤' },
+  { id: 'bag', label: 'กระเป๋า', icon: '🎒' },
+  { id: 'power', label: 'The Power', icon: '🔮' },
+  { id: 'auto', label: 'Auto', icon: '🤖' },
   { id: 'map', label: 'แผนที่', icon: '🗺️', phase: 4 },
   { id: 'gate', label: 'QA Gate', icon: '✅' },
   { id: 'settings', label: 'ตั้งค่า', icon: '⚙️' },
   { id: 'exit', label: 'ออก', icon: '🚪' },
 ];
 
+type Panel = 'char' | 'bag' | 'power' | 'auto';
+
 function MenuDock(props: {
   online: boolean;
   onSettings: () => void;
   onGate: () => void;
-  onBag: () => void;
+  onPanel: (p: Panel) => void;
   onExit: () => void;
 }) {
   const items = MENU.filter((m) => !(m.id === 'gate' && props.online));
   return (
     <div className="menu-dock">
-      {items.map((m) => (
-        <button
-          key={m.id}
-          data-testid={`menu-${m.id}`}
-          className={`menu-btn ${m.phase && !(m.id === 'bag' && props.online) ? 'locked' : ''}`}
-          tabIndex={-1}
-          onClick={() => {
-            if (m.id === 'settings') props.onSettings();
-            else if (m.id === 'gate') props.onGate();
-            else if (m.id === 'exit') props.onExit();
-            else if (m.id === 'bag' && props.online) props.onBag();
-            else if (m.id === 'bag') showToast('กระเป๋าอยู่บน server — ใช้ได้ในโหมดออนไลน์');
-            else showToast(`${m.label}: เปิดใช้งานใน Phase ${m.phase}`);
-          }}
-        >
-          <span className="mi">{m.icon}</span>
-          <span className="ml">{m.label}</span>
-        </button>
-      ))}
+      {items.map((m) => {
+        const offlineOnly = !props.online && (m.id === 'bag' || m.id === 'auto');
+        return (
+          <button
+            key={m.id}
+            data-testid={`menu-${m.id}`}
+            className={`menu-btn ${m.phase || offlineOnly ? 'locked' : ''}`}
+            tabIndex={-1}
+            onClick={() => {
+              if (m.id === 'settings') props.onSettings();
+              else if (m.id === 'gate') props.onGate();
+              else if (m.id === 'exit') props.onExit();
+              else if (m.phase) showToast(`${m.label}: เปิดใช้งานใน Phase ${m.phase}`);
+              else if (offlineOnly) showToast(`${m.label} อยู่บน server — ใช้ได้ในโหมดออนไลน์`);
+              else props.onPanel(m.id as Panel);
+            }}
+          >
+            <span className="mi">{m.icon}</span>
+            <span className="ml">{m.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -654,56 +616,6 @@ function NetPanel({ hud }: { hud: HudSnapshot }) {
           {o.seq} / {o.ack}
         </b>
       </div>
-    </div>
-  );
-}
-
-function BagPanel({ hud, onClose }: { hud: HudSnapshot; onClose: () => void }) {
-  const o = hud.online;
-  if (!o) return null;
-  return (
-    <div className="bag panel" data-testid="bag">
-      <div className="panel-title">
-        <span>
-          🎒 กระเป๋า ({o.items.length}/{o.slots})
-        </span>
-        <button className="x" onClick={onClose} aria-label="ปิด">
-          ×
-        </button>
-      </div>
-      {o.items.length === 0 ? (
-        <p className="hint">ยังไม่มีไอเทม — ล่ามอนสเตอร์เพื่อรับของ (ข้อมูลจาก server)</p>
-      ) : (
-        <ul>
-          {o.items.map((it) => (
-            <li key={it.templateId}>
-              <span>{itemName(it.templateId)}</span>
-              <span className="id">{it.templateId}</span>
-              <b>x{it.quantity}</b>
-            </li>
-          ))}
-        </ul>
-      )}
-      <p className="hint">Gold: {o.gold.toLocaleString()} · ขาย NPC / ตลาด มาใน Phase 4</p>
-    </div>
-  );
-}
-
-function GmPanel({ hud }: { hud: HudSnapshot }) {
-  const gm = hud.online?.gm;
-  if (!gm) return null;
-  return (
-    <div className="gm panel" data-testid="gm-panel">
-      <div className="panel-title">
-        <span>👑 GM Control Center (foundation)</span>
-      </div>
-      <p className="hint">
-        Role: <b>{gm.role}</b> · สิทธิ์จาก server: {gm.caps.join(', ') || '—'}
-      </p>
-      <p className="hint">
-        คำสั่ง: /gm who · /gm kick &lt;ชื่อ&gt; · /gm heal · /gm god on|off (Test World เท่านั้น) —
-        ทุกคำสั่งบันทึก audit · GM HUD เต็มรูปแบบมาใน Phase 3
-      </p>
     </div>
   );
 }
