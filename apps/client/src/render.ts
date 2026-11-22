@@ -1,3 +1,5 @@
+import { paintChunk, CHUNK_TOP } from './tiles.js';
+import { PX } from './vfx.js';
 import { drawChibi, drawEnemySprite, drawMinionSprite, drawMountSprite, setAnimTime } from './sprites.js';
 export { drawChibi };
 import { CLASSES, ENEMIES, FURNITURE, MINIONS, RARITY_DEFS, TILE, type GameMap, type Interactable, type Rarity, lookColors, parseLookKey, MOUNTS } from '@astra/shared';
@@ -67,57 +69,7 @@ export class Renderer {
   private chunk(m: GameMap, cx: number, cy: number): HTMLCanvasElement {
     const key = cx + ',' + cy;
     let c = this.chunks.get(key);
-    if (c) return c;
-    const CH = 16;
-    c = document.createElement('canvas');
-    c.width = CH * TILE; c.height = CH * TILE + TILE;
-    const x = c.getContext('2d')!;
-    const th = THEMES[m.palette ?? m.theme];
-    const ash = m.palette === 'ash';
-    for (let ty = cy * CH; ty < cy * CH + CH; ty++)
-      for (let tx = cx * CH; tx < cx * CH + CH; tx++) {
-        if (tx < 0 || ty < 0 || tx >= m.w || ty >= m.h) continue;
-        const t = m.tiles[ty * m.w + tx]!;
-        const px = (tx - cx * CH) * TILE, py = (ty - cy * CH) * TILE;
-        const hv = hash(tx, ty);
-        if (t === 0) {
-          // wall: dark body, lighter top face for a 2.5D read
-          x.fillStyle = th.wall; x.fillRect(px, py, TILE, TILE);
-          const below = ty + 1 < m.h ? m.tiles[(ty + 1) * m.w + tx] : 0;
-          if (below !== 0) { x.fillStyle = 'rgba(0,0,0,0.35)'; x.fillRect(px, py + TILE - 10, TILE, 10); x.fillStyle = th.wallTop; x.fillRect(px, py, TILE, TILE - 12); }
-          else { x.fillStyle = th.wallTop; x.globalAlpha = 0.25; x.fillRect(px, py, TILE, TILE); x.globalAlpha = 1; }
-          continue;
-        }
-        const pal = t === 2 || t === 6 || t === 7 ? th.path : th.floor;
-        x.fillStyle = pal[hv % 3]!;
-        x.fillRect(px, py, TILE, TILE);
-        if (t === 7) { x.fillStyle = pal[0]!; x.fillRect(px, py, TILE, TILE); }
-        if (t === 6) { x.fillStyle = 'rgba(160,60,200,0.12)'; x.fillRect(px, py, TILE, TILE); }
-        if (m.theme === 'dungeon') { x.strokeStyle = 'rgba(0,0,0,0.25)'; x.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1); if (hv % 11 === 0) { x.fillStyle = 'rgba(140,110,220,0.18)'; x.fillRect(px + (hv % 20), py + ((hv >> 5) % 20), 4, 4); } }
-        else if (t === 1 && hv % 5 === 0) { x.fillStyle = 'rgba(255,255,255,0.06)'; x.fillRect(px + (hv % 24), py + ((hv >> 4) % 24), 3, 6); }
-        if (t === 2 && m.theme === 'town') { x.strokeStyle = 'rgba(0,0,0,0.12)'; x.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1); }
-        if (t === 3) { x.fillStyle = th.water; x.fillRect(px, py, TILE, TILE); x.fillStyle = ash ? 'rgba(255,210,90,0.35)' : 'rgba(255,255,255,0.12)'; x.fillRect(px + (hv % 20), py + 8 + (hv % 10), 10, 2); }
-        if (t === 4) {
-          if (m.theme === 'dungeon') { // pillar
-            x.fillStyle = 'rgba(0,0,0,0.4)'; x.beginPath(); x.ellipse(px + 16, py + 26, 14, 6, 0, 0, Math.PI * 2); x.fill();
-            x.fillStyle = '#4b4266'; x.fillRect(px + 6, py - 14, 20, 38); x.fillStyle = '#6a5d8f'; x.fillRect(px + 6, py - 18, 20, 6);
-          } else if (m.palette === 'star') { // crystal spire
-            x.fillStyle = 'rgba(0,0,0,0.25)'; x.beginPath(); x.ellipse(px + 16, py + 26, 12, 5, 0, 0, Math.PI * 2); x.fill();
-            x.fillStyle = 'rgba(150,220,255,0.85)'; x.beginPath(); x.moveTo(px + 10, py + 26); x.lineTo(px + 14, py - 20); x.lineTo(px + 22, py + 26); x.closePath(); x.fill();
-            x.fillStyle = 'rgba(255,255,255,0.6)'; x.fillRect(px + 14, py - 8, 2, 20);
-          } else if (ash) { // charred spire
-            x.fillStyle = 'rgba(0,0,0,0.35)'; x.beginPath(); x.ellipse(px + 16, py + 26, 12, 5, 0, 0, Math.PI * 2); x.fill();
-            x.fillStyle = '#1f1714'; x.beginPath(); x.moveTo(px + 8, py + 26); x.lineTo(px + 16, py - 18); x.lineTo(px + 24, py + 26); x.closePath(); x.fill();
-            x.fillStyle = 'rgba(255,120,40,0.5)'; x.fillRect(px + 15, py - 4, 2, 10);
-          } else { // tree
-            x.fillStyle = 'rgba(0,0,0,0.3)'; x.beginPath(); x.ellipse(px + 16, py + 26, 15, 6, 0, 0, Math.PI * 2); x.fill();
-            x.fillStyle = '#5a3d25'; x.fillRect(px + 13, py + 10, 6, 16);
-            x.fillStyle = th.tree; x.beginPath(); x.arc(px + 16, py + 4, 16, 0, Math.PI * 2); x.fill();
-            x.fillStyle = 'rgba(255,255,255,0.08)'; x.beginPath(); x.arc(px + 11, py - 2, 7, 0, Math.PI * 2); x.fill();
-          }
-        }
-      }
-    this.chunks.set(key, c);
+    if (!c) { c = paintChunk(m, THEMES[m.palette ?? m.theme]!, cx, cy, 16); this.chunks.set(key, c); }
     return c;
   }
 
@@ -142,7 +94,7 @@ export class Renderer {
     for (let cy = Math.floor(y0 / CHP) - 1; cy <= Math.floor(y1 / CHP); cy++)
       for (let cx = Math.floor(x0 / CHP); cx <= Math.floor(x1 / CHP); cx++) {
         if (cx < 0 || cy < 0 || cx * 16 >= m.w || cy * 16 >= m.h) continue;
-        ctx.drawImage(this.chunk(m, cx, cy), cx * CHP, cy * CHP);
+        { const ch = this.chunk(m, cx, cy); const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false; ctx.drawImage(ch, cx * CHP, cy * CHP - CHUNK_TOP * PX, ch.width * PX, ch.height * PX); ctx.imageSmoothingEnabled = sm; }
       }
     // treasure search circle + housing placement ghost (ground layer)
     const trc = g.char?.treasure; if (trc && trc.zone === g.room?.id) { ctx.strokeStyle = 'rgba(255,210,60,0.5)'; ctx.setLineDash([10, 8]); ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(trc.hx, trc.hy, trc.hr, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
