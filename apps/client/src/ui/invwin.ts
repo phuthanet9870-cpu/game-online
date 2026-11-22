@@ -14,7 +14,7 @@ type Filter = 'all' | 'weapon' | 'armor' | 'jewelry' | 'relic';
 const FILTERS: Array<[Filter, string, string]> = [['all', 'grid', 'All'], ['weapon', 'crossed', 'Weapons'], ['armor', 'chest_plate', 'Armor'], ['jewelry', 'ring', 'Jewelry'], ['relic', 'relic_star', 'Relics & runes']];
 const inFilter = (it: Item, f: Filter) => f === 'all' || (f === 'weapon' && it.slot === 'weapon') || (f === 'armor' && ['helmet', 'chest', 'gloves', 'boots'].includes(it.slot)) || (f === 'jewelry' && ['ring', 'necklace'].includes(it.slot)) || (f === 'relic' && ['relic', 'rune'].includes(it.slot));
 const stars = (r: string) => '★'.repeat(RARITIES.indexOf(r as never) + 1);
-const ui = { tab: 'equipment' as 'equipment' | 'materials' | 'collections', filter: 'all' as Filter, sort: 'rarity' as 'rarity' | 'level' | 'slot', sel: null as number | null };
+const ui = { tab: 'equipment' as 'equipment' | 'materials' | 'collections', filter: 'all' as Filter, sort: 'rarity' as 'rarity' | 'level' | 'slot', sel: null as number | null, multi: false, picked: new Set<number>() };
 
 function equippedFor(ch: PanelCtx['ch'], it: Item): Item | null { return it.slot === 'ring' ? ch.equipment.ring1 ?? null : (ch.equipment[it.slot as EquipSlot] as Item | undefined) ?? null; }
 function sumMods(it: Item | null) { const m: Record<string, number> = {}; if (!it) return m; for (const md of itemMods(it)) m[md.stat] = (m[md.stat] ?? 0) + md.value; return m; }
@@ -82,7 +82,8 @@ export function inventoryWindow(ctx: PanelCtx, mode: Mode, rerender: () => void)
   for (const { it, i } of order) {
     const c = h('button', { class: 'icell' + (ui.sel === i ? ' sel' : ''), style: `--rc:${RARITY_DEFS[it!.rarity].color}` }, itemIcon(it!, 58), h('em', { class: 'ilv' }, String(it!.ilvl)), h('i', { class: 'st' }, stars(it!.rarity)));
     bindTip(c, () => itemTooltip(it!, equippedFor(ch, it!)));
-    c.onclick = () => { hideTip(); ui.sel = i; rerender(); };
+    if (ui.multi && ui.picked.has(i)) c.classList.add('picked');
+    c.onclick = () => { hideTip(); if (ui.multi) { if (ui.picked.has(i)) ui.picked.delete(i); else ui.picked.add(i); } else ui.sel = i; rerender(); };
     c.oncontextmenu = (e) => { e.preventDefault(); hideTip(); send({ t: 'equip', inv: i }); };
     grid.append(c);
   }
@@ -104,6 +105,17 @@ export function inventoryWindow(ctx: PanelCtx, mode: Mode, rerender: () => void)
   const i = ui.sel ?? -1;
   const need = (who: string) => (th ? `ไปหา ${who}` : `Visit ${who}`);
   const act = (label: string, icon: string, enabled: boolean, why: string, fn: () => void, cls = '') => { const b = h('button', { class: 'abtn ' + cls, disabled: !enabled, onclick: fn }, uiIcon(icon, 24), h('span', null, label)); if (!enabled && why) b.title = why; return b; };
+  for (const i of [...ui.picked]) if (!ch.inventory[i]) ui.picked.delete(i);
+  const picked = [...ui.picked];
+  const pickedGold = picked.reduce((s0, i) => s0 + (ch.inventory[i] ? sellValue(ch.inventory[i]!) : 0), 0);
+  const multiBar = h('div', { class: 'multi-bar' + (ui.multi ? ' on' : '') },
+    h('button', { class: 'btn tiny' + (ui.multi ? ' on' : ''), onclick: () => { ui.multi = !ui.multi; ui.picked.clear(); rerender(); } }, ui.multi ? (th ? '✓ เลือกหลายชิ้น' : '✓ Multi-select') : (th ? 'เลือกหลายชิ้น' : 'Multi-select')),
+    ui.multi ? h('button', { class: 'btn tiny', onclick: () => { for (const x of order) if (!x.it!.bound || mode !== 'stash') ui.picked.add(x.i); rerender(); } }, th ? 'เลือกทั้งหมด' : 'Select all') : null,
+    ui.multi ? h('button', { class: 'btn tiny', onclick: () => { ui.picked.clear(); rerender(); } }, th ? 'ล้าง' : 'Clear') : null,
+    ui.multi ? h('b', null, `${picked.length} ${th ? 'ชิ้น' : 'selected'}`) : null,
+    ui.multi ? (() => { const b = h('button', { class: 'btn tiny gold', disabled: !picked.length || mode !== 'quartermaster', onclick: () => { send({ t: 'sell_many', inv: picked }); ui.picked.clear(); } }, `${th ? 'ขายที่เลือก' : 'Sell selected'} (+${pickedGold.toLocaleString()}g)`); if (mode !== 'quartermaster') b.title = th ? 'ไปหา Quartermaster Sol เพื่อขาย' : 'Visit Quartermaster Sol to sell'; return b; })() : null,
+    ui.multi ? (() => { const b = h('button', { class: 'btn tiny', disabled: !picked.length || mode !== 'stash', onclick: () => { send({ t: 'stash_put_many', inv: picked }); ui.picked.clear(); } }, th ? 'ฝากคลังที่เลือก' : 'Store selected'); if (mode !== 'stash') b.title = th ? 'ไปที่ Astral Vault เพื่อฝาก' : 'Visit the Astral Vault to store'; return b; })() : null);
+  mid.insertBefore(multiBar, grid);
   const right = h('div', { class: 'inv-right' },
     h('div', { class: 'cmp' }, itemCard(eq, th ? 'สวมอยู่' : 'Equipped', null, 'eqd'), itemCard(sel, th ? 'ที่เลือก' : 'Selected', eq, 'seld')),
     h('div', { class: 'actions' },

@@ -245,3 +245,25 @@ describe('GM tools', () => {
     expect(t.audits).toEqual(expect.arrayContaining(['gm_open', 'gm_currency', 'gm_item', 'gm_spawn']));
   });
 });
+
+describe('batch sell / store', () => {
+  it('sells several selected items at once and stores several in one transaction, skipping bound items', () => {
+    const t = setup();
+    const a = t.join('a', 'Seller');
+    t.giveItem(a.char, 1); t.giveItem(a.char, 2); t.giveItem(a.char, 3);
+    a.char.inventory[3]!.bound = true;
+    t.place('a', 'npc_quartermaster');
+    const g = a.char.gold;
+    t.core.handle('a', { t: 'sell_many', inv: [1, 2] });
+    expect(a.char.inventory[1]).toBeNull(); expect(a.char.inventory[2]).toBeNull();
+    expect(a.char.gold).toBeGreaterThan(g);
+    t.giveItem(a.char, 4); t.giveItem(a.char, 5);
+    t.place('a', 'stash');
+    const before = t.txs.length;
+    t.core.handle('a', { t: 'stash_put_many', inv: [3, 4, 5] });
+    expect(a.char.inventory[3]).not.toBeNull(); // bound: kept
+    expect(a.account.stash.normal.filter(Boolean).length).toBe(2);
+    expect(t.txs.length).toBe(before + 1);
+    expect(t.txs.at(-1)!.accounts!.length).toBe(1);
+  });
+});

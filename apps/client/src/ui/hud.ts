@@ -89,6 +89,7 @@ export class GameUI {
           E.chatIn = h('input', { class: 'chat-in', maxLength: 200, placeholder: th ? 'พิมพ์ข้อความ…' : 'Type a message…', 'aria-label': 'Chat' }),
           h('button', { class: 'chat-send', 'aria-label': 'Send', onclick: () => this.sendChat() }, '➤'))),
       E.bar = h('div', { class: 'hotbar' }),
+      E.gmBtn = h('button', { class: 'gm-btn', hidden: true, title: 'GM Console', onclick: () => this.toggle('gm') }, uiIcon('crown', 26), h('span', null, 'GM')),
       E.autoBox = h('div', { class: 'auto-box' }, E.autoBtn = h('button', { class: 'auto-btn', onclick: () => { this.auto.setCombat(!this.auto.s.combat); this.renderAuto(); } }, 'AUTO'), h('button', { class: 'auto-gear', title: getLang() === 'th' ? 'ตั้งค่าออโต้' : 'Auto settings', onclick: () => this.toggle('auto') }, uiIcon('gear', 18)), E.autoSt = h('small', { class: 'auto-st' })),
       E.menu = h('nav', { class: 'rmenu', 'aria-label': 'Game menu' }),
       h('div', { class: 'xpline' }, E.xp = h('div', { class: 'xpbar' }, h('i'), h('span')), E.cur = h('div', { class: 'currencies' })),
@@ -609,7 +610,9 @@ export class GameUI {
   shopState = { tab: 'supplies' as 'supplies' | 'materials' | 'cosmetics' | 'mounts' };
   lastWish: any[] | null = null;
   private friendsData: any = null;
-  private gmOn = false;
+  private gmFlag = false;
+  private get gmOn() { return this.gmFlag; }
+  private set gmOn(v: boolean) { this.gmFlag = v; this.el.gmBtn && (this.el.gmBtn.hidden = !v); }
   private curKey = '';
   private nameKey = '';
   private portraitKey = '';

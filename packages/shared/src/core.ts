@@ -84,7 +84,7 @@ export interface LeaderRecord { board: string; charId: string; name: string; cls
 interface Party { id: string; leader: string; members: string[] }
 
 export const FRIEND_MAX = 50;
-const MUTATIONS = new Set(['house_buy', 'house_place', 'house_remove', 'use_map', 'guild_vault_put', 'guild_vault_take', 'pet_buy', 'season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose', 'login_claim', 'shop_buy', 'benefit_claim', 'awaken', 'wish', 'emblem_set', 'cosmetic_set', 'afk_claim', 'bag_expand']);
+const MUTATIONS = new Set(['house_buy', 'house_place', 'house_remove', 'use_map', 'guild_vault_put', 'guild_vault_take', 'pet_buy', 'season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose', 'login_claim', 'shop_buy', 'benefit_claim', 'awaken', 'wish', 'emblem_set', 'cosmetic_set', 'afk_claim', 'bag_expand', 'sell_many', 'stash_put_many']);
 
 /** Character as sent to its owner: hidden server knowledge (exact treasure spot) is removed. */
 export function publicChar(ch: CharacterData): CharacterData {
@@ -271,12 +271,12 @@ export class GameCore {
         case 'season_claim': this.seasonClaim(s, clampInt(msg.tier, 1, 100)); break;
         case 'set_aura': { const id = msg.id === null ? null : String(msg.id); if (id && !s.account.auras.includes(id)) return err('You have not unlocked that aura'); s.account.aura = id; const en = room.world.ents.get(s.entId); if (en?.p) en.p.aura = id; this.saveAcct(s.accountId, s.account); this.sendChar(s); break; }
         case 'leave': if (room.kind !== 'town') this.returnToTown(s, room, false); break;
-        case 'equip': { const r = C.equipFromInventory(s.char, clampInt(msg.inv, 0, 39), EQUIP_SLOTS.includes(msg.slot) ? msg.slot : undefined); this.mutate(s, r, 'equip'); if (r.ok) this.tutorial(s, 'equip'); break; }
+        case 'equip': { const r = C.equipFromInventory(s.char, clampInt(msg.inv, 0, s.char.inventory.length - 1), EQUIP_SLOTS.includes(msg.slot) ? msg.slot : undefined); this.mutate(s, r, 'equip'); if (r.ok) this.tutorial(s, 'equip'); break; }
         case 'unequip': this.mutate(s, EQUIP_SLOTS.includes(msg.slot) ? C.unequip(s.char, msg.slot as EquipSlot) : { ok: false, reason: 'Bad slot' }, 'unequip'); break;
-        case 'move_inv': this.mutate(s, C.moveInventory(s.char, clampInt(msg.from, 0, 39), clampInt(msg.to, 0, 39)), null); break;
-        case 'salvage': { if (!this.nearNpc(s, room, 'npc_smith')) return err('Visit the Blacksmith to salvage'); const it = s.char.inventory[clampInt(msg.inv, 0, 39)]; const r = C.salvageItem(s.char, clampInt(msg.inv, 0, 39)); this.mutate(s, r, 'salvage', { item: it?.uid, dust: r.ok ? r.value : 0 }); break; }
-        case 'sell': { if (!this.nearNpc(s, room, 'npc_quartermaster')) return err('Visit the Quartermaster to sell'); const it = s.char.inventory[clampInt(msg.inv, 0, 39)]; const r = C.sellItem(s.char, clampInt(msg.inv, 0, 39)); this.mutate(s, r, 'sell', { item: it?.uid, gold: r.ok ? r.value : 0 }); break; }
-        case 'enchant': { if (!this.nearNpc(s, room, 'npc_smith')) return err('Visit the Blacksmith to enchant'); const loc = msg.slot && EQUIP_SLOTS.includes(msg.slot) ? { slot: msg.slot as EquipSlot } : { inv: clampInt(msg.inv, 0, 39) }; this.mutate(s, C.enchantItem(s.char, loc, clampInt(msg.affix, 0, 9), this.rng), 'enchant', loc); break; }
+        case 'move_inv': this.mutate(s, C.moveInventory(s.char, clampInt(msg.from, 0, s.char.inventory.length - 1), clampInt(msg.to, 0, s.char.inventory.length - 1)), null); break;
+        case 'salvage': { if (!this.nearNpc(s, room, 'npc_smith')) return err('Visit the Blacksmith to salvage'); const it = s.char.inventory[clampInt(msg.inv, 0, s.char.inventory.length - 1)]; const r = C.salvageItem(s.char, clampInt(msg.inv, 0, s.char.inventory.length - 1)); this.mutate(s, r, 'salvage', { item: it?.uid, dust: r.ok ? r.value : 0 }); break; }
+        case 'sell': { if (!this.nearNpc(s, room, 'npc_quartermaster')) return err('Visit the Quartermaster to sell'); const it = s.char.inventory[clampInt(msg.inv, 0, s.char.inventory.length - 1)]; const r = C.sellItem(s.char, clampInt(msg.inv, 0, s.char.inventory.length - 1)); this.mutate(s, r, 'sell', { item: it?.uid, gold: r.ok ? r.value : 0 }); break; }
+        case 'enchant': { if (!this.nearNpc(s, room, 'npc_smith')) return err('Visit the Blacksmith to enchant'); const loc = msg.slot && EQUIP_SLOTS.includes(msg.slot) ? { slot: msg.slot as EquipSlot } : { inv: clampInt(msg.inv, 0, s.char.inventory.length - 1) }; this.mutate(s, C.enchantItem(s.char, loc, clampInt(msg.affix, 0, 9), this.rng), 'enchant', loc); break; }
         case 'buy_potion': {
           if (!this.nearNpc(s, room, 'npc_quartermaster')) return err('Visit the Quartermaster');
           if (s.char.potions >= POTION.maxCharges) return err('Potion belt is full');
@@ -344,6 +344,7 @@ export class GameCore {
         case 'quest_accept': if (!this.nearNpc(s, room, 'npc_quests')) return err('Talk to Commander Aveline in Lumenhold'); this.questAccept(s, String(msg.id)); break;
         case 'quest_claim': if (!this.nearNpc(s, room, 'npc_quests')) return err('Talk to Commander Aveline in Lumenhold'); this.questClaim(s, String(msg.id)); break;
         case 'stash_put': case 'stash_take': this.stash(s, room, msg); break;
+        case 'sell_many': case 'stash_put_many': this.batchItems(s, room, msg); break;
         case 'chat': this.chat(s, room, msg); break;
         case 'block': s.blocked.add(String(msg.name).slice(0, 16)); this.toast(s, `Blocked ${msg.name}`); break;
         case 'report': this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'report', data: { name: String(msg.name).slice(0, 16), reason: String(msg.reason ?? '').slice(0, 200) } }); this.toast(s, 'Report submitted. Thank you.'); break;
@@ -816,11 +817,31 @@ export class GameCore {
   }
 
   // ─────────── Stash (account storage, separated by mode) ───────────
+  /** Sell or store several selected items in one go (one transaction). */
+  private batchItems(s: Session, room: Room, msg: any) {
+    const idx = [...new Set((Array.isArray(msg.inv) ? msg.inv : []).slice(0, 80).map((v: unknown) => clampInt(v, 0, s.char.inventory.length - 1)))] as number[];
+    if (!idx.length) return;
+    let n = 0, gold = 0, skipped = 0;
+    if (msg.t === 'sell_many') {
+      if (!this.nearNpc(s, room, 'npc_quartermaster')) return s.send({ t: 'err', msg: 'Visit the Quartermaster to sell' });
+      for (const i of idx) { const r = C.sellItem(s.char, i); if (r.ok) { n++; gold += r.value; } else skipped++; }
+      this.tx({ characters: [s.char] });
+      this.toast(s, `Sold ${n} item${n === 1 ? '' : 's'} for ${gold} gold${skipped ? ` (${skipped} skipped)` : ''}`);
+    } else {
+      if (!this.nearNpc(s, room, 'stash')) return s.send({ t: 'err', msg: 'Visit the Astral Vault' });
+      const box = s.char.hardcore ? s.account.stash.hardcore : s.account.stash.normal;
+      for (const i of idx) { const it = s.char.inventory[i]; if (!it || it.bound) { skipped++; continue; } const j = box.indexOf(null); if (j < 0) { skipped++; continue; } box[j] = it; s.char.inventory[i] = null; n++; }
+      this.tx({ characters: [s.char], accounts: [{ id: s.accountId, progress: s.account }] });
+      this.toast(s, `Stored ${n} item${n === 1 ? '' : 's'}${skipped ? ` (${skipped} skipped: bound or vault full)` : ''}`);
+    }
+    this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: msg.t, data: { n, gold } });
+    this.mutate(s, { ok: true, value: undefined }, null);
+  }
   private stash(s: Session, room: Room, msg: any) {
     if (!this.nearNpc(s, room, 'stash')) return s.send({ t: 'err', msg: 'Visit the Astral Vault' });
     const box = s.char.hardcore ? s.account.stash.hardcore : s.account.stash.normal;
     if (msg.t === 'stash_put') {
-      const i = clampInt(msg.inv, 0, 39);
+      const i = clampInt(msg.inv, 0, s.char.inventory.length - 1);
       const it = s.char.inventory[i];
       if (!it) return;
       if (it.bound) return s.send({ t: 'err', msg: 'Bound items cannot be stored in the shared vault' });
@@ -835,10 +856,9 @@ export class GameCore {
       if (!r.ok) return s.send({ t: 'err', msg: r.reason });
       box[j] = null;
     }
-    // Save both atomically-ish: account first (item now in vault), then character. Server uses one DB transaction.
-    this.saveAcct(s.accountId, s.account);
+    // vault (account) and bag (character) change together in one transaction so an item can never be duplicated or lost
+    this.tx({ characters: [s.char], accounts: [{ id: s.accountId, progress: s.account }] });
     this.mutate(s, { ok: true, value: undefined }, msg.t, { idx: msg.idx ?? msg.inv });
-    this.save(s);
   }
 
   // ─────────── Chat & social ───────────
@@ -1102,7 +1122,7 @@ export class GameCore {
   private tradeOffer(s: Session, msg: any) {
     const tr = this.tradeOf(s);
     if (!tr) return;
-    const idx: number[] = Array.isArray(msg.inv) ? msg.inv.slice(0, EC.TRADE_MAX_ITEMS).map((v: unknown) => clampInt(v, 0, 39)) : [];
+    const idx: number[] = Array.isArray(msg.inv) ? msg.inv.slice(0, EC.TRADE_MAX_ITEMS).map((v: unknown) => clampInt(v, 0, s.char.inventory.length - 1)) : [];
     const uids = [...new Set(idx)].map((i) => s.char.inventory[i]?.uid).filter((u): u is string => !!u);
     const offer = { uids, gold: clampInt(msg.gold, 0, 1e9) };
     const partner = this.sessions.get(tr.a === s.id ? tr.b : tr.a)!;
@@ -1162,7 +1182,7 @@ export class GameCore {
       case 'ah_search': { const q = msg.q && typeof msg.q === 'object' ? msg.q : {}; s.send({ t: 'ah_results', ...EC.searchListings(this.listings.values(), { text: String(q.text ?? ''), slot: q.slot ? String(q.slot) : undefined, rarity: q.rarity, maxLevel: q.maxLevel ? clampInt(q.maxLevel, 1, 100) : undefined, sort: q.sort === 'newest' ? 'newest' : 'price', page: clampInt(q.page, 0, 999) }, s.char.hardcore, now) }); return; }
       case 'ah_mine': sendMine(); return;
       case 'ah_list': {
-        const r = EC.createListing(s.char, clampInt(msg.inv, 0, 39), Math.floor(Number(msg.price)), mine(), now, this.uid('L'));
+        const r = EC.createListing(s.char, clampInt(msg.inv, 0, s.char.inventory.length - 1), Math.floor(Number(msg.price)), mine(), now, this.uid('L'));
         if (!r.ok) return s.send({ t: 'err', msg: r.reason });
         this.listings.set(r.value.id, r.value);
         this.toast(s, `Listed ${r.value.item.name} for ${r.value.price}g (deposit ${EC.AH.deposit}g)`);
@@ -1361,7 +1381,7 @@ export class GameCore {
     const g = this.guildOf(s.char.id);
     if (!g) return s.send({ t: 'err', msg: 'You are not in a guild' });
     if (!this.nearNpc(s, room, 'stash')) return s.send({ t: 'err', msg: 'Use the Astral Vault in Lumenhold to reach the guild vault' });
-    const r = msg.t === 'guild_vault_put' ? EC.vaultDeposit(g, s.char, clampInt(msg.inv, 0, 39), this.clock()) : EC.vaultWithdraw(g, s.char, clampInt(msg.idx, 0, EC.GUILD_VAULT_SIZE - 1), this.clock());
+    const r = msg.t === 'guild_vault_put' ? EC.vaultDeposit(g, s.char, clampInt(msg.inv, 0, s.char.inventory.length - 1), this.clock()) : EC.vaultWithdraw(g, s.char, clampInt(msg.idx, 0, EC.GUILD_VAULT_SIZE - 1), this.clock());
     if (!r.ok) return s.send({ t: 'err', msg: r.reason });
     this.tx({ guilds: [g], characters: [s.char] }); // one transaction: item leaves one side and arrives on the other
     this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: msg.t, data: { guild: g.id, uid: r.value.uid } });

@@ -776,3 +776,8 @@ h3 { font-family: var(--f-display); color: var(--gold-2); }
 .askill { display: flex; flex-direction: column; align-items: center; background: none; border: none; cursor: pointer; color: #fff; padding: 0; }
 .askill em { font-style: normal; font-size: 10px; color: var(--gold-1); } .askill small { font-size: 9px; color: #7be08a; }
 .askill.off img { filter: grayscale(1) brightness(.5); } .askill.off small { color: #ff6b6b; }
+.multi-bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin: 0 0 6px; }
+.multi-bar.on { background: #2a204888; border: 1px solid var(--gold-3); border-radius: 6px; padding: 4px 6px; }
+.icell.picked { outline: 2px solid #7be08a; outline-offset: 1px; }
+.icell.picked::after { content: '✓'; position: absolute; right: 3px; top: 1px; color: #7be08a; font-weight: 900; text-shadow: 0 1px 2px #000; }
+.gm-btn { position: absolute; left: calc(env(safe-area-inset-left, 0px) + 350px); top: calc(env(safe-area-inset-top, 0px) + 46px); display: flex; align-items: center; gap: 4px; padding: 4px 12px 4px 6px; border-radius: 16px; border: 2px solid #ff4fa0; background: linear-gradient(180deg, #5a1a4a, #2a0a24); color: #fff; font: 800 .9em var(--f-display); cursor: pointer; box-shadow: 0 0 12px #ff4fa088; pointer-events: auto; z-index: 6; }
