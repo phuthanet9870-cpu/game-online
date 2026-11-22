@@ -1,0 +1,36 @@
+{
+ "_note": "Core world maps (count toward the LOCKED 32 = 30 farm + 2 city) plus dev/instance maps (separateInstance, not counted).",
+ "startMap": "CITY-AETHERIA",
+ "maps": [
+  {
+   "id": "CITY-AETHERIA",
+   "file": "aetheria-capital.json",
+   "core": true,
+   "kind": "city"
+  },
+  {
+   "id": "FARM-01",
+   "file": "farm-01.json",
+   "core": true,
+   "kind": "farm"
+  },
+  {
+   "id": "FARM-02",
+   "file": "farm-02.json",
+   "core": true,
+   "kind": "farm"
+  },
+  {
+   "id": "FARM-03",
+   "file": "farm-03.json",
+   "core": true,
+   "kind": "farm"
+  },
+  {
+   "id": "DEV-TRAINING-01",
+   "file": "training-ground.json",
+   "core": false,
+   "kind": "dev"
+  }
+ ]
+}

@@ -72,6 +72,116 @@
      "max": 1
     }
    ]
+  },
+  {
+   "id": "DROP-RABBIT-001",
+   "monsterId": "MON-RABBIT-001",
+   "xp": 15,
+   "gold": [
+    3,
+    6
+   ],
+   "items": [
+    {
+     "itemId": "MAT-PWR-001",
+     "chance": 0.2,
+     "min": 1,
+     "max": 1
+    },
+    {
+     "itemId": "CON-001",
+     "chance": 0.08,
+     "min": 1,
+     "max": 1
+    }
+   ]
+  },
+  {
+   "id": "DROP-SPRITE-001",
+   "monsterId": "MON-SPRITE-001",
+   "xp": 40,
+   "gold": [
+    6,
+    12
+   ],
+   "items": [
+    {
+     "itemId": "MAT-PWR-001",
+     "chance": 0.25,
+     "min": 1,
+     "max": 2
+    },
+    {
+     "itemId": "CON-001",
+     "chance": 0.1,
+     "min": 1,
+     "max": 1
+    },
+    {
+     "itemId": "PWR-001",
+     "chance": 0.008,
+     "min": 1,
+     "max": 1
+    }
+   ]
+  },
+  {
+   "id": "DROP-WOLF-002",
+   "monsterId": "MON-WOLF-002",
+   "xp": 80,
+   "gold": [
+    12,
+    24
+   ],
+   "items": [
+    {
+     "itemId": "MAT-PWR-002",
+     "chance": 0.35,
+     "min": 1,
+     "max": 2
+    },
+    {
+     "itemId": "CON-001",
+     "chance": 0.12,
+     "min": 1,
+     "max": 1
+    },
+    {
+     "itemId": "PWR-003",
+     "chance": 0.01,
+     "min": 1,
+     "max": 1
+    }
+   ]
+  },
+  {
+   "id": "DROP-BOSS-FANG",
+   "monsterId": "MON-BOSS-FANG",
+   "xp": 900,
+   "gold": [
+    150,
+    260
+   ],
+   "items": [
+    {
+     "itemId": "MAT-PWR-002",
+     "chance": 1,
+     "min": 3,
+     "max": 6
+    },
+    {
+     "itemId": "PWR-003",
+     "chance": 0.15,
+     "min": 1,
+     "max": 1
+    },
+    {
+     "itemId": "PWR-001",
+     "chance": 0.15,
+     "min": 1,
+     "max": 1
+    }
+   ]
   }
  ],
  "recipes": [

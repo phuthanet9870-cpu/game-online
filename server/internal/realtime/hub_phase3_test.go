@@ -11,13 +11,13 @@ import (
 
 func joinWith(t *testing.T, h *Hub, charID int64, role, weapon string, items []store.ItemStack) (*Client, *session, *game.Player) {
 	c := NewClient(func(string) {})
-	err := h.join(JoinRequest{Account: &store.Account{ID: charID, Role: role}, Character: &store.Character{ID: charID, Name: "P" + string(rune('A'+charID)), Weapon: weapon, Level: 1},
+	err := h.join(JoinRequest{Account: &store.Account{ID: charID, Role: role}, Character: &store.Character{ID: charID, Name: "P" + string(rune('A'+charID)), Weapon: weapon, Level: 1, MapID: "CITY-AETHERIA"},
 		Items: items, Client: c})
 	if err != nil {
 		t.Fatal(err)
 	}
 	pid := PlayerID(charID)
-	return c, h.sessions[pid], h.world.Player(pid)
+	return c, h.sessions[pid], h.World(h.c.StartMap).Player(pid)
 }
 
 func lastResult(c *Client, op string) map[string]any {
@@ -56,6 +56,9 @@ func TestBindRequiresFruitAndAllowedWeaponThenSeverDestroys(t *testing.T) {
 		t.Fatal("unbind away from the NPC must fail")
 	}
 	npc := h.c.NPC("severer")
+	if npc == nil {
+		t.Fatal("severer npc missing")
+	}
 	pl.Pos = game.Vec{X: npc.X + 10, Y: npc.Y}
 	h.onMessage(s, clientMsg{T: "unbind", Confirm: "wrong"})
 	if r := lastResult(c, "unbind"); r["ok"] != false {
@@ -113,18 +116,18 @@ func TestGMSpawnDeniedForPlayersAllowedForGMInTestWorld(t *testing.T) {
 	gc, gs, _ := joinWith(t, h, 2, "gm", "sword", nil)
 	drain(c)
 	drain(gc)
-	n := len(h.world.Monsters)
+	n := len(h.World(h.c.StartMap).Monsters)
 	h.onMessage(s, clientMsg{T: "gm", Op: "spawnMonster", ItemID: "MON-SLIME-001", Count: 2})
-	if len(h.world.Monsters) != n {
+	if len(h.World(h.c.StartMap).Monsters) != n {
 		t.Fatal("player must not spawn monsters")
 	}
 	h.onMessage(gs, clientMsg{T: "gm", Op: "spawnMonster", ItemID: "MON-SLIME-001", Count: 2})
-	if len(h.world.Monsters) != n+2 {
+	if len(h.World(h.c.StartMap).Monsters) != n+2 {
 		t.Fatal("gm spawn in test world should work")
 	}
 	h.cfg.TestWorld = false
 	h.onMessage(gs, clientMsg{T: "gm", Op: "spawnMonster", ItemID: "MON-SLIME-001", Count: 1})
-	if len(h.world.Monsters) != n+2 {
+	if len(h.World(h.c.StartMap).Monsters) != n+2 {
 		t.Fatal("spawning must be refused outside the test world")
 	}
 	p.Close()
@@ -155,5 +158,35 @@ func TestAutoStopsOnDisconnectAndReports(t *testing.T) {
 	}
 	if s.auto.Enabled || s.auto.Report.Reason != "disconnected" {
 		t.Fatalf("auto must stop when the player disconnects: %+v", s.auto.Report)
+	}
+}
+
+func TestPortalMovesPlayerBetweenMapInstances(t *testing.T) {
+	h, _, p := newTestHub(t)
+	defer p.Close()
+	c, s, pl := joinWith(t, h, 1, "player", "sword", nil)
+	if s.mapID != "CITY-AETHERIA" {
+		t.Fatalf("new characters start in the city, got %s", s.mapID)
+	}
+	var portal *struct{ x, y float64 }
+	for _, pt := range h.c.Maps["CITY-AETHERIA"].Portals {
+		if pt.TargetMap == "FARM-01" {
+			portal = &struct{ x, y float64 }{pt.X + pt.W/2, pt.Y + pt.H/2}
+		}
+	}
+	pl.Pos = game.Vec{X: portal.x, Y: portal.y}
+	drain(c)
+	h.step(1000.0 / 30)
+	if s.mapID != "FARM-01" || h.World("FARM-01").Player("c1") == nil || h.World("CITY-AETHERIA").Player("c1") != nil {
+		t.Fatalf("transfer failed: map=%s", s.mapID)
+	}
+	got := false
+	for _, m := range drain(c) {
+		if m["t"] == "map" && m["map"] == "FARM-01" {
+			got = true
+		}
+	}
+	if !got {
+		t.Fatal("client was not told about the map change")
 	}
 }

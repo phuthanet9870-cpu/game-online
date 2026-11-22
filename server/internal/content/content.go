@@ -335,6 +335,21 @@ type MapData struct {
 	PlayerSpawn   [2]float64
 	MonsterSpawns []MonsterSpawn
 	NPCs          []NPC
+	Portals       []Portal
+	Kind          string // city | farm | dev | dungeon | arena
+	PvPPolicy     string
+	Core          bool // counts toward the LOCKED 32 core maps
+}
+
+// Portal is a rectangle that moves a player to another map (server-validated).
+type Portal struct {
+	ID, Label, TargetMap string
+	X, Y, W, H           float64
+	TargetX, TargetY     float64
+}
+
+func (p Portal) Contains(x, y float64) bool {
+	return x >= p.X && x <= p.X+p.W && y >= p.Y && y <= p.Y+p.H
 }
 
 type NPC struct {
@@ -352,7 +367,9 @@ type Content struct {
 	Weapons              []WeaponDef
 	Monsters             map[string]*MonsterDef
 	Player               PlayerBase
-	Map                  *MapData
+	Map                  *MapData // dev training map (kept for engine tests)
+	Maps                 map[string]*MapData
+	StartMap             string
 	Items                map[string]*ItemTemplate
 	Drops                map[string]*DropTable // by monster id
 	MinContributionShare float64
@@ -371,10 +388,13 @@ func (c *Content) Power(id string) *PowerDef {
 	return nil
 }
 
+// NPC finds an NPC by id on any map (first match).
 func (c *Content) NPC(id string) *NPC {
-	for i := range c.Map.NPCs {
-		if c.Map.NPCs[i].ID == id {
-			return &c.Map.NPCs[i]
+	for _, m := range c.Maps {
+		for i := range m.NPCs {
+			if m.NPCs[i].ID == id {
+				return &m.NPCs[i]
+			}
 		}
 	}
 	return nil
@@ -415,6 +435,8 @@ type tiledMap struct {
 			Name       string  `json:"name"`
 			Type       string  `json:"type"`
 			X          float64 `json:"x"`
+			Width      float64 `json:"width"`
+			Height     float64 `json:"height"`
 			Y          float64 `json:"y"`
 			Properties []struct {
 				Name  string `json:"name"`
@@ -432,6 +454,10 @@ func parseMap(t tiledMap) (*MapData, error) {
 			m.MapID = fmt.Sprint(p.Value)
 		case "displayName":
 			m.DisplayName = fmt.Sprint(p.Value)
+		case "kind":
+			m.Kind = fmt.Sprint(p.Value)
+		case "pvpPolicy":
+			m.PvPPolicy = fmt.Sprint(p.Value)
 		}
 	}
 	foundSpawn := false
@@ -450,6 +476,21 @@ func parseMap(t tiledMap) (*MapData, error) {
 				case "player_spawn":
 					m.PlayerSpawn = [2]float64{o.X, o.Y}
 					foundSpawn = true
+				case "portal":
+					pt := Portal{ID: o.Name, X: o.X, Y: o.Y, W: o.Width, H: o.Height}
+					for _, p := range o.Properties {
+						switch p.Name {
+						case "targetMap":
+							pt.TargetMap = fmt.Sprint(p.Value)
+						case "label":
+							pt.Label = fmt.Sprint(p.Value)
+						case "targetX":
+							pt.TargetX, _ = p.Value.(float64)
+						case "targetY":
+							pt.TargetY, _ = p.Value.(float64)
+						}
+					}
+					m.Portals = append(m.Portals, pt)
 				case "npc":
 					n := NPC{X: o.X, Y: o.Y}
 					for _, p := range o.Properties {
@@ -518,15 +559,42 @@ func Load(dir string) (*Content, error) {
 	if err := readJSON(dir, "weapons/player-base.json", &c.Player); err != nil {
 		return nil, err
 	}
-	var tm tiledMap
-	if err := readJSON(dir, "maps/training-ground.json", &tm); err != nil {
+	var index struct {
+		StartMap string `json:"startMap"`
+		Maps     []struct {
+			ID   string `json:"id"`
+			File string `json:"file"`
+			Core bool   `json:"core"`
+			Kind string `json:"kind"`
+		} `json:"maps"`
+	}
+	if err := readJSON(dir, "maps/maps.json", &index); err != nil {
 		return nil, err
 	}
-	m, err := parseMap(tm)
-	if err != nil {
-		return nil, err
+	c.Maps = map[string]*MapData{}
+	c.StartMap = index.StartMap
+	for _, e := range index.Maps {
+		var tm tiledMap
+		if err := readJSON(dir, "maps/"+e.File, &tm); err != nil {
+			return nil, err
+		}
+		m, err := parseMap(tm)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", e.File, err)
+		}
+		if m.MapID != e.ID {
+			return nil, fmt.Errorf("%s: mapId %s != index id %s", e.File, m.MapID, e.ID)
+		}
+		m.Core = e.Core
+		if m.Kind == "" {
+			m.Kind = e.Kind
+		}
+		c.Maps[m.MapID] = m
 	}
-	c.Map = m
+	c.Map = c.Maps["DEV-TRAINING-01"]
+	if c.Map == nil || c.Maps[c.StartMap] == nil {
+		return nil, fmt.Errorf("maps.json must include DEV-TRAINING-01 and the start map")
+	}
 	var it struct {
 		Items []ItemTemplate `json:"items"`
 	}
@@ -637,6 +705,44 @@ func (c *Content) Validate() []string {
 		if c.Items[r.Output.ItemID] == nil {
 			errs = append(errs, "recipe "+r.ID+" unknown output")
 		}
+	}
+	cities, farms := 0, 0
+	for id, m := range c.Maps {
+		if m.Core {
+			switch m.Kind {
+			case "city":
+				cities++
+			case "farm":
+				farms++
+			default:
+				errs = append(errs, "core map "+id+" must be city or farm")
+			}
+		}
+		for _, s := range m.MonsterSpawns {
+			if c.Monsters[s.MonsterID] == nil {
+				errs = append(errs, id+": spawn "+s.ID+" references unknown monster "+s.MonsterID)
+			}
+		}
+		for _, pt := range m.Portals {
+			t := c.Maps[pt.TargetMap]
+			if t == nil {
+				errs = append(errs, id+": portal "+pt.ID+" targets unknown map "+pt.TargetMap)
+				continue
+			}
+			tx, ty := int(pt.TargetX/t.TileSize), int(pt.TargetY/t.TileSize)
+			if tx < 0 || ty < 0 || tx >= t.Width || ty >= t.Height || t.Collision[ty*t.Width+tx] == 1 {
+				errs = append(errs, id+": portal "+pt.ID+" lands inside a wall of "+t.MapID)
+			}
+		}
+		for _, n := range m.NPCs {
+			if n.ID == "" || m.Collision[int(n.Y/m.TileSize)*m.Width+int(n.X/m.TileSize)] == 1 {
+				errs = append(errs, id+": npc "+n.Name+" invalid or inside a wall")
+			}
+		}
+	}
+	// LOCKED §2.9: at most 2 cities + 30 farms (exactly 32 by Phase 7)
+	if cities > 2 || farms > 30 {
+		errs = append(errs, fmt.Sprintf("core maps exceed 2 cities/30 farms: %d/%d", cities, farms))
 	}
 	for _, n := range c.Map.NPCs {
 		if n.ID == "" || c.Map.Collision[int(n.Y/c.Map.TileSize)*c.Map.Width+int(n.X/c.Map.TileSize)] == 1 {

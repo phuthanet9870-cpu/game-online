@@ -66,18 +66,17 @@ for (let y = 15; y < 19; y++) set(11, y, T.WALL, 1);
 
 const objects = [
   { id: 1, name: 'player_spawn', type: 'player_spawn', x: 7 * TS + 8, y: 19 * TS + 8 },
-  // Phase 3 stand-in for the city NPC (moves to Aetheria Capital in Phase 4)
+  // Phase 4: The Severer moved to Aetheria Capital; this dev map links back to the city
   {
-    id: 2,
-    name: 'npc_severer',
-    type: 'npc',
-    x: 4 * TS + 8,
-    y: 16 * TS + 8,
+    id: 2, name: 'to_city', type: 'portal', x: 2 * TS, y: 23 * TS, width: TS * 2, height: TS * 3,
     properties: [
-      { name: 'npcId', type: 'string', value: 'severer' },
-      { name: 'displayName', type: 'string', value: 'The Severer' },
+      { name: 'targetMap', type: 'string', value: 'CITY-AETHERIA' },
+      { name: 'targetX', type: 'float', value: 31 * TS + 8 },
+      { name: 'targetY', type: 'float', value: 35 * TS + 8 },
+      { name: 'label', type: 'string', value: '← Aetheria Capital' },
     ],
   },
+
   ...[
     [20, 18],
     [24, 23],

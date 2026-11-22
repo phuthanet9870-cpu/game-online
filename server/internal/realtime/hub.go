@@ -40,7 +40,7 @@ func DefaultConfig() Config {
 type Store interface {
 	ApplyReward(ctx context.Context, r store.Reward) error
 	ConsumeItem(ctx context.Context, txID string, charID int64, templateID string, qty int, reason string) error
-	SaveState(ctx context.Context, charID int64, x, y float64, hp int) error
+	SaveState(ctx context.Context, charID int64, mapID string, x, y float64, hp int) error
 	Audit(ctx context.Context, e store.AuditEntry) error
 	BindPower(ctx context.Context, txID string, charID int64, powerID, fruitItemID string, loadout []byte) error
 	UnbindPower(ctx context.Context, txID string, charID int64, powerID string) error
@@ -104,6 +104,7 @@ type session struct {
 	auto       game.AutoState
 	autoCfg    game.AutoSettings
 	manualMove bool
+	mapID      string
 }
 
 type JoinRequest struct {
@@ -137,7 +138,8 @@ type Hub struct {
 	lootRng    *game.Rng
 	inbox      chan any
 	sessions   map[string]*session
-	pending    []game.Event
+	pending    map[string][]game.Event // per map
+	worlds     map[string]*game.World  // one authoritative instance per map
 	tick       uint64
 	lastSave   time.Time
 	Online     atomic.Int32
@@ -157,14 +159,42 @@ func NewHub(cfg Config, c *content.Content, st Store, persist *Persister, log *s
 	seed := uint32(time.Now().UnixNano())
 	h := &Hub{
 		cfg: cfg, c: c, st: st, persist: persist, log: log,
-		world:      game.NewWorld(c, seed),
 		instanceID: randomID(6),
 		lootRng:    game.NewRng(seed ^ 0x9e3779b9),
 		inbox:      make(chan any, 4096),
 		sessions:   map[string]*session{},
+		pending:    map[string][]game.Event{},
+		worlds:     map[string]*game.World{},
 	}
-	h.world.ConsumeItem = h.consumeItem
+	i := uint32(0)
+	for id, m := range c.Maps {
+		i++
+		w := game.NewWorldForMap(c, m, seed+i*7919)
+		w.ConsumeItem = h.consumeItem
+		h.worlds[id] = w
+	}
+	h.world = h.worlds[c.StartMap]
 	return h
+}
+
+// use switches the hub's current world to the session's map (single loop goroutine — no races).
+func (h *Hub) use(s *session) *game.World {
+	if w := h.worlds[s.mapID]; w != nil {
+		h.world = w
+	}
+	return h.world
+}
+
+// World returns the instance for a map id (tests / GM tools).
+func (h *Hub) World(mapID string) *game.World { return h.worlds[mapID] }
+
+func (h *Hub) sortedMaps() []string {
+	ids := make([]string, 0, len(h.worlds))
+	for id := range h.worlds {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids
 }
 
 func (h *Hub) InstanceID() string { return h.instanceID }
@@ -234,6 +264,7 @@ func (h *Hub) handle(m any) {
 		v.Reply <- h.join(v)
 	case leave:
 		if s := h.sessions[v.pid]; s != nil && s.client == v.client {
+			h.use(s)
 			s.client = nil
 			if p := h.world.Player(v.pid); p != nil {
 				p.Connected = false
@@ -244,6 +275,7 @@ func (h *Hub) handle(m any) {
 		}
 	case inbound:
 		if s := h.sessions[v.pid]; s != nil && s.client == v.client {
+			h.use(s)
 			h.onMessage(s, v.msg)
 		}
 	}
@@ -255,6 +287,7 @@ func (h *Hub) join(r JoinRequest) error {
 	s := h.sessions[pid]
 	if s != nil {
 		// Reconnect / refresh / second login: in-memory state is authoritative and kept.
+		h.use(s)
 		if s.client != nil {
 			h.send(s.client, map[string]any{"t": "kicked", "reason": "เข้าสู่ระบบจากที่อื่น"})
 			s.client.closed.Store(true)
@@ -272,12 +305,17 @@ func (h *Hub) join(r JoinRequest) error {
 			pid: pid, charID: ch.ID, accountID: r.Account.ID, role: r.Account.Role, name: ch.Name, weapon: ch.Weapon,
 			client: r.Client, inv: map[string]int{}, gold: ch.Gold, xp: ch.XP, level: ch.Level,
 			chatBucket: ratelimit.NewBucket(5, 0.5), inBucket: ratelimit.NewBucket(60, 40),
+			mapID: h.c.StartMap,
 		}
+		if m := h.c.Maps[ch.MapID]; m != nil && (m.Core || m.Kind == "dev") {
+			s.mapID = ch.MapID // instance maps (dungeon/arena) are never resumed: back to the city
+		}
+		h.use(s)
 		for _, it := range r.Items {
 			s.inv[it.TemplateID] += it.Quantity
 		}
 		init := game.PlayerInit{ID: pid, CharacterID: ch.ID, Name: ch.Name, WeaponID: ch.Weapon, Level: ch.Level}
-		if ch.PosX != nil && ch.PosY != nil {
+		if ch.PosX != nil && ch.PosY != nil && s.mapID == ch.MapID {
 			init.Pos = &game.Vec{X: float64(*ch.PosX), Y: float64(*ch.PosY)}
 		}
 		if ch.Hp != nil && *ch.Hp > 0 {
@@ -294,7 +332,7 @@ func (h *Hub) join(r JoinRequest) error {
 	h.send(s.client, map[string]any{
 		"t": "welcome", "instance": h.instanceID, "serverTime": h.world.Time, "tickMs": 1000 / h.cfg.TickHz,
 		"you": map[string]any{"id": pid, "charId": ch.ID, "name": s.name, "level": s.level, "weapon": p.Weapon.ID},
-		"map": h.c.Map.MapID, "testWorld": h.cfg.TestWorld,
+		"map": s.mapID, "testWorld": h.cfg.TestWorld,
 	})
 	h.sendInventory(s)
 	h.sendPower(s)
@@ -526,18 +564,26 @@ func (h *Hub) gmCommand(s *session, args []string) {
 /* -------------------------------------------------------------------- tick */
 
 func (h *Hub) step(dt float64) {
-	inputs := make(map[string]game.Input, len(h.sessions))
-	for pid, s := range h.sessions {
-		in := game.Input{Move: s.move, Aim: s.aim, Actions: s.actions}
-		if s.auto.Enabled {
-			in = h.autoInput(s, in)
+	for _, id := range h.sortedMaps() {
+		w := h.worlds[id]
+		h.world = w
+		inputs := map[string]game.Input{}
+		for pid, s := range h.sessions {
+			if s.mapID != id {
+				continue
+			}
+			in := game.Input{Move: s.move, Aim: s.aim, Actions: s.actions}
+			if s.auto.Enabled {
+				in = h.autoInput(s, in)
+			}
+			inputs[pid] = in
+			s.actions, s.aim = nil, nil
 		}
-		inputs[pid] = in
-		s.actions, s.aim = nil, nil
+		w.Step(dt, inputs)
+		h.pending[id] = append(h.pending[id], w.DrainEvents()...)
+		h.processRewards()
 	}
-	h.world.Step(dt, inputs)
-	h.pending = append(h.pending, h.world.DrainEvents()...)
-	h.processRewards()
+	h.checkPortals()
 	h.tick++
 	if h.tick%uint64(h.cfg.SnapshotEvery) == 0 {
 		h.broadcastSnapshots()
@@ -547,6 +593,7 @@ func (h *Hub) step(dt float64) {
 		if s.client != nil {
 			continue
 		}
+		h.use(s)
 		p := h.world.Player(pid)
 		if p == nil || h.world.Time-p.DisconnectedAt >= h.cfg.GraceMs {
 			if s.auto.Enabled {
@@ -562,9 +609,49 @@ func (h *Hub) step(dt float64) {
 	if time.Since(h.lastSave) >= h.cfg.SaveEvery {
 		h.lastSave = time.Now()
 		for _, s := range h.sessions {
+			h.use(s)
 			h.saveState(s)
 		}
 	}
+}
+
+// checkPortals moves connected, living players who stand in a portal to the target map.
+func (h *Hub) checkPortals() {
+	for _, s := range h.sessions {
+		if s.client == nil {
+			continue
+		}
+		w := h.use(s)
+		p := w.Player(s.pid)
+		if p == nil || !p.Alive() {
+			continue
+		}
+		pt := w.PortalAt(p)
+		if pt == nil || h.worlds[pt.TargetMap] == nil {
+			continue
+		}
+		h.transfer(s, pt.TargetMap, game.Vec{X: pt.TargetX, Y: pt.TargetY})
+	}
+}
+
+// transfer moves a session's player object (all live state kept) to another map instance.
+func (h *Hub) transfer(s *session, mapID string, pos game.Vec) {
+	from := h.use(s)
+	if s.auto.Enabled {
+		r := s.auto.Stop(from.Time, "map-change")
+		h.sendAuto(s, &r)
+	}
+	p := from.TransferOut(s.pid)
+	if p == nil {
+		return
+	}
+	s.mapID = mapID
+	to := h.use(s)
+	to.TransferIn(p, pos)
+	s.move = game.Vec{}
+	m := h.c.Maps[mapID]
+	h.send(s.client, map[string]any{"t": "map", "map": mapID, "name": m.DisplayName, "kind": m.Kind, "pos": p.Pos})
+	h.saveState(s)
 }
 
 func (h *Hub) saveState(s *session) {
@@ -577,7 +664,11 @@ func (h *Hub) saveState(s *session) {
 		sp := h.world.SpawnPoint()
 		x, y, hp = sp.X, sp.Y, int(p.MaxHp)
 	}
-	h.persist.Enqueue(fmt.Sprintf("save:%d", id), func(ctx context.Context) error { return h.st.SaveState(ctx, id, x, y, hp) })
+	mapID := s.mapID
+	if m := h.c.Maps[mapID]; m == nil || !(m.Core || m.Kind == "dev") {
+		mapID, x, y = h.c.StartMap, h.c.Maps[h.c.StartMap].PlayerSpawn[0], h.c.Maps[h.c.StartMap].PlayerSpawn[1]
+	}
+	h.persist.Enqueue(fmt.Sprintf("save:%d", id), func(ctx context.Context) error { return h.st.SaveState(ctx, id, mapID, x, y, hp) })
 	h.saveProficiency(s)
 }
 
@@ -724,6 +815,9 @@ func (h *Hub) kick(s *session, reason string) {
 	if s.client == nil {
 		return
 	}
+	prev := h.world
+	defer func() { h.world = prev }()
+	h.use(s)
 	h.send(s.client, map[string]any{"t": "kicked", "reason": reason})
 	c := s.client
 	c.closed.Store(true)
@@ -826,6 +920,13 @@ func viewOf(p *game.Player) playerView {
 }
 
 func (h *Hub) broadcastSnapshots() {
+	for _, id := range h.sortedMaps() {
+		h.world = h.worlds[id]
+		h.broadcastMapSnapshot(id)
+	}
+}
+
+func (h *Hub) broadcastMapSnapshot(mapID string) {
 	players := h.world.Players()
 	pv := make([]playerView, 0, len(players))
 	for _, p := range players {
@@ -840,17 +941,17 @@ func (h *Hub) broadcastSnapshots() {
 	sharedMonsters, _ := json.Marshal(mv)
 	var public []game.Event
 	private := map[string][]game.Event{}
-	for _, e := range h.pending {
+	for _, e := range h.pending[mapID] {
 		if e.Only != "" {
 			private[e.Only] = append(private[e.Only], e)
 		} else {
 			public = append(public, e)
 		}
 	}
-	h.pending = nil
+	h.pending[mapID] = nil
 	cdIDs := []string{"dash", "potion"}
 	for pid, s := range h.sessions {
-		if s.client == nil {
+		if s.client == nil || s.mapID != mapID {
 			continue
 		}
 		p := h.world.Player(pid)
@@ -911,6 +1012,7 @@ func (h *Hub) broadcastSnapshots() {
 
 func (h *Hub) shutdown() {
 	for _, s := range h.sessions {
+		h.use(s)
 		h.saveState(s)
 		if s.client != nil {
 			h.send(s.client, map[string]any{"t": "kicked", "reason": "เซิร์ฟเวอร์ปิดปรับปรุง"})

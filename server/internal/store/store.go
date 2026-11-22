@@ -293,8 +293,8 @@ func (s *Store) Items(ctx context.Context, charID int64) ([]ItemStack, error) {
 	return out, rows.Err()
 }
 
-func (s *Store) SaveState(ctx context.Context, charID int64, x, y float64, hp int) error {
-	_, err := s.DB.Exec(ctx, `update characters set pos_x = $2, pos_y = $3, hp = $4, version = version + 1 where id = $1`, charID, x, y, hp)
+func (s *Store) SaveState(ctx context.Context, charID int64, mapID string, x, y float64, hp int) error {
+	_, err := s.DB.Exec(ctx, `update characters set map_id = $2, pos_x = $3, pos_y = $4, hp = $5, version = version + 1 where id = $1`, charID, mapID, x, y, hp)
 	return err
 }
 

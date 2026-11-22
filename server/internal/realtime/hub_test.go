@@ -35,7 +35,7 @@ func (f *fakeStore) ApplyReward(_ context.Context, r store.Reward) error {
 func (f *fakeStore) ConsumeItem(context.Context, string, int64, string, int, string) error {
 	return nil
 }
-func (f *fakeStore) SaveState(context.Context, int64, float64, float64, int) error {
+func (f *fakeStore) SaveState(context.Context, int64, string, float64, float64, int) error {
 	f.mu.Lock()
 	f.saves++
 	f.mu.Unlock()
@@ -64,7 +64,7 @@ func newTestHub(t *testing.T) (*Hub, *fakeStore, *Persister) {
 
 func join(t *testing.T, h *Hub, charID int64, role string) *Client {
 	c := NewClient(func(string) {})
-	err := h.join(JoinRequest{Account: &store.Account{ID: charID, Role: role}, Character: &store.Character{ID: charID, Name: "P" + string(rune('A'+charID)), Weapon: "sword", Level: 1},
+	err := h.join(JoinRequest{Account: &store.Account{ID: charID, Role: role}, Character: &store.Character{ID: charID, Name: "P" + string(rune('A'+charID)), Weapon: "sword", Level: 1, MapID: "DEV-TRAINING-01"},
 		Items: []store.ItemStack{{TemplateID: "CON-001", Quantity: 1}}, Client: c})
 	if err != nil {
 		t.Fatal(err)
@@ -156,14 +156,14 @@ func TestReconnectKeepsInMemoryStateAndKicksOldSocket(t *testing.T) {
 	old := join(t, h, 1, "player")
 	s := h.sessions["c1"]
 	s.gold = 42
-	h.world.Player("c1").Pos.X += 10
-	x := h.world.Player("c1").Pos.X
+	h.World("DEV-TRAINING-01").Player("c1").Pos.X += 10
+	x := h.World("DEV-TRAINING-01").Player("c1").Pos.X
 	h.handle(leave{"c1", old})
-	if h.world.Player("c1").Connected {
+	if h.World("DEV-TRAINING-01").Player("c1").Connected {
 		t.Fatal("should be in grace")
 	}
 	join(t, h, 1, "player")
-	if h.sessions["c1"].gold != 42 || h.world.Player("c1").Pos.X != x || !h.world.Player("c1").Connected {
+	if h.sessions["c1"].gold != 42 || h.World("DEV-TRAINING-01").Player("c1").Pos.X != x || !h.World("DEV-TRAINING-01").Player("c1").Connected {
 		t.Fatal("state not preserved on reconnect")
 	}
 }
@@ -187,9 +187,9 @@ func TestGraceExpiryRemovesAndSaves(t *testing.T) {
 func TestKillRewardPersistsOncePerContributor(t *testing.T) {
 	h, fs, p := newTestHub(t)
 	join(t, h, 1, "player")
-	pl := h.world.Player("c1")
+	pl := h.World("DEV-TRAINING-01").Player("c1")
 	pl.GodMode = true
-	m := h.world.Monsters[0]
+	m := h.World("DEV-TRAINING-01").Monsters[0]
 	pl.Pos = m.Pos
 	pl.Pos.X -= 20
 	s := h.sessions["c1"]

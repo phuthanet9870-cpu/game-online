@@ -274,6 +274,7 @@ type KillReward struct {
 }
 
 type World struct {
+	Map         *content.MapData
 	Time        float64
 	Grid        *Grid
 	C           *content.Content
@@ -294,9 +295,12 @@ type World struct {
 	defenseK, maxDamage float64
 }
 
-func NewWorld(c *content.Content, seed uint32) *World {
-	m := c.Map
+func NewWorld(c *content.Content, seed uint32) *World { return NewWorldForMap(c, c.Map, seed) }
+
+// NewWorldForMap creates an authoritative instance of one map (core map, dungeon or arena instance).
+func NewWorldForMap(c *content.Content, m *content.MapData, seed uint32) *World {
 	w := &World{
+		Map:       m,
 		Grid:      NewGrid(m.Width, m.Height, m.TileSize, m.Collision),
 		C:         c,
 		Rng:       NewRng(seed),
@@ -1741,10 +1745,53 @@ func (w *World) pushApart(m *Monster, other Vec, minDist, share float64) {
 	m.Pos, _, _ = w.Grid.MoveWithCollision(m.Pos, n.Scale(push), m.Def.Radius-1)
 }
 
-// NearNPC reports whether the player stands within interaction range of a map NPC.
+// NearNPC reports whether the player stands within interaction range of an NPC on this map.
 func (w *World) NearNPC(p *Player, npcID string, rangePx float64) bool {
-	n := w.C.NPC(npcID)
-	return n != nil && Dist(p.Pos, Vec{n.X, n.Y}) <= rangePx
+	for _, n := range w.Map.NPCs {
+		if n.ID == npcID && Dist(p.Pos, Vec{n.X, n.Y}) <= rangePx {
+			return true
+		}
+	}
+	return false
+}
+
+// PortalAt returns the portal the player currently stands in, if any.
+func (w *World) PortalAt(p *Player) *content.Portal {
+	for i := range w.Map.Portals {
+		if w.Map.Portals[i].Contains(p.Pos.X, p.Pos.Y) {
+			return &w.Map.Portals[i]
+		}
+	}
+	return nil
+}
+
+// TransferOut removes a player for a map change and returns the live object (state is kept).
+func (w *World) TransferOut(id string) *Player {
+	p := w.players[id]
+	if p == nil {
+		return nil
+	}
+	w.RemovePlayer(id)
+	p.action, p.dash, p.buffered = nil, nil, nil
+	p.Moving = false
+	return p
+}
+
+// TransferIn places an existing player object into this map at pos (with brief spawn protection).
+func (w *World) TransferIn(p *Player, pos Vec) {
+	if w.Grid.BoxCollides(pos.X, pos.Y, w.C.Player.Radius) {
+		pos = w.spawn
+	}
+	p.Pos = pos
+	p.InvulnerableUntil = w.Time + 1000
+	p.SpawnProtectedUntil = p.InvulnerableUntil
+	p.LastCombatAt = math.Inf(-1)
+	if p.CharState == "IN_COMBAT" {
+		p.CharState = "IN_WORLD"
+	}
+	w.players[p.ID] = p
+	w.order = append(w.order, p.ID)
+	sort.Strings(w.order)
 }
 
 /* ---------------------------------------------------------------- loot roll */
