@@ -262,7 +262,7 @@ export function buildField(seed = 1337): GameMap {
 }
 
 // ───────────────────────── PROCEDURAL DUNGEON ─────────────────────────
-export interface DungeonOptions { seed: number; level: number; floor?: number; difficulty: string }
+export interface DungeonOptions { seed: number; level: number; floor?: number; difficulty: string; layout?: 'rift' | 'tower'; boss?: string; modifiers?: string[] }
 
 export function generateDungeon(opts: DungeonOptions): GameMap {
   // Retry until a layout passes validation (bounded; generator is deterministic per seed+attempt).
@@ -280,7 +280,8 @@ function tryGenerate(opts: DungeonOptions, attempt: number): GameMap | null {
   const w = GW * CS + 2, h = GH * CS + 2;
   const tiles = new Array(w * h).fill(0);
   // main path random walk
-  const mainLen = rng.int(6, 7);
+  const tower = opts.layout === 'tower';
+  const mainLen = tower ? rng.int(3, 4) : rng.int(6, 7);
   const occupied = new Map<string, number>();
   const cells: Array<[number, number]> = [];
   let cx = rng.int(0, GW - 1), cy = GH - 1;
@@ -297,12 +298,12 @@ function tryGenerate(opts: DungeonOptions, attempt: number): GameMap | null {
   }
   const edges: Array<[number, number]> = [];
   for (let i = 1; i < cells.length; i++) edges.push([i - 1, i]);
-  const types: RoomType[] = cells.map((_, i) => (i === 0 ? 'entry' : i === cells.length - 1 ? 'boss' : i === cells.length - 2 ? 'miniboss' : 'combat'));
+  const types: RoomType[] = cells.map((_, i) => (i === 0 ? 'entry' : i === cells.length - 1 ? 'boss' : i === cells.length - 2 && !tower ? 'miniboss' : 'combat'));
   // upgrade one main combat room to elite
   const combatIdx = types.map((t, i) => (t === 'combat' ? i : -1)).filter((i) => i > 0);
   if (combatIdx.length) types[rng.pick(combatIdx)] = 'elite';
   // side branches
-  const sideTypes: RoomType[] = rng.shuffle(['treasure', 'shrine', 'rest', 'event', 'elite'] as RoomType[]).slice(0, rng.int(2, 4));
+  const sideTypes: RoomType[] = tower ? ((opts.floor ?? 1) % 3 === 0 ? ['shrine', 'rest'] : []) : rng.shuffle(['treasure', 'shrine', 'rest', 'event', 'elite'] as RoomType[]).slice(0, rng.int(2, 4));
   for (const st of sideTypes) {
     const hosts = cells.map((c, i) => ({ c, i })).filter(({ i }) => types[i] !== 'boss' && types[i] !== 'entry');
     rng.shuffle(hosts);
@@ -349,7 +350,7 @@ function tryGenerate(opts: DungeonOptions, attempt: number): GameMap | null {
   const P = (tx: number, ty: number) => ({ x: tx * TILE + TILE / 2, y: ty * TILE + TILE / 2 });
   const map: GameMap = {
     id: `dungeon_${opts.seed}`, theme: 'dungeon', w, h, tiles, spawn: P(rooms[0]!.cx, rooms[0]!.cy), interactables: [], spawns: [], rooms, edges, seed: opts.seed,
-    modifiers: rng.shuffle(DUNGEON_MODIFIERS.map((d) => d.id)).slice(0, rng.int(1, 2)), level: opts.level,
+    modifiers: opts.modifiers ?? (tower ? [] : rng.shuffle(DUNGEON_MODIFIERS.map((d) => d.id)).slice(0, rng.int(1, 2))), level: opts.level,
   };
   // populate
   const roomFloor = (r: RoomInfo, margin = 2): [number, number] => {
@@ -372,7 +373,7 @@ function tryGenerate(opts: DungeonOptions, attempt: number): GameMap | null {
       case 'combat': pack(r, rng.int(4, 6)); break;
       case 'elite': { const [tx, ty] = roomFloor(r); map.spawns.push({ enemy: 'hollow_brute', ...P(tx, ty), room: r.id, elite: true }); pack(r, rng.int(3, 4)); break; }
       case 'miniboss': map.spawns.push({ enemy: 'hollow_captain', ...P(r.cx, r.cy), room: r.id }); pack(r, 2); break;
-      case 'boss': map.spawns.push({ enemy: 'veyra', ...P(r.cx, r.cy - 2), room: r.id }); break;
+      case 'boss': map.spawns.push({ enemy: opts.boss ?? 'veyra', ...P(r.cx, r.cy - 2), room: r.id }); if (tower) pack(r, 2); break;
       case 'treasure': map.interactables.push({ id: `chest${r.id}`, type: 'chest', name: 'Eclipse Coffer', ...P(r.cx, r.cy), room: r.id }); pack(r, 2); break;
       case 'shrine': map.interactables.push({ id: `shrine${r.id}`, type: 'shrine', name: 'Astral Shrine', ...P(r.cx, r.cy), room: r.id }); break;
       case 'rest': map.interactables.push({ id: `fountain${r.id}`, type: 'fountain', name: 'Moonwell', ...P(r.cx, r.cy), room: r.id }); break;
@@ -380,6 +381,71 @@ function tryGenerate(opts: DungeonOptions, attempt: number): GameMap | null {
       default: break;
     }
   }
+  return map;
+}
+
+// ───────────────────────── ANCIENT LABYRINTH (maze) ─────────────────────────
+/** Recursive-backtracker maze with 3-tile corridors; the Warden waits in the cell farthest from the entry. */
+export function generateLabyrinth(seed: number, level: number): GameMap {
+  const rng = new Rng(seed ^ 0x4c414259);
+  const CW = 11, CH = 9, CELL = 5; // each maze cell = 5 tiles (3 floor + 2 wall)
+  const w = CW * CELL + 1, h = CH * CELL + 1;
+  const tiles = new Array(w * h).fill(0);
+  const open = (cx: number, cy: number) => { for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) tiles[(cy * CELL + 1 + y) * w + cx * CELL + 1 + x] = 5; };
+  const seen = new Set<number>([0]);
+  const stack: Array<[number, number]> = [[0, CH - 1]];
+  seen.clear(); seen.add((CH - 1) * CW);
+  open(0, CH - 1);
+  const depth = new Map<number, number>([[(CH - 1) * CW, 0]]);
+  while (stack.length) {
+    const [cx, cy] = stack[stack.length - 1]!;
+    const nb = ([[1, 0], [-1, 0], [0, 1], [0, -1]] as const).map(([dx, dy]) => [cx + dx, cy + dy] as [number, number]).filter(([x, y]) => x >= 0 && y >= 0 && x < CW && y < CH && !seen.has(y * CW + x));
+    if (!nb.length) { stack.pop(); continue; }
+    const [nx, ny] = rng.pick(nb);
+    seen.add(ny * CW + nx);
+    depth.set(ny * CW + nx, depth.get(cy * CW + cx)! + 1);
+    open(nx, ny);
+    // knock out the wall between cells (3 wide passage + corner)
+    const x0 = Math.min(cx, nx) * CELL + 1, y0 = Math.min(cy, ny) * CELL + 1;
+    if (nx !== cx) for (let y = 0; y < 4; y++) for (let x = 0; x < CELL + 4; x++) tiles[(y0 + y) * w + x0 + x] = 5;
+    else for (let y = 0; y < CELL + 4; y++) for (let x = 0; x < 4; x++) tiles[(y0 + y) * w + x0 + x] = 5;
+    stack.push([nx, ny]);
+  }
+  // a few loops so it is not a pure tree
+  for (let i = 0; i < 8; i++) { const x = rng.int(1, CW - 2) * CELL, y = rng.int(1, CH - 2) * CELL + 1; for (let yy = 0; yy < 4; yy++) tiles[(y + yy) * w + x] = 5; }
+  let far = 0, fd = -1;
+  for (const [k, d] of depth) if (d > fd) { fd = d; far = k; }
+  const P = (cx: number, cy: number) => ({ x: (cx * CELL + 3) * TILE, y: (cy * CELL + 3) * TILE });
+  const bx = far % CW, by = Math.floor(far / CW);
+  // widen the warden's chamber
+  for (let y = -3; y <= 6; y++) for (let x = -3; x <= 6; x++) { const tx = bx * CELL + 1 + x, ty = by * CELL + 1 + y; if (tx > 0 && ty > 0 && tx < w - 1 && ty < h - 1) tiles[ty * w + tx] = 6; }
+  const map: GameMap = { id: `labyrinth_${seed}`, theme: 'dungeon', w, h, tiles, spawn: P(0, CH - 1), interactables: [], spawns: [], rooms: [
+    { id: 0, type: 'entry', x: 1, y: (CH - 1) * CELL + 1, w: 4, h: 4, cx: 3, cy: (CH - 1) * CELL + 3, cell: [0, CH - 1] },
+    { id: 1, type: 'boss', x: bx * CELL - 2, y: by * CELL - 2, w: 10, h: 10, cx: bx * CELL + 3, cy: by * CELL + 3, cell: [bx, by] },
+  ], edges: [[0, 1]], seed, modifiers: ['fortified'], level };
+  map.spawns.push({ enemy: 'labyrinth_warden', ...P(bx, by), room: 1 });
+  const cells = [...depth.keys()].filter((k) => k !== far && k !== (CH - 1) * CW);
+  rng.shuffle(cells);
+  cells.slice(0, 26).forEach((k, i) => {
+    const cx = k % CW, cy = Math.floor(k / CW), p = P(cx, cy);
+    if (i < 5) map.interactables.push({ id: `cache${i}`, type: 'chest', name: 'Ancient Cache', ...p });
+    else if (i === 5) map.interactables.push({ id: 'lab_shrine', type: 'shrine', name: 'Astral Shrine', ...p });
+    else map.spawns.push({ enemy: rng.weighted(['stone_sentry', 'hollow_grunt', 'hollow_hexer', 'hollow_archer'], (e) => (e === 'stone_sentry' ? 2 : 1)), x: p.x + rng.range(-20, 20), y: p.y + rng.range(-20, 20), elite: i % 7 === 0 });
+  });
+  return map;
+}
+
+// ───────────────────────── CHALLENGE ARENA / RAID ARENA ─────────────────────────
+export function buildArena(kind: 'arena' | 'raid', seed: number, level: number): GameMap {
+  const size = kind === 'raid' ? 34 : 26;
+  const w = size, h = size;
+  const tiles = new Array(w * h).fill(0);
+  const c = size / 2;
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) if (Math.hypot(x + 0.5 - c, y + 0.5 - c) < c - 1.2) tiles[y * w + x] = kind === 'raid' ? 6 : 5;
+  if (kind === 'arena') for (const [dx, dy] of [[-5, -5], [5, -5], [-5, 5], [5, 5]]) tiles[(c + dy!) * w + c + dx!] = 4;
+  const T = (tx: number, ty: number) => ({ x: tx * TILE + TILE / 2, y: ty * TILE + TILE / 2 });
+  const map: GameMap = { id: `${kind}_${seed}`, theme: 'dungeon', w, h, tiles, spawn: T(c, h - 4), interactables: [], spawns: [], rooms: [{ id: 0, type: kind === 'raid' ? 'boss' : 'combat', x: 1, y: 1, w: w - 2, h: h - 2, cx: c, cy: c, cell: [0, 0] }], edges: [], seed, modifiers: [], level };
+  if (kind === 'raid') map.spawns.push({ enemy: 'sovereign', ...T(c, c - 3), room: 0 });
   return map;
 }
 

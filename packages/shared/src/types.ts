@@ -169,7 +169,7 @@ export interface Item {
 
 export interface EnemyAttack {
   id: string;
-  kind: 'melee' | 'projectile' | 'slam' | 'nova' | 'summon' | 'eruption' | 'charge' | 'cleave';
+  kind: 'melee' | 'projectile' | 'slam' | 'nova' | 'summon' | 'eruption' | 'charge' | 'cleave' | 'eclipse';
   range: number;
   cooldown: number;
   windup: number;
@@ -200,6 +200,8 @@ export interface EnemyDef {
   attacks: EnemyAttack[];
   color: string;
   boss?: { phases: number[]; breakGauge: number; title: string };
+  /** Seconds after engaging before the boss enrages (damage ×1.8). */
+  enrage?: number;
   lootBonus?: number;
 }
 

@@ -61,7 +61,14 @@ Last updated: 2026-11-22 (v0.2.0 — Phase 4 MMO systems added on top of the Pha
 | Enemy families: Hollowborn (4 + mini-boss), Duskmeadow wildlife (3) | Implemented | |
 | Boss: Veyra — 3 phases, telegraphs, adds, nova, Break gauge | Tested | |
 | Quests: Chapter 1 (5 quests) + Chapter 2 hook | Implemented | |
-| Endless Tower, Nightmare Dungeon, Labyrinth, Raids, Eclipse Dimension, Arena | Not Started | Backlog B-4. |
+| Endless Tower (short floors, ×1.12 per floor, Veyra every 5th floor, best floor ranked) | Tested | Unit test of floor progression + scaling. |
+| Challenge Arena (escalating waves, champion waves, no respawn, revive allies, ranked) | Tested | Unit test + live bot run (4 waves, persisted leaderboard). |
+| Ancient Labyrinth (maze generator, caches, Oruk boss) | Tested | 60 seeds validated navigable. |
+| Nightmare Rift (3 hostile modifiers, ≥Hard, 10-min bonus cache, needs cleared Hard Rift) | Implemented | |
+| Raid: Eclipse Throne, 4-8 players, Nyx Aurelion (Total Eclipse safe-circle mechanic, adds, 3 phases, enrage 8 min, wipe rules) | Tested | Mechanic + wipe unit-tested. Never played by 4+ real people — tuning unverified. |
+| Leaderboards (tower, arena, level; Normal/Hardcore separate) | Tested | |
+| Eclipse Dimension | Not Started | Planned as a seasonal activity (Phase 6+). |
+| PvP | Not Started | Optional in the master prompt; not planned yet. |
 | World boss public event (Gloomheart in Duskmeadow, every ~5 min, scales with players) | Tested | Spawn tested; kill reward path shares the normal boss code. |
 | Seasons & weekly events | Not Started | Backlog B-6. |
 

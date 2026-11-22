@@ -1,4 +1,4 @@
-import { GameCore, PROTOCOL_VERSION, SIM_DT, createCharacter, emptyAccount, normalizeAccount, MAX_CHARACTERS, type AccountProgress, type CharacterData, type ClassId, type Guild, type Listing } from '@astra/shared';
+import { GameCore, PROTOCOL_VERSION, SIM_DT, createCharacter, emptyAccount, normalizeAccount, MAX_CHARACTERS, type AccountProgress, type CharacterData, type ClassId, type Guild, type LeaderRecord, type Listing } from '@astra/shared';
 
 export interface CharSummary { id: string; name: string; cls: ClassId; level: number; hardcore: boolean; dead: boolean; mastery: number }
 export interface Conn { send(msg: unknown): void; close(): void }
@@ -85,7 +85,7 @@ export class OfflineBackend implements Backend {
   private saveAccounts(a: Record<string, LocalAccount>) { store.set('astra.offline.accounts', JSON.stringify(a)); }
   private chars(): Record<string, CharacterData> { try { return JSON.parse(store.get('astra.offline.chars') ?? '{}'); } catch { return {}; } }
   private saveChars(c: Record<string, CharacterData>) { store.set('astra.offline.chars', JSON.stringify(c)); }
-  private shared(): { guilds: Record<string, Guild>; listings: Record<string, Listing> } { try { return { guilds: {}, listings: {}, ...JSON.parse(store.get('astra.offline.shared') ?? '{}') }; } catch { return { guilds: {}, listings: {} }; } }
+  private shared(): { guilds: Record<string, Guild>; listings: Record<string, Listing>; records: Record<string, LeaderRecord> } { try { return { guilds: {}, listings: {}, records: {}, ...JSON.parse(store.get('astra.offline.shared') ?? '{}') }; } catch { return { guilds: {}, listings: {}, records: {} }; } }
   private acct(): LocalAccount { const a = this.accounts()[this.user ?? '']; if (!a) throw new Error('Not logged in'); return a; }
   hasSession() { return !!this.user && !!this.accounts()[this.user]; }
   async register(u: string, p: string) {
@@ -140,16 +140,17 @@ export class OfflineBackend implements Backend {
       async transact(tx) {
         // localStorage writes are synchronous, so this block cannot interleave with other game code.
         if (tx.characters?.length) { const all = self.chars(); for (const c of tx.characters) if (all[c.id]) all[c.id] = JSON.parse(JSON.stringify(c)); self.saveChars(all); }
-        if (tx.listings?.length || tx.guilds?.length || tx.deleteGuilds?.length) {
+        if (tx.listings?.length || tx.guilds?.length || tx.deleteGuilds?.length || tx.records?.length) {
           const sh = self.shared();
           for (const l of tx.listings ?? []) sh.listings[l.id] = JSON.parse(JSON.stringify(l));
           for (const g of tx.guilds ?? []) sh.guilds[g.id] = JSON.parse(JSON.stringify(g));
           for (const id of tx.deleteGuilds ?? []) delete sh.guilds[id];
+          for (const r of tx.records ?? []) { const k = `${r.board}:${r.charId}`; if (!sh.records[k] || sh.records[k]!.value < r.value) sh.records[k] = r; }
           for (const [k, l] of Object.entries(sh.listings)) if (l.status === 'closed') delete sh.listings[k];
           store.set('astra.offline.shared', JSON.stringify(sh));
         }
       },
-      async loadShared() { const sh = self.shared(); return { guilds: Object.values(sh.guilds), listings: Object.values(sh.listings) }; },
+      async loadShared() { const sh = self.shared(); return { guilds: Object.values(sh.guilds), listings: Object.values(sh.listings), records: Object.values(sh.records) }; },
     }, { label: 'offline' });
     void this.core.init();
     const core = this.core;

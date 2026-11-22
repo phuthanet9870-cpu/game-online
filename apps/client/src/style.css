@@ -259,3 +259,4 @@ input[type=text], input[type=password], input[type=search], select { background:
 .trade-side.confirmed { border-color: var(--good); }
 .inv-grid.small { grid-template-columns: repeat(10, minmax(0, 1fr)); }
 @media (max-width: 560px) { .trade-grid { grid-template-columns: 1fr; } .inv-grid.small { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+.stats tr.me th, .stats tr.me td { color: var(--corona); }

@@ -14,3 +14,4 @@ export * from './data/enemies.js';
 export * from './data/dungeon.js';
 export * from './data/quests.js';
 export * from './economy.js';
+export * from './data/activities.js';

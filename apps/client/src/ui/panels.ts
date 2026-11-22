@@ -3,6 +3,7 @@ import {
   masteryToNext, sellValue, salvageValue, statLabel, xpToNext, AFFIX_MAP, type CharacterData, type EquipSlot, type Item, type AccountProgress,
 } from '@astra/shared';
 import { t, getLang, setLang } from '../i18n.js';
+import { ACTIVITIES, ACTIVITY_ORDER, type Activity } from '@astra/shared';
 import { BIND_LABELS, DEFAULT_BINDS, keyLabel, saveBinds, type Input } from '../input.js';
 import { clear, h, promptDialog, toast } from './dom.js';
 import { bindTip, hideTip, icon, itemTooltip, skillColor, skillTooltip } from './tooltip.js';
@@ -161,23 +162,46 @@ export function questsPanel(ctx: PanelCtx, atGiver: boolean): HTMLElement {
     }));
 }
 
-export function dungeonPanel(ctx: PanelCtx, unlocked: string[]): HTMLElement {
+export function dungeonPanel(ctx: PanelCtx, unlocked: string[], locks: Record<string, string | null> = {}): HTMLElement {
+  let mode: Activity = 'rift';
   let diff = unlocked.includes('normal') ? 'normal' : unlocked[0] ?? 'story';
   const info = h('div', { class: 'diff-info' });
+  const modeRow = h('div', { class: 'row wrap' });
+  const diffRow = h('div', { class: 'row wrap' });
+  const go = h('button', { class: 'btn primary wide' }, t('enterRift'));
   const render = () => {
+    const a = ACTIVITIES[mode];
+    const lock = locks[mode];
+    for (const b of Array.from(modeRow.children)) (b as HTMLElement).classList.toggle('on', (b as HTMLElement).dataset.m === mode);
+    diffRow.hidden = !a.chooseDifficulty;
+    for (const b of Array.from(diffRow.children)) (b as HTMLElement).classList.toggle('on', (b as HTMLElement).dataset.d === diff);
     const d = DIFFICULTIES[diff as keyof typeof DIFFICULTIES];
-    clear(info).append(h('h3', null, d.name), h('p', null, `Enemy life ×${d.hp} · damage ×${d.dmg} · telegraph speed ×${(1 / d.telegraphSpeed).toFixed(2)} · rarity bonus +${Math.round(d.loot * 100)}% · XP ×${d.xp}`),
-      h('p', null, `Elite affixes: ${d.eliteMods} · extra mechanics: ${d.extraMechanics.join(', ') || 'none'} · requires level ${d.minLevel}`));
-    for (const b of Array.from(btns.children)) (b as HTMLElement).classList.toggle('on', (b as HTMLElement).dataset.d === diff);
+    clear(info).append(h('h3', null, a.name), h('p', null, a.desc), h('p', { class: 'muted' }, a.rules),
+      h('p', { class: 'muted' }, `Party up to ${a.maxParty} · requires level ${a.minLevel}${a.needTier !== undefined ? ' and a cleared Hard Rift' : ''}`),
+      h('p', { hidden: !a.chooseDifficulty }, `${d.name}: enemy life ×${d.hp} · damage ×${d.dmg} · rarity +${Math.round(d.loot * 100)}% · XP ×${d.xp}${d.extraMechanics.length ? ' · ' + d.extraMechanics.join(', ') : ''}`),
+      h('p', { class: 'warn', hidden: !lock }, '🔒 ' + (lock ?? '')));
+    go.disabled = !!lock;
+    go.textContent = lock ? 'Locked' : `Enter ${a.name}`;
   };
-  const btns = h('div', { class: 'row wrap' }, DIFFICULTY_ORDER.map((d) => h('button', { class: 'btn', 'data-d': d, disabled: !unlocked.includes(d), onclick: () => { diff = d; render(); } }, DIFFICULTIES[d].name)));
+  for (const m of ACTIVITY_ORDER) modeRow.append(h('button', { class: 'btn', 'data-m': m, onclick: () => { mode = m; render(); } }, (locks[m] ? '🔒 ' : '') + ACTIVITIES[m].name));
+  for (const d of DIFFICULTY_ORDER) diffRow.append(h('button', { class: 'btn tiny', 'data-d': d, disabled: !unlocked.includes(d), onclick: () => { diff = d; render(); } }, DIFFICULTIES[d].name));
+  go.onclick = () => ctx.send({ t: 'enter_dungeon', diff, mode });
   render();
-  const party = ctx.party.members.length > 1 ? `Party of ${ctx.party.members.length}: members in town enter together (enemy life scales ×${(1 + 0.6 * (ctx.party.members.length - 1)).toFixed(1)}).` : 'Solo run. Invite friends from the Party panel (L) to enter together.';
+  const party = ctx.party.members.length > 1 ? `Party of ${ctx.party.members.length}: members in town enter together (enemy life ×${(1 + 0.6 * (ctx.party.members.length - 1)).toFixed(1)}).` : 'Solo. Invite friends from the Party panel (L) to enter together.';
+  return h('div', null, h('p', { class: 'muted' }, 'Choose an activity. Every instance is generated from a fresh seed. Items, gold and XP are kept; blessings last for one run.'),
+    modeRow, diffRow, info, h('p', { class: 'muted' }, party), go);
+}
+
+export function ladderPanel(data: any, ch: CharacterData, send: (m: any) => void): HTMLElement {
+  const boards: Array<[string, string, string]> = [['tower', 'Endless Tower', 'best floor'], ['arena', 'Challenge Arena', 'best wave'], ['level', 'Level', 'level']];
+  const mode = ch.hardcore ? 'hardcore' : 'normal';
   return h('div', null,
-    h('p', null, 'Each Rift is generated from a fresh seed: rooms, enemy packs, shrines, treasure and 1-2 dungeon modifiers. Clear the mini-boss and Veyra, the Umbral Warden, then take the exit. Blessings and bargains last for the run only; items, gold and XP are kept.'),
-    h('p', { class: 'muted' }, 'Possible modifiers: ' + DUNGEON_MODIFIERS.map((m) => m.name).join(', ')),
-    btns, info, h('p', { class: 'muted' }, party),
-    h('button', { class: 'btn primary wide', onclick: () => ctx.send({ t: 'enter_dungeon', diff }) }, t('enterRift')));
+    h('div', { class: 'row between' }, h('p', { class: 'muted' }, `${ch.hardcore ? 'Hardcore' : 'Normal'} leaderboards · top 20`), h('button', { class: 'btn ghost tiny', onclick: () => send({ t: 'ladder' }) }, 'Refresh')),
+    boards.map(([k, title, unit]) => {
+      const rows: any[] = data?.[k]?.[mode] ?? [];
+      return h('div', null, h('h3', null, title),
+        rows.length ? h('table', { class: 'stats' }, rows.map((r, i) => h('tr', { class: r.charId === ch.id ? 'me' : '' }, h('th', null, `#${i + 1} ${r.name}`), h('td', null, CLASSES[r.cls as keyof typeof CLASSES]?.name ?? r.cls), h('td', null, `${r.value} ${unit}`)))) : h('p', { class: 'muted' }, 'No entries yet.'));
+    }));
 }
 
 export function trainerPanel(ctx: PanelCtx): HTMLElement {
@@ -250,6 +274,8 @@ export function runEndModal(m: any, close: () => void): HTMLElement {
   return h('div', { class: 'modal-wrap' }, h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true' },
     h('h2', null, m.cleared ? t('runEnd') : t('runFailed')),
     h('p', { class: 'muted' }, `${DIFFICULTIES[m.difficulty as keyof typeof DIFFICULTIES]?.name} · seed ${m.seed}`),
+    m.mode === 'tower' ? h('p', null, `Endless Tower: reached floor ${m.floor}`) : null,
+    m.mode === 'arena' ? h('p', null, `Challenge Arena: survived ${m.wave} waves`) : null,
     h('h3', null, t('retained')), h('ul', null, h('li', null, `${m.retained.xp} XP`), h('li', null, `${m.retained.gold >= 0 ? '+' : ''}${m.retained.gold} gold`), h('li', null, `${m.retained.items} items picked up`), h('li', null, `${m.retained.kills} enemies defeated`)),
     h('h3', null, t('lost')), h('ul', null, m.lost.length ? m.lost.map((l: string) => h('li', null, l)) : h('li', { class: 'muted' }, 'No blessings or bargains taken')),
     h('button', { class: 'btn primary', onclick: close }, t('close'))));

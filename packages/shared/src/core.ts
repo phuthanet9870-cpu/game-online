@@ -12,10 +12,11 @@ import { decodeBuild } from './data/passives.js';
 import { ACHIEVEMENTS, QUESTS, QUEST_MAP } from './data/quests.js';
 import { generateItem, rollRarity } from './loot.js';
 import { Rng, dist } from './math.js';
-import { buildField, buildTown, generateDungeon, type GameMap } from './maps.js';
+import { buildArena, buildField, buildTown, generateDungeon, generateLabyrinth, type GameMap } from './maps.js';
+import { ACTIVITIES, ACTIVITY_ORDER, NIGHTMARE_MODS, towerScale, type Activity } from './data/activities.js';
 import type { AccountProgress, CharacterData, DifficultyId, EquipSlot } from './types.js';
 import { EQUIP_SLOTS, PROTOCOL_VERSION, STASH_SIZE } from './types.js';
-import { TICK_RATE, World, type WorldEvent } from './world.js';
+import { TICK_RATE, World, type WorldEvent, type WorldOptions } from './world.js';
 import * as EC from './economy.js';
 import type { Guild, Listing, TradeOffer } from './economy.js';
 import { TILE, reachableSet } from './maps.js';
@@ -27,9 +28,9 @@ export interface Persistence {
   /** Commit several objects in ONE transaction (trades, auction purchases, guild changes). */
   transact(tx: PersistTx): Promise<void>;
   /** Load shared world state (guilds, auction listings) at startup. */
-  loadShared(): Promise<{ guilds: Guild[]; listings: Listing[] }>;
+  loadShared(): Promise<{ guilds: Guild[]; listings: Listing[]; records?: LeaderRecord[] }>;
 }
-export interface PersistTx { characters?: CharacterData[]; listings?: Listing[]; guilds?: Guild[]; deleteGuilds?: string[] }
+export interface PersistTx { characters?: CharacterData[]; listings?: Listing[]; guilds?: Guild[]; deleteGuilds?: string[]; records?: LeaderRecord[] }
 
 interface TradeState { id: string; a: string; b: string; open: boolean; offers: Record<string, TradeOffer>; locked: Set<string>; confirmed: Set<string> }
 interface PfEntry { sid: string; name: string; cls: string; level: number; note: string; diff: string; size: number; hardcore: boolean; at: number }
@@ -60,9 +61,11 @@ interface Session {
   guildInvites: Set<string>;
   chatHist: Array<{ text: string; t: number }>;
   mutedUntil: number;
+  reviveCd?: number;
 }
 
-interface Room { id: string; kind: 'town' | 'field' | 'dungeon'; world: World; sessions: Set<string>; emptyT: number; difficulty: DifficultyId; seed: number; partyId: string | null }
+interface Room { id: string; kind: 'town' | 'field' | 'dungeon'; world: World; sessions: Set<string>; emptyT: number; difficulty: DifficultyId; seed: number; partyId: string | null; mode?: Activity; floor?: number; startedAt?: number; arena?: { wave: number; nextT: number } }
+export interface LeaderRecord { board: string; charId: string; name: string; cls: string; hardcore: boolean; value: number; at: number }
 interface Party { id: string; leader: string; members: string[] }
 
 const MUTATIONS = new Set(['trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose']);
@@ -89,6 +92,7 @@ export class GameCore {
   announcement: string | null = null;
   guilds = new Map<string, Guild>();
   listings = new Map<string, Listing>();
+  records = new Map<string, LeaderRecord>();
   private trades = new Map<string, TradeState>();
   private pf = new Map<string, PfEntry>();
   private worldEvent = { active: false, nextAt: 90, bossId: 0, startedAt: 0, x: 0, y: 0, statusT: 0 };
@@ -100,6 +104,7 @@ export class GameCore {
     const st = await this.persist.loadShared();
     for (const g of st.guilds) this.guilds.set(g.id, g);
     for (const l of st.listings) this.listings.set(l.id, l);
+    for (const r of st.records ?? []) this.records.set(`${r.board}:${r.charId}`, r);
   }
   /** Fire-and-forget persistence that never crashes the game loop; failures are logged to the audit trail. */
   private tx(t: PersistTx) { this.persist.transact(t).catch((e) => this.persist.audit({ accountId: '', charId: '', action: 'persist_error', data: String(e).slice(0, 300) })); }
@@ -112,9 +117,9 @@ export class GameCore {
     this.createRoom('field', buildField(1337), 'normal', 1337);
   }
 
-  private createRoom(id: string, map: GameMap, difficulty: DifficultyId, seed: number, partySize = 1, partyId: string | null = null): Room {
+  private createRoom(id: string, map: GameMap, difficulty: DifficultyId, seed: number, partySize = 1, partyId: string | null = null, extra: Partial<WorldOptions> = {}): Room {
     const kind = map.theme;
-    const world = new World(map, { difficulty, partySize, seed, kind });
+    const world = new World(map, { difficulty, partySize, seed, kind, ...extra });
     const room: Room = { id, kind, world, sessions: new Set(), emptyT: 0, difficulty, seed, partyId };
     this.rooms.set(id, room);
     return room;
@@ -171,7 +176,7 @@ export class GameCore {
     if (guild) ent.name = `${s.char.name} ‹${guild.tag}›`;
     s.entId = ent.id;
     s.send({
-      t: 'welcome', v: PROTOCOL_VERSION, mode: this.opts.label, pid: ent.id, room: { id: room.id, kind: room.kind, difficulty: room.difficulty, seed: room.seed, modifiers: room.world.map.modifiers, level: room.world.map.level },
+      t: 'welcome', v: PROTOCOL_VERSION, mode: this.opts.label, pid: ent.id, room: { id: room.id, kind: room.kind, mode: room.mode, floor: room.floor, difficulty: room.difficulty, seed: room.seed, modifiers: room.world.map.modifiers, level: room.world.map.level },
       map: room.world.map, char: s.char, account: s.account,
     });
     this.sendParty(s);
@@ -222,7 +227,8 @@ export class GameCore {
         case 'pickup': { const e = w.pickup(pid, +msg.id); if (e) err(e); else { s.dirty = true; } break; }
         case 'interact': this.interact(s, room); break;
         case 'choose': this.choose(s, room, String(msg.choice ?? '')); break;
-        case 'enter_dungeon': this.enterDungeon(s, room, msg.diff); break;
+        case 'enter_dungeon': this.enterDungeon(s, room, msg.diff, msg.mode); break;
+        case 'ladder': s.send({ t: 'ladder', boards: this.ladder() }); break;
         case 'leave': if (room.kind !== 'town') this.returnToTown(s, room, false); break;
         case 'equip': this.mutate(s, C.equipFromInventory(s.char, clampInt(msg.inv, 0, 39), EQUIP_SLOTS.includes(msg.slot) ? msg.slot : undefined), 'equip'); break;
         case 'unequip': this.mutate(s, EQUIP_SLOTS.includes(msg.slot) ? C.unequip(s.char, msg.slot as EquipSlot) : { ok: false, reason: 'Bad slot' }, 'unequip'); break;
@@ -323,12 +329,22 @@ export class GameCore {
   // ─────────── Interactions ───────────
   private interact(s: Session, room: Room) {
     const w = room.world;
+    const ent = w.ents.get(s.entId);
+    if (ent && !ent.dead && w.opts.noRespawn) {
+      const down = [...w.ents.values()].find((o) => o.kind === 'player' && o.dead && dist(o.x, o.y, ent.x, ent.y) < 90);
+      if (down) {
+        if ((s.reviveCd ?? 0) > this.now) return this.toast(s, `Revive ready in ${Math.ceil(s.reviveCd! - this.now)}s`);
+        down.dead = false; down.hp = Math.round(down.maxHp * 0.3); down.invuln = 2;
+        s.reviveCd = this.now + 20;
+        this.broadcast(room, { t: 'toast', msg: `${s.char.name} revived ${down.name}!` });
+        return;
+      }
+    }
     const it = w.interactableNear(s.entId, 110);
     if (!it) return;
-    const ent = w.ents.get(s.entId);
     if (!ent || ent.dead) return;
     switch (it.type) {
-      case 'portal_dungeon': s.send({ t: 'open', what: 'dungeon', unlocked: this.unlockedTiers(s) }); break;
+      case 'portal_dungeon': s.send({ t: 'open', what: 'dungeon', unlocked: this.unlockedTiers(s), locks: Object.fromEntries(ACTIVITY_ORDER.map((a) => [a, this.activityLock(s, a)])) }); break;
       case 'gate_field': this.moveTo(s, 'field'); break;
       case 'gate_town': this.moveTo(s, 'town', { x: 52 * 32, y: 22 * 32 + 16 }); break;
       case 'npc_smith': s.send({ t: 'open', what: 'smith' }); break;
@@ -374,7 +390,7 @@ export class GameCore {
         s.send({ t: 'choice', kind: 'altar', options: opts.map((id) => BLESSING_MAP[id]) });
         break;
       }
-      case 'exit': this.returnToTown(s, room, true); break;
+      case 'exit': if (room.mode === 'tower') this.towerNext(room); else this.returnToTown(s, room, true); break;
       default: break;
     }
   }
@@ -414,46 +430,174 @@ export class GameCore {
     return DIFFICULTY_ORDER.filter((d, i) => s.char.level >= DIFFICULTIES[d].minLevel && i <= Math.max(1, s.char.stats.highestTier + 1));
   }
 
-  private enterDungeon(s: Session, room: Room, diffRaw: unknown) {
+  private enterDungeon(s: Session, room: Room, diffRaw: unknown, modeRaw: unknown = 'rift') {
     if (room.kind !== 'town') return;
-    const diff = (DIFFICULTY_ORDER as string[]).includes(String(diffRaw)) ? (diffRaw as DifficultyId) : 'normal';
+    const mode: Activity = (ACTIVITY_ORDER as string[]).includes(String(modeRaw)) ? (modeRaw as Activity) : 'rift';
+    const act = ACTIVITIES[mode];
+    let diff = (DIFFICULTY_ORDER as string[]).includes(String(diffRaw)) ? (diffRaw as DifficultyId) : 'normal';
+    if (!act.chooseDifficulty) diff = 'normal';
+    if (mode === 'nightmare' && DIFFICULTY_ORDER.indexOf(diff) < 2) diff = 'hard';
     const ent = room.world.ents.get(s.entId);
     const portal = room.world.map.interactables.find((i) => i.type === 'portal_dungeon')!;
     if (!ent || dist(ent.x, ent.y, portal.x, portal.y) > 200) return s.send({ t: 'err', msg: 'Stand at the Rift Gate to enter' });
     const party = s.partyId ? this.parties.get(s.partyId) : null;
     if (party && party.leader !== s.id) return s.send({ t: 'err', msg: 'Only the party leader can open the Rift' });
     const members = (party ? party.members : [s.id]).map((id) => this.sessions.get(id)!).filter((m) => m && m.roomId === 'town');
-    for (const m of members) if (!this.unlockedTiers(m).includes(diff)) return s.send({ t: 'err', msg: `${m.char.name} has not unlocked ${DIFFICULTIES[diff].name}` });
+    if (members.length > act.maxParty) return s.send({ t: 'err', msg: `${act.name} allows at most ${act.maxParty} players` });
+    for (const m of members) {
+      const lock = this.activityLock(m, mode);
+      if (lock) return s.send({ t: 'err', msg: `${m.char.name}: ${lock}` });
+      if (act.chooseDifficulty && !this.unlockedTiers(m).includes(diff) && !(mode === 'nightmare' && diff === 'hard')) return s.send({ t: 'err', msg: `${m.char.name} has not unlocked ${DIFFICULTIES[diff].name}` });
+    }
     const level = Math.max(...members.map((m) => m.char.level));
     const seed = Math.floor(this.rng.next() * 0xffffffff) >>> 0;
-    const map = generateDungeon({ seed, level, difficulty: diff });
-    const id = `dungeon_${seed.toString(36)}`;
-    this.createRoom(id, map, diff, seed, members.length, party?.id ?? null);
+    const id = this.openInstance(mode, diff, seed, level, 1, members.length, party?.id ?? null);
     for (const m of members) {
       m.run = { kills: 0, gold: 0, items: 0, xp: 0, startGold: m.char.gold };
       this.moveTo(m, id);
-      this.toast(m, `Entered the Rift (${DIFFICULTIES[diff].name}). Seed ${seed}.`);
+      this.toast(m, `Entered ${act.name} (${act.chooseDifficulty ? DIFFICULTIES[diff].name : 'scaling'}). Seed ${seed}.`);
+      if (mode === 'raid' && members.length < 4) this.toast(m, 'The raid is tuned for 4-8 players — expect a hard fight.');
     }
-    this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'dungeon_enter', data: { seed, diff, level, party: members.map((m) => m.char.id) } });
+    this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'dungeon_enter', data: { mode, seed, diff, level, party: members.map((m) => m.char.id) } });
+  }
+
+  /** Requirement check for an activity; returns a reason or null. */
+  activityLock(s: Session, mode: Activity): string | null {
+    const a = ACTIVITIES[mode];
+    if (s.char.level < a.minLevel) return `${a.name} unlocks at level ${a.minLevel}`;
+    if (a.needTier !== undefined && s.char.stats.highestTier < a.needTier) return `${a.name} requires clearing a ${DIFFICULTIES[DIFFICULTY_ORDER[a.needTier]!].name} Rift`;
+    return null;
+  }
+
+  private openInstance(mode: Activity, diff: DifficultyId, seed: number, level: number, floor: number, partySize: number, partyId: string | null): string {
+    let map: GameMap;
+    const extra: Partial<WorldOptions> = {};
+    switch (mode) {
+      case 'tower': {
+        const boss = floor % 5 === 0 ? 'veyra' : 'hollow_captain';
+        map = generateDungeon({ seed, level: level + Math.floor(floor / 2), difficulty: diff, layout: 'tower', floor, boss });
+        Object.assign(extra, { finalBoss: boss, scale: towerScale(floor), ilvlBonus: Math.floor(floor / 2), exitText: `Floor ${floor} cleared! The stairs upward are open.` });
+        break;
+      }
+      case 'labyrinth': map = generateLabyrinth(seed, level + 1); Object.assign(extra, { finalBoss: 'labyrinth_warden', ilvlBonus: 3, exitText: 'Oruk falls and the maze grows still. The way out is open.' }); break;
+      case 'arena': map = buildArena('arena', seed, level); Object.assign(extra, { finalBoss: '__none__', noRespawn: true }); break;
+      case 'raid': map = buildArena('raid', seed, level + 2); Object.assign(extra, { finalBoss: 'sovereign', noRespawn: true, ilvlBonus: 5, exitText: 'The Eclipse Sovereign is defeated! Light returns to the Throne.' }); partySize = Math.max(2, partySize); break;
+      case 'nightmare': map = generateDungeon({ seed, level: level + 2, difficulty: diff, modifiers: NIGHTMARE_MODS }); Object.assign(extra, { ilvlBonus: 2 }); break;
+      default: map = generateDungeon({ seed, level, difficulty: diff });
+    }
+    const id = `${mode}_${seed.toString(36)}_${floor}`;
+    const r = this.createRoom(id, map, diff, seed, partySize, partyId, extra);
+    r.mode = mode; r.floor = floor; r.startedAt = this.now;
+    if (mode === 'arena') r.arena = { wave: 0, nextT: this.now + 3 };
+    return id;
+  }
+
+  /** Endless Tower: move everyone on this floor to a freshly generated next floor. */
+  private towerNext(room: Room) {
+    const floor = room.floor ?? 1;
+    const members = [...room.sessions].map((id) => this.sessions.get(id)!).filter(Boolean);
+    for (const m of members) { this.record(m, 'tower', floor); if (floor >= 10) this.achieve(m, 'tower10'); this.progressQuest(m, 'tower_floor', undefined, floor, true); this.guildXp(m, 20 * floor, `reached tower floor ${floor + 1}`); }
+    const level = Math.max(...members.map((m) => m.char.level));
+    const id = this.openInstance('tower', 'normal', Math.floor(this.rng.next() * 0xffffffff) >>> 0, level, floor + 1, members.length, room.partyId);
+    for (const m of members) { this.moveTo(m, id); this.toast(m, `Endless Tower — floor ${floor + 1} (enemies ×${towerScale(floor + 1).toFixed(2)})`); }
   }
 
   private returnToTown(s: Session, room: Room, cleared: boolean) {
     const ent = room.world.ents.get(s.entId);
     const blessings = ent?.p?.blessings ?? [];
     if (room.kind === 'dungeon') {
-      if (cleared && room.world.bossDefeated) {
+      const mode = room.mode ?? 'rift';
+      const won = cleared && room.world.bossDefeated;
+      if (won) {
         s.char.stats.runsCleared++;
         const ti = DIFFICULTY_ORDER.indexOf(room.difficulty);
-        s.char.stats.highestTier = Math.max(s.char.stats.highestTier, ti);
-        if (ti >= 2) { this.progressQuest(s, 'clear_tier', 'hard', 1); this.achieve(s, 'tier_hard'); }
-        if (ti >= 4) this.achieve(s, 'tier_nightmare');
-        this.guildXp(s, 100 + 100 * ti, `cleared a ${DIFFICULTIES[room.difficulty].name} Rift`);
+        if (mode === 'rift' || mode === 'nightmare') {
+          s.char.stats.highestTier = Math.max(s.char.stats.highestTier, ti);
+          if (ti >= 2) { this.progressQuest(s, 'clear_tier', 'hard', 1); this.achieve(s, 'tier_hard'); }
+          if (ti >= 4) this.achieve(s, 'tier_nightmare');
+        }
+        if (mode === 'labyrinth') { this.achieve(s, 'labyrinth'); this.progressQuest(s, 'clear_mode', 'labyrinth', 1); }
+        if (mode === 'raid') { this.achieve(s, 'raid_clear'); this.progressQuest(s, 'clear_mode', 'raid', 1); }
+        if (mode === 'nightmare') {
+          this.progressQuest(s, 'clear_mode', 'nightmare', 1);
+          if (this.now - (room.startedAt ?? this.now) <= 600) {
+            this.achieve(s, 'nightmare_timed');
+            const bonus = generateItem({ rng: this.rng, ilvl: room.world.map.level + 2, rarity: rollRarity(this.rng, 1.5, 'epic'), cls: s.char.cls, hardcore: s.char.hardcore });
+            if (C.addItem(s.char, bonus).ok) this.toast(s, `Timed bonus: ${bonus.name}`);
+          }
+        }
+        this.guildXp(s, 100 + 100 * ti + (mode === 'raid' ? 500 : mode === 'labyrinth' ? 200 : 0), `cleared ${ACTIVITIES[mode].name}`);
       }
+      if (mode === 'arena') {
+        const wave = Math.max(0, (room.arena?.wave ?? 1) - 1);
+        this.record(s, 'arena', wave);
+        if (wave >= 10) this.achieve(s, 'arena10');
+        this.progressQuest(s, 'arena_wave', undefined, wave, true);
+        const gold = wave * 15;
+        s.char.gold += gold;
+        this.toast(s, `Arena: survived ${wave} waves (+${gold} gold)`);
+      }
+      if (mode === 'tower') this.record(s, 'tower', (room.floor ?? 1) - 1);
       const r = s.run;
-      s.send({ t: 'run_end', cleared: cleared && room.world.bossDefeated, retained: { gold: r ? s.char.gold - r.startGold : 0, items: r?.items ?? 0, xp: r?.xp ?? 0, kills: r?.kills ?? 0 }, lost: blessings.map((b) => BLESSING_MAP[b]?.name ?? b), seed: room.seed, difficulty: room.difficulty });
+      s.send({ t: 'run_end', mode, cleared: won || mode === 'arena', floor: room.floor, wave: room.arena ? Math.max(0, room.arena.wave - 1) : undefined, retained: { gold: r ? s.char.gold - r.startGold : 0, items: r?.items ?? 0, xp: r?.xp ?? 0, kills: r?.kills ?? 0 }, lost: blessings.map((b) => BLESSING_MAP[b]?.name ?? b), seed: room.seed, difficulty: room.difficulty });
+      this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'run_end', data: { mode, won, diff: room.difficulty, floor: room.floor, wave: room.arena?.wave, secs: Math.round(this.now - (room.startedAt ?? this.now)) } });
       s.run = null;
+      if (ent?.dead) { ent.dead = false; }
     }
     this.moveTo(s, 'town');
+  }
+
+  // ─────────── Arena waves & raid wipes ───────────
+  private tickInstance(room: Room) {
+    if (room.kind !== 'dungeon' || !room.sessions.size) return;
+    const w = room.world;
+    const players = [...w.ents.values()].filter((e) => e.kind === 'player');
+    if (w.opts.noRespawn && players.length && players.every((p) => p.dead)) {
+      const wipe = room.mode === 'raid';
+      for (const sid of [...room.sessions]) { const o = this.sessions.get(sid); if (o) { if (wipe) this.toast(o, 'Your group was defeated. The Sovereign waits.'); this.returnToTown(o, room, false); } }
+      return;
+    }
+    if (room.mode === 'raid' && w.bossDefeated) for (const p of players) if (p.dead) { p.dead = false; p.hp = Math.round(p.maxHp * 0.5); }
+    if (room.mode === 'arena' && room.arena) {
+      const a = room.arena;
+      const alive = [...w.ents.values()].some((e) => e.kind === 'enemy');
+      if (alive) { a.nextT = this.now + 4; return; }
+      if (this.now < a.nextT) return;
+      a.wave++;
+      const lvl = w.map.level + Math.floor(a.wave / 3);
+      const n = Math.min(14, 2 + a.wave);
+      const c = w.map.rooms[0]!;
+      const pool = a.wave < 4 ? ['hollow_grunt', 'gloomfang'] : ['hollow_grunt', 'hollow_archer', 'hollow_hexer', 'gloomfang', 'wisp', 'thornback'];
+      for (let i = 0; i < n; i++) {
+        const ang = (i / n) * Math.PI * 2, rr = (c.w / 2 - 3) * TILE;
+        const e = w.spawnEnemy(this.rng.pick(pool), c.cx * TILE + Math.cos(ang) * rr, c.cy * TILE + Math.sin(ang) * rr, lvl, a.wave >= 6 && i === 0, 0);
+        if (e) e.e!.awake = true;
+      }
+      if (a.wave % 5 === 0) { const b = w.spawnEnemy(a.wave % 10 === 0 ? 'hollow_captain' : 'hollow_brute', c.cx * TILE, (c.cy - 6) * TILE, lvl, true, 0); if (b) b.e!.awake = true; }
+      this.broadcast(room, { t: 'activity', mode: 'arena', wave: a.wave });
+      this.broadcast(room, { t: 'toast', msg: `Wave ${a.wave}${a.wave % 5 === 0 ? ' — champion wave!' : ''}` });
+    }
+  }
+
+  // ─────────── Leaderboards ───────────
+  private record(s: Session, board: string, value: number) {
+    if (value <= 0) return;
+    const key = `${board}:${s.char.id}`;
+    const prev = this.records.get(key);
+    if (prev && prev.value >= value) return;
+    const rec: LeaderRecord = { board, charId: s.char.id, name: s.char.name, cls: s.char.cls, hardcore: s.char.hardcore, value, at: this.clock() };
+    this.records.set(key, rec);
+    this.tx({ records: [rec] });
+    this.toast(s, `New personal best (${board}): ${value}`);
+  }
+  ladder() {
+    const out: Record<string, { normal: LeaderRecord[]; hardcore: LeaderRecord[] }> = {};
+    for (const r of this.records.values()) {
+      const b = (out[r.board] ??= { normal: [], hardcore: [] });
+      (r.hardcore ? b.hardcore : b.normal).push(r);
+    }
+    for (const b of Object.values(out)) for (const k of ['normal', 'hardcore'] as const) b[k] = b[k].sort((x, y) => y.value - x.value || x.at - y.at).slice(0, 20);
+    return out;
   }
 
   // ─────────── Quests / achievements ───────────
@@ -480,12 +624,12 @@ export class GameCore {
     this.mutate(s, { ok: true, value: undefined }, 'quest_reward', { quest: id, reward: r });
     this.toast(s, `Quest complete: ${q.name}`);
   }
-  private progressQuest(s: Session, kind: string, target: string | undefined, n: number) {
+  private progressQuest(s: Session, kind: string, target: string | undefined, n: number, absolute = false) {
     for (const q of QUESTS) {
       const st = s.char.quests[q.id];
       if (!st || st.done || q.objective.kind !== kind) continue;
       if (q.objective.target && q.objective.target !== target) continue;
-      st.progress = Math.min(q.objective.count, st.progress + n);
+      st.progress = Math.min(q.objective.count, absolute ? Math.max(st.progress, n) : st.progress + n);
       if (st.progress >= q.objective.count) { st.done = true; this.toast(s, `Objective complete: ${q.name} — return to ${q.giver}`); }
       s.dirty = true;
     }
@@ -516,6 +660,7 @@ export class GameCore {
       }
       this.toast(s, `Level up! You are now level ${s.char.level}. (+${r.levels} passive point${r.levels > 1 ? 's' : ''})`);
       this.broadcast(this.rooms.get(s.roomId)!, { t: 'ev', list: [{ t: 'level', id: s.entId }] });
+      this.record(s, 'level', s.char.level);
       if (s.char.level >= 10 && before < 10) this.achieve(s, 'level10');
       if (s.char.level >= 25 && before < 25) this.achieve(s, 'level25');
       this.save(s);
@@ -927,6 +1072,7 @@ export class GameCore {
       room.world.tick(dt);
       this.processEvents(room, room.world.events);
       room.world.events = [];
+      this.tickInstance(room);
       if (room.kind === 'dungeon') {
         if (room.sessions.size === 0) { room.emptyT += dt; if (room.emptyT > 120) this.rooms.delete(room.id); }
       }
@@ -1001,6 +1147,8 @@ export class GameCore {
               s.send({ t: 'hc_dead', name: s.char.name, level: s.char.level });
               const sid = s.id;
               setTimeout(() => this.disconnect(sid), 3500);
+            } else if (room.world.opts.noRespawn) {
+              this.toast(s, 'You are down! An ally can revive you (stand next to you and press Interact).');
             } else {
               const loss = Math.floor(s.char.gold * 0.05);
               s.char.gold -= loss;

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.0] — 2026-11-22 — Phase 5: Endgame
+### Added
+- Rift Gate activity picker with server-side unlock rules: Rift, Challenge Arena (lv 1), Endless Tower (lv 5), Ancient Labyrinth (lv 8), Nightmare Rift (lv 10 + cleared Hard), Raid (lv 12).
+- Endless Tower floors (+12% enemy strength per floor, Veyra every 5th floor, item level rises with floor).
+- Challenge Arena waves with champion waves every 5th wave; no respawns; downed allies can be revived (Interact, 20s cooldown).
+- Ancient Labyrinth maze generator with caches and new enemies (Labyrinth Sentry, Oruk the Warden).
+- Nightmare Rift with three hostile modifiers and a 10-minute bonus cache.
+- Raid "Eclipse Throne" (party up to 8): Nyx Aurelion with Total Eclipse (stand in the circle of light), meteor eruptions, add waves, phase-3 nova and an 8-minute enrage; full wipe ends the attempt.
+- Leaderboards for tower floor, arena wave and level (Normal/Hardcore), panel on N; migration 003.
+- 5 new achievements; 6 new tests (30 total); `--mode` option for the live bot.
+
 ## [0.2.0] — 2026-11-22 — Phase 4: MMORPG systems
 ### Added
 - Direct player trading: request/accept, offers of up to 8 items + gold, both lock then both confirm, any change unlocks both sides; atomic swap saved in one transaction; bound and Hardcore/Normal cross-trades refused.

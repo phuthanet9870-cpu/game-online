@@ -5,6 +5,7 @@ import { PROTOCOL_VERSION, clearPath, findPath, lineOfSight, type GameMap } from
 
 const base = process.argv[2] ?? 'http://localhost:8080';
 const cls = process.argv[3] ?? 'warrior';
+const mode = process.argv.includes('--mode') ? process.argv[process.argv.indexOf('--mode') + 1]! : 'rift';
 const nBots = Number(process.argv[process.argv.indexOf('--bots') + 1] || 1) || 1;
 const log = (...a: unknown[]) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
@@ -32,6 +33,7 @@ async function runBot(i: number, full: boolean) {
     if (m.t === 'ev') for (const e of m.list) { if (e.t === 'it_add' && map) map.interactables.push(e.it); if (e.t === 'kill' ) results.kills++; if (e.t === 'boss_killed') results.bossKilled = true; }
     if (m.t === 'err') results.errors.set(m.msg, (results.errors.get(m.msg) ?? 0) + 1);
     if (m.t === 'run_end') results.runEnd = m;
+    if (m.t === 'activity' && full) log(`[${i}] arena wave ${m.wave}`);
     if (m.t === 'toast' && full) log(`[${i}] toast: ${m.msg}`);
   });
   await new Promise((r) => ws.on('open', r));
@@ -84,10 +86,16 @@ async function runBot(i: number, full: boolean) {
   const portal = (map as unknown as GameMap).interactables.find((x) => x.type === 'portal_dungeon')!;
   log(`[${i}] walking to Rift Gate`);
   if (!(await walkTo(portal.x, portal.y + 40))) throw new Error('could not reach portal');
-  send({ t: 'enter_dungeon', diff: 'story', rid: 'e1' });
+  send({ t: 'enter_dungeon', diff: 'story', mode, rid: 'e1' });
   const t0 = Date.now();
   while (roomKind !== 'dungeon' && Date.now() - t0 < 5000) await sleep(50);
   if (roomKind !== 'dungeon') throw new Error('did not enter dungeon ' + [...results.errors.keys()]);
+  if (mode !== 'rift') { // arena etc.: fight until the run ends
+    const until = Date.now() + 120000;
+    while (Date.now() < until && !results.runEnd) { const p = mePos(); const f = p && nearestFoe(p, 900); if (f) await engage(f[0]); else await sleep(200); }
+    ws.close();
+    return results;
+  }
   if (!full) { // load-test bots just fight around for a while
     const until = Date.now() + 45000;
     while (Date.now() < until) { const p = mePos(); const f = p && nearestFoe(p, 900); if (f) await engage(f[0]); else await sleep(200); }

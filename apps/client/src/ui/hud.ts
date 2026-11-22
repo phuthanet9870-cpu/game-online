@@ -1,4 +1,4 @@
-import { CLASSES, DIFFICULTIES, DUNGEON_MODIFIERS, BLESSING_MAP, SKILL_MAP, ENEMIES, computeStats, xpToNext, type CharacterData } from '@astra/shared';
+import { ACTIVITIES, CLASSES, DIFFICULTIES, DUNGEON_MODIFIERS, BLESSING_MAP, SKILL_MAP, ENEMIES, computeStats, xpToNext, type CharacterData } from '@astra/shared';
 import { ClientGame } from '../game.js';
 import { Renderer } from '../render.js';
 import { Input, keyLabel } from '../input.js';
@@ -11,7 +11,7 @@ import { passiveTreePanel } from './passive.js';
 import { modeBanner } from './screens.js';
 import * as S from './social.js';
 
-type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 'codex' | 'social' | 'guild' | 'auction' | 'settings' | 'dungeon' | 'smith' | 'quartermaster' | 'trainer' | 'stash' | 'map';
+type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 'codex' | 'social' | 'guild' | 'auction' | 'ladder' | 'settings' | 'dungeon' | 'smith' | 'quartermaster' | 'trainer' | 'stash' | 'map';
 
 export class GameUI {
   game = new ClientGame();
@@ -133,6 +133,8 @@ export class GameUI {
       case 'guild': this.guildData = m; if (this.panel === 'guild') this.renderPanel(); break;
       case 'guild_invite': void confirmDialog('Guild invite', `${m.from} invited you to ‹${m.tag}› ${m.name}.`, t('accept'), t('decline')).then((ok) => { if (ok) this.send({ t: 'guild_accept', id: m.id }); }); break;
       case 'world_event': g.worldEvent = m; this.renderWorldEvent(); break;
+      case 'ladder': this.ladderData = m.boards; if (this.panel === 'ladder') this.renderPanel(); break;
+      case 'activity': if (g.room) { (g.room as any).wave = m.wave; this.updateZone(); } break;
       case 'choice': this.showModal(P.choiceModal(m.kind, m.options, (x) => this.send(x), () => this.closeModal())); break;
       case 'run': g.blessings = m.blessings; this.updateZone(); break;
       case 'run_end': this.showModal(P.runEndModal(m, () => this.closeModal())); break;
@@ -148,6 +150,7 @@ export class GameUI {
   private trade: any = null;
   private ah: S.AhState = { results: null, mine: [], q: {}, tab: 'browse' };
   private guildData: any = null;
+  private ladderData: any = null;
   private renderWorldEvent() {
     const el = this.el.wevent!;
     const ev = this.game.room?.kind === 'field' ? this.game.worldEvent : null;
@@ -251,7 +254,7 @@ export class GameUI {
       }
       case 'chat': (this.el.chatIn as HTMLInputElement).focus(); break;
       case 'escape': if (this.trade) this.send({ t: 'trade_cancel' }); else if (this.el.modal!.firstChild) this.closeModal(); else if (this.panel) this.closePanel(); else this.openPanel('settings'); break;
-      case 'inventory': case 'skills': case 'passives': case 'character': case 'quests': case 'codex': case 'social': case 'guild': case 'map': this.toggle(a as PanelName); break;
+      case 'inventory': case 'skills': case 'passives': case 'character': case 'quests': case 'codex': case 'social': case 'guild': case 'ladder': case 'map': this.toggle(a as PanelName); break;
       default: break;
     }
   }
@@ -265,7 +268,7 @@ export class GameUI {
 
   // ─────────── HUD ───────────
   private buildMenu() {
-    const items: Array<[PanelName, string, string]> = [['inventory', t('inventory'), 'inventory'], ['skills', t('skills'), 'skills'], ['passives', t('passives'), 'passives'], ['character', t('character'), 'character'], ['quests', t('quests'), 'quests'], ['codex', t('codex'), 'codex'], ['social', t('social'), 'social'], ['guild', 'Guild', 'guild'], ['settings', t('settings'), '']];
+    const items: Array<[PanelName, string, string]> = [['inventory', t('inventory'), 'inventory'], ['skills', t('skills'), 'skills'], ['passives', t('passives'), 'passives'], ['character', t('character'), 'character'], ['quests', t('quests'), 'quests'], ['codex', t('codex'), 'codex'], ['social', t('social'), 'social'], ['guild', 'Guild', 'guild'], ['ladder', 'Leaderboards', 'ladder'], ['settings', t('settings'), '']];
     clear(this.el.menu!).append(...items.map(([p, label, bind]) => h('button', { class: 'menu-btn', onclick: () => this.toggle(p), title: label }, label, bind ? h('kbd', null, keyLabel(this.input?.binds[bind] ?? '')) : h('kbd', null, 'Esc'))));
   }
 
@@ -350,7 +353,8 @@ export class GameUI {
     const it = g.map?.interactables.filter((i) => !(i.used || g.usedIts.has(i.id)) || i.type === 'exit').map((i) => ({ i, d: Math.hypot(i.x - me.rx, i.y - me.ry) })).sort((a, b) => a.d - b.d)[0];
     if (it && it.d < 110) { E.prompt!.hidden = false; E.prompt!.textContent = `[${keyLabel(this.input.binds.interact!)}] ${it.i.name}`; } else E.prompt!.hidden = true;
     // death / respawn
-    if (s.deadT >= 0) this.status(ch.hardcore ? '☠' : `${t('respawn')} ${Math.ceil(s.deadT)}s…`); else if (E.status!.textContent?.startsWith(t('respawn')) || E.status!.textContent === '☠') this.status(null);
+    if (s.deadT === -2) this.status(ch.hardcore ? '☠' : 'You are down — an ally can revive you');
+    else if (s.deadT >= 0) this.status(ch.hardcore ? '☠' : `${t('respawn')} ${Math.ceil(s.deadT)}s…`); else if (E.status!.textContent?.startsWith(t('respawn')) || E.status!.textContent === '☠' || E.status!.textContent?.startsWith('You are down')) this.status(null);
     // dps meter
     const now = performance.now();
     if (g.dps.total && now - g.dps.last < 4000) { E.dps!.hidden = false; E.dps!.textContent = `DPS ${Math.round(g.dps.total / Math.max(1, (g.dps.last - g.dps.start) / 1000 + 0.5))} · total ${g.dps.total}`; } else E.dps!.hidden = true;
@@ -367,7 +371,8 @@ export class GameUI {
     if (r.kind === 'town') z.append(h('b', null, t('townSafe')), h('small', null, `${t('trainingGround')}: west side`));
     else if (r.kind === 'field') z.append(h('b', null, 'Duskmeadow'), h('small', null, 'Open world · shared with other players'));
     else {
-      z.append(h('b', null, `The Rift · ${DIFFICULTIES[r.difficulty as keyof typeof DIFFICULTIES]?.name}`), h('small', null, `Monster level ${r.level} · seed ${r.seed}`));
+      const rr = r as any; const act = ACTIVITIES[(rr.mode ?? 'rift') as keyof typeof ACTIVITIES];
+      z.append(h('b', null, `${act?.name ?? 'Rift'}${rr.mode === 'tower' ? ` · Floor ${rr.floor}` : ''}${rr.mode === 'arena' ? ` · Wave ${rr.wave ?? 0}` : ''}${act?.chooseDifficulty ? ` · ${DIFFICULTIES[r.difficulty as keyof typeof DIFFICULTIES]?.name}` : ''}`), h('small', null, `Monster level ${r.level} · seed ${r.seed}`));
       for (const mid of r.modifiers) { const md = DUNGEON_MODIFIERS.find((x) => x.id === mid); if (md) { const tag = h('span', { class: 'tag mod ' + md.kind }, md.name); bindTip(tag, () => h('div', { class: 'tip' }, md.desc)); z.append(tag); } }
       z.append(h('button', { class: 'btn tiny ghost', onclick: async () => { if (await confirmDialog(t('leaveRun'), 'Return to town? Items, gold and XP are kept; blessings are lost.', t('leaveRun'), t('cancel'))) this.send({ t: 'leave' }); } }, t('leaveRun')));
     }
@@ -410,7 +415,7 @@ export class GameUI {
   // ─────────── Panels ───────────
   private nearbyPlayers(): string[] { return [...this.game.ents.values()].filter((e) => e.kind === 0 && e.id !== this.game.pid).map((e) => e.name.split(' ‹')[0]!); }
   private toggle(p: PanelName) { if (this.panel === p) this.closePanel(); else { this.panelExtra = null; this.openPanel(p); } }
-  openPanel(p: PanelName) { this.panel = p; if (p === 'social') this.send({ t: 'pf_list' }); if (p === 'guild') this.send({ t: 'guild_info' }); this.renderPanel(); }
+  openPanel(p: PanelName) { this.panel = p; if (p === 'social') this.send({ t: 'pf_list' }); if (p === 'guild') this.send({ t: 'guild_info' }); if (p === 'ladder') this.send({ t: 'ladder' }); this.renderPanel(); }
   closePanel() { this.panel = null; this.el.panel!.hidden = true; hideTip(); }
   private ctx(): P.PanelCtx {
     return { ch: this.game.char!, account: this.game.account!, send: (m) => this.send(m), room: this.game.room, input: this.input, settings: this.settings, applySettings: () => this.applySettings(), logout: () => this.leave(), extra: { open: (p: PanelName) => this.openPanel(p) }, party: this.game.party };
@@ -420,7 +425,7 @@ export class GameUI {
     if (!p || !this.game.char) return;
     const ctx = this.ctx();
     const inTown = this.game.room?.kind === 'town';
-    const titles: Record<PanelName, string> = { inventory: t('inventory'), skills: t('skills'), passives: t('passives'), character: t('character'), quests: t('quests'), codex: t('codex'), social: t('social'), guild: 'Guild', auction: 'Auctioneer Vell — auction house', settings: t('settings'), dungeon: 'Rift Gate', smith: 'Brenna the Smith — salvage & enchant', quartermaster: 'Quartermaster Sol — potions & selling', trainer: 'Master Ilrin — trainer', stash: 'Astral Vault', map: t('map') };
+    const titles: Record<PanelName, string> = { inventory: t('inventory'), skills: t('skills'), passives: t('passives'), character: t('character'), quests: t('quests'), codex: t('codex'), social: t('social'), guild: 'Guild', ladder: 'Leaderboards', auction: 'Auctioneer Vell — auction house', settings: t('settings'), dungeon: 'Rift Gate', smith: 'Brenna the Smith — salvage & enchant', quartermaster: 'Quartermaster Sol — potions & selling', trainer: 'Master Ilrin — trainer', stash: 'Astral Vault', map: t('map') };
     let body: HTMLElement;
     switch (p) {
       case 'inventory': body = P.inventoryPanel(ctx); break;
@@ -436,7 +441,8 @@ export class GameUI {
       case 'guild': body = S.guildPanel(ctx.ch, this.guildData, (m) => this.send(m), inTown); break;
       case 'auction': body = S.auctionPanel(ctx.ch, this.ah, (m) => this.send(m), () => this.renderPanel()); break;
       case 'settings': body = P.settingsPanel(ctx); break;
-      case 'dungeon': body = P.dungeonPanel(ctx, this.panelExtra?.unlocked ?? ['story', 'normal']); break;
+      case 'dungeon': body = P.dungeonPanel(ctx, this.panelExtra?.unlocked ?? ['story', 'normal'], this.panelExtra?.locks ?? {}); break;
+      case 'ladder': body = P.ladderPanel(this.ladderData, ctx.ch, (m) => this.send(m)); break;
       case 'trainer': body = P.trainerPanel(ctx); break;
       case 'map': body = h('div', null, h('canvas', { class: 'bigmap', width: 640, height: 480 })); break;
     }

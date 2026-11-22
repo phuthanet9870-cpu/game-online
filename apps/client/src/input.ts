@@ -5,12 +5,12 @@ export const DEFAULT_BINDS: Record<string, string> = {
   a1: 'Digit1', a2: 'Digit2', a3: 'Digit3', a4: 'Digit4', a5: 'Digit5', a6: 'Digit6', a7: 'Digit7', a8: 'Digit8',
   u1: 'KeyR', u2: 'KeyF', u3: 'KeyT', u4: 'KeyG',
   dodge: 'Space', potion: 'KeyQ', interact: 'KeyE', target: 'Tab', pickup: 'KeyZ',
-  inventory: 'KeyI', skills: 'KeyK', passives: 'KeyP', character: 'KeyC', quests: 'KeyJ', map: 'KeyM', codex: 'KeyO', social: 'KeyL', guild: 'KeyH',
+  inventory: 'KeyI', skills: 'KeyK', passives: 'KeyP', character: 'KeyC', quests: 'KeyJ', map: 'KeyM', codex: 'KeyO', social: 'KeyL', guild: 'KeyH', ladder: 'KeyN',
 };
 export const BIND_LABELS: Record<string, string> = {
   up: 'Move up', down: 'Move down', left: 'Move left', right: 'Move right', a1: 'Active 1', a2: 'Active 2', a3: 'Active 3', a4: 'Active 4', a5: 'Active 5', a6: 'Active 6', a7: 'Active 7', a8: 'Active 8',
   u1: 'Ultimate 1', u2: 'Ultimate 2', u3: 'Ultimate 3', u4: 'Ultimate 4', dodge: 'Dodge roll', potion: 'Potion', interact: 'Interact / talk', target: 'Cycle target (Tab Target)', pickup: 'Pick up nearest item',
-  inventory: 'Inventory', skills: 'Skills', passives: 'Passive tree', character: 'Character sheet', quests: 'Quest log', map: 'World map', codex: 'Codex', social: 'Party & social', guild: 'Guild',
+  inventory: 'Inventory', skills: 'Skills', passives: 'Passive tree', character: 'Character sheet', quests: 'Quest log', map: 'World map', codex: 'Codex', social: 'Party & social', guild: 'Guild', ladder: 'Leaderboards',
 };
 
 export function loadBinds(): Record<string, string> {

@@ -2,7 +2,7 @@ import pg from 'pg';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AccountProgress, CharacterData, Guild, Listing, PersistTx } from '@astra/shared';
+import type { AccountProgress, CharacterData, Guild, LeaderRecord, Listing, PersistTx } from '@astra/shared';
 
 export const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL ?? 'postgres://astra:astra_dev@localhost:5432/astra', max: 10 });
 
@@ -60,7 +60,8 @@ export function transact(tx: PersistTx): Promise<void> {
   const chars = (tx.characters ?? []).map(charArgs);
   const listings = (tx.listings ?? []).map((l) => [l.id, l.sellerChar, l.sellerAccount, l.item.uid, l.price, l.hardcore, l.status, JSON.stringify(l), new Date(l.createdAt), new Date(l.expiresAt)]);
   const guilds = (tx.guilds ?? []).map((g) => [g.id, g.name, g.tag, g.hardcore, JSON.stringify(g)]);
-  const keys = [...(tx.characters ?? []).map((c) => 'c:' + c.id), ...(tx.listings ?? []).map((l) => 'l:' + l.id), ...(tx.guilds ?? []).map((g) => 'g:' + g.id), ...(tx.deleteGuilds ?? []).map((g) => 'g:' + g)];
+  const records = (tx.records ?? []).map((r) => [r.board, r.charId, r.name, r.cls, r.hardcore, r.value, new Date(r.at)]);
+  const keys = [...(tx.records ?? []).map((r) => `r:${r.board}:${r.charId}`), ...(tx.characters ?? []).map((c) => 'c:' + c.id), ...(tx.listings ?? []).map((l) => 'l:' + l.id), ...(tx.guilds ?? []).map((g) => 'g:' + g.id), ...(tx.deleteGuilds ?? []).map((g) => 'g:' + g)];
   return serialized(keys, async () => {
     const c = await pool.connect();
     try {
@@ -71,6 +72,8 @@ export function transact(tx: PersistTx): Promise<void> {
       for (const a of guilds) await c.query(`INSERT INTO guilds (id, name, tag, hardcore, data) VALUES ($1,$2,$3,$4,$5)
         ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()`, a);
       for (const id of tx.deleteGuilds ?? []) await c.query('DELETE FROM guilds WHERE id = $1', [id]);
+      for (const a of records) await c.query(`INSERT INTO leaderboard (board, char_id, name, cls, hardcore, value, achieved_at) VALUES ($1,$2,$3,$4,$5,$6,$7)
+        ON CONFLICT (board, char_id) DO UPDATE SET value = GREATEST(leaderboard.value, EXCLUDED.value), name = EXCLUDED.name, achieved_at = EXCLUDED.achieved_at WHERE EXCLUDED.value > leaderboard.value`, a);
       await c.query('COMMIT');
     } catch (e) {
       await c.query('ROLLBACK');
@@ -82,9 +85,10 @@ export function transact(tx: PersistTx): Promise<void> {
   });
 }
 
-export async function loadShared(): Promise<{ guilds: Guild[]; listings: Listing[] }> {
-  const [g, l] = await Promise.all([pool.query('SELECT data FROM guilds'), pool.query("SELECT data FROM auction_listings WHERE status <> 'closed'")]);
-  return { guilds: g.rows.map((r) => r.data as Guild), listings: l.rows.map((r) => r.data as Listing) };
+export async function loadShared(): Promise<{ guilds: Guild[]; listings: Listing[]; records: LeaderRecord[] }> {
+  const [g, l, b] = await Promise.all([pool.query('SELECT data FROM guilds'), pool.query("SELECT data FROM auction_listings WHERE status <> 'closed'"),
+    pool.query('SELECT board, char_id, name, cls, hardcore, value::int AS value, achieved_at FROM leaderboard l WHERE EXISTS (SELECT 1 FROM characters c WHERE c.id = l.char_id AND c.deleted_at IS NULL)')]);
+  return { guilds: g.rows.map((r) => r.data as Guild), listings: l.rows.map((r) => r.data as Listing), records: b.rows.map((r) => ({ board: r.board, charId: r.char_id, name: r.name, cls: r.cls, hardcore: r.hardcore, value: r.value, at: new Date(r.achieved_at).getTime() })) };
 }
 
 export async function saveAccount(accountId: string, prog: AccountProgress): Promise<void> {

@@ -165,6 +165,15 @@ export class Renderer {
     const col = enemy ? '255,60,70' : hexToRgb(DMG_COLORS[a.v.split('_')[0]!] ?? '#ffffff');
     const heal = a.v.endsWith('_heal');
     ctx.save();
+    if (a.outside) {
+      // Raid "Total Eclipse": darkness everywhere except the safe circle
+      const p = a.delayT > 0 ? Math.min(1, 1 - a.delay / a.delayT) : 1;
+      ctx.beginPath(); ctx.rect(a.x - 4000, a.y - 4000, 8000, 8000); ctx.arc(a.x, a.y, a.r, 0, Math.PI * 2, true);
+      ctx.fillStyle = `rgba(40,0,30,${0.25 + p * 0.45})`; ctx.fill('evenodd');
+      ctx.lineWidth = 4; ctx.strokeStyle = `rgba(255,230,150,${0.6 + Math.sin(this.time * 8) * 0.3})`; ctx.beginPath(); ctx.arc(a.x, a.y, a.r, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+      return;
+    }
     const path = () => { ctx.beginPath(); if (a.cone) { ctx.moveTo(a.x, a.y); ctx.arc(a.x, a.y, a.r, a.ang - a.arc / 2, a.ang + a.arc / 2); ctx.closePath(); } else ctx.arc(a.x, a.y, a.r, 0, Math.PI * 2); };
     if (a.delay > 0 && a.delayT > 0) {
       // telegraph: outline + filling progress

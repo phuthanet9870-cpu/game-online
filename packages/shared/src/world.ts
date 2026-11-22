@@ -66,6 +66,8 @@ export interface EnemyState {
   regenT: number;
   respawn?: { x: number; y: number; level: number; elite: boolean; group?: number };
   charge: { vx: number; vy: number; t: number; hit: Set<number>; dmg: number; type: DamageType; status?: StatusApply } | null;
+  fightT: number;
+  enraged: boolean;
 }
 export interface MinionState { owner: number; type: string; t: number; atkT: number; power: number; range: number; ranged: boolean; dtype: DamageType }
 
@@ -99,7 +101,7 @@ interface CastCtx { skill?: SkillDef; tags: string[]; basic: boolean; points: nu
 export interface Proj { id: number; team: 0 | 1; owner: number; x: number; y: number; vx: number; vy: number; r: number; range: number; packet: Packet; pierce: number; chain: number; hit: Set<number>; explode?: { radius: number; packet: Packet }; homing?: boolean; visual: string }
 export interface Area {
   id: number; team: 0 | 1; owner: number; x: number; y: number; r: number;
-  shape: 'circle' | 'cone'; ang: number; arc: number;
+  shape: 'circle' | 'cone' | 'outside'; ang: number; arc: number;
   delay: number; delayTotal: number; dur: number; tick: number; tickT: number; fired: boolean; linger?: number;
   packet: Packet | null; healPct: number; follow: boolean; visual: string; pull: number;
 }
@@ -125,7 +127,19 @@ export type WorldEvent =
   | { t: 'level'; id: number }
   | { t: 'it_add'; it: import('./maps.js').Interactable };
 
-export interface WorldOptions { difficulty: DifficultyId; partySize: number; seed: number; kind: 'town' | 'field' | 'dungeon' }
+export interface WorldOptions {
+  difficulty: DifficultyId; partySize: number; seed: number; kind: 'town' | 'field' | 'dungeon';
+  /** Enemy whose death completes the instance and opens the exit (default: veyra in dungeons). */
+  finalBoss?: string;
+  /** Extra enemy life/damage multiplier (tower floors). */
+  scale?: number;
+  /** Dead players stay down (arena / raid wipe rules). */
+  noRespawn?: boolean;
+  /** Added to item level of drops (endgame). */
+  ilvlBonus?: number;
+  /** Text shown when the final boss dies. */
+  exitText?: string;
+}
 
 const ELEM_STATUS: Record<DamageType, StatusId> = { physical: 'bleed', fire: 'burn', ice: 'chill', lightning: 'shock', holy: 'weaken', shadow: 'curse', poison: 'poison' };
 const DOTS = new Set<StatusId>(['burn', 'poison', 'bleed', 'curse']);
@@ -223,8 +237,9 @@ export class World {
     const d = this.diff;
     const lv = Math.max(1, level);
     const partyScale = 1 + 0.6 * (this.opts.partySize - 1);
-    let hp = def.hp * (1 + 0.22 * (lv - 1)) * (def.id === 'dummy' ? 1 : d.hp * partyScale * this.enemyHpMul);
-    let power = def.power * (1 + 0.13 * (lv - 1)) * d.dmg * this.enemyDmgMul;
+    const sc = def.id === 'dummy' ? 1 : this.opts.scale ?? 1;
+    let hp = def.hp * (1 + 0.22 * (lv - 1)) * (def.id === 'dummy' ? 1 : d.hp * partyScale * this.enemyHpMul) * sc;
+    let power = def.power * (1 + 0.13 * (lv - 1)) * d.dmg * this.enemyDmgMul * Math.sqrt(sc);
     const affixes: string[] = [];
     if (elite) {
       hp *= 2.2; power *= 1.3;
@@ -240,7 +255,7 @@ export class World {
       speed: def.speed * (affixes.includes('hasted') ? 1.35 : 1) * (this.modifierFlags.has('fast_enemies') ? 1.1 : 1), level: lv,
       e: {
         def, level: lv, power, home: { x, y }, threat: new Map(), forced: null, cds: {}, pending: null, path: null, pathT: 0, awake: false, elite, affixes, phase: 0,
-        breakG: 0, breakMax: def.boss ? def.boss.breakGauge * (1 + 0.15 * (lv - 1)) * d.hp * partyScale : 0, ccImmune: 0, damagers: new Set(), room, idleT: this.rng.range(0, 3), wander: null, regenT: 0, respawn, charge: null,
+        breakG: 0, breakMax: def.boss ? def.boss.breakGauge * (1 + 0.15 * (lv - 1)) * d.hp * partyScale : 0, ccImmune: 0, damagers: new Set(), room, idleT: this.rng.range(0, 3), wander: null, regenT: 0, respawn, charge: null, fightT: 0, enraged: false,
       },
     };
     if (affixes.includes('shielded')) { e.barrier = e.maxHp * 0.3; e.barrierT = 9999; }
@@ -755,16 +770,16 @@ export class World {
       this.areas.push(this.mkArea(target, { x: target.x, y: target.y, r: 90, delay: 1.1, packet: pk, visual: 'shadow' }));
     }
     for (const p of players) this.rollLoot(p, target);
-    if (es.def.boss && es.def.id !== 'veyra') this.events.push({ t: 'boss_killed', enemy: es.def.id, players: players.map((p) => p.id) });
-    if (es.def.boss && es.def.id === 'veyra') {
+    if (es.def.boss) this.events.push({ t: 'boss_killed', enemy: es.def.id, players: players.map((p) => p.id) });
+    const finalBoss = this.opts.finalBoss ?? (this.opts.kind === 'dungeon' ? 'veyra' : null);
+    if (es.def.id === finalBoss && !this.bossDefeated) {
       this.bossDefeated = true;
-      this.events.push({ t: 'boss_killed', enemy: es.def.id, players: players.map((p) => p.id) });
       const room = this.map.rooms.find((r) => r.type === 'boss');
       const ex = room ? { x: room.cx * TILE + TILE / 2, y: room.cy * TILE + TILE / 2 + 64 } : { x: target.x, y: target.y };
       const exitIt = { id: 'exit', type: 'exit' as const, name: 'Rift Exit', ...ex };
       this.map.interactables.push(exitIt);
       this.events.push({ t: 'it_add', it: exitIt });
-      this.events.push({ t: 'msg', text: 'The Umbral Warden falls! A Rift Exit has opened.', kind: 'info' });
+      this.events.push({ t: 'msg', text: this.opts.exitText ?? 'The Umbral Warden falls! A Rift Exit has opened.', kind: 'info' });
     }
     if (es.respawn) {
       const r = es.respawn;
@@ -787,7 +802,7 @@ export class World {
       if (!this.rng.chance(dropChance)) continue;
       const min = (es.def.id === 'veyra' || es.def.id === 'gloomheart') && i === 0 ? 'rare' : es.def.boss && i === 0 ? 'uncommon' : 'common';
       const rarity = rollRarity(this.rng, bonus, min);
-      const item = generateItem({ rng: this.rng, ilvl: es.level, rarity, cls: ch.cls, hardcore: ch.hardcore });
+      const item = generateItem({ rng: this.rng, ilvl: Math.min(100, es.level + (this.opts.ilvlBonus ?? 0)), rarity, cls: ch.cls, hardcore: ch.hardcore });
       this.addDrop(p, enemy.x + this.rng.range(-30, 30), enemy.y + this.rng.range(-30, 30), item);
     }
     // potion recharge on kills
@@ -904,7 +919,7 @@ export class World {
     const def = CLASSES[p.char.cls];
     if (e.dead) {
       p.deadT -= dt;
-      if (p.deadT <= 0 && !p.char.hardcore) {
+      if (p.deadT <= 0 && !p.char.hardcore && !this.opts.noRespawn) {
         e.dead = false;
         e.x = this.map.spawn.x; e.y = this.map.spawn.y;
         this.refresh(e);
@@ -1069,6 +1084,10 @@ export class World {
       }
       if (extra && es.phase === 0) es.phase = 0; // phase-gated attacks unlocked below
     }
+    if (es.awake && def.enrage) {
+      es.fightT += dt;
+      if (!es.enraged && es.fightT >= def.enrage) { es.enraged = true; es.power *= 1.8; e.speed *= 1.2; this.events.push({ t: 'msg', text: `${def.name} is ENRAGED!`, kind: 'warn' }); }
+    }
     if (e.statuses.some((s) => HARD_CC.has(s.id))) return;
     // charging
     if (es.charge) {
@@ -1163,6 +1182,15 @@ export class World {
         const jitter = i === 0 ? 0 : 90;
         this.areas.push(this.mkArea(e, { x: t.x + this.rng.range(-jitter, jitter), y: t.y + this.rng.range(-jitter, jitter), r: atk.radius ?? 70, delay: windup + i * 0.15, packet: pk, visual: 'enemy' }));
       }
+    } else if (atk.kind === 'eclipse') {
+      // Raid mechanic: the whole arena is engulfed except one small circle of light. Players must gather in it.
+      const room = this.map.rooms[0];
+      const cx = room ? room.cx * TILE : e.x, cy = room ? room.cy * TILE : e.y;
+      const a = this.rng.range(0, Math.PI * 2), rr = this.rng.range(120, 300);
+      let sx = cx + Math.cos(a) * rr, sy = cy + Math.sin(a) * rr;
+      if (circleBlocked(this.map, sx, sy, 20)) { sx = cx; sy = cy; }
+      this.areas.push(this.mkArea(e, { x: sx, y: sy, r: atk.radius ?? 150, shape: 'outside', delay: windup, packet: pk, visual: 'enemy_eclipse' }));
+      this.events.push({ t: 'msg', text: `${es.def.name} begins a Total Eclipse — get into the circle of light!`, kind: 'warn' });
     } else if (atk.kind === 'charge') {
       const [nx, ny] = normalize(target.x - e.x, target.y - e.y);
       this.areas.push(this.mkArea(e, { x: e.x + nx * atk.range * 0.5, y: e.y + ny * atk.range * 0.5, r: atk.range * 0.5, shape: 'cone', ang, arc: 0.35, delay: windup, packet: null, visual: 'enemy_line' }));
@@ -1287,6 +1315,7 @@ export class World {
 
   inArea(a: Area, o: Ent): boolean {
     const d2 = dist2(a.x, a.y, o.x, o.y);
+    if (a.shape === 'outside') return Math.sqrt(d2) + o.r * 0.5 > a.r; // everyone NOT inside the safe circle is hit
     if (d2 > (a.r + o.r) ** 2) return false;
     if (a.shape === 'cone') {
       if (d2 < (o.r + 10) ** 2) return true;
@@ -1313,7 +1342,7 @@ export class World {
       ]);
     }
     const projs = this.projs.filter((p) => dist2(p.x, p.y, cx, cy) < r2).map((p) => [p.id, Math.round(p.x), Math.round(p.y), Math.round(p.vx), Math.round(p.vy), p.r, p.visual, p.team]);
-    const areas = this.areas.filter((a) => dist2(a.x, a.y, cx, cy) < r2 * 1.2).map((a) => [a.id, Math.round(a.x), Math.round(a.y), Math.round(a.r), a.shape === 'cone' ? 1 : 0, Math.round(a.ang * 100) / 100, Math.round(a.arc * 100) / 100, Math.round(a.delay * 100) / 100, Math.round(a.delayTotal * 100) / 100, a.team, a.visual, Math.round(a.dur * 10) / 10, a.fired ? 1 : 0]);
+    const areas = this.areas.filter((a) => dist2(a.x, a.y, cx, cy) < r2 * 1.2).map((a) => [a.id, Math.round(a.x), Math.round(a.y), Math.round(a.r), a.shape === 'cone' ? 1 : a.shape === 'outside' ? 2 : 0, Math.round(a.ang * 100) / 100, Math.round(a.arc * 100) / 100, Math.round(a.delay * 100) / 100, Math.round(a.delayTotal * 100) / 100, a.team, a.visual, Math.round(a.dur * 10) / 10, a.fired ? 1 : 0]);
     const drops = this.drops.filter((d) => d.owner === pid).map((d) => [d.id, Math.round(d.x), Math.round(d.y), d.item?.rarity ?? 'gold', d.item?.name ?? `${d.gold} gold`]);
     let self: unknown = null;
     if (me?.p && me.stats) {
@@ -1323,7 +1352,7 @@ export class World {
         id: me.id, res: Math.round(p.res), maxRes: me.stats.maxRes, sec: Math.round(p.sec * 10) / 10, secMax: me.stats.secMax,
         cdA: lo.active.map((s) => (s ? Math.round((p.cds[s] ?? 0) * 10) / 10 : 0)), cdU: lo.ultimate.map((s) => (s ? Math.round((p.cds[s] ?? 0) * 10) / 10 : 0)),
         dodge: Math.round(p.dodgeCd * 10) / 10, potCd: Math.round(p.potionCd * 10) / 10, potions: p.char.potions, buffs: me.buffs.map((b) => [b.name, Math.round(b.t * 10) / 10]),
-        target: p.targetId, deadT: me.dead ? Math.max(0, Math.round(p.deadT * 10) / 10) : -1, lock: Math.round(me.lock * 100) / 100,
+        target: p.targetId, deadT: me.dead ? (this.opts.noRespawn ? -2 : Math.max(0, Math.round(p.deadT * 10) / 10)) : -1, lock: Math.round(me.lock * 100) / 100,
       };
     }
     return { time: Math.round(this.time * 1000), ents, projs, areas, drops, self };

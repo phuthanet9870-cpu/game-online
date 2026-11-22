@@ -179,7 +179,7 @@ describe('GameCore', () => {
     core.handle('s1', { t: 'enter_dungeon', diff: 'abyssal' });
     expect(inbox.some((m) => m.t === 'err' && /not unlocked/.test(m.msg))).toBe(true);
     core.handle('s1', { t: 'enter_dungeon', diff: 'normal' });
-    expect(sess.roomId.startsWith('dungeon_')).toBe(true);
+    expect(core.rooms.get(sess.roomId)!.kind).toBe('dungeon');
     core.handle('s1', { t: 'leave' });
     expect(sess.roomId).toBe('town');
     expect(inbox.some((m) => m.t === 'run_end')).toBe(true);

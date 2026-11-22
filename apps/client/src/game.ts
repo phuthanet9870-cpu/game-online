@@ -13,10 +13,10 @@ export class ClientGame {
   pid = 0;
   char: CharacterData | null = null;
   account: AccountProgress | null = null;
-  room: { id: string; kind: 'town' | 'field' | 'dungeon'; difficulty: string; seed: number; modifiers: string[]; level: number } | null = null;
+  room: { id: string; kind: 'town' | 'field' | 'dungeon'; mode?: string; floor?: number; wave?: number; difficulty: string; seed: number; modifiers: string[]; level: number } | null = null;
   ents = new Map<number, CEnt>();
   projs: Array<{ id: number; x: number; y: number; vx: number; vy: number; r: number; v: string; team: number }> = [];
-  areas: Array<{ id: number; x: number; y: number; r: number; cone: boolean; ang: number; arc: number; delay: number; delayT: number; team: number; v: string; dur: number; fired: boolean; age: number }> = [];
+  areas: Array<{ id: number; x: number; y: number; r: number; outside?: boolean; cone: boolean; ang: number; arc: number; delay: number; delayT: number; team: number; v: string; dur: number; fired: boolean; age: number }> = [];
   drops: Array<{ id: number; x: number; y: number; rarity: string; name: string }> = [];
   self: any = null;
   fx: FloatText[] = [];
@@ -65,7 +65,7 @@ export class ClientGame {
     for (const id of this.ents.keys()) if (!seen.has(id)) this.ents.delete(id);
     this.projs = (m.projs as any[]).map((p) => ({ id: p[0], x: p[1], y: p[2], vx: p[3], vy: p[4], r: p[5], v: p[6], team: p[7] }));
     const prevAreas = new Map(this.areas.map((a) => [a.id, a.age]));
-    this.areas = (m.areas as any[]).map((a) => ({ id: a[0], x: a[1], y: a[2], r: a[3], cone: !!a[4], ang: a[5], arc: a[6], delay: a[7], delayT: a[8], team: a[9], v: a[10], dur: a[11], fired: !!a[12], age: prevAreas.get(a[0]) ?? 0 }));
+    this.areas = (m.areas as any[]).map((a) => ({ id: a[0], x: a[1], y: a[2], r: a[3], cone: a[4] === 1, outside: a[4] === 2, ang: a[5], arc: a[6], delay: a[7], delayT: a[8], team: a[9], v: a[10], dur: a[11], fired: !!a[12], age: prevAreas.get(a[0]) ?? 0 }));
     this.drops = (m.drops as any[]).map((d) => ({ id: d[0], x: d[1], y: d[2], rarity: d[3], name: d[4] }));
     this.self = m.self;
     const me = this.ents.get(this.pid);

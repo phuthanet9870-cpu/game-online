@@ -52,6 +52,31 @@ export const ENEMIES: Record<string, EnemyDef> = {
       { id: 'brood', kind: 'summon', range: 600, cooldown: 15, windup: 1.2, dmg: 0, type: 'physical', summon: 'gloomfang', count: 3, phase: 1 },
     ], color: '#2f4a2a', boss: { phases: [0.5], breakGauge: 700, title: 'World Boss' }, lootBonus: 4,
   },
+  // Ancient Labyrinth
+  stone_sentry: {
+    id: 'stone_sentry', name: 'Labyrinth Sentry', family: 'construct', role: 'tank', hp: 160, power: 12, armor: 90, res: { physical: 20, poison: 50, lightning: -20 }, speed: 90, radius: 18, xp: 30, aggroRange: 280,
+    attacks: [{ id: 'crush', kind: 'slam', range: 80, cooldown: 2.8, windup: 0.8, dmg: 1.3, type: 'physical', radius: 90 }], color: '#7a7466',
+  },
+  labyrinth_warden: {
+    id: 'labyrinth_warden', name: 'Oruk, Warden of the Coil', family: 'construct', role: 'boss', hp: 2600, power: 18, armor: 110, res: { physical: 20, poison: 50, lightning: -15 }, speed: 125, radius: 32, xp: 650, aggroRange: 420,
+    attacks: [
+      { id: 'gore', kind: 'charge', range: 420, cooldown: 6, windup: 1.0, dmg: 1.7, type: 'physical', status: { id: 'stun', chance: 1, duration: 0.8 } },
+      { id: 'quake', kind: 'slam', range: 140, cooldown: 3.5, windup: 1.0, dmg: 1.6, type: 'physical', radius: 160 },
+      { id: 'rubble', kind: 'eruption', range: 500, cooldown: 5, windup: 1.1, dmg: 1.6, type: 'physical', radius: 80, count: 4, phase: 1 },
+      { id: 'sentries', kind: 'summon', range: 500, cooldown: 18, windup: 1.2, dmg: 0, type: 'physical', summon: 'stone_sentry', count: 2, phase: 1 },
+    ], color: '#5a5040', boss: { phases: [0.5], breakGauge: 800, title: 'Ancient Labyrinth' }, lootBonus: 5,
+  },
+  // Raid (4-8 players)
+  sovereign: {
+    id: 'sovereign', name: 'Nyx Aurelion, the Eclipse Sovereign', family: 'hollowborn', role: 'boss', hp: 5200, power: 20, armor: 80, res: { shadow: 50, holy: -10, fire: 15, ice: 15 }, speed: 110, radius: 42, xp: 1500, aggroRange: 700,
+    attacks: [
+      { id: 'crescent', kind: 'cleave', range: 170, cooldown: 3.2, windup: 1.0, dmg: 1.8, type: 'shadow' },
+      { id: 'total_eclipse', kind: 'eclipse', range: 900, cooldown: 14, windup: 2.4, dmg: 3.2, type: 'shadow', radius: 150 },
+      { id: 'starfall', kind: 'eruption', range: 700, cooldown: 6, windup: 1.2, dmg: 1.8, type: 'fire', radius: 85, count: 6 },
+      { id: 'guard', kind: 'summon', range: 700, cooldown: 22, windup: 1.4, dmg: 0, type: 'shadow', summon: 'hollow_brute', count: 2, phase: 1 },
+      { id: 'umbral_wave', kind: 'nova', range: 800, cooldown: 8, windup: 1.3, dmg: 1.2, type: 'shadow', count: 32, speed: 230, phase: 2 },
+    ], color: '#1d1030', boss: { phases: [0.65, 0.3], breakGauge: 1600, title: 'Raid Boss' }, enrage: 480, lootBonus: 6,
+  },
   // Open world — Duskmeadow
   gloomfang: {
     id: 'gloomfang', name: 'Gloomfang Wolf', family: 'wildlife', role: 'flanker', hp: 55, power: 8, armor: 15, res: { ice: 20 }, speed: 175, radius: 14, xp: 12, aggroRange: 300,
