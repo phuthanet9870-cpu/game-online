@@ -1,0 +1,20 @@
+{
+  "name": "@astra/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/server.js",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/server.js --packages=external --alias:@astra/shared=../../packages/shared/src/index.ts && cp -r migrations dist/",
+    "migrate": "tsx src/migrate.ts"
+  },
+  "dependencies": {
+    "pg": "^8.16.3",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.5",
+    "@types/ws": "^8.18.1"
+  }
+}

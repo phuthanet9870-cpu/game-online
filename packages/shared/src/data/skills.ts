@@ -1,0 +1,181 @@
+import type { SkillDef } from '../types.js';
+
+// Skill library. 8 Active + 4 Ultimate per class at launch. Values are balance data, not code.
+// `cast` = action lock seconds. Ranges in pixels (1 tile = 32px).
+
+type S = Omit<SkillDef, 'tags'> & { tags?: string[] };
+const s = (d: S): SkillDef => ({ tags: [], ...d });
+
+export const SKILLS: SkillDef[] = [
+  // ───────────────────────── WARRIOR ─────────────────────────
+  s({ id: 'war_cleave', cls: 'warrior', kind: 'active', name: 'Sundering Arc', desc: 'A wide arc that tears through every enemy in front of you.', cost: 15, cooldown: 2.5, cast: 0.35, range: 0, targeting: 'direction', unlockLevel: 1, icon: 'arc', tags: ['melee', 'attack', 'aoe'],
+    effects: [{ t: 'melee', range: 110, arc: 200, dmg: { coef: 1.8, type: 'physical', status: { id: 'bleed', chance: 0.4, duration: 4, power: 0.15 } } }] }),
+  s({ id: 'war_leap', cls: 'warrior', kind: 'active', name: 'Skyfall Leap', desc: 'Leap to a location and crash down, stunning enemies.', cost: 20, cooldown: 7, cast: 0.45, range: 320, targeting: 'ground', unlockLevel: 1, icon: 'leap', tags: ['movement', 'aoe', 'attack'],
+    effects: [{ t: 'dash', dist: 320, invuln: true }, { t: 'area', at: 'self', radius: 110, dmg: { coef: 1.6, type: 'physical', status: { id: 'stun', chance: 1, duration: 1.0 } } }] }),
+  s({ id: 'war_warcry', cls: 'warrior', kind: 'active', name: 'Ironvale Warcry', desc: 'Roar, taunting nearby enemies and gaining armor and Rage.', cost: 0, cooldown: 14, cast: 0.3, range: 0, targeting: 'self', unlockLevel: 2, icon: 'shout', tags: ['buff', 'warcry'],
+    effects: [{ t: 'taunt', radius: 260, duration: 3 }, { t: 'gain', resource: 35 }, { t: 'buff', name: 'Warcry', duration: 6, mods: [{ stat: 'armorPct', value: 40 }, { stat: 'dmgPct', value: 10 }] }] }),
+  s({ id: 'war_whirl', cls: 'warrior', kind: 'active', name: 'Steel Cyclone', desc: 'Spin repeatedly, hitting all nearby enemies.', cost: 30, cooldown: 6, cast: 0.2, range: 0, targeting: 'self', unlockLevel: 3, icon: 'spin', tags: ['melee', 'attack', 'aoe', 'channel'],
+    effects: [{ t: 'area', at: 'self', radius: 105, duration: 2.0, tick: 0.33, follow: true, dmg: { coef: 0.65, type: 'physical' } }, { t: 'buff', name: 'Cyclone', duration: 2, mods: [{ stat: 'moveSpeedPct', value: -15 }] }] }),
+  s({ id: 'war_rend', cls: 'warrior', kind: 'active', name: 'Gutting Rend', desc: 'A vicious strike that inflicts heavy bleeding.', cost: 12, cooldown: 4, cast: 0.3, range: 0, targeting: 'direction', unlockLevel: 4, icon: 'slash', tags: ['melee', 'attack', 'bleed'],
+    effects: [{ t: 'melee', range: 90, arc: 100, dmg: { coef: 1.2, type: 'physical', status: { id: 'bleed', chance: 1, duration: 6, power: 0.3 } } }] }),
+  s({ id: 'war_charge', cls: 'warrior', kind: 'active', name: 'Bull Rush', desc: 'Charge forward, damaging and knocking back enemies in your path.', cost: 15, cooldown: 6, cast: 0.3, range: 0, targeting: 'direction', unlockLevel: 6, icon: 'dash', tags: ['movement', 'attack'],
+    effects: [{ t: 'dash', dist: 260, radius: 40, dmg: { coef: 1.3, type: 'physical', status: { id: 'stun', chance: 0.5, duration: 0.6 } } }] }),
+  s({ id: 'war_fortify', cls: 'warrior', kind: 'active', name: 'Unyielding Stance', desc: 'Brace yourself: gain a barrier and block chance.', cost: 25, cooldown: 16, cast: 0.2, range: 0, targeting: 'self', unlockLevel: 8, icon: 'shield', tags: ['buff', 'defense'],
+    effects: [{ t: 'barrier', pct: 0.25, duration: 6 }, { t: 'buff', name: 'Unyielding', duration: 6, mods: [{ stat: 'block', value: 30 }] }] }),
+  s({ id: 'war_quake', cls: 'warrior', kind: 'active', name: 'Faultline Slam', desc: 'Slam the ground, sending a fissure that erupts after a moment.', cost: 30, cooldown: 8, cast: 0.5, range: 360, targeting: 'ground', unlockLevel: 10, icon: 'slam', tags: ['melee', 'attack', 'aoe'],
+    effects: [{ t: 'area', at: 'cursor', radius: 130, delay: 0.4, dmg: { coef: 2.6, type: 'physical', status: { id: 'slow', chance: 1, duration: 2, power: 0.4 } } }] }),
+  s({ id: 'war_u_titan', cls: 'warrior', kind: 'ultimate', name: 'Titan Awakening', desc: 'Become a towering titan: +40% damage, +30% armor and Rage does not decay.', cost: 0, cooldown: 60, cast: 0.4, range: 0, targeting: 'self', unlockLevel: 5, icon: 'crown', tags: ['buff', 'ultimate'],
+    effects: [{ t: 'buff', name: 'Titan', duration: 12, mods: [{ stat: 'dmgPct', value: 40 }, { stat: 'armorPct', value: 30 }, { stat: 'sizePct', value: 35 }] }, { t: 'gain', resource: 100 }] }),
+  s({ id: 'war_u_blade_storm', cls: 'warrior', kind: 'ultimate', name: 'Thousand-Edge Tempest', desc: 'Unleash a storm of blades that shreds everything around you.', cost: 0, cooldown: 45, cast: 0.3, range: 0, targeting: 'self', unlockLevel: 12, icon: 'spin', tags: ['aoe', 'ultimate', 'attack'],
+    effects: [{ t: 'area', at: 'self', radius: 170, duration: 4, tick: 0.25, follow: true, dmg: { coef: 0.9, type: 'physical', status: { id: 'bleed', chance: 0.3, duration: 3, power: 0.2 } } }] }),
+  s({ id: 'war_u_execution', cls: 'warrior', kind: 'ultimate', name: "Headsman's Verdict", desc: 'A single colossal overhead blow. Huge damage to Broken or low-health foes.', cost: 0, cooldown: 40, cast: 0.7, range: 0, targeting: 'direction', unlockLevel: 18, icon: 'axe', tags: ['melee', 'ultimate', 'attack', 'execute'],
+    effects: [{ t: 'melee', range: 120, arc: 80, dmg: { coef: 9, type: 'physical' }, knock: 120 }] }),
+  s({ id: 'war_u_bastion', cls: 'warrior', kind: 'ultimate', name: 'Last Bastion', desc: 'Plant your banner: allies nearby gain a large barrier and damage reduction.', cost: 0, cooldown: 75, cast: 0.4, range: 0, targeting: 'self', unlockLevel: 25, icon: 'banner', tags: ['support', 'ultimate', 'defense'],
+    effects: [{ t: 'barrier', pct: 0.4, duration: 8, radius: 320 }, { t: 'buff', name: 'Bastion', duration: 8, party: true, radius: 320, mods: [{ stat: 'dmgTakenPct', value: -20 }] }] }),
+
+  // ───────────────────────── MAGE ─────────────────────────
+  s({ id: 'mag_fireball', cls: 'mage', kind: 'active', name: 'Sunflare Orb', desc: 'Hurl an orb of fire that explodes on impact and ignites enemies.', cost: 14, cooldown: 0.8, cast: 0.35, range: 0, targeting: 'direction', unlockLevel: 1, icon: 'fire', tags: ['spell', 'projectile', 'fire', 'aoe'],
+    effects: [{ t: 'projectile', speed: 560, range: 560, radius: 10, dmg: { coef: 1.5, type: 'fire', status: { id: 'burn', chance: 0.5, duration: 3, power: 0.25 } }, explode: { radius: 70, dmg: { coef: 0.8, type: 'fire' } } }] }),
+  s({ id: 'mag_frost_nova', cls: 'mage', kind: 'active', name: 'Rime Bloom', desc: 'A ring of frost bursts from you, freezing nearby enemies.', cost: 22, cooldown: 7, cast: 0.3, range: 0, targeting: 'self', unlockLevel: 1, icon: 'ice', tags: ['spell', 'ice', 'aoe', 'control'],
+    effects: [{ t: 'area', at: 'self', radius: 150, dmg: { coef: 1.1, type: 'ice', status: { id: 'freeze', chance: 1, duration: 1.4 } } }] }),
+  s({ id: 'mag_chain', cls: 'mage', kind: 'active', name: 'Stormthread', desc: 'A bolt of lightning that leaps between up to 5 enemies.', cost: 16, cooldown: 1.5, cast: 0.3, range: 0, targeting: 'direction', unlockLevel: 2, icon: 'bolt', tags: ['spell', 'projectile', 'lightning', 'chain'],
+    effects: [{ t: 'projectile', speed: 900, range: 520, radius: 8, chain: 4, dmg: { coef: 1.15, type: 'lightning', status: { id: 'shock', chance: 0.35, duration: 3, power: 0.15 } } }] }),
+  s({ id: 'mag_blink', cls: 'mage', kind: 'active', name: 'Astral Step', desc: 'Teleport a short distance, leaving a crackling afterimage.', cost: 10, cooldown: 5, cast: 0.1, range: 260, targeting: 'ground', unlockLevel: 3, icon: 'blink', tags: ['spell', 'movement'],
+    effects: [{ t: 'area', at: 'self', radius: 80, dmg: { coef: 0.6, type: 'lightning' } }, { t: 'dash', dist: 260, invuln: true }] }),
+  s({ id: 'mag_icelance', cls: 'mage', kind: 'active', name: 'Glacier Lance', desc: 'A piercing spear of ice that chills everything in a line.', cost: 18, cooldown: 3, cast: 0.4, range: 0, targeting: 'direction', unlockLevel: 4, icon: 'spear', tags: ['spell', 'projectile', 'ice'],
+    effects: [{ t: 'projectile', speed: 700, range: 640, radius: 14, pierce: 99, dmg: { coef: 1.9, type: 'ice', status: { id: 'chill', chance: 1, duration: 3, power: 0.3 } } }] }),
+  s({ id: 'mag_firewall', cls: 'mage', kind: 'active', name: 'Cinder Field', desc: 'Set the ground ablaze, burning enemies standing in it.', cost: 25, cooldown: 9, cast: 0.4, range: 420, targeting: 'ground', unlockLevel: 6, icon: 'fire', tags: ['spell', 'fire', 'aoe', 'dot'],
+    effects: [{ t: 'area', at: 'cursor', radius: 120, duration: 5, tick: 0.5, dmg: { coef: 0.45, type: 'fire', status: { id: 'burn', chance: 0.3, duration: 2, power: 0.2 } } }] }),
+  s({ id: 'mag_mana_shield', cls: 'mage', kind: 'active', name: 'Prism Ward', desc: 'Conjure a barrier of crystallized mana.', cost: 30, cooldown: 15, cast: 0.2, range: 0, targeting: 'self', unlockLevel: 8, icon: 'shield', tags: ['spell', 'defense'],
+    effects: [{ t: 'barrier', pct: 0.35, duration: 8 }] }),
+  s({ id: 'mag_orb', cls: 'mage', kind: 'active', name: 'Thunderhead Sphere', desc: 'A slow orb that zaps enemies it passes through.', cost: 28, cooldown: 7, cast: 0.4, range: 0, targeting: 'direction', unlockLevel: 10, icon: 'orb', tags: ['spell', 'projectile', 'lightning'],
+    effects: [{ t: 'projectile', speed: 170, range: 560, radius: 30, pierce: 99, dmg: { coef: 0.7, type: 'lightning', status: { id: 'shock', chance: 0.25, duration: 2, power: 0.15 } } }] }),
+  s({ id: 'mag_u_meteor', cls: 'mage', kind: 'ultimate', name: 'Starfall Cataclysm', desc: 'Call down a rain of burning meteors on an area.', cost: 0, cooldown: 50, cast: 0.6, range: 480, targeting: 'ground', unlockLevel: 5, icon: 'meteor', tags: ['spell', 'fire', 'aoe', 'ultimate'],
+    effects: [{ t: 'area', at: 'cursor', radius: 80, delay: 0.7, count: 8, scatter: 150, dmg: { coef: 2.2, type: 'fire', status: { id: 'burn', chance: 0.6, duration: 3, power: 0.3 } } }] }),
+  s({ id: 'mag_u_blizzard', cls: 'mage', kind: 'ultimate', name: 'Eternal Winter', desc: 'A raging blizzard that slows and shreds enemies.', cost: 0, cooldown: 45, cast: 0.5, range: 460, targeting: 'ground', unlockLevel: 12, icon: 'ice', tags: ['spell', 'ice', 'aoe', 'ultimate', 'dot'],
+    effects: [{ t: 'area', at: 'cursor', radius: 200, duration: 6, tick: 0.4, dmg: { coef: 0.7, type: 'ice', status: { id: 'chill', chance: 1, duration: 1.5, power: 0.4 } } }] }),
+  s({ id: 'mag_u_overload', cls: 'mage', kind: 'ultimate', name: 'Arcane Overload', desc: 'Overcharge: spells cost no Mana and cast 30% faster for 8s.', cost: 0, cooldown: 60, cast: 0.2, range: 0, targeting: 'self', unlockLevel: 18, icon: 'star', tags: ['buff', 'ultimate'],
+    effects: [{ t: 'buff', name: 'Overload', duration: 8, mods: [{ stat: 'costPct', value: -100 }, { stat: 'castSpeed', value: 30 }, { stat: 'dmgPct', value: 15 }] }, { t: 'gain', secondary: 3 }] }),
+  s({ id: 'mag_u_tempest', cls: 'mage', kind: 'ultimate', name: 'Skyrender', desc: 'Bolts of lightning strike random enemies around you.', cost: 0, cooldown: 40, cast: 0.3, range: 0, targeting: 'self', unlockLevel: 25, icon: 'bolt', tags: ['spell', 'lightning', 'aoe', 'ultimate'],
+    effects: [{ t: 'area', at: 'self', radius: 60, delay: 0.3, count: 12, scatter: 300, dmg: { coef: 1.8, type: 'lightning', status: { id: 'shock', chance: 0.5, duration: 3, power: 0.2 } } }] }),
+
+  // ───────────────────────── ASSASSIN ─────────────────────────
+  s({ id: 'asn_shadowstrike', cls: 'assassin', kind: 'active', name: 'Umbral Lunge', desc: 'Lunge through shadows to strike your target. Builds 2 Combo.', cost: 20, cooldown: 4, cast: 0.2, range: 0, targeting: 'direction', unlockLevel: 1, icon: 'dash', tags: ['melee', 'attack', 'movement', 'builder'],
+    effects: [{ t: 'dash', dist: 200, radius: 36, invuln: true, dmg: { coef: 1.4, type: 'shadow' } }, { t: 'gain', secondary: 2 }] }),
+  s({ id: 'asn_eviscerate', cls: 'assassin', kind: 'active', name: 'Moonless Verdict', desc: 'Finisher: a brutal strike that consumes all Combo (+45% damage per point).', cost: 25, cooldown: 1.0, cast: 0.25, range: 0, targeting: 'direction', unlockLevel: 1, icon: 'slash', tags: ['melee', 'attack', 'finisher'], requireSecondary: 1, consumeSecondary: { bonusPerPoint: 0.45 },
+    effects: [{ t: 'melee', range: 80, arc: 90, dmg: { coef: 1.6, type: 'physical' } }] }),
+  s({ id: 'asn_fan', cls: 'assassin', kind: 'active', name: 'Crescent Fan', desc: 'Throw a fan of 5 knives. Builds 1 Combo.', cost: 15, cooldown: 2.5, cast: 0.25, range: 0, targeting: 'direction', unlockLevel: 2, icon: 'knives', tags: ['projectile', 'attack', 'builder'],
+    effects: [{ t: 'projectile', count: 5, spread: 50, speed: 720, range: 380, radius: 6, dmg: { coef: 0.6, type: 'physical', status: { id: 'bleed', chance: 0.25, duration: 3, power: 0.2 } } }, { t: 'gain', secondary: 1 }] }),
+  s({ id: 'asn_venom', cls: 'assassin', kind: 'active', name: 'Nightshade Coating', desc: 'Coat your blades: hits add poison and +20% attack speed.', cost: 20, cooldown: 14, cast: 0.1, range: 0, targeting: 'self', unlockLevel: 3, icon: 'poison', tags: ['buff', 'poison'],
+    effects: [{ t: 'buff', name: 'Nightshade', duration: 8, mods: [{ stat: 'atkSpeed', value: 20 }, { stat: 'onHitPoison', value: 0.5 }] }] }),
+  s({ id: 'asn_smoke', cls: 'assassin', kind: 'active', name: 'Veil of Ash', desc: 'Drop a smoke cloud: you gain high dodge while inside and enemies are slowed.', cost: 25, cooldown: 14, cast: 0.15, range: 0, targeting: 'self', unlockLevel: 4, icon: 'smoke', tags: ['defense', 'aoe'],
+    effects: [{ t: 'area', at: 'self', radius: 140, duration: 4, tick: 0.5, dmg: { coef: 0.05, type: 'poison', status: { id: 'slow', chance: 1, duration: 1, power: 0.4 } } }, { t: 'buff', name: 'Veiled', duration: 4, mods: [{ stat: 'dodge', value: 40 }] }] }),
+  s({ id: 'asn_mark', cls: 'assassin', kind: 'active', name: 'Death Sigil', desc: 'Mark an enemy: it takes +25% damage and grants Combo when hit.', cost: 10, cooldown: 8, cast: 0.15, range: 480, targeting: 'target', unlockLevel: 6, icon: 'mark', tags: ['debuff', 'builder'],
+    effects: [{ t: 'projectile', speed: 1100, range: 480, radius: 8, dmg: { coef: 0.3, type: 'shadow', status: { id: 'vulnerable', chance: 1, duration: 8, power: 0.25 } } }, { t: 'gain', secondary: 1 }] }),
+  s({ id: 'asn_blades', cls: 'assassin', kind: 'active', name: 'Orbiting Edges', desc: 'Spectral blades circle you, cutting nearby enemies.', cost: 30, cooldown: 10, cast: 0.2, range: 0, targeting: 'self', unlockLevel: 8, icon: 'spin', tags: ['aoe', 'attack'],
+    effects: [{ t: 'area', at: 'self', radius: 90, duration: 5, tick: 0.3, follow: true, dmg: { coef: 0.4, type: 'physical', status: { id: 'bleed', chance: 0.2, duration: 3, power: 0.2 } } }] }),
+  s({ id: 'asn_backflip', cls: 'assassin', kind: 'active', name: 'Ghoststep', desc: 'Flip backwards, throwing caltrops where you stood. Builds 1 Combo.', cost: 10, cooldown: 6, cast: 0.15, range: 0, targeting: 'direction', unlockLevel: 10, icon: 'blink', tags: ['movement', 'defense'],
+    effects: [{ t: 'area', at: 'self', radius: 90, duration: 3, tick: 0.5, dmg: { coef: 0.3, type: 'physical', status: { id: 'slow', chance: 1, duration: 1, power: 0.5 } } }, { t: 'dash', dist: 200, backward: true, invuln: true }, { t: 'gain', secondary: 1 }] }),
+  s({ id: 'asn_u_massacre', cls: 'assassin', kind: 'ultimate', name: 'Red Moon Massacre', desc: 'Vanish and strike every nearby enemy many times.', cost: 0, cooldown: 45, cast: 1.0, range: 0, targeting: 'self', unlockLevel: 5, icon: 'moon', tags: ['ultimate', 'attack', 'aoe'],
+    effects: [{ t: 'buff', name: 'Vanished', duration: 1.0, mods: [{ stat: 'invuln', value: 1 }] }, { t: 'area', at: 'self', radius: 220, duration: 1.0, tick: 0.12, dmg: { coef: 0.75, type: 'physical', status: { id: 'bleed', chance: 0.3, duration: 3, power: 0.2 } } }, { t: 'gain', secondary: 5 }] }),
+  s({ id: 'asn_u_clone', cls: 'assassin', kind: 'ultimate', name: 'Mirror of Shades', desc: 'Summon two shadow clones that fight beside you.', cost: 0, cooldown: 55, cast: 0.3, range: 0, targeting: 'self', unlockLevel: 12, icon: 'clone', tags: ['ultimate', 'summon'],
+    effects: [{ t: 'summon', minion: 'wraith', count: 2, duration: 15 }] }),
+  s({ id: 'asn_u_assassinate', cls: 'assassin', kind: 'ultimate', name: 'Final Eclipse', desc: 'Teleport to your aim point and deliver a strike that always crits.', cost: 0, cooldown: 40, cast: 0.4, range: 320, targeting: 'ground', unlockLevel: 18, icon: 'dagger', tags: ['ultimate', 'attack', 'movement'],
+    effects: [{ t: 'dash', dist: 320, invuln: true }, { t: 'area', at: 'self', radius: 90, dmg: { coef: 7, type: 'shadow', status: { id: 'vulnerable', chance: 1, duration: 6, power: 0.2 } } }] }),
+  s({ id: 'asn_u_frenzy', cls: 'assassin', kind: 'ultimate', name: 'Bloodtempo', desc: 'For 10s: +50% attack speed, +25% crit chance, energy regen doubled.', cost: 0, cooldown: 60, cast: 0.1, range: 0, targeting: 'self', unlockLevel: 25, icon: 'star', tags: ['ultimate', 'buff'],
+    effects: [{ t: 'buff', name: 'Bloodtempo', duration: 10, mods: [{ stat: 'atkSpeed', value: 50 }, { stat: 'critChance', value: 25 }, { stat: 'resRegenPct', value: 100 }] }] }),
+
+  // ───────────────────────── RANGER ─────────────────────────
+  s({ id: 'rng_multishot', cls: 'ranger', kind: 'active', name: 'Scatter Volley', desc: 'Fire 7 arrows in a wide cone.', cost: 18, cooldown: 2, cast: 0.3, range: 0, targeting: 'direction', unlockLevel: 1, icon: 'arrows', tags: ['projectile', 'attack', 'bow'],
+    effects: [{ t: 'projectile', count: 7, spread: 60, speed: 800, range: 520, radius: 6, dmg: { coef: 0.65, type: 'physical' } }] }),
+  s({ id: 'rng_mark', cls: 'ranger', kind: 'active', name: "Hunter's Mark", desc: 'Mark a target, increasing your damage against it. Refunds Focus.', cost: 0, cooldown: 6, cast: 0.15, range: 600, targeting: 'target', unlockLevel: 1, icon: 'mark', tags: ['debuff'],
+    effects: [{ t: 'projectile', speed: 1400, range: 600, radius: 8, dmg: { coef: 0.4, type: 'physical', status: { id: 'marked', chance: 1, duration: 10, power: 0.15 } } }, { t: 'gain', resource: 20 }] }),
+  s({ id: 'rng_pierce', cls: 'ranger', kind: 'active', name: 'Longwind Shot', desc: 'A heavy arrow that pierces every enemy in a line.', cost: 22, cooldown: 3, cast: 0.5, range: 0, targeting: 'direction', unlockLevel: 2, icon: 'spear', tags: ['projectile', 'attack', 'bow'],
+    effects: [{ t: 'projectile', speed: 1200, range: 760, radius: 10, pierce: 99, dmg: { coef: 2.4, type: 'physical' } }] }),
+  s({ id: 'rng_trap', cls: 'ranger', kind: 'active', name: 'Thornsnare Trap', desc: 'Throw a trap that bursts after a short delay, rooting enemies.', cost: 15, cooldown: 6, cast: 0.25, range: 380, targeting: 'ground', unlockLevel: 3, icon: 'trap', tags: ['trap', 'aoe', 'control'],
+    effects: [{ t: 'area', at: 'cursor', radius: 100, delay: 0.8, dmg: { coef: 1.8, type: 'poison', status: { id: 'stun', chance: 1, duration: 1.2 } } }] }),
+  s({ id: 'rng_roll', cls: 'ranger', kind: 'active', name: 'Windrunner Roll', desc: 'Roll and gain movement speed and Focus.', cost: 0, cooldown: 5, cast: 0.1, range: 0, targeting: 'direction', unlockLevel: 4, icon: 'blink', tags: ['movement'],
+    effects: [{ t: 'dash', dist: 220, invuln: true }, { t: 'gain', resource: 15 }, { t: 'buff', name: 'Windrunner', duration: 3, mods: [{ stat: 'moveSpeedPct', value: 30 }] }] }),
+  s({ id: 'rng_rain', cls: 'ranger', kind: 'active', name: 'Hailing Arrows', desc: 'Arrows rain on an area over time.', cost: 30, cooldown: 8, cast: 0.4, range: 480, targeting: 'ground', unlockLevel: 6, icon: 'rain', tags: ['attack', 'aoe', 'bow'],
+    effects: [{ t: 'area', at: 'cursor', radius: 140, duration: 3, tick: 0.3, dmg: { coef: 0.5, type: 'physical' } }] }),
+  s({ id: 'rng_hawk', cls: 'ranger', kind: 'active', name: 'Skyward Companion', desc: 'Call two hawks to harass enemies.', cost: 25, cooldown: 18, cast: 0.2, range: 0, targeting: 'self', unlockLevel: 8, icon: 'bird', tags: ['summon', 'companion'],
+    effects: [{ t: 'summon', minion: 'hawk', count: 2, duration: 18 }] }),
+  s({ id: 'rng_frost_arrow', cls: 'ranger', kind: 'active', name: 'Frostfletch', desc: 'An icy arrow that explodes, chilling enemies.', cost: 16, cooldown: 3, cast: 0.3, range: 0, targeting: 'direction', unlockLevel: 10, icon: 'ice', tags: ['projectile', 'attack', 'ice', 'bow'],
+    effects: [{ t: 'projectile', speed: 900, range: 600, radius: 8, dmg: { coef: 1.3, type: 'ice', status: { id: 'chill', chance: 1, duration: 3, power: 0.35 } }, explode: { radius: 90, dmg: { coef: 0.8, type: 'ice', status: { id: 'chill', chance: 1, duration: 2, power: 0.3 } } } }] }),
+  s({ id: 'rng_u_barrage', cls: 'ranger', kind: 'ultimate', name: 'Gale of Ten Thousand', desc: 'Unleash a relentless storm of arrows in front of you.', cost: 0, cooldown: 45, cast: 1.2, range: 0, targeting: 'direction', unlockLevel: 5, icon: 'arrows', tags: ['ultimate', 'projectile', 'attack'],
+    effects: [{ t: 'projectile', count: 24, spread: 40, speed: 1000, range: 640, radius: 7, dmg: { coef: 0.75, type: 'physical' } }] }),
+  s({ id: 'rng_u_snipe', cls: 'ranger', kind: 'ultimate', name: 'Horizon Piercer', desc: 'A charged shot that pierces everything and deals massive damage.', cost: 0, cooldown: 40, cast: 0.9, range: 0, targeting: 'direction', unlockLevel: 12, icon: 'spear', tags: ['ultimate', 'projectile', 'attack'],
+    effects: [{ t: 'projectile', speed: 1800, range: 1100, radius: 18, pierce: 99, dmg: { coef: 8, type: 'physical', status: { id: 'vulnerable', chance: 1, duration: 5, power: 0.2 } } }] }),
+  s({ id: 'rng_u_turrets', cls: 'ranger', kind: 'ultimate', name: 'Sentry Grove', desc: 'Deploy three auto-firing snare turrets.', cost: 0, cooldown: 55, cast: 0.4, range: 0, targeting: 'self', unlockLevel: 18, icon: 'trap', tags: ['ultimate', 'summon', 'trap'],
+    effects: [{ t: 'summon', minion: 'turret', count: 3, duration: 15 }] }),
+  s({ id: 'rng_u_focus', cls: 'ranger', kind: 'ultimate', name: 'Eagle Eye', desc: 'Perfect focus: +40% crit chance and +50% crit damage for 10s.', cost: 0, cooldown: 60, cast: 0.1, range: 0, targeting: 'self', unlockLevel: 25, icon: 'eye', tags: ['ultimate', 'buff'],
+    effects: [{ t: 'buff', name: 'Eagle Eye', duration: 10, mods: [{ stat: 'critChance', value: 40 }, { stat: 'critMult', value: 50 }] }, { t: 'gain', resource: 100 }] }),
+
+  // ───────────────────────── PALADIN ─────────────────────────
+  s({ id: 'pal_smite', cls: 'paladin', kind: 'active', name: 'Dawnbreak Smite', desc: 'A radiant hammer strike that bursts in holy light.', cost: 15, cooldown: 3, cast: 0.35, range: 0, targeting: 'direction', unlockLevel: 1, icon: 'hammer', tags: ['melee', 'attack', 'holy', 'aoe'],
+    effects: [{ t: 'melee', range: 90, arc: 120, dmg: { coef: 1.9, type: 'holy', status: { id: 'weaken', chance: 0.5, duration: 4, power: 0.15 } } }] }),
+  s({ id: 'pal_heal', cls: 'paladin', kind: 'active', name: 'Sanctified Light', desc: 'Heal yourself and nearby allies.', cost: 25, cooldown: 10, cast: 0.4, range: 0, targeting: 'self', unlockLevel: 1, icon: 'heal', tags: ['spell', 'heal', 'support'],
+    effects: [{ t: 'heal', pct: 0.3, radius: 280 }] }),
+  s({ id: 'pal_shield_throw', cls: 'paladin', kind: 'active', name: 'Aegis Rebound', desc: 'Hurl your shield; it ricochets between enemies.', cost: 15, cooldown: 3.5, cast: 0.3, range: 0, targeting: 'direction', unlockLevel: 2, icon: 'shield', tags: ['projectile', 'attack', 'holy', 'chain'],
+    effects: [{ t: 'projectile', speed: 700, range: 460, radius: 14, chain: 3, dmg: { coef: 1.3, type: 'holy', status: { id: 'stun', chance: 0.3, duration: 0.6 } } }] }),
+  s({ id: 'pal_consecrate', cls: 'paladin', kind: 'active', name: 'Hallowed Ground', desc: 'Consecrate the ground around you, burning enemies and healing allies.', cost: 25, cooldown: 10, cast: 0.3, range: 0, targeting: 'self', unlockLevel: 3, icon: 'sun', tags: ['spell', 'holy', 'aoe', 'heal'],
+    effects: [{ t: 'area', at: 'self', radius: 150, duration: 6, tick: 0.5, healPct: 0.012, dmg: { coef: 0.4, type: 'holy' } }] }),
+  s({ id: 'pal_taunt', cls: 'paladin', kind: 'active', name: 'Oath of Challenge', desc: 'Taunt enemies nearby and gain damage reduction.', cost: 10, cooldown: 12, cast: 0.2, range: 0, targeting: 'self', unlockLevel: 4, icon: 'shout', tags: ['defense', 'taunt'],
+    effects: [{ t: 'taunt', radius: 300, duration: 4 }, { t: 'buff', name: 'Challenge', duration: 5, mods: [{ stat: 'dmgTakenPct', value: -25 }] }] }),
+  s({ id: 'pal_charge', cls: 'paladin', kind: 'active', name: 'Lightbound Charge', desc: 'Charge forward on a beam of light, stunning enemies.', cost: 15, cooldown: 7, cast: 0.3, range: 0, targeting: 'direction', unlockLevel: 6, icon: 'dash', tags: ['movement', 'attack', 'holy'],
+    effects: [{ t: 'dash', dist: 240, radius: 40, dmg: { coef: 1.2, type: 'holy', status: { id: 'stun', chance: 0.8, duration: 0.8 } } }] }),
+  s({ id: 'pal_barrier', cls: 'paladin', kind: 'active', name: 'Vow of Protection', desc: 'Grant yourself and allies a holy barrier.', cost: 30, cooldown: 16, cast: 0.3, range: 0, targeting: 'self', unlockLevel: 8, icon: 'shield', tags: ['spell', 'defense', 'support'],
+    effects: [{ t: 'barrier', pct: 0.25, duration: 8, radius: 300 }] }),
+  s({ id: 'pal_judgement', cls: 'paladin', kind: 'active', name: 'Radiant Judgement', desc: 'Call a pillar of light at a location after a moment.', cost: 30, cooldown: 8, cast: 0.4, range: 420, targeting: 'ground', unlockLevel: 10, icon: 'pillar', tags: ['spell', 'holy', 'aoe'],
+    effects: [{ t: 'area', at: 'cursor', radius: 110, delay: 0.6, dmg: { coef: 2.8, type: 'holy', status: { id: 'vulnerable', chance: 1, duration: 4, power: 0.1 } } }] }),
+  s({ id: 'pal_u_avatar', cls: 'paladin', kind: 'ultimate', name: 'Avatar of Dawn', desc: 'Ascend: +30% damage, +30% damage reduction and holy aura for 12s.', cost: 0, cooldown: 60, cast: 0.4, range: 0, targeting: 'self', unlockLevel: 5, icon: 'crown', tags: ['ultimate', 'buff', 'holy'],
+    effects: [{ t: 'buff', name: 'Avatar', duration: 12, mods: [{ stat: 'dmgPct', value: 30 }, { stat: 'dmgTakenPct', value: -30 }, { stat: 'sizePct', value: 20 }] }, { t: 'area', at: 'self', radius: 140, duration: 12, tick: 0.5, follow: true, dmg: { coef: 0.35, type: 'holy' } }] }),
+  s({ id: 'pal_u_sanctuary', cls: 'paladin', kind: 'ultimate', name: 'Sanctuary Dome', desc: 'A dome that massively heals allies inside over time.', cost: 0, cooldown: 70, cast: 0.5, range: 0, targeting: 'self', unlockLevel: 12, icon: 'heal', tags: ['ultimate', 'heal', 'support'],
+    effects: [{ t: 'area', at: 'self', radius: 220, duration: 6, tick: 0.5, healPct: 0.05 }, { t: 'barrier', pct: 0.2, duration: 6, radius: 220 }] }),
+  s({ id: 'pal_u_hammerfall', cls: 'paladin', kind: 'ultimate', name: 'Hammers of the Firmament', desc: 'Giant holy hammers crash down around you.', cost: 0, cooldown: 45, cast: 0.5, range: 0, targeting: 'self', unlockLevel: 18, icon: 'hammer', tags: ['ultimate', 'holy', 'aoe'],
+    effects: [{ t: 'area', at: 'self', radius: 90, delay: 0.5, count: 8, scatter: 220, dmg: { coef: 2.3, type: 'holy', status: { id: 'stun', chance: 0.5, duration: 1 } } }] }),
+  s({ id: 'pal_u_sentinels', cls: 'paladin', kind: 'ultimate', name: 'Dawn Sentinels', desc: 'Summon two radiant sentinels to guard you.', cost: 0, cooldown: 55, cast: 0.4, range: 0, targeting: 'self', unlockLevel: 25, icon: 'clone', tags: ['ultimate', 'summon'],
+    effects: [{ t: 'summon', minion: 'sentinel', count: 2, duration: 20 }] }),
+
+  // ───────────────────────── NECROMANCER ─────────────────────────
+  s({ id: nec('raise'), cls: 'necromancer', kind: 'active', name: 'Rise, Bound Ones', desc: 'Raise 3 skeletons (max 6 active).', cost: 25, cooldown: 4, cast: 0.4, range: 0, targeting: 'self', unlockLevel: 1, icon: 'skull', tags: ['summon', 'minion'],
+    effects: [{ t: 'summon', minion: 'skeleton', count: 3, duration: 30 }] }),
+  s({ id: nec('bonespear'), cls: 'necromancer', kind: 'active', name: 'Ossuary Spear', desc: 'A piercing spear of bone.', cost: 15, cooldown: 1.2, cast: 0.35, range: 0, targeting: 'direction', unlockLevel: 1, icon: 'spear', tags: ['spell', 'projectile', 'physical'],
+    effects: [{ t: 'projectile', speed: 850, range: 600, radius: 10, pierce: 99, dmg: { coef: 1.5, type: 'physical' } }] }),
+  s({ id: nec('curse'), cls: 'necromancer', kind: 'active', name: 'Withering Hex', desc: 'Curse an area: enemies take more damage and wither over time.', cost: 18, cooldown: 7, cast: 0.3, range: 420, targeting: 'ground', unlockLevel: 2, icon: 'curse', tags: ['spell', 'curse', 'aoe', 'dot'],
+    effects: [{ t: 'area', at: 'cursor', radius: 140, dmg: { coef: 0.3, type: 'shadow', status: { id: 'curse', chance: 1, duration: 8, power: 0.2 } } }] }),
+  s({ id: nec('soul_burst'), cls: 'necromancer', kind: 'active', name: 'Soulflare', desc: 'Consume all Souls in a shadow explosion (+40% damage per Soul).', cost: 10, cooldown: 2, cast: 0.3, range: 0, targeting: 'self', unlockLevel: 3, icon: 'soul', tags: ['spell', 'aoe', 'shadow', 'finisher'], requireSecondary: 1, consumeSecondary: { bonusPerPoint: 0.4 },
+    effects: [{ t: 'area', at: 'self', radius: 170, dmg: { coef: 1.0, type: 'shadow' } }] }),
+  s({ id: nec('drain'), cls: 'necromancer', kind: 'active', name: 'Vital Siphon', desc: 'Drain life from enemies around your aim point, healing yourself.', cost: 20, cooldown: 6, cast: 0.4, range: 380, targeting: 'ground', unlockLevel: 4, icon: 'drain', tags: ['spell', 'shadow', 'aoe', 'heal'],
+    effects: [{ t: 'area', at: 'cursor', radius: 110, dmg: { coef: 1.4, type: 'shadow' } }, { t: 'heal', pct: 0.12 }] }),
+  s({ id: nec('plague'), cls: 'necromancer', kind: 'active', name: 'Grave Miasma', desc: 'A poisonous cloud that lingers and spreads poison.', cost: 22, cooldown: 8, cast: 0.35, range: 420, targeting: 'ground', unlockLevel: 6, icon: 'poison', tags: ['spell', 'poison', 'aoe', 'dot'],
+    effects: [{ t: 'area', at: 'cursor', radius: 130, duration: 5, tick: 0.5, dmg: { coef: 0.35, type: 'poison', status: { id: 'poison', chance: 0.6, duration: 4, power: 0.3 } } }] }),
+  s({ id: nec('wraith'), cls: 'necromancer', kind: 'active', name: 'Call Gloom Wraith', desc: 'Summon a ranged wraith (max 2 active).', cost: 30, cooldown: 10, cast: 0.4, range: 0, targeting: 'self', unlockLevel: 8, icon: 'ghost', tags: ['summon', 'minion'],
+    effects: [{ t: 'summon', minion: 'wraith', count: 1, duration: 30 }] }),
+  s({ id: nec('bone_armor'), cls: 'necromancer', kind: 'active', name: 'Ribcage Ward', desc: 'Encase yourself in bone, gaining a barrier. Grants 2 Souls.', cost: 20, cooldown: 14, cast: 0.2, range: 0, targeting: 'self', unlockLevel: 10, icon: 'shield', tags: ['defense'],
+    effects: [{ t: 'barrier', pct: 0.3, duration: 8 }, { t: 'gain', secondary: 2 }] }),
+  s({ id: nec('u_colossus'), cls: 'necromancer', kind: 'ultimate', name: 'Bone Colossus', desc: 'Raise a massive Colossus that smashes your foes.', cost: 0, cooldown: 60, cast: 0.6, range: 0, targeting: 'self', unlockLevel: 5, icon: 'skull', tags: ['ultimate', 'summon', 'minion'],
+    effects: [{ t: 'summon', minion: 'golem', count: 1, duration: 25 }] }),
+  s({ id: nec('u_army'), cls: 'necromancer', kind: 'ultimate', name: 'Legion of the Pale', desc: 'Raise 6 skeletons at once and empower all minions.', cost: 0, cooldown: 55, cast: 0.5, range: 0, targeting: 'self', unlockLevel: 12, icon: 'clone', tags: ['ultimate', 'summon', 'minion'],
+    effects: [{ t: 'summon', minion: 'skeleton', count: 6, duration: 20 }, { t: 'buff', name: 'Legion', duration: 12, mods: [{ stat: 'minionDmgPct', value: 50 }] }] }),
+  s({ id: nec('u_deathnova'), cls: 'necromancer', kind: 'ultimate', name: 'Requiem Nova', desc: 'A colossal wave of death. Grants 10 Souls.', cost: 0, cooldown: 45, cast: 0.5, range: 0, targeting: 'self', unlockLevel: 18, icon: 'soul', tags: ['ultimate', 'aoe', 'shadow'],
+    effects: [{ t: 'area', at: 'self', radius: 260, dmg: { coef: 4, type: 'shadow', status: { id: 'curse', chance: 1, duration: 6, power: 0.2 } } }, { t: 'gain', secondary: 10 }] }),
+  s({ id: nec('u_lich'), cls: 'necromancer', kind: 'ultimate', name: 'Lichform', desc: 'Become a lich for 12s: +50% shadow damage and life leech on hit.', cost: 0, cooldown: 70, cast: 0.4, range: 0, targeting: 'self', unlockLevel: 25, icon: 'crown', tags: ['ultimate', 'buff'],
+    effects: [{ t: 'buff', name: 'Lichform', duration: 12, mods: [{ stat: 'dmgPct.shadow', value: 50 }, { stat: 'lifeOnHitPct', value: 2 }, { stat: 'resRegenPct', value: 100 }] }] }),
+];
+
+function nec(id: string) {
+  return 'nec_' + id;
+}
+
+export const SKILL_MAP: Record<string, SkillDef> = Object.fromEntries(SKILLS.map((k) => [k.id, k]));
+
+export function classSkills(cls: string, kind?: 'active' | 'ultimate'): SkillDef[] {
+  return SKILLS.filter((k) => k.cls === cls && (!kind || k.kind === kind));
+}
+
+/** Generic dodge available to all classes. */
+export const DODGE = { cooldown: 3, dist: 150, invuln: 0.3 };
+
+/** Max simultaneous minions per minion type. */
+export const MINION_CAPS: Record<string, number> = { skeleton: 6, wraith: 2, golem: 1, hawk: 2, turret: 3, sentinel: 2 };

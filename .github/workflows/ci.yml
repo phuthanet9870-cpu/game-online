@@ -1,0 +1,28 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: astra, POSTGRES_PASSWORD: astra_dev, POSTGRES_DB: astra }
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://astra:astra_dev@localhost:5432/astra
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run build:offline
+      - name: End-to-end bot against a live server
+        run: |
+          node apps/server/dist/server.js &
+          sleep 3
+          curl -sf localhost:8080/api/health
+          timeout 120 npx tsx apps/server/test/bot.ts http://localhost:8080 paladin --bots 3

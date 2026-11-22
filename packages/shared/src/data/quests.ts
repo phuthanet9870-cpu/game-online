@@ -1,0 +1,52 @@
+// Quests and narrative. Objectives are tracked server-side from world events.
+
+export interface QuestDef {
+  id: string;
+  name: string;
+  giver: string;
+  chapter: number;
+  text: string;
+  objective: { kind: 'kill_family' | 'kill_enemy' | 'boss' | 'gather' | 'elite' | 'clear_tier'; target?: string; count: number };
+  reward: { gold?: number; xp?: number; dust?: number; potions?: number; bonusPoints?: number; respecTokens?: number };
+  requires?: string;
+}
+
+export const QUESTS: QuestDef[] = [
+  { id: 'q1_husks', chapter: 1, name: 'Ashes at the Gate', giver: 'Commander Aveline',
+    text: 'The last eclipse cracked the Rift Gate north of Lumenhold. Husks of our own fallen crawl out of it every night. Step through, and put fifteen of them to rest.',
+    objective: { kind: 'kill_family', target: 'hollowborn', count: 15 }, reward: { gold: 120, xp: 250, potions: 2 } },
+  { id: 'q1_wolves', chapter: 1, name: 'Teeth in the Dusk', giver: 'Commander Aveline',
+    text: 'Duskmeadow caravans are being dragged off the road by wolves with eyes like dying stars. Thin the Gloomfang packs east of town.',
+    objective: { kind: 'kill_enemy', target: 'gloomfang', count: 10 }, reward: { gold: 90, xp: 200 } },
+  { id: 'q1_herbs', chapter: 1, name: 'Moonpetal for the Wounded', giver: 'Commander Aveline',
+    text: 'Moonpetal blooms only where eclipse light fell. Our healers need five blossoms from the meadow to brew restoratives.',
+    objective: { kind: 'gather', target: 'herb', count: 5 }, reward: { dust: 10, potions: 3, xp: 150 } },
+  { id: 'q1_elites', chapter: 1, name: 'Marked by the Moon', giver: 'Commander Aveline', requires: 'q1_husks',
+    text: 'Some husks carry shards of the eclipse inside them — they hit harder and refuse to fall. Bring down three elites.',
+    objective: { kind: 'elite', count: 3 }, reward: { gold: 200, xp: 400, respecTokens: 1 } },
+  { id: 'q1_warden', chapter: 1, name: 'The Umbral Warden', giver: 'Commander Aveline', requires: 'q1_husks',
+    text: 'Our scouts saw her at the heart of the Rift: Veyra, who once guarded this very gate. Whatever the eclipse made of her, end it.',
+    objective: { kind: 'boss', target: 'veyra', count: 1 }, reward: { gold: 400, xp: 900, bonusPoints: 1 } },
+  { id: 'q2_hard', chapter: 2, name: 'Deeper Than Dawn', giver: 'Commander Aveline', requires: 'q1_warden',
+    text: 'The Rift is not closing — it is learning. Clear it on Hard difficulty or higher so we can map what lies beneath. (Chapter 2 continues in a future update.)',
+    objective: { kind: 'clear_tier', target: 'hard', count: 1 }, reward: { gold: 600, xp: 1500, bonusPoints: 1 } },
+];
+export const QUEST_MAP = Object.fromEntries(QUESTS.map((q) => [q.id, q]));
+
+export const LORE = {
+  intro: 'Every hundred years the sun goes dark over Astraea. This time, it did not fully return. You woke in Lumenhold with a fragment of starlight in your chest — and a voice telling you to walk into the Rift.',
+  veyra: 'Veyra Solmere was the last Warden of the Rift Gate. When the eclipse came she held the gate alone for three nights. On the fourth, the gate held her.',
+  hollowborn: 'Hollowborn: the eclipse hollows out the dead and fills them with umbral light. They remember fragments of who they were — a stance, a battle-cry, a name.',
+};
+
+export const ACHIEVEMENTS: Record<string, { name: string; desc: string; title?: string }> = {
+  first_blood: { name: 'First Light', desc: 'Defeat your first enemy.' },
+  rift_walker: { name: 'Rift Walker', desc: 'Defeat Veyra, the Umbral Warden.', title: 'Riftwalker' },
+  hardcore_warden: { name: 'One Life, One Dawn', desc: 'Defeat Veyra with a Hardcore character.', title: 'the Undying' },
+  tier_hard: { name: 'Into the Deep', desc: 'Clear a Rift on Hard or higher.' },
+  tier_nightmare: { name: 'Nightmare Walker', desc: 'Clear a Rift on Nightmare or higher.', title: 'Nightmare-Touched' },
+  legendary: { name: 'Starfall Treasure', desc: 'Find a Legendary or Ancient item.' },
+  level10: { name: 'Seasoned', desc: 'Reach level 10 with any character.' },
+  level25: { name: 'Veteran of the Eclipse', desc: 'Reach level 25 with any character.' },
+  codex8: { name: 'Bestiary Scholar', desc: 'Record 8 enemy types in the Codex.' },
+};

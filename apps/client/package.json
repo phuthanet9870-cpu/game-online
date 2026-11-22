@@ -1,0 +1,15 @@
+{
+  "name": "@astra/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:offline": "VITE_OFFLINE=1 vite build --outDir dist-offline && node scripts/inline.mjs dist-offline",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^6.3.6"
+  }
+}
