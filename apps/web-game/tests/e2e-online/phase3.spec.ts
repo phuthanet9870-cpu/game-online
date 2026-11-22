@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- read-only QA hook access inside page.evaluate */
 import { execFileSync } from 'node:child_process';
 import { expect, test, type Browser, type Page } from '@playwright/test';
+import { goToFarm01, walkTo } from './nav';
 
 const uid = () => Math.random().toString(36).slice(2, 8);
 const sim = (page: Page) =>
@@ -96,19 +97,7 @@ test('Power: weapon restriction, bind consumes fruit, stance + power skill, The 
   // walk to The Severer (west/north of spawn) and perform the ritual
   await g.page.keyboard.press('KeyQ'); // stance off (out of combat soon)
   await g.page.waitForTimeout(5200);
-  const npc = { x: 4 * 16 + 8, y: 16 * 16 + 8 };
-  for (let i = 0; i < 40; i++) {
-    const p = (await sim(g.page)).pos;
-    const dx = npc.x - p.x,
-      dy = npc.y - p.y;
-    if (Math.hypot(dx, dy) < 26) break;
-    const keys = [dx > 4 ? 'KeyD' : dx < -4 ? 'KeyA' : '', dy > 4 ? 'KeyS' : dy < -4 ? 'KeyW' : ''].filter(
-      Boolean,
-    );
-    for (const k of keys) await g.page.keyboard.down(k);
-    await g.page.waitForTimeout(120);
-    for (const k of keys) await g.page.keyboard.up(k);
-  }
+  await walkTo(g.page, 10 * 16 + 8, 26 * 16 + 8, 14); // The Severer, Aetheria Capital
   await g.page.keyboard.press('KeyH');
   await expect(g.page.getByTestId('severer')).toBeVisible();
   await g.page.fill('#severer-confirm', 'Abyss Shadow');
@@ -153,10 +142,7 @@ test('hotbar rebind persists on the server across reload', async ({ browser }) =
 test('Auto Farm kills PvE monsters, auto-loots and reports on stop', async ({ browser }) => {
   const a = await player(browser, 'auto', 'Sword', 'gm');
   await gmChat(a.page, '/gm god on');
-  // walk toward the slimes, then let Auto take over
-  await a.page.keyboard.down('KeyD');
-  await a.page.waitForTimeout(1600);
-  await a.page.keyboard.up('KeyD');
+  await goToFarm01(a.page); // Auto works on farm maps; the city has no monsters
   await a.page.getByTestId('menu-auto').click();
   await a.page.getByTestId('auto-start').click();
   await expect.poll(async () => (await sim(a.page)).auto?.enabled, { timeout: 5000 }).toBe(true);

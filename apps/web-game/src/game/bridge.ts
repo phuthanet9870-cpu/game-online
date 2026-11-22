@@ -45,6 +45,7 @@ export interface HudSnapshot {
   respawnInMs: number;
   deathRecap: DeathRecapEntry[];
   mapName: string;
+  mapId: string;
   mapSize: { w: number; h: number };
   minimap: MinimapEntity[];
   gate: GateItem[];
@@ -113,6 +114,7 @@ export const INITIAL_HUD: HudSnapshot = {
   respawnInMs: 0,
   deathRecap: [],
   mapName: '',
+  mapId: '',
   mapSize: { w: 1, h: 1 },
   minimap: [],
   gate: [],

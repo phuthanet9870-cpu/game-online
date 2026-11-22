@@ -87,3 +87,38 @@ func TestCraftIsAtomic(t *testing.T) {
 		t.Fatal("craft replay must be a no-op")
 	}
 }
+
+func TestExchangeAndStorage(t *testing.T) {
+	s := testStore(t)
+	c := setup(t, s)
+	ctx := context.Background()
+	// buying with no gold fails atomically
+	if err := s.ApplyExchange(ctx, Exchange{TxID: "buy:1", CharID: c.ID, GoldDelta: -20, Add: []ItemStack{{"CON-001", 1}}, Reason: "buy"}); !errors.Is(err, ErrInsufficient) {
+		t.Fatalf("buy without gold err = %v", err)
+	}
+	_ = s.ApplyReward(ctx, Reward{TxID: "g", CharID: c.ID, LevelAfter: 1, GoldDelta: 100, Items: []ItemStack{{"TRD-DEV-001", 5}}, Reason: "seed"})
+	if err := s.ApplyExchange(ctx, Exchange{TxID: "sell:1", CharID: c.ID, GoldDelta: 15, Remove: []ItemStack{{"TRD-DEV-001", 5}}, Reason: "sell"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ApplyExchange(ctx, Exchange{TxID: "sell:1", CharID: c.ID, GoldDelta: 15, Remove: []ItemStack{{"TRD-DEV-001", 5}}, Reason: "sell"}); !errors.Is(err, ErrAlreadyApplied) {
+		t.Fatal("sell replay must be a no-op")
+	}
+	got, _ := s.CharacterForAccount(ctx, c.AccountID, c.ID)
+	if got.Gold != 115 {
+		t.Fatalf("gold = %d", got.Gold)
+	}
+	if err := s.MoveStorage(ctx, "st:1", c.ID, "CON-001", 2); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MoveStorage(ctx, "st:2", c.ID, "CON-001", -3); !errors.Is(err, ErrInsufficient) {
+		t.Fatalf("over-withdraw err = %v", err)
+	}
+	if err := s.MoveStorage(ctx, "st:3", c.ID, "CON-001", -2); err != nil {
+		t.Fatal(err)
+	}
+	st, _ := s.Storage(ctx, c.ID)
+	items, _ := s.Items(ctx, c.ID)
+	if len(st) != 0 || len(items) != 1 || items[0].Quantity != 3 {
+		t.Fatalf("storage %v items %v", st, items)
+	}
+}

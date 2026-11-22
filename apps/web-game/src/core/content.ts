@@ -2,6 +2,11 @@ import weaponsJson from '@data/weapons/weapons.json';
 import monstersJson from '@data/monsters/phase1-monsters.json';
 import playerJson from '@data/weapons/player-base.json';
 import mapJson from '@data/maps/training-ground.json';
+import cityJson from '@data/maps/aetheria-capital.json';
+import farm01Json from '@data/maps/farm-01.json';
+import farm02Json from '@data/maps/farm-02.json';
+import farm03Json from '@data/maps/farm-03.json';
+import mapIndexJson from '@data/maps/maps.json';
 import itemsJson from '@data/items/phase2-items.json';
 import statusesJson from '@data/weapons/statuses.json';
 import powersJson from '@data/powers/powers.json';
@@ -173,6 +178,8 @@ export interface MonsterDef {
   corpseMs: number;
   passive?: boolean;
   noLoot?: boolean;
+  tint?: string;
+  scale?: number;
 }
 
 export interface PlayerBaseDef {
@@ -206,7 +213,19 @@ export interface TiledObject {
   type: string;
   x: number;
   y: number;
+  width?: number;
+  height?: number;
   properties?: Array<{ name: string; type: string; value: string | number | boolean }>;
+}
+
+export interface PortalDef {
+  id: string;
+  label: string;
+  targetMap: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
 export interface MapData {
@@ -220,6 +239,8 @@ export interface MapData {
   playerSpawn: { x: number; y: number };
   monsterSpawns: Array<{ id: string; monsterId: string; x: number; y: number }>;
   npcs: Array<{ id: string; name: string; x: number; y: number }>;
+  portals: PortalDef[];
+  kind: string;
 }
 
 interface RawLayer {
@@ -263,8 +284,21 @@ export function parseTiledMap(raw: {
       x: o.x,
       y: o.y,
     }));
+  const portals = objects
+    .filter((o) => o.type === 'portal')
+    .map((o) => ({
+      id: o.name,
+      label: String(o.properties?.find((p) => p.name === 'label')?.value ?? ''),
+      targetMap: String(o.properties?.find((p) => p.name === 'targetMap')?.value ?? ''),
+      x: o.x,
+      y: o.y,
+      w: o.width ?? 32,
+      h: o.height ?? 48,
+    }));
   return {
     npcs,
+    portals,
+    kind: String(prop('kind') ?? ''),
     mapId: String(prop('mapId') ?? 'unknown'),
     displayName: String(prop('displayName') ?? 'Unknown'),
     width: raw.width,
@@ -302,7 +336,18 @@ export const CONTENT = {
   statuses: statusesJson.statuses as unknown as StatusDef[],
   powers: powersJson as unknown as PowerConfig,
   recipes: (dropsJson as unknown as { recipes: Recipe[] }).recipes,
+  startMap: mapIndexJson.startMap,
+  maps: Object.fromEntries(
+    [mapJson, cityJson, farm01Json, farm02Json, farm03Json].map((j) => {
+      const m = parseTiledMap(j as unknown as Parameters<typeof parseTiledMap>[0]);
+      if (!m.kind) m.kind = mapIndexJson.maps.find((x) => x.id === m.mapId)?.kind ?? '';
+      return [m.mapId, m];
+    }),
+  ) as Record<string, MapData>,
 };
+
+export const getMap = (id: string): MapData =>
+  CONTENT.maps[id] ?? (CONTENT.maps[CONTENT.startMap] as MapData);
 
 export const getPower = (id: string): PowerDef | undefined => CONTENT.powers.powers.find((p) => p.id === id);
 export const statusDef = (app: StatusDef): StatusDef => {

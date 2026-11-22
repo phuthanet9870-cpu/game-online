@@ -248,3 +248,6 @@ func (f *fakeStore) SetWeapon(context.Context, int64, string) error            {
 func (f *fakeStore) Craft(context.Context, string, int64, []store.ItemStack, store.ItemStack) error {
 	return nil
 }
+
+func (f *fakeStore) ApplyExchange(context.Context, store.Exchange) error           { return nil }
+func (f *fakeStore) MoveStorage(context.Context, string, int64, string, int) error { return nil }

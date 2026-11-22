@@ -1,6 +1,8 @@
 import {
   CONTENT,
+  getMap,
   getWeapon,
+  type MapData,
   itemName,
   type ActionDef,
   type MonsterDef,
@@ -202,7 +204,9 @@ const blankTelemetry = (): Telemetry => ({
  */
 export class NetWorld implements WorldSource {
   readonly mode = 'online' as const;
-  readonly grid: CollisionGrid;
+  grid: CollisionGrid;
+  mapData: MapData;
+  mapVersion = 0;
   readonly player: NetPlayer;
   readonly monsters: NetMonster[] = [];
   others: OtherPlayerView[] = [];
@@ -246,15 +250,33 @@ export class NetWorld implements WorldSource {
     readonly characterId: number,
     private readonly onChange: () => void = () => {},
   ) {
-    const m = CONTENT.trainingMap;
-    this.grid = new CollisionGrid(m.width, m.height, m.tileSize, m.collision);
-    this.player = new NetPlayer(m.playerSpawn);
-    const defs = new Map(CONTENT.monsters.map((d) => [d.id, d]));
-    for (const s of m.monsterSpawns) {
-      const d = defs.get(s.monsterId);
-      if (d) this.monsters.push(new NetMonster(s.id, d, { x: s.x, y: s.y }));
-    }
+    this.mapData = getMap(CONTENT.startMap);
+    this.grid = new CollisionGrid(
+      this.mapData.width,
+      this.mapData.height,
+      this.mapData.tileSize,
+      this.mapData.collision,
+    );
+    this.player = new NetPlayer(this.mapData.playerSpawn);
     this.connect();
+  }
+
+  /** Switches the local mirror to another map (server decided: welcome / portal). */
+  private loadMap(id: string, pos?: Vec2): void {
+    if (this.mapData.mapId === id && this.mapVersion > 0) return;
+    const m = getMap(id);
+    this.mapData = m;
+    this.grid = new CollisionGrid(m.width, m.height, m.tileSize, m.collision);
+    this.monsters.length = 0;
+    this.othersById.clear();
+    this.others = [];
+    this.buffer = [];
+    this.history = [];
+    this.drops = [];
+    this.targetId = null;
+    this.hadSnapshot = false;
+    this.player.pos = pos ? { ...pos } : { ...m.playerSpawn };
+    this.mapVersion++;
   }
 
   get time(): number {
@@ -324,9 +346,14 @@ export class NetWorld implements WorldSource {
         this.online.seq = 0;
         this.reconnects = 0;
         this.hadSnapshot = false;
+        this.loadMap(String(m.map));
         pushLog('system', `เชื่อมต่อเซิร์ฟเวอร์แล้ว (instance ${this.online.instance})`, 'good');
         break;
       }
+      case 'map':
+        this.loadMap(String(m.map), m.pos as Vec2);
+        pushLog('system', `เข้าสู่ ${m.name}`, 'good');
+        break;
       case 'snap':
         this.onSnapshot(m as unknown as Snapshot);
         return;

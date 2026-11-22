@@ -104,6 +104,10 @@ export class WorldScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.mapVersion = this.sim.mapVersion;
+    this.monsterViews.clear();
+    this.otherViews.clear();
+    this.projectiles.clear();
     const weapon = this.sim.weapon;
     void weapon;
     for (const w of CONTENT.weapons) {
@@ -135,7 +139,7 @@ export class WorldScene extends Phaser.Scene {
     this.keys.onToggleDebug = () => this.toggleDebug();
     this.keys.onFocusChat = () => document.getElementById('chat-input')?.focus();
     this.keys.onInteract = () => this.interact();
-    for (const n of CONTENT.trainingMap.npcs) {
+    for (const n of this.sim.mapData.npcs) {
       this.add
         .sprite(n.x, n.y, 'player', 0)
         .setOrigin(0.5, 26 / 32)
@@ -154,6 +158,22 @@ export class WorldScene extends Phaser.Scene {
         .setDepth(29000);
     }
     this.dropGfx = this.add.graphics().setDepth(5);
+    const pg = this.add.graphics().setDepth(4);
+    for (const pt of this.sim.mapData.portals) {
+      pg.fillStyle(0x9b6cff, 0.28).fillRect(pt.x, pt.y, pt.w, pt.h);
+      pg.lineStyle(1, 0xe7c6ff, 0.9).strokeRect(pt.x, pt.y, pt.w, pt.h);
+      this.add
+        .text(pt.x + pt.w / 2, pt.y - 2, pt.label, {
+          fontFamily: 'monospace',
+          fontSize: '6px',
+          color: '#e7c6ff',
+          stroke: '#140a1e',
+          strokeThickness: 2,
+        })
+        .setOrigin(0.5, 1)
+        .setResolution(4)
+        .setDepth(29000);
+    }
 
     this.input.mouse?.disableContextMenu();
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
@@ -171,33 +191,39 @@ export class WorldScene extends Phaser.Scene {
       }),
     );
 
-    this.game.events.on(Phaser.Core.Events.HIDDEN, () => {
+    const onHidden = () =>
       pushLog('system', 'แท็บถูกซ่อน — หยุดเกมชั่วคราว (ไม่มีการฟาร์มเบื้องหลัง)', 'warn');
-    });
-    this.game.events.on(Phaser.Core.Events.VISIBLE, () => {
+    const onVisible = () => {
       this.accumulator = 0; // never fast-forward simulated time after the tab returns
       pushLog('system', 'กลับมาที่แท็บ — เล่นต่อ', 'normal');
-    });
-    this.game.canvas.addEventListener('webglcontextlost', () =>
-      pushLog('system', 'WebGL context lost — กำลังรอกู้คืน', 'warn'),
-    );
+    };
+    const onCtxLost = () => pushLog('system', 'WebGL context lost — กำลังรอกู้คืน', 'warn');
+    this.game.events.on(Phaser.Core.Events.HIDDEN, onHidden);
+    this.game.events.on(Phaser.Core.Events.VISIBLE, onVisible);
+    this.game.canvas.addEventListener('webglcontextlost', onCtxLost);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.keys.destroy();
       this.unsub.forEach((u) => u());
+      this.unsub = [];
+      this.game.events.off(Phaser.Core.Events.HIDDEN, onHidden);
+      this.game.events.off(Phaser.Core.Events.VISIBLE, onVisible);
+      this.game.canvas.removeEventListener('webglcontextlost', onCtxLost);
     });
 
-    pushLog(
-      'system',
-      this.sim.mode === 'online'
-        ? 'ยินดีต้อนรับสู่ THE POWER: ECLIPSE — Phase 2 Online Test World'
-        : 'ยินดีต้อนรับสู่ THE POWER: ECLIPSE — Phase 1 Sandbox (ออฟไลน์ ไม่บันทึกข้อมูล)',
-      'good',
-    );
-    pushLog(
-      'system',
-      'WASD/ลูกศร เดิน · 1 หรือคลิกซ้าย = Basic · 2/3/4 = สกิลดาบ · Space/E = Dodge · T = Potion · F3 = Debug',
-    );
+    if (this.mapVersion <= 1)
+      pushLog(
+        'system',
+        this.sim.mode === 'online'
+          ? 'ยินดีต้อนรับสู่ THE POWER: ECLIPSE — Online Test World (Phase 4)'
+          : 'ยินดีต้อนรับสู่ THE POWER: ECLIPSE — Phase 1 Sandbox (ออฟไลน์ ไม่บันทึกข้อมูล)',
+        'good',
+      );
+    if (this.mapVersion <= 1)
+      pushLog(
+        'system',
+        'WASD เดิน · 1/คลิก = Basic · 2-4 สกิลอาวุธ · 5-0 สกิลพลัง · Q Activate · Space Dodge · T Potion · H คุย/เก็บของ · เดินเข้าประตูม่วงเพื่อย้ายแมพ',
+      );
 
     // QA hook for automated browser tests. Single-player prototype only — removed/gated once the
     // authoritative server lands in Phase 2 (client must never be a source of truth).
@@ -273,7 +299,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private buildMap(): void {
-    const m = CONTENT.trainingMap;
+    const m = this.sim.mapData;
     const rows: number[][] = [];
     for (let y = 0; y < m.height; y++) rows.push(m.ground.slice(y * m.width, (y + 1) * m.width));
     const map = this.make.tilemap({ data: rows, tileWidth: TILE, tileHeight: TILE });
@@ -291,6 +317,12 @@ export class WorldScene extends Phaser.Scene {
   private createMonsterView(m: MonsterView): void {
     const key = m.def.sprite;
     const sprite = this.add.sprite(m.pos.x, m.pos.y, key, 0).setOrigin(0.5, 0.8);
+    if (m.def.scale) sprite.setScale(m.def.scale);
+    if (m.def.tint) {
+      const tint = parseInt(m.def.tint.slice(1), 16);
+      sprite.setTint(tint);
+      sprite.setData('tint', tint);
+    }
     if (key !== 'dummy') sprite.play(key === 'slime' ? 'slime-idle' : 'wolf-idle');
     const hpBar = this.add.graphics();
     const label = this.add
@@ -340,7 +372,13 @@ export class WorldScene extends Phaser.Scene {
 
   /* ---------------------------------------------------------------- loop */
 
+  private mapVersion = 0;
+
   override update(_time: number, delta: number): void {
+    if (this.sim.mapVersion !== this.mapVersion) {
+      this.scene.restart({ world: this.sim });
+      return;
+    }
     this.accumulator += Math.min(delta, 250);
     let steps = 0;
     let first = true;
@@ -391,7 +429,7 @@ export class WorldScene extends Phaser.Scene {
   /** H: talk to The Severer when close, otherwise pick up the nearest own loot bag. */
   private interact(): void {
     const p = this.sim.player;
-    const npc = CONTENT.trainingMap.npcs.find((n) => n.id === 'severer');
+    const npc = this.sim.mapData.npcs.find((n) => n.id === 'severer');
     if (npc && Math.hypot(npc.x - p.pos.x, npc.y - p.pos.y) <= 40) {
       requestUi('severer');
       return;
@@ -620,7 +658,11 @@ export class WorldScene extends Phaser.Scene {
   private flash(sprite: Phaser.GameObjects.Sprite | undefined): void {
     if (!sprite) return;
     sprite.setTintFill(0xffffff);
-    this.time.delayedCall(70, () => sprite.clearTint());
+    this.time.delayedCall(70, () => {
+      const base = sprite.getData('tint') as number | undefined;
+      if (base) sprite.setTint(base);
+      else sprite.clearTint();
+    });
   }
 
   private slashVfx(origin: Vec2, angle: number, radius: number, arcDeg: number, color: number): void {
@@ -968,7 +1010,7 @@ export class WorldScene extends Phaser.Scene {
       }
       powerNames.powerToggle = pv.stance ? `${pv.name}: ON` : `Activate ${pv.name}`;
     }
-    const npc = CONTENT.trainingMap.npcs.find((n) => n.id === 'severer');
+    const npc = this.sim.mapData.npcs.find((n) => n.id === 'severer');
     const snapshot: HudSnapshot = {
       ready: true,
       playerName: p.name,
@@ -1016,7 +1058,8 @@ export class WorldScene extends Phaser.Scene {
           : null,
       respawnInMs: p.charState === 'DEAD' ? Math.max(0, p.respawnAt - now) : 0,
       deathRecap: p.lastDeathRecap,
-      mapName: CONTENT.trainingMap.displayName,
+      mapName: this.sim.mapData.displayName,
+      mapId: this.sim.mapData.mapId,
       mapSize: { w: sim.grid.pixelWidth, h: sim.grid.pixelHeight },
       minimap: [
         ...sim.monsters.map((m) => ({

@@ -1,4 +1,4 @@
-import type { ActionDef, MonsterDef, WeaponDef } from './content';
+import type { ActionDef, MapData, MonsterDef, WeaponDef } from './content';
 import type { Dir8 } from './direction';
 import type { Vec2 } from './math';
 import type { CollisionGrid } from './movement';
@@ -93,6 +93,8 @@ export interface WorldSource {
   readonly mode: 'offline' | 'online';
   readonly time: number;
   readonly grid: CollisionGrid;
+  readonly mapData: MapData;
+  readonly mapVersion: number;
   readonly player: PlayerView;
   readonly monsters: MonsterView[];
   readonly others: OtherPlayerView[];

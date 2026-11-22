@@ -26,6 +26,7 @@ type CharacterExtras struct {
 	Archive      []ArchiveEntry
 	Hotbar       json.RawMessage
 	AutoSettings json.RawMessage
+	Storage      []ItemStack
 }
 
 func (s *Store) Extras(ctx context.Context, charID int64) (*CharacterExtras, error) {
@@ -38,6 +39,9 @@ func (s *Store) Extras(ctx context.Context, charID int64) (*CharacterExtras, err
 	if err == nil {
 		x.Binding = &b
 	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
+	}
+	if x.Storage, err = s.Storage(ctx, charID); err != nil {
 		return nil, err
 	}
 	rows, err := s.DB.Query(ctx, `select power_id, points, times_bound, times_destroyed from power_archive where character_id = $1 order by power_id`, charID)

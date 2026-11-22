@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- read-only QA hook access inside page.evaluate */
 import { execFileSync } from 'node:child_process';
 import { expect, test, type Browser, type Page } from '@playwright/test';
+import { goToFarm01 } from './nav';
 
 const uid = () => Math.random().toString(36).slice(2, 8);
 
@@ -96,9 +97,7 @@ test('MVP online loop: register → character → kill → server rewards → re
   for (const w of ['Staff', 'Sword', 'Dagger', 'Bow', 'Grimoire', 'Gauntlet'])
     await expect(a.page.getByRole('button', { name: new RegExp(w) })).toBeEnabled();
   await enterWorld(a.page, a.char);
-  await a.page.keyboard.down('KeyD');
-  await a.page.waitForTimeout(1500);
-  await a.page.keyboard.up('KeyD');
+  await goToFarm01(a.page);
   await huntOne(a.page);
   // Phase 3: Gold/items drop as a personal loot bag — walk onto it and press H
   for (let i = 0; i < 60 && (await hook(a.page)).gold === 0; i++) {

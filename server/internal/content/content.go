@@ -377,6 +377,12 @@ type Content struct {
 	Statuses             map[string]StatusDef
 	Powers               *PowerConfig
 	Recipes              map[string]*Recipe
+	Shops                map[string][]ShopItem // npc id -> stock
+}
+
+type ShopItem struct {
+	ItemID string `json:"itemId"`
+	Price  int64  `json:"price"`
 }
 
 func (c *Content) Power(id string) *PowerDef {
@@ -536,6 +542,19 @@ func Load(dir string) (*Content, error) {
 	for _, s := range sts.Statuses {
 		c.Statuses[s.ID] = s
 	}
+	var shops struct {
+		Shops []struct {
+			NPC   string     `json:"npc"`
+			Items []ShopItem `json:"items"`
+		} `json:"shops"`
+	}
+	if err := readJSON(dir, "npcs/shops.json", &shops); err != nil {
+		return nil, err
+	}
+	c.Shops = map[string][]ShopItem{}
+	for _, sh := range shops.Shops {
+		c.Shops[sh.NPC] = sh.Items
+	}
 	c.Powers = &PowerConfig{}
 	if err := readJSON(dir, "powers/powers.json", c.Powers); err != nil {
 		return nil, err
@@ -693,6 +712,14 @@ func (c *Content) Validate() []string {
 					errs = append(errs, "duplicate power skill "+s.ID)
 				}
 				seen[s.ID] = true
+			}
+		}
+	}
+	for npc, stock := range c.Shops {
+		for _, it := range stock {
+			t := c.Items[it.ItemID]
+			if t == nil || t.GmOnly || it.Price <= int64(t.SellPriceGold) {
+				errs = append(errs, "shop "+npc+": invalid item or price (must exceed sell price) "+it.ItemID)
 			}
 		}
 	}

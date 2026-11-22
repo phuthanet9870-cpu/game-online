@@ -22,9 +22,13 @@ const (
 
 func (h *Hub) loadExtras(s *session, p *game.Player, x *store.CharacterExtras) {
 	s.archive = map[string]int{}
+	s.storage = map[string]int{}
 	s.autoCfg = game.DefaultAutoSettings()
 	if x == nil {
 		return
+	}
+	for _, it := range x.Storage {
+		s.storage[it.TemplateID] = it.Quantity
 	}
 	for _, a := range x.Archive {
 		s.archive[a.PowerID] = a.Points

@@ -50,6 +50,8 @@ type Store interface {
 	SaveAutoSettings(ctx context.Context, charID int64, settings []byte) error
 	SetWeapon(ctx context.Context, charID int64, weapon string) error
 	Craft(ctx context.Context, txID string, charID int64, inputs []store.ItemStack, output store.ItemStack) error
+	ApplyExchange(ctx context.Context, x store.Exchange) error
+	MoveStorage(ctx context.Context, txID string, charID int64, templateID string, qty int) error
 }
 
 type Client struct {
@@ -105,6 +107,7 @@ type session struct {
 	autoCfg    game.AutoSettings
 	manualMove bool
 	mapID      string
+	storage    map[string]int
 }
 
 type JoinRequest struct {
@@ -368,6 +371,7 @@ type clientMsg struct {
 	Qty      int                `json:"qty"`
 	Count    int                `json:"count"`
 	Points   int                `json:"points"`
+	NPC      string             `json:"npc"`
 }
 
 var validSlots = map[string]bool{"basic": true, "skill1": true, "skill2": true, "skill3": true}
@@ -439,6 +443,8 @@ func (h *Hub) onMessage(s *session, m clientMsg) {
 		h.send(s.client, map[string]any{"t": "pong", "c": m.C, "s": h.world.Time})
 	case "equip", "bind", "unbind", "loadout", "craft", "hotbar", "auto", "pickup", "gm":
 		h.onPhase3(s, m)
+	case "talk", "shop", "storage":
+		h.onPhase4(s, m)
 	default:
 		h.violation(s, "unknown message")
 	}

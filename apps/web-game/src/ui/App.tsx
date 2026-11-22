@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
-import { CONTENT } from '../core/content';
+import { CONTENT, getMap } from '../core/content';
 import type { WorldSource } from '../core/worldSource';
 import { gatePassed } from '../game/phaseGate';
 import { createPortraitDataUrl } from '../game/textures';
@@ -21,7 +21,7 @@ const useToast = () => useSyncExternalStore(toastStore.subscribe, toastStore.get
 
 const PHASE_LABEL: Record<'offline' | 'online', string> = {
   offline: 'SANDBOX · POWER TRIAL · ออฟไลน์ ไม่บันทึก · ภาพ PLACEHOLDER',
-  online: 'PHASE 3 · ONLINE AUTHORITATIVE · TEST WORLD · ภาพ PLACEHOLDER',
+  online: 'PHASE 4 · ONLINE AUTHORITATIVE · TEST WORLD · ภาพ PLACEHOLDER',
 };
 
 export function GameHud({ world, onExit }: { world: WorldSource; onExit: () => void }) {
@@ -275,7 +275,7 @@ function TargetFrame({ hud }: { hud: HudSnapshot }) {
 function Minimap({ hud }: { hud: HudSnapshot }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const base = useMemo(() => {
-    const m = CONTENT.trainingMap;
+    const m = getMap(hud.mapId);
     const cv = document.createElement('canvas');
     cv.width = m.width;
     cv.height = m.height;
@@ -297,7 +297,7 @@ function Minimap({ hud }: { hud: HudSnapshot }) {
       c.fillRect(i % m.width, Math.floor(i / m.width), 1, 1);
     });
     return cv;
-  }, []);
+  }, [hud.mapId]);
   useEffect(() => {
     const cv = ref.current;
     const c = cv?.getContext('2d');
@@ -317,7 +317,12 @@ function Minimap({ hud }: { hud: HudSnapshot }) {
     <div className="minimap panel">
       <div className="map-name">{hud.mapName}</div>
       <canvas ref={ref} width={192} height={120} />
-      <div className="map-zone">PvP: OFF · Dev Map (ไม่นับใน 32 แมพ)</div>
+      <div className="map-zone">
+        {(() => {
+          const k = getMap(hud.mapId).kind;
+          return k === 'city' ? 'เมืองปลอดภัย · PvP OFF' : k === 'farm' ? `แมพฟาร์ม ${hud.mapId} · Safe Farming` : 'Dev/Instance (ไม่นับใน 32 แมพ)';
+        })()}
+      </div>
     </div>
   );
 }

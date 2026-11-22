@@ -26,6 +26,8 @@ export function arenaMap(
     collision,
     playerSpawn: { x: 3 * ts + 8, y: 6 * ts + 8 },
     npcs: [],
+    portals: [],
+    kind: 'dev',
     monsterSpawns: spawns,
   };
 }

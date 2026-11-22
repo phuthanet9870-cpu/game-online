@@ -336,6 +336,8 @@ export class GameSimulation {
   readonly others: never[] = [];
   time = 0;
   readonly grid: CollisionGrid;
+  readonly mapData: MapData;
+  readonly mapVersion = 0;
   readonly player: PlayerEntity;
   readonly monsters: MonsterEntity[];
   readonly rng: Rng;
@@ -365,6 +367,7 @@ export class GameSimulation {
 
   constructor(opts: SimulationOptions) {
     const { map } = opts;
+    this.mapData = map;
     this.grid = new CollisionGrid(map.width, map.height, map.tileSize, map.collision);
     if (!opts.weapon.implemented || !opts.weapon.basicAttack)
       throw new Error(`weapon ${opts.weapon.id} is not implemented`);

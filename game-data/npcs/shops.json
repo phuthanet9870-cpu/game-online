@@ -1,0 +1,11 @@
+{
+ "contentVersion": "phase4-0.1.0",
+ "_note": "[TUNING] NPC shop stock and buy prices. Sell price = item.sellPriceGold (deterministic). GM-only items are never sold or bought.",
+ "shops": [
+  { "npc": "merchant", "items": [
+    { "itemId": "CON-001", "price": 20 },
+    { "itemId": "WPN-STF-001", "price": 60 }, { "itemId": "WPN-SWD-001", "price": 60 }, { "itemId": "WPN-DGR-001", "price": 60 },
+    { "itemId": "WPN-BOW-001", "price": 60 }, { "itemId": "WPN-GRM-001", "price": 60 }, { "itemId": "WPN-GNT-001", "price": 60 }
+  ] }
+ ]
+}
