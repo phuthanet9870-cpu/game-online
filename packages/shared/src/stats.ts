@@ -36,8 +36,12 @@ export const sumMods = (mods: Mod[], into: Record<string, number> = {}) => {
   return into;
 };
 
+/** +1..+10: +5% each; +11..+15: +8% each (so +15 ≈ ×1.9 base stats). */
+export function plusMult(p: number): number { return 1 + Math.min(p, 10) * 0.05 + Math.max(0, p - 10) * 0.08; }
 export function itemMods(it: Item): Mod[] {
-  const out: Mod[] = [...it.implicit, ...it.affixes.map((a) => ({ stat: a.stat, value: a.value }))];
+  // Enhancement multiplies the base (implicit) stats; bonus options add on top.
+  const k = plusMult(it.plus ?? 0);
+  const out: Mod[] = [...it.implicit.map((md) => (k === 1 ? md : { stat: md.stat, value: Math.abs(md.value) >= 2 ? Math.round(md.value * k) : Math.round(md.value * k * 1000) / 1000 })), ...it.affixes.map((a) => ({ stat: a.stat, value: a.value })), ...(it.bonus ?? []).map((a) => ({ stat: a.stat, value: a.value }))];
   if (it.power && LEGENDARY_POWERS[it.power]) out.push(...LEGENDARY_POWERS[it.power]!.mods);
   return out;
 }
@@ -61,7 +65,7 @@ export function collectMods(ch: CharacterData, extra: Mod[] = []): { m: Record<s
     if (!it) continue;
     sumMods(itemMods(it), m);
     if (slot === 'weapon') {
-      weaponPower = it.weaponPower ?? weaponPower;
+      weaponPower = it.weaponPower ? Math.round(it.weaponPower * plusMult(it.plus ?? 0)) : weaponPower;
       affinity = true; // equipped item already validated for class affinity bonus below
     }
   }

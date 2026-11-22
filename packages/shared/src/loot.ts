@@ -20,7 +20,7 @@ export function rollRarity(rng: Rng, bonus: number, minRarity: Rarity = 'common'
   });
 }
 
-function affixValue(a: AffixDef, ilvl: number, tier: number, rng: Rng): number {
+export function affixValue(a: AffixDef, ilvl: number, tier: number, rng: Rng): number {
   const raw = (a.base + a.per * ilvl) * (0.8 + 0.2 * tier) * rng.range(0.85, 1.15);
   return a.int ? Math.max(1, Math.round(raw)) : Math.round(raw * 100) / 100;
 }

@@ -19,6 +19,7 @@ import type { Item } from './types.js';
 import { Rng, dist } from './math.js';
 import { buildArena, buildHouse, buildTown, buildZone, validatePlacement, generateDungeon, generateLabyrinth, type GameMap } from './maps.js';
 import { ZONES, ZONE_MAP, waypointCost } from './data/bestiary.js';
+import * as EH from './enhance.js';
 import { ACTIVITIES, ACTIVITY_ORDER, ECLIPSE_POOL, NIGHTMARE_MODS, towerScale, type Activity } from './data/activities.js';
 import { MATERIALS, PROFESSIONS, RECIPE_MAP } from './data/crafting.js';
 import { PETS } from './data/pets.js';
@@ -86,7 +87,7 @@ export interface LeaderRecord { board: string; charId: string; name: string; cls
 interface Party { id: string; leader: string; members: string[] }
 
 export const FRIEND_MAX = 50;
-const MUTATIONS = new Set(['house_buy', 'house_place', 'house_remove', 'use_map', 'guild_vault_put', 'guild_vault_take', 'pet_buy', 'season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose', 'login_claim', 'shop_buy', 'benefit_claim', 'awaken', 'wish', 'emblem_set', 'cosmetic_set', 'afk_claim', 'bag_expand', 'sell_many', 'stash_put_many', 'guild_apply', 'guild_req', 'guild_settings', 'discard', 'waypoint']);
+const MUTATIONS = new Set(['house_buy', 'house_place', 'house_remove', 'use_map', 'guild_vault_put', 'guild_vault_take', 'pet_buy', 'season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose', 'login_claim', 'shop_buy', 'benefit_claim', 'awaken', 'wish', 'emblem_set', 'cosmetic_set', 'afk_claim', 'bag_expand', 'sell_many', 'stash_put_many', 'guild_apply', 'guild_req', 'guild_settings', 'discard', 'waypoint', 'enhance', 'bonus_reroll']);
 
 /** Character as sent to its owner: hidden server knowledge (exact treasure spot) is removed. */
 export function publicChar(ch: CharacterData): CharacterData {
@@ -287,6 +288,29 @@ export class GameCore {
         case 'salvage': { if (!this.nearNpc(s, room, 'npc_salvager')) return err('Visit Salvager Grimm to salvage'); const it = s.char.inventory[clampInt(msg.inv, 0, s.char.inventory.length - 1)]; const r = C.salvageItem(s.char, clampInt(msg.inv, 0, s.char.inventory.length - 1)); this.mutate(s, r, 'salvage', { item: it?.uid, dust: r.ok ? r.value : 0 }); break; }
         case 'sell': { if (!this.nearNpc(s, room, 'npc_merchant')) return err('Visit Merchant Tobin to sell'); const it = s.char.inventory[clampInt(msg.inv, 0, s.char.inventory.length - 1)]; const r = C.sellItem(s.char, clampInt(msg.inv, 0, s.char.inventory.length - 1)); this.mutate(s, r, 'sell', { item: it?.uid, gold: r.ok ? r.value : 0 }); break; }
         case 'enchant': { if (!this.nearNpc(s, room, 'npc_enchanter')) return err('Visit Enchantress Lyra to enchant'); const loc = msg.slot && EQUIP_SLOTS.includes(msg.slot) ? { slot: msg.slot as EquipSlot } : { inv: clampInt(msg.inv, 0, s.char.inventory.length - 1) }; this.mutate(s, C.enchantItem(s.char, loc, clampInt(msg.affix, 0, 9), this.rng), 'enchant', loc); break; }
+        case 'enhance': case 'bonus_reroll': {
+          const forge = msg.t === 'enhance';
+          if (!this.nearNpc(s, room, forge ? 'npc_forgemaster' : 'npc_runesmith')) return err(forge ? 'Visit Forgemaster Kael to enhance' : 'Visit Runesmith Sefa for bonus options');
+          const loc = msg.slot && EQUIP_SLOTS.includes(msg.slot) ? { slot: msg.slot as EquipSlot } : { inv: clampInt(msg.inv, 0, s.char.inventory.length - 1) };
+          if (forge) {
+            const r = EH.enhanceItem(s.char, loc, this.rng);
+            if (!r.ok) return err(r.reason);
+            const v = r.value;
+            s.send({ t: 'enhance_result', ...v });
+            this.toast(s, v.success ? `Enhanced to +${v.plus}!${v.newBonus ? ' A bonus option slot unlocked!' : ''}` : v.dropped ? `Enhancement failed — dropped to +${v.plus}` : `Enhancement failed — the item is safe at +${v.plus}`);
+            if (v.success && v.plus >= 12) this.announce(`${s.char.name} enhanced an item to +${v.plus}!`);
+            this.mutateStats(s, { ok: true, value: undefined });
+            this.tx({ characters: [s.char] }); // RNG outcome is saved at once (no reload-to-retry)
+            this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'enhance', data: v });
+          } else {
+            const r = EH.rerollBonus(s.char, loc, Array.isArray(msg.locks) ? msg.locks.slice(0, 3).map(Number) : [], this.rng);
+            if (!r.ok) return err(r.reason);
+            this.mutateStats(s, { ok: true, value: undefined });
+            this.tx({ characters: [s.char] });
+            this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'bonus_reroll', data: { bonus: r.value.bonus } });
+          }
+          break;
+        }
         case 'waypoint': {
           if (!this.nearNpc(s, room, 'npc_waymaster')) return err('Visit Waymaster Juno to travel');
           const z = ZONE_MAP[String(msg.zone)];
@@ -460,6 +484,8 @@ export class GameCore {
       case 'npc_awaken': s.send({ t: 'open', what: 'awaken' }); break;
       case 'npc_shop': s.send({ t: 'open', what: 'shop' }); break;
       case 'npc_waymaster': s.send({ t: 'open', what: 'waymaster' }); break;
+      case 'npc_forgemaster': s.send({ t: 'open', what: 'forgemaster' }); break;
+      case 'npc_runesmith': s.send({ t: 'open', what: 'runesmith' }); break;
       case 'npc_carpenter': s.send({ t: 'open', what: 'carpenter' }); break;
       case 'house_door': this.enterHouse(s, s); break;
       case 'house_exit': { const d = this.rooms.get('town')!.world.map.interactables.find((i) => i.type === 'house_door')!; this.moveTo(s, 'town', { x: d.x, y: d.y + 40 }); break; }

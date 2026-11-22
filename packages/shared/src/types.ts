@@ -163,6 +163,10 @@ export interface Item {
   reqLevel: number;
   implicit: Mod[];
   affixes: ItemAffix[];
+  /** Enhancement level +0..+15. */
+  plus?: number;
+  /** Bonus option slots (unlocked at +5 / +10 / +15), rerolled at the Runesmith. */
+  bonus?: ItemAffix[];
   power?: string; // legendary power id
   weaponPower?: number;
   bound: boolean;
