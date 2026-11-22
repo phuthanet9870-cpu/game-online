@@ -9,7 +9,7 @@ import {
   CLASS_IDS, CONTENT_SCHEMA_VERSION, GameCore, MAX_CHARACTERS, PROTOCOL_VERSION, SIM_DT, createCharacter, normalizeAccount, normalizeCharacter, type CharacterData, type ClassId,
 } from '@astra/shared';
 import { accountForToken, createSession, hashPassword, rateLimited, revokeSession, USERNAME_RE, validatePassword, verifyPassword } from './auth.js';
-import { registerAdmin, loadActiveConfig } from './admin.js';
+import { registerAdmin, loadActiveConfig, loadActiveContent } from './admin.js';
 import { audit, flushAudit, loadShared, migrate, pool, saveAccount, saveCharacter, transact } from './db.js';
 
 const PORT = Number(process.env.PORT ?? 8080);
@@ -234,5 +234,6 @@ const applied = await migrate();
 if (applied.length) log('info', 'migrations applied', { applied });
 await core.init();
 core.setLive(await loadActiveConfig());
+core.setContent(await loadActiveContent());
 log('info', 'shared state loaded', { guilds: core.guilds.size, listings: core.listings.size });
 server.listen(PORT, () => log('info', 'listening', { port: PORT, static: STATIC_DIR }));

@@ -76,6 +76,65 @@ function dashboard(me: any) {
         diffBox,
         h('h3', null, 'History'), h('div', { class: 'list' }, c.history.map((v: any) => h('div', { class: 'list-row' }, h('span', { class: 'grow' }, `v${v.version}${v.active ? ' (active)' : ''} — ${v.note || ''} — ${v.username ?? '?'} ${new Date(v.created_at).toLocaleString()}`), admin && !v.active ? h('button', { class: 'btn tiny', onclick: async () => { await api('POST', '/config/rollback', { version: v.version }); toast(`Rolled back to v${v.version}`, 'good'); tabs[4]![1](); } }, 'Roll back to this') : null))));
     }],
+    ['Content', async () => {
+      const c = await api('GET', '/content');
+      const patch: any = structuredClone(c.active ?? {});
+      const admin = me.role === 'admin';
+      let cat: 'skills' | 'enemies' | 'items' | 'loot' = 'skills';
+      const listBox = h('div', { class: 'list' });
+      const search = h('input', { type: 'search', placeholder: 'Filter by name or id', id: 'content-q' });
+      const field = (catKey: string, id: string | null, k: string, base: number, limit: readonly [number, number]) => {
+        const rec = id ? patch[catKey]?.[id] : patch[catKey];
+        const cur = k.startsWith('rarity.') ? rec?.rarityWeights?.[k.slice(7)] : rec?.[k];
+        const inp = h('input', { type: 'number', step: 'any', min: limit[0], max: limit[1], placeholder: String(base), value: cur ?? '', style: 'width:86px', 'aria-label': `${id ?? catKey} ${k}`, disabled: !admin });
+        inp.onchange = () => {
+          const v = inp.value === '' ? undefined : Number(inp.value);
+          if (catKey === 'loot') {
+            patch.loot ??= {};
+            if (k.startsWith('rarity.')) { patch.loot.rarityWeights ??= {}; if (v === undefined) delete patch.loot.rarityWeights[k.slice(7)]; else patch.loot.rarityWeights[k.slice(7)] = v; }
+            else if (v === undefined) delete patch.loot[k]; else patch.loot[k] = v;
+          } else {
+            patch[catKey] ??= {}; patch[catKey][id!] ??= {};
+            if (v === undefined) delete patch[catKey][id!][k]; else patch[catKey][id!][k] = v;
+            if (!Object.keys(patch[catKey][id!]).length) delete patch[catKey][id!];
+          }
+        };
+        return h('label', { class: 'cfield' }, h('small', { class: 'muted' }, `${k} (${base})`), inp);
+      };
+      const renderList = () => {
+        const q = search.value.toLowerCase();
+        clear(listBox);
+        const L = c.catalog.limits;
+        if (cat === 'loot') {
+          const b = c.catalog.loot.base;
+          listBox.append(h('div', { class: 'list-row' }, h('b', { class: 'grow' }, 'Loot tuning'), field('loot', null, 'dropChance', b.dropChance, L.loot.dropChance), field('loot', null, 'eliteRolls', b.eliteRolls, L.loot.eliteRolls)),
+            h('div', { class: 'list-row wrap' }, h('b', { class: 'grow' }, 'Rarity weights'), ...Object.entries(b.rarityWeights).map(([r, w]) => field('loot', null, 'rarity.' + r, w as number, L.loot.rarityWeight))));
+          return;
+        }
+        const rows = (c.catalog[cat] as any[]).filter((r) => !q || r.id.includes(q) || r.name.toLowerCase().includes(q)).slice(0, 60);
+        for (const r of rows) {
+          const keys = cat === 'skills' ? ['cost', 'cooldown', 'cast', 'coefMul'] : cat === 'enemies' ? ['hp', 'power', 'armor', 'xp', 'speed'] : ['weaponPower'];
+          const lim = cat === 'skills' ? L.skill : cat === 'enemies' ? L.enemy : L.item;
+          listBox.append(h('div', { class: 'list-row wrap' }, h('span', { class: 'grow' }, h('b', null, r.name), h('small', { class: 'muted' }, ` ${r.id}${r.cls ? ' · ' + r.cls : ''}${r.family ? ' · ' + r.family : ''}`)), ...keys.map((k) => field(cat, r.id, k, r.base[k] ?? 1, lim[k]))));
+        }
+      };
+      search.oninput = renderList;
+      const note = h('input', { type: 'text', placeholder: 'Change note (required)', id: 'content-note', style: 'width:100%' });
+      const diffBox = h('div');
+      clear(body).append(
+        h('p', { class: 'muted' }, 'Tune live values without a redeploy. Empty fields use the shipped value (shown in brackets). coefMul multiplies every damage coefficient of a skill. New values apply to newly spawned enemies and to every client instantly; already-spawned enemies keep their stats.'),
+        h('div', { class: 'row wrap' }, ...(['skills', 'enemies', 'items', 'loot'] as const).map((k) => h('button', { class: 'btn' + (k === cat ? ' on' : ''), onclick: (e: Event) => { cat = k; for (const b of Array.from((e.target as HTMLElement).parentElement!.children)) b.classList.remove('on'); (e.target as HTMLElement).classList.add('on'); renderList(); } }, k)), search),
+        listBox, note,
+        h('div', { class: 'row' },
+          h('button', { class: 'btn', disabled: !admin, onclick: async () => { try { const r = await api('POST', '/content/preview', { patch }); clear(diffBox).append(r.diff.length ? table(r.diff.map((d: any) => [d[0], `${d[1]} → ${d[2]}`])) : h('p', null, 'No changes')); } catch (e) { toast((e as Error).message, 'error'); } } }, 'Preview changes'),
+          h('button', { class: 'btn primary', disabled: !admin, onclick: async () => { try { const r = await api('POST', '/content', { patch, note: note.value }); toast(`Published content v${r.version}`, 'good'); tabs[5]![1](); } catch (e) { toast((e as Error).message, 'error'); } } }, 'Publish')),
+        h('p', { class: 'muted', hidden: admin }, 'Publishing content requires the admin role.'),
+        diffBox,
+        h('h3', null, 'History'),
+        h('div', { class: 'list' }, h('div', { class: 'list-row' }, h('span', { class: 'grow' }, 'v0 — shipped baseline (no patch)'), admin ? h('button', { class: 'btn tiny', onclick: async () => { await api('POST', '/content/rollback', { version: 0 }); toast('Reverted to baseline', 'good'); tabs[5]![1](); } }, 'Revert to baseline') : null),
+          ...c.history.map((v: any) => h('div', { class: 'list-row' }, h('span', { class: 'grow' }, `v${v.version}${v.active ? ' (active)' : ''} — ${v.note ?? ''} — ${v.username ?? '?'} ${new Date(v.created_at).toLocaleString()}`), admin && !v.active ? h('button', { class: 'btn tiny', onclick: async () => { await api('POST', '/content/rollback', { version: v.version }); toast(`Rolled back to v${v.version}`, 'good'); tabs[5]![1](); } }, 'Roll back to this') : null))));
+      renderList();
+    }],
     ['Audit log', async () => { const a = await api('GET', '/audit'); clear(body).append(h('div', { class: 'list' }, a.rows.map((r: any) => h('div', { class: 'list-row' }, h('small', { class: 'muted' }, new Date(r.at).toLocaleString()), h('b', null, r.action), h('span', { class: 'grow' }, `${r.username ?? ''} ${r.char_id ?? ''} ${JSON.stringify(r.data ?? '').slice(0, 160)}`))))); }],
   ];
   const nav = h('nav', { class: 'row wrap' }, tabs.map(([name, fn]) => h('button', { class: 'btn', onclick: async (e: Event) => { for (const b of Array.from(nav.children)) b.classList.remove('on'); (e.target as HTMLElement).classList.add('on'); try { await fn(); } catch (err) { clear(body).append(h('p', { class: 'warn' }, (err as Error).message)); } } }, name)));

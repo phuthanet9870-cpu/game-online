@@ -105,7 +105,9 @@ Last updated: 2026-11-22 (v0.5.0 — Phases 0-1, 4, 5, 6 and content expansion).
 - **B-3 Economy telemetry**: gold sources/sinks dashboard, price history.
 - **B-4 Endgame**: Endless Tower (reuse Rift generator with floor scaling), raids (4-8), world boss, arena.
 - **B-5 Life skills**: mining/fishing/cooking/alchemy recipes, housing, pets.
-- **B-6 Live ops**: data-driven content publishing (skills/items/drop tables edited from the console with schema validation); seasonal Eclipse Dimension activity; patch-notes page.
+- **B-6 Live ops**: editing whole new content records (not only tuning) from the console; patch-notes page.
+
+| Live content tuning editor (skills, enemies, weapons, loot) with validation, preview, versions, rollback | Tested | Unit + live e2e. |
 - **B-7 Audio & art pass**: sound effects/music, sprite art replacing procedural drawing.
 - **B-8 Netcode**: binary encoding (MessagePack) and per-entity update rates for very crowded zones.
 - **B-9 Localization**: Thai for item names, affix/stat labels and NPC dialogue.

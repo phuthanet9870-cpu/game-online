@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0] — 2026-11-22 — Live content editor
+### Added
+- Staff "Content" tab: tune skills (cost, cooldown, cast time, damage multiplier), enemies (life, power, armor, XP, speed), weapon power and loot (drop chance, elite rolls, rarity weights) without a redeploy. Validation with ranges, preview diff, versioned publish with required note, rollback to any version or to the shipped baseline.
+- Patches apply on top of a frozen baseline (no compounding) on the server and are pushed to every client so tooltips match. Migration 005.
+### Fixed
+- Rolling back live config could fail on the one-active-version index, leaving the old config active. Activation now runs as two statements in one transaction (found by the live admin test).
+
 ## [0.6.0] — 2026-11-22 — Polish & balance
 ### Changed
 - Boss balance tuned with a new simulation harness (`npm run balance`, bot players with level-appropriate gear and mechanic awareness). Enemy life/power now scale with a gentle exponential term per level; Veyra 3200→4800 life, Oruk 2600→3400, Nyx 5200→10500 (power 20→17). Simulated results: Veyra solo 9/10 wins ~58s; party of 3 on Hard 10/10 ~65s; Oruk solo 9/10 ~97s; Nyx 4-player Normal and 6-player Hard roughly 2-3 minutes with 70-80% win rates. These are bot numbers, not human playtests.

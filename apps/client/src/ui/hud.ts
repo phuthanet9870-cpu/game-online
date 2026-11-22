@@ -1,4 +1,4 @@
-import { ACTIVITIES, MATERIALS, CLASSES, DIFFICULTIES, DUNGEON_MODIFIERS, BLESSING_MAP, SKILL_MAP, ENEMIES, computeStats, xpToNext, type CharacterData } from '@astra/shared';
+import { applyContentPatch, ACTIVITIES, MATERIALS, CLASSES, DIFFICULTIES, DUNGEON_MODIFIERS, BLESSING_MAP, SKILL_MAP, ENEMIES, computeStats, xpToNext, type CharacterData } from '@astra/shared';
 import { ClientGame } from '../game.js';
 import { Renderer } from '../render.js';
 import { Input, keyLabel } from '../input.js';
@@ -117,7 +117,8 @@ export class GameUI {
   private onMessage(m: any) {
     const g = this.game;
     switch (m.t) {
-      case 'welcome': sound.ambience(m.room.kind === 'town' ? 'town' : m.room.id === 'highlands' ? 'ash' : m.room.kind === 'field' ? 'field' : m.room.mode === 'raid' ? 'raid' : 'dungeon'); g.welcome(m); this.status(null); this.buildBar(); this.updateZone(); this.closePanel(); this.renderWorldEvent(); if (m.mode === 'offline' && !this.offlineNoted) { this.offlineNoted = true; this.chatLine('system', 'Offline mode: this session is simulated locally in your browser.'); } this.chatLine('system', `Entered ${m.room.kind === 'town' ? 'Lumenhold' : m.room.id === 'highlands' ? 'the Ashen Highlands (open world, levels 10-20)' : m.room.kind === 'field' ? 'Duskmeadow (open world, levels 2-9)' : 'an instance'}.`); break;
+      case 'content': applyContentPatch(m.patch); this.buildBar(); if (this.panel) this.renderPanel(); break;
+      case 'welcome': applyContentPatch(m.content ?? null); sound.ambience(m.room.kind === 'town' ? 'town' : m.room.id === 'highlands' ? 'ash' : m.room.kind === 'field' ? 'field' : m.room.mode === 'raid' ? 'raid' : 'dungeon'); g.welcome(m); this.status(null); this.buildBar(); this.updateZone(); this.closePanel(); this.renderWorldEvent(); if (m.mode === 'offline' && !this.offlineNoted) { this.offlineNoted = true; this.chatLine('system', 'Offline mode: this session is simulated locally in your browser.'); } this.chatLine('system', `Entered ${m.room.kind === 'town' ? 'Lumenhold' : m.room.id === 'highlands' ? 'the Ashen Highlands (open world, levels 10-20)' : m.room.kind === 'field' ? 'Duskmeadow (open world, levels 2-9)' : 'an instance'}.`); break;
       case 'snap': g.applySnap(m); break;
       case 'ev': g.events(m.list); for (const ev of m.list) if (ev.t === 'msg') this.chatLine('system', ev.text); else if (ev.t === 'pickup' && ev.item) toast(`Picked up ${itemName(ev.item)}`, 'good'); break;
       case 'char': g.char = m.char; g.account = m.account; this.buildBar(); if (this.panel && this.panel !== 'map') this.renderPanel(); if (this.trade) this.showModal(S.tradeModal(g.char!, this.trade, (x) => this.send(x))); break;

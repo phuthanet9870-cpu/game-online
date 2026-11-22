@@ -7,6 +7,7 @@ import { DIFFICULTIES, ELITE_AFFIXES, ENEMIES } from './data/enemies.js';
 import { BLESSING_MAP, DUNGEON_MODIFIERS } from './data/dungeon.js';
 import { POTION } from './data/items.js';
 import { generateItem, rollRarity } from './loot.js';
+import { LOOT_TUNING } from './content.js';
 import { activeElixirMods, weaponAffinity } from './character.js';
 import { computeStats, type Derived } from './stats.js';
 import { Rng, angleDiff, clamp, dist, dist2, normalize } from './math.js';
@@ -799,8 +800,8 @@ export class World {
     const ch = p.p!.char;
     const mf = (p.stats?.m.magicFindPct ?? 0) / 100;
     const bonus = this.diff.loot + this.lootBonus + this.live.lootBonus + mf + p.p!.lootBonus + (es.def.lootBonus ?? 0) * 0.15 + (es.elite ? 0.3 : 0);
-    const rolls = es.def.boss ? (es.def.id === 'veyra' || es.def.id === 'gloomheart' ? 3 : 2) : es.elite ? 2 : 1;
-    const dropChance = es.def.boss || es.elite ? 1 : 0.22;
+    const rolls = es.def.boss ? (es.def.id === 'veyra' || es.def.id === 'gloomheart' ? 3 : 2) : es.elite ? LOOT_TUNING.eliteRolls : 1;
+    const dropChance = es.def.boss || es.elite ? 1 : LOOT_TUNING.dropChance;
     const gf = (1 + (p.stats?.m.goldFindPct ?? 0) / 100) * this.live.goldMul;
     // gold
     if (this.rng.chance(0.6) || es.def.boss) this.addDrop(p, enemy.x + this.rng.range(-20, 20), enemy.y + this.rng.range(-20, 20), undefined, Math.round((3 + es.level * 2) * (es.def.boss ? 15 : es.elite ? 4 : 1) * gf * this.rng.range(0.7, 1.3)));

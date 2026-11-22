@@ -39,7 +39,7 @@ if (!/maintenance/.test(blocked)) fail('maintenance did not block login: ' + blo
 console.log('maintenance blocks players:', blocked);
 const hist = (await call('GET', '/api/admin/config', staff)).body.history;
 const older = hist.find((h: any) => h.version !== pub.body.version);
-if (older) { await call('POST', '/api/admin/config/rollback', staff, { version: older.version }); console.log('rolled back to', older.version); }
+if (older) { const rb = await call('POST', '/api/admin/config/rollback', staff, { version: older.version }); if (rb.status !== 200) fail('rollback failed: ' + rb.status + ' ' + JSON.stringify(rb.body)); console.log('rolled back to', older.version, 'maintenance', older.data?.maintenance); if (older.data?.maintenance) await call('POST', '/api/admin/config', staff, { config: DEFAULT_LIVE, note: 'restore defaults' }); }
 else { await call('POST', '/api/admin/config', staff, { config: DEFAULT_LIVE, note: 'restore defaults' }); console.log('restored defaults'); }
 const after = await new Promise<string>((res) => { const ws = new WebSocket(base.replace('http', 'ws') + '/ws'); ws.on('open', () => ws.send(JSON.stringify({ t: 'auth', v: PROTOCOL_VERSION, token: player, char: pme.characters[0].id }))); ws.on('message', (d) => { const m = JSON.parse(String(d)); if (m.t === 'welcome') { res('WELCOME'); ws.close(); } if (m.t === 'err' && m.fatal) res(m.msg); }); });
 if (after !== 'WELCOME') fail('login still blocked after rollback: ' + after);
@@ -55,6 +55,18 @@ await new Promise((r) => setTimeout(r, 2300));
 const logged = (await db.query("SELECT count(*)::int n FROM audit_log WHERE action LIKE 'admin_%' AND account_id = (SELECT id FROM accounts WHERE username = $1)", ['staff' + stamp])).rows[0].n;
 console.log('mute persisted until', new Date(mu).toISOString(), '· analytics classes', an.body.classes.length, '· admin audit rows', logged);
 if (logged < 4) fail('admin actions not audited');
+// content tuning: invalid rejected, publish needs a note, publish + rollback to baseline
+if ((await call('POST', '/api/admin/content', staff, { patch: { skills: { war_cleave: { cooldown: 9999 } } }, note: 'x' })).status !== 400) fail('invalid content accepted');
+if ((await call('POST', '/api/admin/content', staff, { patch: { skills: { war_cleave: { cooldown: 4 } } } })).status !== 400) fail('content without note accepted');
+const cp = await call('POST', '/api/admin/content', staff, { patch: { skills: { war_cleave: { cooldown: 4 } }, enemies: { hollow_grunt: { hp: 90 } } }, note: 'e2e tuning' });
+if (!cp.body.version) fail('content publish failed');
+const cur = (await call('GET', '/api/admin/content', staff)).body;
+if (cur.active.skills?.war_cleave?.cooldown !== 4) fail('content not active');
+const rb0 = await call('POST', '/api/admin/content/rollback', staff, { version: 0 });
+if (rb0.status !== 200) fail('content rollback failed');
+const back = (await call('GET', '/api/admin/content', staff)).body;
+if (Object.keys(back.active ?? {}).length) fail('rollback to baseline failed');
+console.log('content publish v' + cp.body.version + ' + rollback to baseline ok');
 await db.end();
 console.log('PHASE 6 ADMIN E2E PASSED');
 process.exit(0);

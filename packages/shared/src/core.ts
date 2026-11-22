@@ -20,6 +20,7 @@ import type { AccountProgress, CharacterData, DifficultyId, EquipSlot } from './
 import { EQUIP_SLOTS, PROTOCOL_VERSION, STASH_SIZE } from './types.js';
 import { TICK_RATE, World, type WorldEvent, type WorldOptions } from './world.js';
 import * as EC from './economy.js';
+import { applyContentPatch, type ContentPatch } from './content.js';
 import type { Guild, Listing, TradeOffer } from './economy.js';
 import { TILE, reachableSet } from './maps.js';
 
@@ -100,6 +101,9 @@ export class GameCore {
   private pf = new Map<string, PfEntry>();
   private worldEvent = { active: false, nextAt: 90, bossId: 0, startedAt: 0, x: 0, y: 0, statusT: 0 };
   live: LiveConfig = structuredClone(DEFAULT_LIVE);
+  contentPatch: ContentPatch | null = null;
+  /** Publish a validated content patch: applied to the authoritative data now and pushed to every client. */
+  setContent(patch: ContentPatch | null) { this.contentPatch = patch; applyContentPatch(patch); for (const o of this.sessions.values()) o.send({ t: 'content', patch }); }
   /** Wall-clock source (ms). Injectable for tests. */
   clock: () => number = () => Date.now();
 
@@ -184,7 +188,7 @@ export class GameCore {
     s.entId = ent.id;
     s.send({
       t: 'welcome', v: PROTOCOL_VERSION, mode: this.opts.label, pid: ent.id, room: { id: room.id, kind: room.kind, mode: room.mode, floor: room.floor, difficulty: room.difficulty, seed: room.seed, modifiers: room.world.map.modifiers, level: room.world.map.level },
-      map: room.world.map, char: s.char, account: s.account,
+      map: room.world.map, char: s.char, account: s.account, content: this.contentPatch,
     });
     this.sendParty(s);
     if (room.kind === 'field') this.sendWorldEvent(s);

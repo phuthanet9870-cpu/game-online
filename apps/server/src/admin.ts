@@ -1,7 +1,7 @@
 // Staff-only live-ops & moderation API. Every route: valid session + staff role + MFA-verified session.
 // Every state change is written to the audit log. Admin secrets never reach player clients.
 import type { IncomingMessage } from 'node:http';
-import { DEFAULT_LIVE, validateLiveConfig, weeklyEvent, type GameCore, type LiveConfig } from '@astra/shared';
+import { DEFAULT_LIVE, contentCatalog, validateContentPatch, validateLiveConfig, weeklyEvent, type ContentPatch, type GameCore, type LiveConfig } from '@astra/shared';
 import { pool, audit } from './db.js';
 import { tokenHash } from './auth.js';
 import { newSecret, verifyTotp } from './totp.js';
@@ -18,10 +18,27 @@ async function staffFor(token: string | null): Promise<Staff | null> {
   return a ? { id: a.id, username: a.username, role: a.role, mfa: a.mfa_ok, totpEnabled: a.totp_enabled, secret: a.totp_secret } : null;
 }
 
+/** Make exactly one version active. Two statements in one transaction so the one-active unique index never sees two rows. */
+async function activate(table: 'live_config' | 'content_patch', version: number) {
+  const c = await pool.connect();
+  try {
+    await c.query('BEGIN');
+    await c.query(`UPDATE ${table} SET active = FALSE WHERE active`);
+    await c.query(`UPDATE ${table} SET active = TRUE WHERE version = $1`, [version]);
+    await c.query('COMMIT');
+  } catch (e) { await c.query('ROLLBACK'); throw e; } finally { c.release(); }
+}
+
 export async function loadActiveConfig(): Promise<LiveConfig> {
   const r = await pool.query('SELECT data FROM live_config WHERE active');
   const v = r.rows[0] ? validateLiveConfig(r.rows[0].data) : null;
   return v?.ok ? v.value : structuredClone(DEFAULT_LIVE);
+}
+
+export async function loadActiveContent(): Promise<ContentPatch | null> {
+  const r = await pool.query('SELECT data FROM content_patch WHERE active');
+  const v = r.rows[0] ? validateContentPatch(r.rows[0].data) : null;
+  return v?.ok ? v.value : null;
 }
 
 export function registerAdmin(route: Route, core: GameCore) {
@@ -157,9 +174,50 @@ export function registerAdmin(route: Route, core: GameCore) {
     if (!r.rows[0]) return [404, { error: 'Version not found' }];
     const v = validateLiveConfig(r.rows[0].data);
     if (!v.ok) return [400, { error: `Stored version is invalid: ${v.reason}` }];
-    await pool.query('UPDATE live_config SET active = (version = $1)', [version]);
+    await activate('live_config', version);
     core.setLive(v.value);
     log(st, 'config_rollback', { version });
+    return [200, { ok: true }];
+  }));
+  // ── Content tuning: catalog with baselines, preview diff, versioned publish, rollback (admin only)
+  route('GET', /^\/api\/admin\/content$/, staff(false, async () => {
+    const r = await pool.query('SELECT c.version, c.note, c.created_at, c.active, a.username FROM content_patch c LEFT JOIN accounts a ON a.id = c.created_by ORDER BY version DESC LIMIT 30');
+    return [200, { active: core.contentPatch ?? {}, catalog: contentCatalog(), history: r.rows }];
+  }));
+  route('POST', /^\/api\/admin\/content\/preview$/, staff(true, async (_st, body) => {
+    const v = validateContentPatch(body?.patch);
+    if (!v.ok) return [400, { error: v.reason }];
+    const flat = (p: ContentPatch | null) => { const out: Record<string, unknown> = {}; for (const [cat, recs] of Object.entries(p ?? {})) for (const [id, fields] of Object.entries(recs as object)) { if (fields && typeof fields === 'object') for (const [k, val] of Object.entries(fields)) out[`${cat}.${id}.${k}`] = val; else out[`${cat}.${id}`] = fields; } return out; };
+    const a = flat(core.contentPatch), b = flat(v.value);
+    const diff = [...new Set([...Object.keys(a), ...Object.keys(b)])].filter((k) => JSON.stringify(a[k]) !== JSON.stringify(b[k])).map((k) => [k, a[k] ?? '(default)', b[k] ?? '(default)']);
+    return [200, { ok: true, diff }];
+  }));
+  route('POST', /^\/api\/admin\/content$/, staff(true, async (st, body) => {
+    const v = validateContentPatch(body?.patch);
+    if (!v.ok) return [400, { error: v.reason }];
+    if (!String(body?.note ?? '').trim()) return [400, { error: 'A change note is required' }];
+    const c = await pool.connect();
+    let version = 0;
+    try {
+      await c.query('BEGIN');
+      await c.query('UPDATE content_patch SET active = FALSE WHERE active');
+      version = (await c.query('INSERT INTO content_patch (data, note, created_by, active) VALUES ($1, $2, $3, TRUE) RETURNING version', [JSON.stringify(v.value), String(body.note).slice(0, 200), st.id])).rows[0].version;
+      await c.query('COMMIT');
+    } catch (e) { await c.query('ROLLBACK'); throw e; } finally { c.release(); }
+    core.setContent(v.value);
+    log(st, 'content_publish', { version, note: body.note });
+    return [200, { ok: true, version }];
+  }));
+  route('POST', /^\/api\/admin\/content\/rollback$/, staff(true, async (st, body) => {
+    const version = Number(body?.version);
+    if (version === 0) { await pool.query('UPDATE content_patch SET active = FALSE'); core.setContent(null); log(st, 'content_rollback', { version: 'baseline' }); return [200, { ok: true }]; }
+    const r = await pool.query('SELECT data FROM content_patch WHERE version = $1', [version]);
+    if (!r.rows[0]) return [404, { error: 'Version not found' }];
+    const v = validateContentPatch(r.rows[0].data);
+    if (!v.ok) return [400, { error: `Stored version is invalid: ${v.reason}` }];
+    await activate('content_patch', version);
+    core.setContent(v.value);
+    log(st, 'content_rollback', { version });
     return [200, { ok: true }];
   }));
   route('GET', /^\/api\/admin\/audit$/, staff(false, async (_st, _b, _m) => {
