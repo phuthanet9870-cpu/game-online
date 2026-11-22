@@ -94,6 +94,7 @@ export function masteryTitle(cls: ClassId, level: number): string | null {
     warrior: ['Shieldbreaker', 'Warlord of Ironvale', 'Eclipse Titan'], mage: ['Spellwright', 'Archmagus', 'Starweaver'],
     assassin: ['Nightblade', 'Veil Master', 'Moonless One'], ranger: ['Pathfinder', 'Windseeker', 'Horizon Warden'],
     paladin: ['Lightbearer', 'Dawn Champion', 'Saint of the Spire'], necromancer: ['Bonecaller', 'Grave Sovereign', 'Pale Monarch'],
+    chronomancer: ['Second-Thief', 'Keeper of Hours', 'Master of the Last Moment'],
   };
   const idx = level >= 30 ? 2 : level >= 15 ? 1 : level >= 5 ? 0 : -1;
   return idx >= 0 ? titles[cls][idx]! : null;

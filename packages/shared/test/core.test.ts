@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ACTIVE_SLOTS, CLASS_IDS, CLASSES, GameCore, PASSIVE_MAP, PASSIVE_NODES, SKILLS, ULTIMATE_SLOTS, World, allocatePassive, buildField, buildTown, classSkills, computeStats,
+  ACTIVE_SLOTS, CLASS_IDS, LAUNCH_CLASS_IDS, CLASSES, GameCore, PASSIVE_MAP, PASSIVE_NODES, SKILLS, ULTIMATE_SLOTS, World, allocatePassive, buildField, buildTown, classSkills, computeStats,
   createCharacter, decodeBuild, emptyAccount, encodeBuild, generateDungeon, grantXp, reachableSet, setLoadout, validateDungeon, validatePassives, xpToNext,
   type CharacterData, type Persistence,
 } from '../src/index.js';
@@ -8,8 +8,9 @@ import {
 const mk = (cls = CLASS_IDS[0]!, hc = false) => { const r = createCharacter('acc', 'Tester' + cls.slice(0, 3), cls, hc); if (!r.ok) throw new Error(r.reason); return r.value; };
 
 describe('content', () => {
-  it('has exactly six classes, each with >=8 active and >=4 ultimate skills', () => {
-    expect(CLASS_IDS).toHaveLength(6);
+  it('has the six launch classes plus standalone expansion classes, each with >=8 active and >=4 ultimate skills', () => {
+    expect(LAUNCH_CLASS_IDS).toHaveLength(6);
+    expect(CLASS_IDS).toEqual(expect.arrayContaining(LAUNCH_CLASS_IDS));
     for (const c of CLASS_IDS) {
       expect(classSkills(c, 'active').length).toBeGreaterThanOrEqual(8);
       expect(classSkills(c, 'ultimate').length).toBeGreaterThanOrEqual(4);

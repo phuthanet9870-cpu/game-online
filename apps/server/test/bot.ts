@@ -31,7 +31,7 @@ async function runBot(i: number, full: boolean) {
     if (m.t === 'welcome') { statics.clear(); map = m.map; pid = m.pid; roomKind = m.room.kind; char = m.char; log(`[${i}] welcome ${m.room.kind} ${m.room.id} lvl ${m.room.level} mods=${m.room.modifiers}`); }
     if (m.t === 'snap') { ents = expandEntities(statics, m.ents); self = m.self; drops = m.drops; results.snaps++; }
     if (m.t === 'char') { char = m.char; results.kills = m.char.stats.kills; results.level = m.char.level; results.items = m.char.inventory.filter(Boolean).length; }
-    if (m.t === 'ev') for (const e of m.list) { if (e.t === 'it_add' && map) map.interactables.push(e.it); if (e.t === 'kill' ) results.kills++; if (e.t === 'boss_killed') results.bossKilled = true; }
+    if (m.t === 'ev') for (const e of m.list) { if (e.t === 'it_add' && map) map.interactables.push(e.it); if (e.t === 'kill' ) results.kills++; if (e.t === 'boss_killed' && e.enemy === 'veyra') results.bossKilled = true; }
     if (m.t === 'err') results.errors.set(m.msg, (results.errors.get(m.msg) ?? 0) + 1);
     if (m.t === 'run_end') results.runEnd = m;
     if (m.t === 'activity' && full) log(`[${i}] arena wave ${m.wave}`);

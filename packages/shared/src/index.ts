@@ -19,3 +19,4 @@ export * from './data/crafting.js';
 export * from './data/i18n_th.js';
 export * from './data/seasons.js';
 export * from './content.js';
+export * from './data/pets.js';

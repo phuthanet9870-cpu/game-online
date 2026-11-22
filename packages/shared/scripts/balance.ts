@@ -8,12 +8,12 @@ import {
 
 const runs = Number(process.argv[2] ?? 6);
 
-function geared(cls: ClassId, level: number, rng: Rng): CharacterData {
+function geared(cls: ClassId, level: number, rng: Rng, starter = false): CharacterData {
   const r = createCharacter('bal', 'Bal' + cls.slice(0, 4) + Math.floor(rng.next() * 1e5), cls, false);
   if (!r.ok) throw new Error(r.reason);
   const ch = r.value;
   while (ch.level < level) grantXp(ch, xpToNext(ch.level));
-  for (const slot of EQUIP_SLOTS) {
+  for (const slot of starter ? [] : EQUIP_SLOTS) {
     const s = slot.startsWith('ring') ? 'ring' : slot;
     const it = generateItem({ rng, ilvl: level, rarity: rng.chance(0.3) ? 'epic' : 'rare', cls, baseId: undefined });
     if (it.slot !== s) { const tries = 40; for (let i = 0; i < tries; i++) { const x = generateItem({ rng, ilvl: level, rarity: 'rare', cls }); if (x.slot === s && (s !== 'weapon' || x.baseId.startsWith('w_'))) { ch.equipment[slot] = x; break; } } }
@@ -54,8 +54,10 @@ function botStep(w: World, p: Ent, boss: Ent, t: number) {
   void t;
 }
 
-interface Scenario { name: string; boss: string; level: number; players: number; diff: DifficultyId; map: (seed: number) => GameMap; opts?: Partial<WorldOptions>; target: [number, number] }
+interface Scenario { starter?: boolean; name: string; boss: string; level: number; players: number; diff: DifficultyId; map: (seed: number) => GameMap; opts?: Partial<WorldOptions>; target: [number, number] }
 const scenarios: Scenario[] = [
+  { name: 'Veyra solo, starter gear (Normal, lv 3)', starter: true, boss: 'veyra', level: 3, players: 1, diff: 'normal', map: (s) => generateDungeon({ seed: s, level: 3, difficulty: 'normal' }), target: [60, 300] },
+  { name: 'Veyra solo, starter gear (Story, lv 2)', starter: true, boss: 'veyra', level: 2, players: 1, diff: 'story', map: (s) => generateDungeon({ seed: s, level: 2, difficulty: 'story' }), target: [40, 240] },
   { name: 'Veyra solo (Rift Normal, lv 6)', boss: 'veyra', level: 6, players: 1, diff: 'normal', map: (s) => generateDungeon({ seed: s, level: 6, difficulty: 'normal' }), target: [40, 180] },
   { name: 'Veyra party of 3 (Rift Hard, lv 12)', boss: 'veyra', level: 12, players: 3, diff: 'hard', map: (s) => generateDungeon({ seed: s, level: 12, difficulty: 'hard' }), target: [40, 180] },
   { name: 'Oruk solo (Labyrinth Normal, lv 10)', boss: 'labyrinth_warden', level: 10, players: 1, diff: 'normal', map: (s) => generateLabyrinth(s, 11), target: [60, 200] },
@@ -72,7 +74,7 @@ function fight(sc: Scenario, seed: number) {
   const players: Ent[] = [];
   for (let i = 0; i < sc.players; i++) {
     const cls = CLASS_IDS[(seed + i) % CLASS_IDS.length]!;
-    const p = w.addPlayer(geared(cls, sc.level, rng), 's' + i, { x: boss.x + Math.cos(i) * 200, y: boss.y + 220 + Math.sin(i) * 40 });
+    const p = w.addPlayer(geared(cls, sc.level, rng, sc.starter), 's' + i, { x: boss.x + Math.cos(i) * 200, y: boss.y + 220 + Math.sin(i) * 40 });
     p.hp = p.maxHp;
     players.push(p);
   }

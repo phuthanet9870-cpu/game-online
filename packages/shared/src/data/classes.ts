@@ -100,6 +100,23 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     colors: { body: '#3b2b4a', hair: '#1c1c22', accent: '#7be0b5' },
     weaponAffinity: ['Scythe', 'Tome'],
   },
+  chronomancer: {
+    id: 'chronomancer',
+    name: 'Chronomancer',
+    role: 'Time-bending controller',
+    fantasy: 'A heretic of the Clockwork Abbey who steals seconds from the eclipse itself.',
+    difficulty: 3,
+    primaryAttr: 'int',
+    base: { hp: 175, armor: 22, moveSpeed: 200, str: 4, dex: 9, int: 14, vit: 8 },
+    perLevel: { hp: 15, str: 0.5, dex: 1.2, int: 2.3, vit: 1 },
+    resource: { id: 'flux', name: 'Flux', max: 100, regen: 9, startFull: true, color: '#5fe0d0' },
+    secondary: { id: 'sand', name: 'Sand', max: 5, color: '#e8c87a' },
+    basic: { kind: 'projectile', interval: 0.55, type: 'lightning', resourceGain: 2, chain: [ { coef: 0.85, range: 500, speed: 700 } ] },
+    mechanic: 'Time Echo: every third skill you cast replays its damage 1 second later at 50% power. Casting skills gathers Sand (max 5) that finishers spend.',
+    archetypes: ['Stasis Warden (freeze, control)', 'Accelerant (haste, cooldown cycling)', 'Entropist (decay, damage over time)'],
+    colors: { body: '#1f5a5a', hair: '#f0e6c8', accent: '#5fe0d0' },
+    weaponAffinity: ['Hourglass', 'Chrono Staff'],
+  },
 };
 
 export const MINIONS: Record<string, { name: string; hp: number; power: number; speed: number; radius: number; range: number; interval: number; type: 'physical' | 'shadow' | 'fire' | 'holy'; ranged?: boolean; color: string }> = {

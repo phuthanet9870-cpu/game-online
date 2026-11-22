@@ -1,4 +1,4 @@
-import { AH, CLASSES, DIFFICULTIES, DIFFICULTY_ORDER, GUILD, RARITIES, RARITY_DEFS, type CharacterData, type Item } from '@astra/shared';
+import { AH, CLASSES, DIFFICULTIES, DIFFICULTY_ORDER, GUILD, RARITIES, RARITY_DEFS, VAULT_LIMITS, type CharacterData, type Item } from '@astra/shared';
 import { ct, t } from '../i18n.js';
 import { clear, confirmDialog, h, promptDialog, toast } from './dom.js';
 import { bindTip, hideTip, itemTooltip } from './tooltip.js';
@@ -79,6 +79,10 @@ export function guildPanel(ch: CharacterData, data: any, send: Send, inTown: boo
       isLead && m.rank !== 'leader' ? h('button', { class: 'btn ghost tiny', onclick: () => send({ t: 'guild_rank', name: m.name, rank: m.rank === 'officer' ? 'member' : 'officer' }) }, m.rank === 'officer' ? 'Demote' : 'Promote') : null,
       isLead && m.rank !== 'leader' ? h('button', { class: 'btn ghost tiny', onclick: async () => { const v = await promptDialog('Transfer leadership', `Make ${m.name} the guild leader? You become an officer. Type the guild name "${g.name}" to confirm.`, '', 'Transfer', t('cancel')); if (v) send({ t: 'guild_transfer', name: m.name, confirm: v }); } }, 'Make leader') : null,
       isOfficer && m.rank !== 'leader' && m.charId !== ch.id && (isLead || m.rank === 'member') ? h('button', { class: 'btn ghost tiny', onclick: async () => { if (await confirmDialog('Remove member', `Remove ${m.name} from the guild?`, t('kick'), t('cancel'))) send({ t: 'guild_kick', name: m.name }); } }, t('kick')) : null))),
+    h('h3', null, 'Guild vault', h('small', { class: 'muted' }, `  daily withdrawals: leader unlimited · officer ${VAULT_LIMITS.officer} · member ${VAULT_LIMITS.member}`)),
+    h('p', { class: 'hint' }, 'Stand at the Astral Vault in Lumenhold. Click a vault item to withdraw; use the list below to deposit. Every move is logged.'),
+    h('div', { class: 'inv-grid small' }, (g.vault ?? []).map((it: Item | null, i: number) => { const c = h('button', { class: 'cell' + (it ? ' has' : ''), style: it ? `border-color:${RARITY_DEFS[it.rarity].color}` : '', 'aria-label': it ? it.name : 'empty' }, it ? h('span', { style: `color:${RARITY_DEFS[it.rarity].color}` }, RARITY_DEFS[it.rarity].glyph) : null); if (it) { bindTip(c, () => itemTooltip(it)); c.onclick = () => { hideTip(); send({ t: 'guild_vault_take', idx: i }); }; } return c; })),
+    h('div', { class: 'list' }, ch.inventory.map((it, i) => it && !it.bound ? itemRow(it, [h('button', { class: 'btn tiny', onclick: (e: Event) => { e.stopPropagation(); send({ t: 'guild_vault_put', inv: i }); } }, 'Deposit')]) : null)),
     h('h3', null, 'Recent activity'), h('ul', { class: 'glog' }, [...g.log].reverse().slice(0, 12).map((l: any) => h('li', null, h('small', { class: 'muted' }, new Date(l.t).toLocaleString() + ' · '), l.text))),
     h('p', { class: 'hint' }, 'Guild chat: /g message. A shared guild vault is planned; it needs per-rank withdrawal limits and an audit view first.'),
     h('button', { class: 'btn danger', onclick: async () => { if (await confirmDialog('Leave guild', isLead && g.members.length > 1 ? 'Leaders must transfer leadership before leaving.' : g.members.length === 1 ? 'You are the last member — the guild will be disbanded.' : `Leave ${g.name}?`, 'Leave', t('cancel'))) send({ t: 'guild_leave' }); } }, 'Leave guild'));
@@ -150,7 +154,7 @@ export function craftingSection(ch: CharacterData, profs: ProfId[], send: Send):
   return h('div', { class: 'craft' },
     h('p', { class: 'muted' }, 'Materials: ' + Object.entries(MATERIALS).map(([k, m]) => `${ct(`mat.${k}`, m.name)} ${ch.mats[k] ?? 0}`).join(' · ') + ` · Astral Dust ${ch.dust} · Gold ${ch.gold}`),
     ch.elixir && ch.elixir.until > Date.now() ? h('p', { class: 'good' }, `Active: ${ELIXIRS[ch.elixir.id]?.name} (${Math.ceil((ch.elixir.until - Date.now()) / 60000)} min left). A new elixir or meal replaces it.`) : null,
-    profs.map((p) => h('div', null,
+    profs.map((p) => p === 'fishing' ? null : h('div', null,
       h('h3', null, `${ct(`prof.${p}`, PROFESSIONS[p].name)} — level ${lv(p)}/${PROF_MAX}`, h('small', { class: 'muted' }, lv(p) < PROF_MAX ? `  ${ch.prof[p]?.xp ?? 0}/${profXpToNext(lv(p))} XP` : '  max')),
       p === 'smithing' ? h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Forge slot:'), slot) : null,
       h('div', { class: 'list' }, RECIPES.filter((r) => r.prof === p).map((r) => {

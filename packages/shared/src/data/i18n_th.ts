@@ -14,6 +14,20 @@ export const CONTENT_TH: Record<string, string> = {
   'class.necromancer.name': 'เนโครแมนเซอร์', 'class.necromancer.role': 'ผู้บัญชาการสมุนและคำสาป', 'class.necromancer.fantasy': 'ผู้เฝ้าสุสานที่ผูกมัดวิญญาณไร้สุขและต่อรองกับความตาย',
   'class.necromancer.mechanic': 'วิญญาณ: ศัตรูที่ตายใกล้คุณปล่อยวิญญาณ (สูงสุด 10) สกิลที่ใช้วิญญาณแรงขึ้นตามจำนวนที่ใช้',
 
+  'class.chronomancer.name': 'นักเวทกาลเวลา', 'class.chronomancer.role': 'ผู้ควบคุมกาลเวลา', 'class.chronomancer.fantasy': 'ผู้นอกรีตแห่งอารามจักรกลที่ขโมยวินาทีจากสุริยคราสเอง',
+  'class.chronomancer.mechanic': 'เสียงสะท้อนกาลเวลา: ทุกสกิลครั้งที่สามจะเล่นดาเมจซ้ำอีกครั้งใน 1 วินาทีด้วยพลัง 50% การร่ายสกิลสะสมทราย (สูงสุด 5) ให้สกิลปิดฉากใช้',
+  'skill.chr_bolt.name': 'ศรกาลเวลา', 'skill.chr_bolt.desc': 'ลูกศรแห่งเวลาที่ถูกขโมย ทำให้เป้าช้าลง',
+  'skill.chr_stasis.name': 'ทุ่งหยุดนิ่ง', 'skill.chr_stasis.desc': 'แช่แข็งเวลาบางส่วน ศัตรูข้างในถูกตรึงอยู่กับที่',
+  'skill.chr_haste.name': 'เร่งกาล', 'skill.chr_haste.desc': 'เร่งเวลาให้ตัวเองและพันธมิตรใกล้เคียง',
+  'skill.chr_rewind.name': 'ย้อนเวลา', 'skill.chr_rewind.desc': 'ดึงตัวเองกลับจากเมื่อครู่: ฟื้นพลังชีวิตและได้เกราะป้องกัน ได้ทราย 2',
+  'skill.chr_shatter.name': 'ทำลายชั่วขณะ', 'skill.chr_shatter.desc': 'ปิดฉาก: ทำลายชั่วขณะรอบตัว ใช้ทรายทั้งหมด (+35% ดาเมจต่อทราย)',
+  'skill.chr_blink.name': 'ก้าวข้ามวินาที', 'skill.chr_blink.desc': 'ก้าวผ่านระหว่างวินาที ทิ้งเสียงสะท้อนที่ทำให้ช้าไว้ข้างหลัง',
+  'skill.chr_decay.name': 'เอนโทรปี', 'skill.chr_decay.desc': 'เร่งความชราในพื้นที่ ศัตรูเหี่ยวเฉาและอ่อนแอลง',
+  'skill.chr_needles.name': 'เข็มจักรกล', 'skill.chr_needles.desc': 'ยิงเข็มเวลาเยือกแข็ง 5 เล่ม ทะลุศัตรูได้หนึ่งตัว',
+  'skill.chr_u_stop.name': 'หยุดเวลา', 'skill.chr_u_stop.desc': 'หยุดเวลารอบตัว: ศัตรูมึนงง (บอสจะสะสมเกจแตกหักแทน)',
+  'skill.chr_u_accel.name': 'อัชเชเลรันโด', 'skill.chr_u_accel.desc': '8 วินาที: ความเร็วร่ายและโจมตี +40% และลดคูลดาวน์ +30%',
+  'skill.chr_u_paradox.name': 'พายุปฏิทรรศน์', 'skill.chr_u_paradox.desc': 'ชั่วขณะที่ไม่เคยเกิดขึ้นฟาดลงพื้นที่ซ้ำแล้วซ้ำเล่า',
+  'skill.chr_u_epoch.name': 'ยุคล่มสลาย', 'skill.chr_u_epoch.desc': 'ถล่มทั้งยุคสมัยลงจุดเดียวหลังหน่วงเวลานาน รุนแรงมหาศาล',
   // ── Warrior skills
   'skill.war_cleave.name': 'ฟันวงพิฆาต', 'skill.war_cleave.desc': 'ฟันเป็นวงกว้างฉีกทุกศัตรูที่อยู่ด้านหน้า',
   'skill.war_leap.name': 'กระโจนฟ้าถล่ม', 'skill.war_leap.desc': 'กระโดดไปยังจุดที่เลือกแล้วกระแทกลงพื้น ทำให้ศัตรูมึนงง',
@@ -123,6 +137,8 @@ export const CONTENT_TH: Record<string, string> = {
   'activity.tower.name': 'หอคอยไม่รู้จบ', 'activity.tower.desc': 'ชั้นสั้นๆ ที่ศัตรูแข็งขึ้น 12% ทุกชั้น ผู้คุมเฝ้าทุกชั้นที่ 5',
   'activity.labyrinth.name': 'เขาวงกตโบราณ', 'activity.labyrinth.desc': 'เขาวงกตหินพร้อมหีบซ่อนและโอรุก ผู้คุมแห่งวงขด',
   'activity.nightmare.name': 'รอยแยกฝันร้าย', 'activity.nightmare.desc': 'รอยแยกที่มีตัวปรับร้ายสามอย่าง และนาฬิกา 10 นาทีสำหรับหีบโบนัส',
+  'activity.eclipse.name': 'มิติสุริยคราส', 'activity.eclipse.desc': 'รอยแยกที่พลิกกลับด้าน: ศัตรูทุกตระกูลพร้อมกัน และสุริยคราสแรงขึ้นเรื่อยๆ ยิ่งอยู่นาน',
+  'ach.eclipse_walker.name': 'พ้นวงแสง', 'ach.eclipse_deep.name': 'ดวงตาแห่งสุริยคราส',
   'activity.raid.name': 'เรด: บัลลังก์สุริยคราส', 'activity.raid.desc': 'นิกซ์ ออเรเลียน จักรพรรดิแห่งสุริยคราส ออกแบบสำหรับ 4-8 คน',
 
   // ── Blessings & modifiers
@@ -152,6 +168,8 @@ export const CONTENT_TH: Record<string, string> = {
 
   // ── Crafting
   'mat.moonpetal': 'มูนพีทัล', 'mat.emberbloom': 'เอมเบอร์บลูม', 'mat.iron_ore': 'แร่เหล็ก', 'mat.starsteel': 'แร่เหล็กดารา', 'mat.cinder_core': 'แกนถ่านไฟ', 'mat.beast_meat': 'เนื้อสัตว์',
+  'prof.fishing': 'ตกปลา', 'mat.fish': 'ปลาเทราต์ทะเลสาบจันทร์', 'mat.golden_carp': 'ปลาคาร์ปทอง', 'mat.ember_eel': 'ปลาไหลถ่านไฟ',
+  'recipe.r_trout': 'ปลาเทราต์ย่าง', 'recipe.r_feast': 'งานเลี้ยงทองคำ', 'recipe.r_eel': 'ปลาไหลลาวาเสียบไม้',
   'prof.mining': 'ขุดแร่', 'prof.herbalism': 'เก็บสมุนไพร', 'prof.alchemy': 'เล่นแร่แปรธาตุ', 'prof.smithing': 'ตีเหล็ก', 'prof.cooking': 'ทำอาหาร',
   'recipe.r_potion': 'ยาฟื้นฟู (+1 ขวดยา)', 'recipe.r_fury': 'ยาอายุวัฒนะแห่งความเกรี้ยวกราด', 'recipe.r_stone': 'ยาผิวศิลา', 'recipe.r_swift': 'ยาแห่งวายุ',
   'recipe.r_stew': 'สตูว์นายพราน', 'recipe.r_skewer': 'เนื้อเสียบไม้ถ่านไฟ', 'recipe.r_forge_rare': 'ตีอุปกรณ์ระดับหายาก', 'recipe.r_forge_epic': 'ตีอุปกรณ์ระดับมหากาพย์',

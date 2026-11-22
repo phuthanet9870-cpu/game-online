@@ -142,7 +142,10 @@ export function searchListings(all: Iterable<Listing>, q: AhQuery, hardcore: boo
 // ───────────────────────── Guilds ─────────────────────────
 export type GuildRank = 'leader' | 'officer' | 'member';
 export interface GuildMember { charId: string; name: string; cls: ClassId; level: number; rank: GuildRank; joinedAt: number }
-export interface Guild { id: string; name: string; tag: string; motd: string; createdAt: number; members: GuildMember[]; log: Array<{ t: number; text: string }>; level: number; xp: number; hardcore: boolean }
+export interface Guild { id: string; name: string; tag: string; motd: string; createdAt: number; members: GuildMember[]; log: Array<{ t: number; text: string }>; level: number; xp: number; hardcore: boolean; vault?: (Item | null)[]; withdrawals?: Record<string, { day: number; n: number }> }
+export const GUILD_VAULT_SIZE = 30;
+/** Daily withdrawal limit per rank (anti-scam: a new member cannot empty the vault). */
+export const VAULT_LIMITS: Record<GuildRank, number> = { leader: 999, officer: 20, member: 3 };
 export const GUILD = { createCost: 500, maxMembers: 50, nameRe: /^[A-Za-z฀-๿][A-Za-z0-9฀-๿ ]{2,23}$/, tagRe: /^[A-Z0-9]{2,5}$/ };
 export const guildXpToNext = (lvl: number) => 1000 * lvl * lvl;
 
@@ -218,6 +221,36 @@ export function leaveGuild(g: Guild, charId: string, now: number): Result<'left'
   g.members = g.members.filter((x) => x !== m);
   logGuild(g, now, `${m.name} left`);
   return ok(g.members.length ? 'left' : 'disband');
+}
+
+export function vaultDeposit(g: Guild, ch: CharacterData, invIndex: number, now: number): Result<Item> {
+  const it = ch.inventory[invIndex];
+  if (!it) return fail('Empty slot');
+  const r = untradeableReason(it, ch);
+  if (r) return fail(r);
+  if (it.hardcore !== g.hardcore) return fail('Item mode does not match the guild');
+  g.vault ??= Array(GUILD_VAULT_SIZE).fill(null);
+  const j = g.vault.indexOf(null);
+  if (j < 0) return fail('Guild vault is full');
+  g.vault[j] = it; ch.inventory[invIndex] = null;
+  logGuild(g, now, `${ch.name} deposited ${it.name}`);
+  return ok(it);
+}
+export function vaultWithdraw(g: Guild, ch: CharacterData, idx: number, now: number): Result<Item> {
+  const m = g.members.find((x) => x.charId === ch.id);
+  if (!m) return fail('Not a member');
+  const it = g.vault?.[idx];
+  if (!it) return fail('Empty vault slot');
+  const day = Math.floor(now / 86400_000);
+  g.withdrawals ??= {};
+  const w = g.withdrawals[ch.id]?.day === day ? g.withdrawals[ch.id]! : { day, n: 0 };
+  if (w.n >= VAULT_LIMITS[m.rank]) return fail(`Daily withdrawal limit reached for rank ${m.rank} (${VAULT_LIMITS[m.rank]})`);
+  const slot = ch.inventory.indexOf(null);
+  if (slot < 0) return fail('Your bags are full');
+  ch.inventory[slot] = it; g.vault![idx] = null;
+  w.n++; g.withdrawals[ch.id] = w;
+  logGuild(g, now, `${ch.name} withdrew ${it.name}`);
+  return ok(it);
 }
 
 export function addGuildXp(g: Guild, xp: number): number {

@@ -6,8 +6,10 @@ export const CONTENT_SCHEMA_VERSION = 1;
 export type DamageType = 'physical' | 'fire' | 'ice' | 'lightning' | 'holy' | 'shadow' | 'poison';
 export const DAMAGE_TYPES: DamageType[] = ['physical', 'fire', 'ice', 'lightning', 'holy', 'shadow', 'poison'];
 
-export type ClassId = 'warrior' | 'mage' | 'assassin' | 'ranger' | 'paladin' | 'necromancer';
-export const CLASS_IDS: ClassId[] = ['warrior', 'mage', 'assassin', 'ranger', 'paladin', 'necromancer'];
+export type ClassId = 'warrior' | 'mage' | 'assassin' | 'ranger' | 'paladin' | 'necromancer' | 'chronomancer';
+/** Six launch classes + standalone classes added in later updates (Chronomancer: Phase 7). Never class evolutions. */
+export const CLASS_IDS: ClassId[] = ['warrior', 'mage', 'assassin', 'ranger', 'paladin', 'necromancer', 'chronomancer'];
+export const LAUNCH_CLASS_IDS: ClassId[] = ['warrior', 'mage', 'assassin', 'ranger', 'paladin', 'necromancer'];
 
 export type StatusId =
   | 'burn' | 'freeze' | 'chill' | 'shock' | 'poison' | 'bleed' | 'curse' | 'slow' | 'stun'
@@ -257,6 +259,8 @@ export interface AccountProgress {
   season: SeasonProgress | null;
   auras: string[];
   aura: string | null;
+  pets: string[];
+  pet: string | null;
 }
 export interface SeasonProgress { id: string; xp: number; shards: number; claimed: number[]; week: number; weekly: Record<string, number>; weeklyDone: string[]; archive: Array<{ id: string; xp: number; tier: number }> }
 export const STASH_SIZE = 20;

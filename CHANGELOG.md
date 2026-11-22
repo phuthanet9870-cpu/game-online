@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.8.0] — 2026-11-22 — Phase 7: Expansion (partial)
+### Added
+- 7th standalone class **Chronomancer**: Flux resource + Sand finisher resource; Time Echo (every third skill replays its damage 1s later at 50%); 8 Active + 4 Ultimate skills; passive tree with the Closed Loop keystone; Hourglass/Chrono Staff weapons; Thai text.
+- **Eclipse Dimension** activity (level 15): every enemy family at once; Eclipse Pressure stacks every 45 seconds (+8% enemy damage, +10% loot per stack); double Ember Shards; two achievements.
+- **Guild vault**: 30 slots at the Astral Vault, daily withdrawal limits by rank (member 3, officer 20), every move logged, guild + character saved in one transaction.
+- **Companions**: Lumi Fox, Moon Owl, Ember Sprite (adopt at the Quartermaster) — cosmetic followers that widen gold auto-pickup and item reach; no combat power.
+- **Fishing**: shore spots in Duskmeadow and lava pools in the Highlands (Fishing 3+), server-timed bite window, Fishing profession, Golden Carp rare catch, three new meals.
+- Balance harness gained starter-gear scenarios; Veyra re-tuned to 3800 life / 15 power so a first clear with starter gear is possible (Story is the gentle option).
+- 6 new tests (47 total).
+### Not done in this phase
+- Housing and a third region (backlog B-11).
+
 ## [0.7.0] — 2026-11-22 — Live content editor
 ### Added
 - Staff "Content" tab: tune skills (cost, cooldown, cast time, damage multiplier), enemies (life, power, armor, XP, speed), weapon power and loot (drop chance, elite rolls, rarity weights) without a redeploy. Validation with ranges, preview diff, versioned publish with required note, rollback to any version or to the shipped baseline.

@@ -71,6 +71,8 @@ export const ACHIEVEMENTS: Record<string, { name: string; desc: string; title?: 
   tier_nightmare: { name: 'Nightmare Walker', desc: 'Clear a Rift on Nightmare or higher.', title: 'Nightmare-Touched' },
   legendary: { name: 'Starfall Treasure', desc: 'Find a Legendary or Ancient item.' },
   world_boss: { name: 'Grove Breaker', desc: 'Help defeat the world boss Gloomheart in Duskmeadow.', title: 'Grovebreaker' },
+  eclipse_walker: { name: 'Beyond the Corona', desc: 'Clear the Eclipse Dimension.' },
+  eclipse_deep: { name: 'Eye of the Eclipse', desc: 'Clear the Eclipse Dimension at Eclipse Pressure 8 or higher.', title: 'Corona-Born' },
   tower10: { name: 'Tenth Landing', desc: 'Reach floor 10 of the Endless Tower.', title: 'Spire-Climber' },
   arena10: { name: 'Crowd Favourite', desc: 'Survive 10 waves in the Challenge Arena.' },
   labyrinth: { name: 'Out of the Coil', desc: 'Defeat Oruk, Warden of the Coil.' },

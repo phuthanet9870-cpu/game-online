@@ -88,5 +88,5 @@ export function rerollAffix(it: Item, index: number, rng: Rng): Item {
 
 /** Starter weapon for each class. */
 export const STARTER_WEAPON: Record<ClassId, string> = {
-  warrior: 'w_greatsword', mage: 'w_staff', assassin: 'w_daggers', ranger: 'w_bow', paladin: 'w_sword_shield', necromancer: 'w_tome',
+  warrior: 'w_greatsword', mage: 'w_staff', assassin: 'w_daggers', ranger: 'w_bow', paladin: 'w_sword_shield', necromancer: 'w_tome', chronomancer: 'w_hourglass',
 };

@@ -9,7 +9,7 @@ export type MapTheme = 'town' | 'field' | 'dungeon';
 
 export interface Interactable {
   id: string;
-  type: 'portal_dungeon' | 'npc_auction' | 'npc_alchemist' | 'gate_highlands' | 'gate_meadow' | 'ore' | 'gate_field' | 'gate_town' | 'npc_smith' | 'npc_trainer' | 'npc_quartermaster' | 'npc_quests' | 'chest' | 'shrine' | 'fountain' | 'altar' | 'exit' | 'herb' | 'stash';
+  type: 'portal_dungeon' | 'npc_auction' | 'npc_alchemist' | 'gate_highlands' | 'gate_meadow' | 'ore' | 'fishing' | 'gate_field' | 'gate_town' | 'npc_smith' | 'npc_trainer' | 'npc_quartermaster' | 'npc_quests' | 'chest' | 'shrine' | 'fountain' | 'altar' | 'exit' | 'herb' | 'stash';
   x: number;
   y: number;
   name: string;
@@ -206,6 +206,7 @@ interface OpenWorldCfg {
   id: string; seed: number; palette?: 'ash'; levelMin: number; levelMax: number;
   pool: Array<[string, number, [number, number]]>; // enemy, weight, pack size
   nodes: Array<{ type: 'herb' | 'ore'; res: string; name: string; count: number; req?: number }>;
+  fishing?: { res: string; name: string; count: number; req?: number };
   westGate: Interactable['type']; westName: string; eastGate?: Interactable['type']; eastName?: string; level: number;
 }
 
@@ -273,22 +274,34 @@ function buildOpenWorld(cfg: OpenWorldCfg): GameMap {
     const [tx, ty] = freeTile(8, w - 4);
     map.interactables.push({ id: `${nd.type}${ni++}`, type: nd.type, name: nd.name, res: nd.res, req: nd.req, ...T(tx, ty) });
   }
+  if (cfg.fishing) {
+    // fishing spots: reachable floor tiles next to water/lava
+    const shore: Array<[number, number]> = [];
+    for (let y = 2; y < h - 2; y++) for (let x = 2; x < w - 2; x++) {
+      if (!reach.has(y * w + x)) continue;
+      if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => tiles[(y + dy!) * w + x + dx!] === 3)) shore.push([x, y]);
+    }
+    rng.shuffle(shore);
+    const picked: Array<[number, number]> = [];
+    for (const p of shore) { if (picked.length >= cfg.fishing.count) break; if (picked.every((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) > 12)) picked.push(p); }
+    picked.forEach(([tx, ty], i) => map.interactables.push({ id: `fish${i}`, type: 'fishing', name: cfg.fishing!.name, res: cfg.fishing!.res, req: cfg.fishing!.req, ...T(tx, ty) }));
+  }
   return map;
 }
 
 export function buildField(seed = 1337): GameMap {
   return buildOpenWorld({ id: 'field', seed, levelMin: 2, levelMax: 9, level: 3, westGate: 'gate_town', westName: 'Road to Lumenhold', eastGate: 'gate_highlands', eastName: 'Pass to the Ashen Highlands',
-    pool: [['gloomfang', 2, [2, 4]], ['thornback', 1, [1, 2]], ['wisp', 2, [2, 4]]], nodes: [{ type: 'herb', res: 'moonpetal', name: 'Moonpetal Bloom', count: 14 }] });
+    pool: [['gloomfang', 2, [2, 4]], ['thornback', 1, [1, 2]], ['wisp', 2, [2, 4]]], nodes: [{ type: 'herb', res: 'moonpetal', name: 'Moonpetal Bloom', count: 14 }], fishing: { res: 'fish', name: 'Moonlake Shore', count: 6 } });
 }
 
 export function buildHighlands(seed = 4242): GameMap {
   return buildOpenWorld({ id: 'highlands', seed, palette: 'ash', levelMin: 10, levelMax: 20, level: 12, westGate: 'gate_meadow', westName: 'Back to Duskmeadow',
     pool: [['ember_imp', 3, [2, 4]], ['flamecaller', 2, [1, 3]], ['magma_golem', 1, [1, 1]], ['cinder_drake', 2, [1, 2]]],
-    nodes: [{ type: 'ore', res: 'iron_ore', name: 'Iron Vein', count: 14 }, { type: 'ore', res: 'starsteel', name: 'Starsteel Vein', count: 5, req: 4 }, { type: 'herb', res: 'emberbloom', name: 'Emberbloom', count: 10 }] });
+    nodes: [{ type: 'ore', res: 'iron_ore', name: 'Iron Vein', count: 14 }, { type: 'ore', res: 'starsteel', name: 'Starsteel Vein', count: 5, req: 4 }, { type: 'herb', res: 'emberbloom', name: 'Emberbloom', count: 10 }], fishing: { res: 'ember_eel', name: 'Lava Pool', count: 5, req: 3 } });
 }
 
 // ───────────────────────── PROCEDURAL DUNGEON ─────────────────────────
-export interface DungeonOptions { seed: number; level: number; floor?: number; difficulty: string; layout?: 'rift' | 'tower'; boss?: string; modifiers?: string[]; eliteChance?: number }
+export interface DungeonOptions { seed: number; level: number; floor?: number; difficulty: string; layout?: 'rift' | 'tower'; boss?: string; modifiers?: string[]; eliteChance?: number; pool?: string[] }
 
 export function generateDungeon(opts: DungeonOptions): GameMap {
   // Retry until a layout passes validation (bounded; generator is deterministic per seed+attempt).
@@ -390,7 +403,7 @@ function tryGenerate(opts: DungeonOptions, attempt: number): GameMap | null {
   const pack = (r: RoomInfo, n: number) => {
     for (let i = 0; i < n; i++) {
       const [tx, ty] = roomFloor(r);
-      const e = rng.weighted(['hollow_grunt', 'hollow_archer', 'hollow_hexer'], (k) => (k === 'hollow_grunt' ? 3 : k === 'hollow_archer' ? 2 : 1));
+      const e = opts.pool ? rng.pick(opts.pool) : rng.weighted(['hollow_grunt', 'hollow_archer', 'hollow_hexer'], (k) => (k === 'hollow_grunt' ? 3 : k === 'hollow_archer' ? 2 : 1));
       map.spawns.push({ enemy: e, ...P(tx, ty), room: r.id, elite: (moreElites && rng.chance(0.15)) || rng.chance(opts.eliteChance ?? 0) });
     }
   };

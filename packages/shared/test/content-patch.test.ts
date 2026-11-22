@@ -12,12 +12,13 @@ describe('content patches', () => {
   });
   it('applies on top of the baseline and reverts cleanly', () => {
     const coef0 = (SKILL_MAP.mag_fireball!.effects[0] as any).dmg.coef;
+    const veyraHp0 = ENEMIES.veyra!.hp;
     applyContentPatch({ skills: { mag_fireball: { cooldown: 3, coefMul: 2 } }, enemies: { veyra: { hp: 9999 } }, loot: { dropChance: 0.5, rarityWeights: { legendary: 50 } } });
     expect(SKILL_MAP.mag_fireball!.cooldown).toBe(3);
     expect((SKILL_MAP.mag_fireball!.effects[0] as any).dmg.coef).toBeCloseTo(coef0 * 2);
     applyContentPatch({ skills: { mag_fireball: { coefMul: 2 } } }); // applying again must not compound
     expect((SKILL_MAP.mag_fireball!.effects[0] as any).dmg.coef).toBeCloseTo(coef0 * 2);
-    expect(ENEMIES.veyra!.hp).toBe(4800);
+    expect(ENEMIES.veyra!.hp).toBe(veyraHp0); // second patch dropped the hp override
     applyContentPatch(null);
     expect(SKILL_MAP.mag_fireball!.cooldown).toBe(0.8);
     expect(LOOT_TUNING.dropChance).toBe(0.22);

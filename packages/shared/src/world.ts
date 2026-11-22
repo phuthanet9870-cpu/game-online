@@ -8,6 +8,7 @@ import { BLESSING_MAP, DUNGEON_MODIFIERS } from './data/dungeon.js';
 import { POTION } from './data/items.js';
 import { generateItem, rollRarity } from './loot.js';
 import { LOOT_TUNING } from './content.js';
+import { PET_PICKUP } from './data/pets.js';
 import { activeElixirMods, weaponAffinity } from './character.js';
 import { computeStats, type Derived } from './stats.js';
 import { Rng, angleDiff, clamp, dist, dist2, normalize } from './math.js';
@@ -43,6 +44,8 @@ export interface PlayerState {
   softLock: boolean;
   aura: string | null;
   lastSeq: number;
+  echoN?: number;
+  pet?: string | null;
 }
 export interface EnemyState {
   def: EnemyDef;
@@ -99,7 +102,7 @@ export interface Ent {
 }
 
 export interface Packet { amount: number; type: DamageType; critChance: number; critMult: number; status?: StatusApply; src: number; tags: string[]; isBasic?: boolean; noCrit?: boolean; alwaysCrit?: boolean }
-interface CastCtx { skill?: SkillDef; tags: string[]; basic: boolean; points: number; ax: number; ay: number; targetId: number }
+interface CastCtx { skill?: SkillDef; tags: string[]; basic: boolean; points: number; ax: number; ay: number; targetId: number; mult?: number }
 
 export interface Proj { id: number; team: 0 | 1; owner: number; x: number; y: number; vx: number; vy: number; r: number; range: number; packet: Packet; pierce: number; chain: number; hit: Set<number>; explode?: { radius: number; packet: Packet }; homing?: boolean; visual: string }
 export interface Area {
@@ -142,6 +145,8 @@ export interface WorldOptions {
   ilvlBonus?: number;
   /** Text shown when the final boss dies. */
   exitText?: string;
+  /** Eclipse Dimension: seconds between Eclipse Pressure stacks. */
+  pressureEvery?: number;
 }
 
 const ELEM_STATUS: Record<DamageType, StatusId> = { physical: 'bleed', fire: 'burn', ice: 'chill', lightning: 'shock', holy: 'weaken', shadow: 'curse', poison: 'poison' };
@@ -169,6 +174,8 @@ export class World {
   /** Live-ops multipliers set by the GameCore (weekly event + staff config). */
   live = { lootBonus: 0, goldMul: 1 };
   modifierFlags = new Set<string>();
+  pressure = 0;
+  private pressureT = 0;
 
   constructor(map: GameMap, opts: WorldOptions) {
     this.map = map;
@@ -373,8 +380,23 @@ export class World {
       p.weaveT = 5;
     }
     this.events.push({ t: 'cast', id: e.id, skill: sk.id, x: Math.round(tx), y: Math.round(ty) });
-    this.runEffects(e, sk.effects, { skill: sk, tags: sk.tags, basic: false, points, ax: tx, ay: ty, targetId: tgt?.id ?? 0 });
+    const ctx: CastCtx = { skill: sk, tags: sk.tags, basic: false, points, ax: tx, ay: ty, targetId: tgt?.id ?? 0 };
+    this.runEffects(e, sk.effects, ctx);
+    if (p.char.cls === 'chronomancer') this.timeEcho(e, sk, ctx);
     return null;
+  }
+
+  /** Chronomancer: every Nth cast replays its damaging effects 1s later at reduced power. Casting gathers Sand. */
+  private timeEcho(e: Ent, sk: SkillDef, ctx: CastCtx) {
+    const p = e.p!, st = e.stats!;
+    if (!sk.consumeSecondary) p.sec = Math.min(st.secMax, p.sec + 1);
+    p.echoN = (p.echoN ?? 0) + 1;
+    const loop = st.flags.has('closed_loop');
+    if (p.echoN % (loop ? 2 : 3) !== 0) return;
+    const dmgFx = sk.effects.filter((f) => f.t === 'melee' || f.t === 'projectile' || (f.t === 'area' && !!f.dmg));
+    if (!dmgFx.length) return;
+    const mult = (loop ? 0.35 : 0.5) * (1 + (st.m.echoPct ?? 0) / 100);
+    this.delayed.push({ t: this.time + 1, fn: () => { if (!this.ents.has(e.id) || e.dead) return; this.events.push({ t: 'cast', id: e.id, skill: sk.id, x: Math.round(ctx.ax), y: Math.round(ctx.ay) }); this.runEffects(e, dmgFx, { ...ctx, mult, points: ctx.points }); } });
   }
 
   skillCost(e: Ent, sk: SkillDef): number {
@@ -415,7 +437,7 @@ export class World {
     if (!e?.p) return 'No player';
     const d = this.drops.find((x) => x.id === dropId);
     if (!d || d.owner !== id) return 'Nothing to pick up';
-    if (dist(e.x, e.y, d.x, d.y) > 110) return 'Too far away';
+    if (dist(e.x, e.y, d.x, d.y) > (e.p.pet ? PET_PICKUP.itemReach : 110)) return 'Too far away';
     if (d.item) {
       const idx = e.p.char.inventory.findIndex((s) => s === null);
       if (idx < 0) return 'Inventory full';
@@ -591,6 +613,7 @@ export class World {
     let status = d.status;
     if (ctx.basic && (m['basic.statusChance'] ?? 0) > 0 && !status) status = { id: ELEM_STATUS[type], chance: m['basic.statusChance']!, duration: 3, power: 0.2 };
     if (st.flags.has('thousand_cuts') && !status) status = { id: 'bleed', chance: 1, duration: 3, power: 0.15 };
+    more *= ctx.mult ?? 1;
     return { amount: st.power * d.coef * (1 + inc / 100) * more, type, critChance: st.critChance, critMult: st.critMult / 100, status, src: e.id, tags: ctx.tags, isBasic: ctx.basic, alwaysCrit: ctx.skill?.id === 'asn_u_assassinate' };
   }
 
@@ -621,6 +644,7 @@ export class World {
     }
     if (src?.stats?.flags.has('shatter') && target.statuses.some((s) => s.id === 'freeze' || s.id === 'chill')) amt *= 1.15;
     if (src?.e?.affixes.includes('frenzied') && src.hp < src.maxHp * 0.5) amt *= 1.4;
+    if (src?.team === 1 && this.pressure) amt *= 1 + 0.08 * this.pressure;
     // mitigation
     if (pk.type === 'physical') {
       const attLvl = src?.level ?? 1;
@@ -799,7 +823,7 @@ export class World {
     const es = enemy.e!;
     const ch = p.p!.char;
     const mf = (p.stats?.m.magicFindPct ?? 0) / 100;
-    const bonus = this.diff.loot + this.lootBonus + this.live.lootBonus + mf + p.p!.lootBonus + (es.def.lootBonus ?? 0) * 0.15 + (es.elite ? 0.3 : 0);
+    const bonus = this.diff.loot + this.lootBonus + this.live.lootBonus + this.pressure * 0.1 + mf + p.p!.lootBonus + (es.def.lootBonus ?? 0) * 0.15 + (es.elite ? 0.3 : 0);
     const rolls = es.def.boss ? (es.def.id === 'veyra' || es.def.id === 'gloomheart' ? 3 : 2) : es.elite ? LOOT_TUNING.eliteRolls : 1;
     const dropChance = es.def.boss || es.elite ? 1 : LOOT_TUNING.dropChance;
     const gf = (1 + (p.stats?.m.goldFindPct ?? 0) / 100) * this.live.goldMul;
@@ -847,6 +871,10 @@ export class World {
   // ───────────── Tick ─────────────
   tick(dt: number) {
     this.time += dt;
+    if (this.opts.pressureEvery && [...this.ents.values()].some((e) => e.kind === 'player')) {
+      this.pressureT += dt;
+      if (this.pressureT >= this.opts.pressureEvery) { this.pressureT = 0; this.pressure++; this.events.push({ t: 'msg', text: `Eclipse Pressure ${this.pressure}: enemies hit ${this.pressure * 8}% harder, loot +${this.pressure * 10}%.`, kind: 'warn' }); }
+    }
     // delayed actions
     if (this.delayed.length) {
       const due = this.delayed.filter((d) => d.t <= this.time);
@@ -870,7 +898,8 @@ export class World {
     for (const d of [...this.drops]) {
       if (!d.gold) continue;
       const p = this.ents.get(d.owner);
-      if (p && !p.dead && dist2(p.x, p.y, d.x, d.y) < 70 * 70) {
+      const gr = p?.p?.pet ? PET_PICKUP.goldRadius : 70;
+      if (p && !p.dead && dist2(p.x, p.y, d.x, d.y) < gr * gr) {
         p.p!.char.gold += d.gold;
         this.events.push({ t: 'pickup', to: p.id, gold: d.gold });
         this.drops = this.drops.filter((x) => x !== d);
@@ -1345,7 +1374,7 @@ export class World {
         e.p ? e.p.char.cls : e.e ? e.e.def.id : e.mi!.type, e.name, e.level, e.statuses.map((s) => s.id).filter((v, i, a) => a.indexOf(v) === i).join(','),
         e.e ? (e.e.elite ? 1 : 0) | (e.e.def.boss ? 2 : 0) : 0, pend ? Math.round((1 - pend.t / pend.total) * 100) / 100 : 0, e.dead ? 1 : 0,
         Math.round((e.buffs.reduce((s, b) => s + (b.mods.find((m) => m.stat === 'sizePct')?.value ?? 0), 0))) || 0,
-        e.e?.affixes.join(',') ?? '', e.e ? Math.round((e.e.breakG / (e.e.breakMax || 1)) * 100) / 100 : 0, e.e?.phase ?? 0, e.invuln > 0 || !!e.dash ? 1 : 0, e.p?.aura ?? '',
+        e.e?.affixes.join(',') ?? '', e.e ? Math.round((e.e.breakG / (e.e.breakMax || 1)) * 100) / 100 : 0, e.e?.phase ?? 0, e.invuln > 0 || !!e.dash ? 1 : 0, e.p?.aura ?? '', e.p?.pet ?? '',
       ]);
     }
     const projs = this.projs.filter((p) => dist2(p.x, p.y, cx, cy) < r2).map((p) => [p.id, Math.round(p.x), Math.round(p.y), Math.round(p.vx), Math.round(p.vy), p.r, p.visual, p.team]);

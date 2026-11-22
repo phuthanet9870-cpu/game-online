@@ -2,7 +2,7 @@
 
 Statuses: `Not Started` · `In Progress` · `Implemented` (code exists, manually exercised) · `Tested` (covered by automated tests or the e2e bot) · `Released` (deployed to a public HTTPS URL — nothing is Released yet).
 
-Last updated: 2026-11-22 (v0.5.0 — Phases 0-1, 4, 5, 6 and content expansion).
+Last updated: 2026-11-22 (v0.8.0 — Phases 0-1, 4, 5, 6, 7 (partial), content expansion, polish).
 
 ## Platform & architecture
 | Feature | Status | Notes |
@@ -17,6 +17,7 @@ Last updated: 2026-11-22 (v0.5.0 — Phases 0-1, 4, 5, 6 and content expansion).
 | Docker image / compose | Implemented | Written but **not built in this environment** (no Docker daemon). |
 | CI workflow | Implemented | Not yet run on GitHub. |
 | HTTPS deployment | Not Started | Needs a host + domain; see docs/OPERATIONS.md. |
+| Live content tuning editor (skills, enemies, weapons, loot) with validation, preview, versions, rollback | Tested | Unit + live e2e. |
 | Staff console `/admin.html` (roles via CLI only, TOTP MFA per session, overview, analytics, player lookup with logged inspection, mute/kick/ban with reasons, announcements, audit viewer) | Tested | Live e2e `admin-e2e.ts`. Not in the offline artifact. |
 | Live config: feature flags, XP/gold/loot multipliers, weekly-event override, maintenance mode, MOTD — validate → preview diff → publish → history → rollback | Tested | Live e2e incl. maintenance lockout + rollback. |
 | Observability | In Progress | Structured JSON logs + minute metrics; no Prometheus/Sentry yet. |
@@ -24,7 +25,8 @@ Last updated: 2026-11-22 (v0.5.0 — Phases 0-1, 4, 5, 6 and content expansion).
 ## Classes, skills, builds
 | Feature | Status | Notes |
 |---|---|---|
-| Six standalone classes, no evolutions | Tested | Each kills enemies in automated combat test. |
+| Six standalone launch classes, no evolutions | Tested | Each kills enemies in automated combat test. |
+| 7th standalone class: Chronomancer (Flux + Sand, Time Echo mechanic, 8+4 skills, own passive tree + keystone, Thai) | Tested | Phase 7 expansion. |
 | Class resource + mechanic (Rage, Weave, Combo, Focus/Mark, Conviction/Block, Souls) | Implemented | |
 | 8 Active + 4 Ultimate per class in library (72 skills) | Tested | Content test asserts counts. |
 | Loadout exactly 8 + 4, server-validated | Tested | |
@@ -51,7 +53,10 @@ Last updated: 2026-11-22 (v0.5.0 — Phases 0-1, 4, 5, 6 and content expansion).
 | Professions: Mining, Herbalism, Alchemy, Smithing, Cooking (levels 1-10, gated nodes and recipes) | Tested | |
 | Crafting: potions, 3 elixirs, 2 meals (one active buff, persists across zones), forge rare/epic gear by slot | Tested | |
 | Materials pouch (no inventory clutter) with drops from beasts and Cinderkin | Implemented | |
-| Fishing, housing, pets, treasure hunting | Not Started | Backlog B-5. |
+| Fishing (server-timed bite window, Fishing profession, 3 catches, 3 new meals) | Tested | |
+| Companions/pets (3, cosmetic + wider pickup reach, no combat power) | Tested | |
+| Guild vault (30 slots, per-rank daily withdrawal limits, logged, atomic saves) | Tested | |
+| Housing, treasure hunting, third region | Not Started | Backlog B-5 / B-11. |
 
 ## World & content
 | Feature | Status | Notes |
@@ -72,7 +77,7 @@ Last updated: 2026-11-22 (v0.5.0 — Phases 0-1, 4, 5, 6 and content expansion).
 | Nightmare Rift (3 hostile modifiers, ≥Hard, 10-min bonus cache, needs cleared Hard Rift) | Implemented | |
 | Raid: Eclipse Throne, 4-8 players, Nyx Aurelion (Total Eclipse safe-circle mechanic, adds, 3 phases, enrage 8 min, wipe rules) | Tested | Mechanic + wipe unit-tested. Never played by 4+ real people — tuning unverified. |
 | Leaderboards (tower, arena, level; Normal/Hardcore separate) | Tested | |
-| Eclipse Dimension | Not Started | Planned as a seasonal activity (Phase 6+). |
+| Eclipse Dimension (mixed enemy families, Eclipse Pressure every 45s: enemy damage +8%/stack, loot +10%/stack, double shards) | Tested | |
 | PvP | Not Started | Optional in the master prompt; not planned yet. |
 | World boss public event (Gloomheart in Duskmeadow, every ~5 min, scales with players) | Tested | Spawn tested; kill reward path shares the normal boss code. |
 | Season framework (Season 1 "The Ember Tithe"): Ember Shards, Season XP, 20-tier cosmetic/convenience reward track, archive, documented permanent vs reset | Tested | |
@@ -101,14 +106,12 @@ Last updated: 2026-11-22 (v0.5.0 — Phases 0-1, 4, 5, 6 and content expansion).
 
 ## Backlog (prioritised)
 - **B-1 Deployment**: HTTPS host, domain, TLS proxy, managed Postgres backups. Blocked on the owner choosing a host.
-- **B-2 Guild vault**: per-rank withdrawal limits, audit view.
 - **B-3 Economy telemetry**: gold sources/sinks dashboard, price history.
 - **B-4 Endgame**: Endless Tower (reuse Rift generator with floor scaling), raids (4-8), world boss, arena.
 - **B-5 Life skills**: mining/fishing/cooking/alchemy recipes, housing, pets.
 - **B-6 Live ops**: editing whole new content records (not only tuning) from the console; patch-notes page.
-
-| Live content tuning editor (skills, enemies, weapons, loot) with validation, preview, versions, rollback | Tested | Unit + live e2e. |
 - **B-7 Audio & art pass**: sound effects/music, sprite art replacing procedural drawing.
 - **B-8 Netcode**: binary encoding (MessagePack) and per-entity update rates for very crowded zones.
 - **B-9 Localization**: Thai for item names, affix/stat labels and NPC dialogue.
+- **B-11 Third region** and housing (personal instanced plot with placeable furniture).
 - **B-10 More tests**: party + reconnect integration tests, cross-browser runs, larger load tests.

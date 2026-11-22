@@ -33,7 +33,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
     ], color: '#6a3a5a', boss: { phases: [0.5], breakGauge: 400, title: 'Mini-boss' }, lootBonus: 2,
   },
   veyra: {
-    id: 'veyra', name: 'Veyra, the Umbral Warden', family: 'hollowborn', role: 'boss', hp: 4800, power: 17, armor: 60, res: { shadow: 50, holy: -10, fire: 10 }, speed: 115, radius: 34, xp: 600, aggroRange: 520,
+    id: 'veyra', name: 'Veyra, the Umbral Warden', family: 'hollowborn', role: 'boss', hp: 3800, power: 15, armor: 60, res: { shadow: 50, holy: -10, fire: 10 }, speed: 115, radius: 34, xp: 600, aggroRange: 520,
     attacks: [
       { id: 'sweep', kind: 'cleave', range: 150, cooldown: 3.0, windup: 0.9, dmg: 1.6, type: 'shadow' },
       { id: 'orbs', kind: 'nova', range: 520, cooldown: 6, windup: 1.0, dmg: 1.0, type: 'shadow', count: 14, speed: 230 },

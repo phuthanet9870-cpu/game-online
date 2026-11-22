@@ -1,8 +1,8 @@
 # ASTRA: ECLIPSE CHRONICLES
 
-A browser-playable online action roguelike RPG: six standalone classes, an 8 Active + 4 Ultimate skill loadout, a 135-node passive tree with Keystones, seeded procedural Rifts with a three-phase boss, Normal and Hardcore modes, and a server-authoritative Node + PostgreSQL backend.
+A browser-playable online action roguelike RPG: six standalone launch classes plus the Chronomancer, an 8 Active + 4 Ultimate skill loadout, a 135-node passive tree with Keystones, seeded procedural Rifts with a three-phase boss, Normal and Hardcore modes, and a server-authoritative Node + PostgreSQL backend.
 
-**Status: v0.5.0 — vertical slice, MMO systems, endgame, second region, professions, Thai content, seasons and a staff live-ops console.** Not yet deployed to a public HTTPS host. See [docs/FEATURES.md](docs/FEATURES.md) for exactly what is implemented, tested, and still missing. Nothing is publicly deployed yet.
+**Status: v0.8.0 — vertical slice, MMO systems, endgame, two open-world regions, 7 classes, professions incl. fishing, companions, seasons, staff live-ops console with live content tuning.** Not yet deployed to a public HTTPS host. See [docs/FEATURES.md](docs/FEATURES.md) for exactly what is implemented, tested, and still missing. Nothing is publicly deployed yet.
 
 ## Play it locally
 Requirements: Node 22+, PostgreSQL 16.

@@ -137,6 +137,7 @@ export class GameUI {
       case 'guild': this.guildData = m; if (this.panel === 'guild') this.renderPanel(); break;
       case 'guild_invite': void confirmDialog('Guild invite', `${m.from} invited you to ‹${m.tag}› ${m.name}.`, t('accept'), t('decline')).then((ok) => { if (ok) this.send({ t: 'guild_accept', id: m.id }); }); break;
       case 'season': this.seasonData = m; if (this.panel === 'season') this.renderPanel(); break;
+      case 'fish': if (m.state === 'cast') this.status('Fishing… press Interact (E) the moment a fish bites'); else if (m.state === 'bite') { this.status('!!! A fish is biting — press E now !!!'); sound.warn(); } else this.status(null); break;
       case 'mats': toast('+ ' + Object.entries(m.got).map(([k, v]) => `${v} ${MATERIALS[k]?.name ?? k}`).join(', '), 'good'); break;
       case 'world_event': g.worldEvent = m; this.renderWorldEvent(); break;
       case 'ladder': this.ladderData = m.boards; if (this.panel === 'ladder') this.renderPanel(); break;

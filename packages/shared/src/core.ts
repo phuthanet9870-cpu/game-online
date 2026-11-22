@@ -13,8 +13,9 @@ import { ACHIEVEMENTS, QUESTS, QUEST_MAP } from './data/quests.js';
 import { generateItem, rollRarity } from './loot.js';
 import { Rng, dist } from './math.js';
 import { buildArena, buildField, buildHighlands, buildTown, generateDungeon, generateLabyrinth, type GameMap } from './maps.js';
-import { ACTIVITIES, ACTIVITY_ORDER, NIGHTMARE_MODS, towerScale, type Activity } from './data/activities.js';
+import { ACTIVITIES, ACTIVITY_ORDER, ECLIPSE_POOL, NIGHTMARE_MODS, towerScale, type Activity } from './data/activities.js';
 import { MATERIALS, PROFESSIONS, RECIPE_MAP } from './data/crafting.js';
+import { PETS } from './data/pets.js';
 import { AURAS, DEFAULT_LIVE, SEASON_XP_PER_TIER, SHARD_SOURCES, currentSeason, weekIndex, weeklyEvent, weeklyObjectives, type LiveConfig, type SeasonDef } from './data/seasons.js';
 import type { AccountProgress, CharacterData, DifficultyId, EquipSlot } from './types.js';
 import { EQUIP_SLOTS, PROTOCOL_VERSION, STASH_SIZE } from './types.js';
@@ -65,6 +66,7 @@ interface Session {
   chatHist: Array<{ text: string; t: number }>;
   mutedUntil: number;
   reviveCd?: number;
+  fishing?: { spot: string; x: number; y: number; res: string; biteAt: number; until: number; bit: boolean } | null;
   netCache?: { room: string; ents: Map<number, string>; projs: Map<number, string>; areas: Map<number, string> };
 }
 
@@ -72,15 +74,15 @@ interface Room { id: string; kind: 'town' | 'field' | 'dungeon'; world: World; s
 export interface LeaderRecord { board: string; charId: string; name: string; cls: string; hardcore: boolean; value: number; at: number }
 interface Party { id: string; leader: string; members: string[] }
 
-const MUTATIONS = new Set(['season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose']);
+const MUTATIONS = new Set(['guild_vault_put', 'guild_vault_take', 'pet_buy', 'season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose']);
 
 export function emptyAccount(): AccountProgress {
-  return { codex: {}, achievements: [], titles: [], stash: { normal: Array(STASH_SIZE).fill(null), hardcore: Array(STASH_SIZE).fill(null) }, season: null, auras: [], aura: null };
+  return { codex: {}, achievements: [], titles: [], stash: { normal: Array(STASH_SIZE).fill(null), hardcore: Array(STASH_SIZE).fill(null) }, season: null, auras: [], aura: null, pets: [], pet: null };
 }
 export function normalizeAccount(a: Partial<AccountProgress> | null | undefined): AccountProgress {
   const e = emptyAccount();
   if (!a) return e;
-  return { codex: a.codex ?? {}, achievements: a.achievements ?? [], titles: a.titles ?? [], stash: { normal: pad(a.stash?.normal, STASH_SIZE), hardcore: pad(a.stash?.hardcore, STASH_SIZE) }, season: a.season ?? null, auras: a.auras ?? [], aura: a.aura ?? null };
+  return { codex: a.codex ?? {}, achievements: a.achievements ?? [], titles: a.titles ?? [], stash: { normal: pad(a.stash?.normal, STASH_SIZE), hardcore: pad(a.stash?.hardcore, STASH_SIZE) }, season: a.season ?? null, auras: a.auras ?? [], aura: a.aura ?? null, pets: a.pets ?? [], pet: a.pet ?? null };
 }
 const pad = <T>(arr: (T | null)[] | undefined, n: number) => { const o = (arr ?? []).slice(0, n); while (o.length < n) o.push(null); return o; };
 
@@ -110,7 +112,7 @@ export class GameCore {
   /** Load persisted shared state. Call once before accepting players. */
   async init() {
     const st = await this.persist.loadShared();
-    for (const g of st.guilds) this.guilds.set(g.id, g);
+    for (const g of st.guilds) { g.vault ??= Array(EC.GUILD_VAULT_SIZE).fill(null); g.withdrawals ??= {}; this.guilds.set(g.id, g); }
     for (const l of st.listings) this.listings.set(l.id, l);
     for (const r of st.records ?? []) this.records.set(`${r.board}:${r.charId}`, r);
   }
@@ -183,6 +185,7 @@ export class GameCore {
     const ent = room.world.addPlayer(s.char, s.id, pos);
     ent.p!.partyId = s.partyId;
     ent.p!.aura = s.account.aura;
+    ent.p!.pet = s.account.pet;
     const guild = this.guildOf(s.char.id);
     if (guild) ent.name = `${s.char.name} ‹${guild.tag}›`;
     s.entId = ent.id;
@@ -324,6 +327,8 @@ export class GameCore {
         // auction house
         case 'ah_search': case 'ah_list': case 'ah_buy': case 'ah_cancel': case 'ah_claim': case 'ah_mine': this.auction(s, room, msg); break;
         // guilds
+        case 'guild_vault_put': case 'guild_vault_take': this.guildVault(s, room, msg); break;
+        case 'pet_buy': case 'pet_set': this.pets(s, room, msg); break;
         case 'guild_create': case 'guild_invite': case 'guild_accept': case 'guild_leave': case 'guild_kick': case 'guild_rank': case 'guild_transfer': case 'guild_motd': case 'guild_info': this.guild(s, room, msg); break;
         default: break;
       }
@@ -383,6 +388,27 @@ export class GameCore {
       case 'npc_quests': s.send({ t: 'open', what: 'quests' }); break;
       case 'stash': s.send({ t: 'open', what: 'stash' }); break;
       case 'npc_auction': s.send({ t: 'open', what: 'auction' }); this.auction(s, room, { t: 'ah_search', q: {} }); this.auction(s, room, { t: 'ah_mine' }); break;
+      case 'fishing': {
+        if ((it.req ?? 0) > C.profLevel(s.char, 'fishing')) return this.toast(s, `Requires Fishing level ${it.req}`);
+        const f = s.fishing;
+        if (f && f.spot === it.id) {
+          s.fishing = null;
+          if (!f.bit || this.now > f.until) return this.toast(s, f.bit ? 'Too slow — it got away.' : 'Too early! You scared it off.');
+          const lv = C.profLevel(s.char, 'fishing');
+          const res = it.res === 'fish' && this.rng.chance(0.05 + 0.03 * lv) ? 'golden_carp' : it.res ?? 'fish';
+          C.addMats(s.char, { [res]: 1 });
+          const ups = C.grantProfXp(s.char, 'fishing', res === 'golden_carp' ? 40 : 15);
+          this.weekly(s, 'gather', 1);
+          this.toast(s, `Caught a ${MATERIALS[res]?.name ?? res}!${ups ? ` · Fishing level ${C.profLevel(s.char, 'fishing')}!` : ''}`);
+          s.send({ t: 'fish', state: 'caught', res });
+          this.mutate(s, { ok: true, value: undefined }, 'fish', { spot: it.id, res });
+          return;
+        }
+        const wait = this.rng.range(2, 5);
+        s.fishing = { spot: it.id, x: it.x, y: it.y, res: it.res ?? 'fish', biteAt: this.now + wait, until: this.now + wait + 1.2, bit: false };
+        s.send({ t: 'fish', state: 'cast' });
+        break;
+      }
       case 'herb': case 'ore': {
         const prof = it.type === 'ore' ? 'mining' : 'herbalism';
         if ((it.req ?? 0) > C.profLevel(s.char, prof)) return this.toast(s, `Requires ${PROFESSIONS[prof].name} level ${it.req}`);
@@ -521,6 +547,7 @@ export class GameCore {
       case 'arena': map = buildArena('arena', seed, level); Object.assign(extra, { finalBoss: '__none__', noRespawn: true }); break;
       case 'raid': map = buildArena('raid', seed, level + 2); Object.assign(extra, { finalBoss: 'sovereign', noRespawn: true, ilvlBonus: 5, exitText: 'The Eclipse Sovereign is defeated! Light returns to the Throne.' }); partySize = Math.max(2, partySize); break;
       case 'nightmare': map = generateDungeon({ seed, level: level + 2, difficulty: diff, modifiers: NIGHTMARE_MODS }); Object.assign(extra, { ilvlBonus: 2 }); break;
+      case 'eclipse': map = generateDungeon({ seed, level: level + 3, difficulty: diff, pool: ECLIPSE_POOL, eliteChance: 0.08 }); Object.assign(extra, { ilvlBonus: 4, pressureEvery: 45, exitText: 'The Eclipse Dimension collapses behind you. A way out has opened.' }); break;
       default: map = generateDungeon({ seed, level, difficulty: diff, eliteChance: this.effects().eliteBonus });
     }
     const id = `${mode}_${seed.toString(36)}_${floor}`;
@@ -565,7 +592,8 @@ export class GameCore {
           }
         }
         this.guildXp(s, 100 + 100 * ti + (mode === 'raid' ? 500 : mode === 'labyrinth' ? 200 : 0), `cleared ${ACTIVITIES[mode].name}`);
-        this.seasonGain(s, SHARD_SOURCES.riftClear + SHARD_SOURCES.perTierBonus * ti + (mode === 'raid' ? SHARD_SOURCES.raid : 0));
+        this.seasonGain(s, (SHARD_SOURCES.riftClear + SHARD_SOURCES.perTierBonus * ti + (mode === 'raid' ? SHARD_SOURCES.raid : 0) + room.world.pressure * 3) * (mode === 'eclipse' ? 2 : 1));
+        if (mode === 'eclipse') { this.achieve(s, 'eclipse_walker'); if (room.world.pressure >= 8) this.achieve(s, 'eclipse_deep'); }
         this.weekly(s, 'rift_clear', 1);
       }
       if (mode === 'arena') {
@@ -1143,6 +1171,42 @@ export class GameCore {
     this.markDirty(s); this.sendChar(s); this.sendSeason(s);
   }
 
+  private guildVault(s: Session, room: Room, msg: any) {
+    const g = this.guildOf(s.char.id);
+    if (!g) return s.send({ t: 'err', msg: 'You are not in a guild' });
+    if (!this.nearNpc(s, room, 'stash')) return s.send({ t: 'err', msg: 'Use the Astral Vault in Lumenhold to reach the guild vault' });
+    const r = msg.t === 'guild_vault_put' ? EC.vaultDeposit(g, s.char, clampInt(msg.inv, 0, 39), this.clock()) : EC.vaultWithdraw(g, s.char, clampInt(msg.idx, 0, EC.GUILD_VAULT_SIZE - 1), this.clock());
+    if (!r.ok) return s.send({ t: 'err', msg: r.reason });
+    this.tx({ guilds: [g], characters: [s.char] }); // one transaction: item leaves one side and arrives on the other
+    this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: msg.t, data: { guild: g.id, uid: r.value.uid } });
+    this.markDirty(s); this.sendChar(s); this.guildSync(g);
+  }
+
+  private pets(s: Session, room: Room, msg: any) {
+    const id = msg.id === null ? null : String(msg.id ?? '');
+    if (msg.t === 'pet_set') {
+      if (id && !s.account.pets.includes(id)) return s.send({ t: 'err', msg: 'You do not own that companion' });
+      s.account.pet = id;
+    } else {
+      if (!this.nearNpc(s, room, 'npc_quartermaster')) return s.send({ t: 'err', msg: 'Companions are adopted from Quartermaster Sol' });
+      const pet = id ? PETS[id] : undefined;
+      if (!pet) return s.send({ t: 'err', msg: 'Unknown companion' });
+      if (s.account.pets.includes(id!)) return s.send({ t: 'err', msg: 'Already adopted' });
+      for (const [m, n] of Object.entries(pet.cost.mats ?? {})) if ((s.char.mats[m] ?? 0) < n) return s.send({ t: 'err', msg: `Needs ${n} ${MATERIALS[m]?.name ?? m}` });
+      if (s.char.gold < pet.cost.gold) return s.send({ t: 'err', msg: `Needs ${pet.cost.gold} gold` });
+      s.char.gold -= pet.cost.gold;
+      for (const [m, n] of Object.entries(pet.cost.mats ?? {})) s.char.mats[m]! -= n;
+      s.account.pets.push(id!); s.account.pet = id;
+      this.tx({ characters: [s.char] });
+      this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'pet_buy', data: { pet: id, cost: pet.cost } });
+      this.toast(s, `${pet.name} joins you!`);
+    }
+    const ent = room.world.ents.get(s.entId);
+    if (ent?.p) ent.p.pet = s.account.pet;
+    this.saveAcct(s.accountId, s.account);
+    this.markDirty(s); this.sendChar(s);
+  }
+
   // ─────────── Open-world public event: world boss ───────────
   private tickWorldEvent() {
     const field = this.rooms.get('field');
@@ -1211,6 +1275,14 @@ export class GameCore {
     for (const s of this.sessions.values()) { s.saveT -= dt; if (s.saveT <= 0) { s.saveT = 30; if (s.dirty) this.save(s); } }
     for (const [k, v] of this.reconnect) if (v.until < this.now) this.reconnect.delete(k);
     this.tickWorldEvent();
+    for (const s of this.sessions.values()) {
+      const f = s.fishing;
+      if (!f) continue;
+      const e = this.rooms.get(s.roomId)?.world.ents.get(s.entId);
+      if (!e || dist(e.x, e.y, f.x, f.y) > 150) { s.fishing = null; s.send({ t: 'fish', state: 'cancel' }); continue; }
+      if (!f.bit && this.now >= f.biteAt) { f.bit = true; s.send({ t: 'fish', state: 'bite' }); }
+      else if (f.bit && this.now > f.until) { s.fishing = null; s.send({ t: 'fish', state: 'lost' }); this.toast(s, 'It got away.'); }
+    }
     if (this.tickN % (TICK_RATE * 5) === 0) {
       const l = this.liveLoot();
       for (const r of this.rooms.values()) r.world.live = l;
@@ -1228,7 +1300,7 @@ export class GameCore {
     const known = (s.netCache ??= { room: '', ents: new Map<number, string>(), projs: new Map<number, string>(), areas: new Map<number, string>() });
     if (known.room !== s.roomId) { known.room = s.roomId; known.ents.clear(); known.projs.clear(); known.areas.clear(); }
     const ents = (snap.ents as any[][]).map((e) => {
-      const key = `${e[1]}|${e[6]}|${e[8]}|${e[9]}|${e[10]}|${e[12]}|${e[16]}|${e[20]}`;
+      const key = `${e[1]}|${e[6]}|${e[8]}|${e[9]}|${e[10]}|${e[12]}|${e[16]}|${e[20]}|${e[21]}`;
       if (known.ents.get(e[0]) === key) return [e[0], e[2], e[3], e[4], e[5], e[7], e[11], e[13], e[14], e[15], e[17], e[18], e[19]];
       known.ents.set(e[0], key);
       return e;
@@ -1379,7 +1451,7 @@ export function expandEntities(statics: Map<number, any[]>, ents: any[][]): any[
   const seen = new Set<number>();
   for (const raw of ents) {
     seen.add(raw[0]);
-    if (raw.length === 13) { const st = statics.get(raw[0]); if (!st) continue; out.push([raw[0], st[1], raw[1], raw[2], raw[3], raw[4], st[6], raw[5], st[8], st[9], st[10], raw[6], st[12], raw[7], raw[8], raw[9], st[16], raw[10], raw[11], raw[12], st[20]]); }
+    if (raw.length === 13) { const st = statics.get(raw[0]); if (!st) continue; out.push([raw[0], st[1], raw[1], raw[2], raw[3], raw[4], st[6], raw[5], st[8], st[9], st[10], raw[6], st[12], raw[7], raw[8], raw[9], st[16], raw[10], raw[11], raw[12], st[20], st[21]]); }
     else { statics.set(raw[0], raw); out.push(raw); }
   }
   for (const id of statics.keys()) if (!seen.has(id)) statics.delete(id);

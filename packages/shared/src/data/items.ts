@@ -13,6 +13,8 @@ export const ITEM_BASES: ItemBase[] = [
   { id: 'w_mace', name: 'Dawnspire Mace', slot: 'weapon', classes: ['paladin'], implicit: [{ stat: 'dmgPct.holy', value: 8 }], weaponPower: 13, icon: 'hammer' },
   { id: 'w_sword_shield', name: 'Oathblade & Aegis', slot: 'weapon', classes: ['paladin'], implicit: [{ stat: 'block', value: 6 }], weaponPower: 12, icon: 'shield' },
   { id: 'w_scythe', name: 'Gravewarden Scythe', slot: 'weapon', classes: ['necromancer'], implicit: [{ stat: 'minionDmgPct', value: 10 }], weaponPower: 12, icon: 'scythe' },
+  { id: 'w_hourglass', name: 'Abbey Hourglass', slot: 'weapon', classes: ['chronomancer'], implicit: [{ stat: 'cdr', value: 3 }], weaponPower: 11, icon: 'relic' },
+  { id: 'w_chrono_staff', name: 'Chrono Staff', slot: 'weapon', classes: ['chronomancer', 'mage'], implicit: [{ stat: 'castSpeed', value: 5 }], weaponPower: 12, icon: 'staff' },
   { id: 'w_tome', name: 'Tome of Pale Names', slot: 'weapon', classes: ['necromancer'], implicit: [{ stat: 'dmgPct.shadow', value: 8 }], weaponPower: 11, icon: 'tome' },
   // Armor
   { id: 'a_helm_plate', name: 'Plated Helm', slot: 'helmet', implicit: [{ stat: 'armor', value: 18 }], icon: 'helm' },

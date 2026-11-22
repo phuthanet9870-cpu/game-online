@@ -78,13 +78,13 @@ input[type=text], input[type=password], input[type=search], select { background:
 .char-card.dead { opacity: .55; filter: grayscale(.8); }
 .char-name { font: 700 1.1rem var(--f-display); }
 .creator { background: #1a1328cc; border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-.class-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.class-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
 .class-pick { background: var(--dusk-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
 .class-pick.on { border-color: var(--corona); box-shadow: 0 0 14px #f2c46b44; }
 .class-detail { display: flex; gap: 16px; align-items: flex-start; }
 .class-detail > div { min-width: 0; }
 .class-detail ul { margin: 0; padding-left: 18px; }
-@media (max-width: 640px) { .class-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .class-detail { flex-direction: column; align-items: center; } }
+@media (max-width: 640px) { .class-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } .class-detail { flex-direction: column; align-items: center; } }
 
 /* ── Game view ── */
 .game { position: fixed; inset: 0; overflow: hidden; font-size: calc(13px * var(--ui)); user-select: none; -webkit-user-select: none; }

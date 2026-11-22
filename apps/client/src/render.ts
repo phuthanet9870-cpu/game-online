@@ -248,6 +248,7 @@ export class Renderer {
         ctx.fillStyle = star ? `rgba(160,220,255,${0.7 + Math.sin(t * 3) * 0.3})` : '#c48a5a'; for (const [ox, oy] of [[-6, -8], [4, -12], [8, -2]]) { ctx.beginPath(); ctx.arc(ox!, oy!, 2.5, 0, Math.PI * 2); ctx.fill(); }
         break;
       }
+      case 'fishing': ctx.strokeStyle = '#d8c9a0'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-6, 2); ctx.lineTo(10, -30); ctx.stroke(); ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(10, -30); ctx.lineTo(16, -2 + Math.sin(t * 3) * 2); ctx.stroke(); ctx.fillStyle = '#ff5a5a'; ctx.beginPath(); ctx.arc(16, -2 + Math.sin(t * 3) * 2, 2.5, 0, Math.PI * 2); ctx.fill(); break;
       case 'gate_field': case 'gate_town': case 'gate_highlands': case 'gate_meadow':
         ctx.fillStyle = '#6b4a2b'; ctx.fillRect(-3, -40, 6, 46); ctx.fillStyle = '#c9a66b'; ctx.beginPath(); ctx.moveTo(-18, -38); ctx.lineTo(18, -38); ctx.lineTo(26, -30); ctx.lineTo(18, -22); ctx.lineTo(-18, -22); ctx.closePath(); ctx.fill();
         break;
@@ -294,6 +295,19 @@ export class Renderer {
     const bob = e.moving > 0.2 ? Math.abs(Math.sin(this.time * 12 + e.id)) * 3 : Math.sin(this.time * 2 + e.id) * 0.8;
     const isTarget = g.self?.target === e.id;
     if (isTarget || this.hoverId === e.id) { ctx.strokeStyle = isTarget ? '#ff5f5f' : 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(0, 8, 22 * scale, 9 * scale, 0, 0, Math.PI * 2); ctx.stroke(); }
+    if (e.kind === 0 && e.pet && !e.dead) {
+      // companion trails behind its owner (client-side smoothing; position is cosmetic)
+      const tx = e.rx - Math.cos(e.f) * 34 - 18, ty = e.ry - Math.sin(e.f) * 20 + 6;
+      e.petX = e.petX === undefined ? tx : e.petX + (tx - e.petX) * 0.08;
+      e.petY = e.petY === undefined ? ty : e.petY + (ty - e.petY) * 0.08;
+      ctx.save(); ctx.translate(e.petX - e.rx, e.petY - e.ry);
+      const pb = Math.sin(this.time * 5 + e.id) * 2;
+      shadow(ctx, 0, 4, 8, 3);
+      if (e.pet === 'lumi_fox') { ctx.fillStyle = '#e8873a'; ctx.beginPath(); ctx.ellipse(0, -6 - pb * 0.3, 9, 6, 0, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.moveTo(4, -10); ctx.lineTo(8, -18); ctx.lineTo(10, -9); ctx.fill(); ctx.beginPath(); ctx.moveTo(-2, -10); ctx.lineTo(1, -18); ctx.lineTo(4, -9); ctx.fill(); ctx.fillStyle = `rgba(255,220,120,${0.6 + Math.sin(this.time * 4) * 0.3})`; ctx.beginPath(); ctx.arc(-12, -8 - pb, 4, 0, Math.PI * 2); ctx.fill(); }
+      else if (e.pet === 'moon_owl') { ctx.fillStyle = '#b9c6ee'; ctx.beginPath(); ctx.arc(0, -20 - pb, 8, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#ffe58a'; ctx.beginPath(); ctx.arc(-3, -21 - pb, 2, 0, Math.PI * 2); ctx.arc(3, -21 - pb, 2, 0, Math.PI * 2); ctx.fill(); }
+      else { const grd = ctx.createRadialGradient(0, -16 - pb, 1, 0, -16 - pb, 10); grd.addColorStop(0, '#fff2b0'); grd.addColorStop(0.5, '#ff6a2e'); grd.addColorStop(1, 'rgba(255,60,0,0)'); ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(0, -16 - pb, 10, 0, Math.PI * 2); ctx.fill(); }
+      ctx.restore();
+    }
     if (e.kind === 0) {
       const cd = CLASSES[e.def as keyof typeof CLASSES];
       const au = AURA_COLORS[e.aura];
@@ -447,6 +461,7 @@ export function drawChibi(ctx: CanvasRenderingContext2D, x: number, y: number, s
       case 'assassin': ctx.strokeStyle = '#e8e8f0'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, -4); ctx.lineTo(16, -6); ctx.moveTo(0, 4); ctx.lineTo(16, 6); ctx.stroke(); break;
       case 'ranger': ctx.strokeStyle = '#8a5a2b'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(4, 0, 14, -1.3, 1.3); ctx.stroke(); ctx.strokeStyle = '#eee'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(4 + Math.cos(-1.3) * 14, Math.sin(-1.3) * 14); ctx.lineTo(4 + Math.cos(1.3) * 14, Math.sin(1.3) * 14); ctx.stroke(); break;
       case 'paladin': ctx.strokeStyle = '#c0c0d0'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(22, 0); ctx.stroke(); ctx.fillStyle = accent; ctx.fillRect(18, -6, 9, 12); break;
+      case 'chronomancer': ctx.fillStyle = '#d8b25f'; ctx.fillRect(8, -9, 14, 3); ctx.fillRect(8, 6, 14, 3); ctx.fillStyle = 'rgba(160,240,230,0.85)'; ctx.beginPath(); ctx.moveTo(10, -6); ctx.lineTo(20, -6); ctx.lineTo(15, 0); ctx.lineTo(20, 6); ctx.lineTo(10, 6); ctx.lineTo(15, 0); ctx.closePath(); ctx.fill(); break;
       case 'necromancer': ctx.strokeStyle = '#3a3040'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(26, 0); ctx.stroke(); ctx.strokeStyle = accent; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(26, -8, 9, 0.2, 1.8); ctx.stroke(); break;
       default: break;
     }
@@ -481,6 +496,7 @@ export function drawChibi(ctx: CanvasRenderingContext2D, x: number, y: number, s
   }
   if (cls === 'mage') { ctx.fillStyle = body; ctx.beginPath(); ctx.moveTo(-13, hy - 6); ctx.lineTo(13, hy - 6); ctx.lineTo(2, hy - 28); ctx.closePath(); ctx.fill(); }
   if (cls === 'assassin' && !back) { ctx.fillStyle = '#1b1b24'; ctx.fillRect(-9, hy + 4, 18, 5); }
+  if (cls === 'chronomancer') { ctx.strokeStyle = accent; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0, hy - 2, 15, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke(); for (let i = 0; i < 5; i++) { const a = Math.PI * (1.15 + i * 0.17); ctx.fillStyle = accent; ctx.fillRect(Math.cos(a) * 15 - 1, hy - 2 + Math.sin(a) * 15 - 1, 2, 2); } }
   if (cls === 'necromancer') { ctx.fillStyle = body; ctx.beginPath(); ctx.arc(0, hy - 1, 13, Math.PI, Math.PI * 2); ctx.fill(); }
   if (!back) drawWeapon();
   ctx.restore();

@@ -4,7 +4,7 @@ import {
 } from '@astra/shared';
 import { statText } from '../l10n.js';
 import { ct, t, getLang, setLang } from '../i18n.js';
-import { ACTIVITIES, ACTIVITY_ORDER, ELIXIRS, MATERIALS, PROFESSIONS, type Activity } from '@astra/shared';
+import { ACTIVITIES, ACTIVITY_ORDER, ELIXIRS, MATERIALS, PETS, PROFESSIONS, type Activity } from '@astra/shared';
 import { BIND_LABELS, DEFAULT_BINDS, keyLabel, saveBinds, type Input } from '../input.js';
 import { clear, h, promptDialog, toast } from './dom.js';
 import { bindTip, hideTip, icon, itemTooltip, skillColor, skillTooltip } from './tooltip.js';
@@ -70,11 +70,18 @@ export function inventoryPanel(ctx: PanelCtx, mode: 'normal' | 'smith' | 'quarte
   }));
   const eq = h('div', { class: 'equip-grid' }, EQUIP_SLOTS.map((s) => h('div', { class: 'eq-slot' }, h('small', null, s), itemCell(ch.equipment[s], { placeholder: SLOT_ICON[s], label: s, oncontext: () => send({ t: 'unequip', slot: s }), onclick: ch.equipment[s] ? async () => { if (mode === 'smith' && ch.equipment[s]!.affixes.length) { const v = await promptDialog(t('enchant'), `Reroll which affix of ${ch.equipment[s]!.name}? (1-${ch.equipment[s]!.affixes.length})`, '1'); const ai = Number(v) - 1; if (v !== null && ai >= 0) send({ t: 'enchant', slot: s, affix: ai }); } else send({ t: 'unequip', slot: s }); } : undefined }))));
   renderActions();
+  const petBox = mode === 'quartermaster' ? h('div', null, h('h3', null, 'Companions'), h('p', { class: 'hint' }, 'Companions are cosmetic and pick up gold from further away (and let you grab items from further). They never add combat power.'),
+    h('div', { class: 'list' }, Object.entries(PETS).map(([id, p]) => {
+      const owned = ctx.account.pets?.includes(id), active = ctx.account.pet === id;
+      const cost = `${p.cost.gold}g${Object.entries(p.cost.mats ?? {}).map(([m, n]) => ` + ${n} ${MATERIALS[m]?.name ?? m}`).join('')}`;
+      return h('div', { class: 'list-row' }, h('span', { class: 'grow', style: `color:${p.color}` }, `${p.name} — ${p.desc}`),
+        owned ? h('button', { class: 'btn tiny' + (active ? ' on' : ''), onclick: () => send({ t: 'pet_set', id: active ? null : id }) }, active ? 'Dismiss' : 'Summon') : h('button', { class: 'btn tiny', onclick: () => send({ t: 'pet_buy', id }) }, `Adopt (${cost})`));
+    }))) : null;
   const stash = mode === 'stash' ? h('div', null, h('h3', null, `${t('stash')} (${ch.hardcore ? 'Hardcore' : 'Normal'}, shared by your account)`), h('div', { class: 'inv-grid' }, (ch.hardcore ? ctx.account.stash.hardcore : ctx.account.stash.normal).map((it, i) => itemCell(it, { onclick: it ? () => send({ t: 'stash_take', idx: i }) : undefined })))) : null;
   return h('div', { class: 'inv-panel' },
     h('div', { class: 'row between' }, h('span', null, `💰 ${ch.gold} ${t('gold')} · ✦ ${ch.dust} ${t('dust')} · 🧪 ${ch.potions}/${POTION.maxCharges}`), mode === 'quartermaster' ? h('button', { class: 'btn', onclick: () => send({ t: 'buy_potion' }) }, `Buy potion (${POTION.buyPrice}g)`) : null),
     h('h3', null, t('equipment'), h('span', { class: 'muted' }, ' — click to unequip')), eq,
-    h('h3', null, t('inventory'), h('span', { class: 'muted' }, ` ${ch.inventory.filter(Boolean).length}/${ch.inventory.length}`)), inv, actions, stash);
+    h('h3', null, t('inventory'), h('span', { class: 'muted' }, ` ${ch.inventory.filter(Boolean).length}/${ch.inventory.length}`)), inv, actions, stash, petBox);
 }
 
 export function skillsPanel(ctx: PanelCtx): HTMLElement {

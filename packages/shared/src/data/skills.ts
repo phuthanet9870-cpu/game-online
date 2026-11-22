@@ -162,6 +162,32 @@ export const SKILLS: SkillDef[] = [
     effects: [{ t: 'area', at: 'self', radius: 260, dmg: { coef: 4, type: 'shadow', status: { id: 'curse', chance: 1, duration: 6, power: 0.2 } } }, { t: 'gain', secondary: 10 }] }),
   s({ id: nec('u_lich'), cls: 'necromancer', kind: 'ultimate', name: 'Lichform', desc: 'Become a lich for 12s: +50% shadow damage and life leech on hit.', cost: 0, cooldown: 70, cast: 0.4, range: 0, targeting: 'self', unlockLevel: 25, icon: 'crown', tags: ['ultimate', 'buff'],
     effects: [{ t: 'buff', name: 'Lichform', duration: 12, mods: [{ stat: 'dmgPct.shadow', value: 50 }, { stat: 'lifeOnHitPct', value: 2 }, { stat: 'resRegenPct', value: 100 }] }] }),
+
+  // ───────────────────────── CHRONOMANCER (Phase 7) ─────────────────────────
+  s({ id: 'chr_bolt', cls: 'chronomancer', kind: 'active', name: 'Chrono Bolt', desc: 'A bolt of stolen time that slows what it hits.', cost: 12, cooldown: 0.8, cast: 0.3, range: 0, targeting: 'direction', unlockLevel: 1, icon: 'bolt', tags: ['spell', 'projectile', 'lightning'],
+    effects: [{ t: 'projectile', speed: 760, range: 560, radius: 9, dmg: { coef: 1.35, type: 'lightning', status: { id: 'slow', chance: 0.6, duration: 2, power: 0.25 } } }] }),
+  s({ id: 'chr_stasis', cls: 'chronomancer', kind: 'active', name: 'Stasis Field', desc: 'Freeze a patch of time; enemies inside are locked in place.', cost: 22, cooldown: 8, cast: 0.35, range: 420, targeting: 'ground', unlockLevel: 1, icon: 'ice', tags: ['spell', 'ice', 'aoe', 'control'],
+    effects: [{ t: 'area', at: 'cursor', radius: 120, delay: 0.3, dmg: { coef: 1.0, type: 'ice', status: { id: 'freeze', chance: 1, duration: 1.3 } } }] }),
+  s({ id: 'chr_haste', cls: 'chronomancer', kind: 'active', name: 'Quickening', desc: 'Speed up time for you and nearby allies.', cost: 20, cooldown: 14, cast: 0.2, range: 0, targeting: 'self', unlockLevel: 2, icon: 'star', tags: ['buff', 'support'],
+    effects: [{ t: 'buff', name: 'Quickening', duration: 6, party: true, radius: 300, mods: [{ stat: 'atkSpeed', value: 20 }, { stat: 'castSpeed', value: 20 }, { stat: 'moveSpeedPct', value: 10 }] }] }),
+  s({ id: 'chr_rewind', cls: 'chronomancer', kind: 'active', name: 'Rewind', desc: 'Pull yourself back from a few seconds ago: heal and gain a barrier. Gathers 2 Sand.', cost: 20, cooldown: 16, cast: 0.2, range: 0, targeting: 'self', unlockLevel: 3, icon: 'blink', tags: ['defense', 'heal'],
+    effects: [{ t: 'heal', pct: 0.25 }, { t: 'barrier', pct: 0.15, duration: 6 }, { t: 'gain', secondary: 2 }] }),
+  s({ id: 'chr_shatter', cls: 'chronomancer', kind: 'active', name: 'Shatter Moment', desc: 'Finisher: break the moment around you, spending all Sand (+35% damage per Sand).', cost: 15, cooldown: 1.5, cast: 0.3, range: 0, targeting: 'self', unlockLevel: 4, icon: 'star', tags: ['spell', 'aoe', 'lightning', 'finisher'], requireSecondary: 1, consumeSecondary: { bonusPerPoint: 0.35 },
+    effects: [{ t: 'area', at: 'self', radius: 150, dmg: { coef: 1.5, type: 'lightning' } }] }),
+  s({ id: 'chr_blink', cls: 'chronomancer', kind: 'active', name: 'Phase Step', desc: 'Step between seconds, leaving a slowing stasis echo behind.', cost: 10, cooldown: 6, cast: 0.1, range: 0, targeting: 'direction', unlockLevel: 6, icon: 'blink', tags: ['movement', 'ice'],
+    effects: [{ t: 'area', at: 'self', radius: 90, duration: 2.5, tick: 0.5, dmg: { coef: 0.2, type: 'ice', status: { id: 'slow', chance: 1, duration: 1, power: 0.45 } } }, { t: 'dash', dist: 240, invuln: true }] }),
+  s({ id: 'chr_decay', cls: 'chronomancer', kind: 'active', name: 'Entropy', desc: 'Age everything in an area; enemies wither and weaken over time.', cost: 22, cooldown: 8, cast: 0.35, range: 420, targeting: 'ground', unlockLevel: 8, icon: 'curse', tags: ['spell', 'shadow', 'aoe', 'dot'],
+    effects: [{ t: 'area', at: 'cursor', radius: 130, duration: 5, tick: 0.5, dmg: { coef: 0.4, type: 'shadow', status: { id: 'weaken', chance: 0.5, duration: 3, power: 0.15 } } }] }),
+  s({ id: 'chr_needles', cls: 'chronomancer', kind: 'active', name: 'Clockwork Needles', desc: 'Fire five needles of frozen time that pierce one enemy each.', cost: 16, cooldown: 2.5, cast: 0.3, range: 0, targeting: 'direction', unlockLevel: 10, icon: 'knives', tags: ['spell', 'projectile', 'ice'],
+    effects: [{ t: 'projectile', count: 5, spread: 30, speed: 820, range: 480, radius: 6, pierce: 1, dmg: { coef: 0.55, type: 'ice', status: { id: 'chill', chance: 0.3, duration: 2, power: 0.25 } } }] }),
+  s({ id: 'chr_u_stop', cls: 'chronomancer', kind: 'ultimate', name: 'Time Stop', desc: 'Stop time around you: enemies are stunned (bosses build Break instead).', cost: 0, cooldown: 60, cast: 0.4, range: 0, targeting: 'self', unlockLevel: 5, icon: 'eye', tags: ['ultimate', 'control', 'aoe'],
+    effects: [{ t: 'area', at: 'self', radius: 400, dmg: { coef: 0.5, type: 'ice', status: { id: 'stun', chance: 1, duration: 2.5 } } }, { t: 'gain', secondary: 5 }] }),
+  s({ id: 'chr_u_accel', cls: 'chronomancer', kind: 'ultimate', name: 'Accelerando', desc: 'For 8s: +40% cast and attack speed and +30% cooldown reduction.', cost: 0, cooldown: 55, cast: 0.2, range: 0, targeting: 'self', unlockLevel: 12, icon: 'star', tags: ['ultimate', 'buff'],
+    effects: [{ t: 'buff', name: 'Accelerando', duration: 8, mods: [{ stat: 'castSpeed', value: 40 }, { stat: 'atkSpeed', value: 40 }, { stat: 'cdr', value: 30 }] }] }),
+  s({ id: 'chr_u_paradox', cls: 'chronomancer', kind: 'ultimate', name: 'Paradox Storm', desc: 'Moments that never happened strike an area again and again.', cost: 0, cooldown: 45, cast: 0.5, range: 460, targeting: 'ground', unlockLevel: 18, icon: 'bolt', tags: ['ultimate', 'spell', 'lightning', 'aoe'],
+    effects: [{ t: 'area', at: 'cursor', radius: 75, delay: 0.5, count: 10, scatter: 200, dmg: { coef: 1.6, type: 'lightning', status: { id: 'shock', chance: 0.4, duration: 3, power: 0.15 } } }] }),
+  s({ id: 'chr_u_epoch', cls: 'chronomancer', kind: 'ultimate', name: 'Epoch Collapse', desc: 'Collapse an era onto one spot after a long delay. Devastating.', cost: 0, cooldown: 50, cast: 0.5, range: 460, targeting: 'ground', unlockLevel: 25, icon: 'meteor', tags: ['ultimate', 'spell', 'ice', 'aoe'],
+    effects: [{ t: 'area', at: 'cursor', radius: 200, delay: 1.2, dmg: { coef: 6, type: 'ice', status: { id: 'vulnerable', chance: 1, duration: 6, power: 0.2 } } }] }),
 ];
 
 function nec(id: string) {

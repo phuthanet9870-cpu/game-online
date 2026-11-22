@@ -76,6 +76,17 @@ const CLASS_TREES: Record<ClassId, { start: NodeSpec; branches: [Branch, Branch,
         { name: 'Death Rattle Shot', kind: 'notable', mods: [m('basic.proj', 2), m('basic.dmgPct', -20)], desc: 'Basic attacks fire 2 additional bolts.' } ],
     ],
   },
+  chronomancer: {
+    start: { name: 'Clockwork Vow', mods: [m('int', 5), m('castSpeed', 3)] },
+    branches: [
+      [ { name: 'Rime of Ages', mods: [m('dmgPct.ice', 8)] }, { name: 'Held Breath', mods: [m('statusDurPct', 15)] }, { name: 'Perfect Stillness', kind: 'notable', mods: [m('dmgPct.ice', 12), m('flagShatter', 1)], flags: ['shatter'], desc: 'Frozen and Chilled enemies take 15% more damage from you.' }, { name: 'Frozen Hourglass', mods: [m('barrierPct', 15)] },
+        { name: 'Closed Loop', kind: 'keystone', flags: ['closed_loop'], mods: [], desc: 'Time Echo triggers on every second skill instead of every third, but echoes deal 35% instead of 50%.' } ],
+      [ { name: 'Quickened Hands', mods: [m('castSpeed', 5)] }, { name: 'Borrowed Seconds', mods: [m('cdr', 3)] }, { name: 'Allegro', kind: 'notable', mods: [m('cdr', 6), m('castSpeed', 8)] }, { name: 'Flux Reservoir', mods: [m('maxRes', 20)] },
+        { name: 'Resonant Echo', kind: 'notable', mods: [m('echoPct', 20)], desc: 'Time Echoes deal 20% more damage.' } ],
+      [ { name: 'Rust', mods: [m('dotDmgPct', 12)] }, { name: 'Dusk Hours', mods: [m('dmgPct.shadow', 10)] }, { name: 'Heat Death', kind: 'notable', mods: [m('dotDmgPct', 20), m('statusDurPct', 10)] }, { name: 'Ageless', mods: [m('maxHpPct', 6)] },
+        { name: 'Sands Run Deep', kind: 'notable', mods: [m('secondaryMax', 3), m('finisherPct', 20)], desc: '+3 maximum Sand. Finishers gain 20% more damage per Sand.' } ],
+    ],
+  },
 };
 
 const CENTRAL_RING: NodeSpec[] = [
