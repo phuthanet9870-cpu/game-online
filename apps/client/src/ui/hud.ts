@@ -65,14 +65,15 @@ export class GameUI {
             E.res = h('div', { class: 'gbar mp' }, h('i'), h('label', null, 'MP'), h('span')),
             E.sec = h('div', { class: 'gbar fp' }, h('i'), h('label', null, 'FP'), h('span')),
             h('div', { class: 'cp-row' }, uiIcon('crossed', 20, '#ffd36a'), E.cp = h('b', { class: 'cp' }), E.buffs = h('div', { class: 'buffs' })))),
-        E.party = h('div', { class: 'party-box', hidden: true })),
+        E.party = h('div', { class: 'party-box', hidden: true }),
+        E.zone = h('div', { class: 'zone' })),
       // ── top-centre: public event, boss, target ──
       h('div', { class: 'hud-tc' }, E.wevent = h('div', { class: 'wevent', hidden: true }), E.boss = h('div', { class: 'boss-bar', hidden: true }), E.target = h('div', { class: 'target-frame', hidden: true })),
       // ── top-right: feature menu, location, minimap, tracker ──
       h('div', { class: 'hud-tr' },
         h('div', { class: 'tr-top' }, E.topmenu = h('nav', { class: 'topmenu', 'aria-label': 'Features' }),
           h('div', { class: 'loc-col' }, E.loc = h('div', { class: 'loc' }), h('div', { class: 'mini-wrap' }, E.mini = h('canvas', { class: 'minimap', width: 168, height: 168, onclick: () => this.toggle('map') }), h('i', { class: 'compass' }, 'N')))),
-        E.tracker = h('div', { class: 'tracker' }), E.zone = h('div', { class: 'zone' })),
+        E.tracker = h('div', { class: 'tracker' })),
       E.prompt = h('div', { class: 'interact-prompt', hidden: true }),
       E.dps = h('div', { class: 'dps', hidden: true }),
       // ── bottom: chat, hotbar, round menu, EXP + currencies ──
@@ -488,9 +489,17 @@ export class GameUI {
     else if (r.kind === 'field') z.append(h('b', null, r.id === 'highlands' ? 'Ashen Highlands' : r.id === 'wastes' ? 'Starfall Wastes' : 'Duskmeadow'), h('small', null, `Open world · levels ${r.id === 'highlands' ? '10-20' : r.id === 'wastes' ? '20-30' : '2-9'} · shared with other players`));
     else {
       const rr = r as any; const act = ACTIVITIES[(rr.mode ?? 'rift') as keyof typeof ACTIVITIES];
-      z.append(h('b', null, `${act?.name ?? 'Rift'}${rr.mode === 'tower' ? ` · Floor ${rr.floor}` : ''}${rr.mode === 'arena' ? ` · Wave ${rr.wave ?? 0}` : ''}${act?.chooseDifficulty ? ` · ${DIFFICULTIES[r.difficulty as keyof typeof DIFFICULTIES]?.name}` : ''}`), h('small', null, `Monster level ${r.level} · seed ${r.seed}`));
-      for (const mid of r.modifiers) { const md = DUNGEON_MODIFIERS.find((x) => x.id === mid); if (md) { const tag = h('span', { class: 'tag mod ' + md.kind }, ct(`mod.${md.id}.name`, md.name)); bindTip(tag, () => h('div', { class: 'tip' }, ct(`mod.${md.id}.desc`, md.desc))); z.append(tag); } }
-      z.append(h('button', { class: 'btn tiny ghost', onclick: async () => { if (await confirmDialog(t('leaveRun'), 'Return to town? Items, gold and XP are kept; blessings are lost.', t('leaveRun'), t('cancel'))) this.send({ t: 'leave' }); } }, t('leaveRun')));
+      const th = getLang() === 'th';
+      const card = h('div', { class: 'run-card' },
+        h('div', { class: 'rc-head' }, uiIcon('sigil', 22, '#9b6cff'), h('b', null, th ? 'การผจญภัยในดันเจียน' : 'Dungeon Run')),
+        h('div', { class: 'rc-title' }, tileIcon(rr.mode === 'raid' ? 'crown' : rr.mode === 'arena' ? 'trophy' : rr.mode === 'tower' ? 'pillar' : 'sigil', '#9b6cff', 'epic', 40), h('div', null, h('b', null, ct(`activity.${act?.id ?? 'rift'}.name`, act?.name ?? 'Rift')), h('small', null, `${act?.chooseDifficulty ? DIFFICULTIES[r.difficulty as keyof typeof DIFFICULTIES]?.name + ' · ' : ''}${th ? 'มอนเลเวล' : 'Monster Lv'} ${r.level}`))),
+        rr.mode === 'tower' ? h('div', { class: 'rc-floor' }, `${th ? 'ชั้น' : 'Floor'} ${rr.floor}`, h('div', { class: 'diamonds-row' }, ...Array.from({ length: 5 }, (_, i) => h('i', { class: i < ((rr.floor - 1) % 5) + 1 ? 'on' : '' })), uiIcon('skull', 16))) : rr.mode === 'arena' ? h('div', { class: 'rc-floor' }, `${th ? 'เวฟ' : 'Wave'} ${rr.wave ?? 0}`) : null,
+        r.modifiers.length ? h('div', { class: 'sec-title small' }, th ? 'ตัวแปรของรอบ' : 'Run Modifiers') : null,
+        ...r.modifiers.map((mid) => { const md = DUNGEON_MODIFIERS.find((x) => x.id === mid); if (!md) return null; const row = h('div', { class: 'rc-mod ' + md.kind }, uiIcon(md.kind === 'positive' ? 'star' : md.kind === 'negative' ? 'skull' : 'awaken', 18, md.kind === 'positive' ? '#7be08a' : md.kind === 'negative' ? '#ff6b6b' : '#ffb347'), h('span', null, ct(`mod.${md.id}.name`, md.name))); bindTip(row, () => h('div', { class: 'tip' }, ct(`mod.${md.id}.desc`, md.desc))); return row; }),
+        h('div', { class: 'sec-title small' }, th ? 'สถานะของรอบ' : 'Run Status'),
+        h('div', { class: 'rc-status' }, h('span', null, uiIcon('skull', 18, '#ff4f5a'), ` ${th ? 'คำสาป' : 'Curse'} ${this.game.blessings.filter((b) => BLESSING_MAP[b]?.curse).length}`), h('span', null, uiIcon('star', 18, '#ffd36a'), ` ${th ? 'พร' : 'Blessing'} ${this.game.blessings.filter((b) => !BLESSING_MAP[b]?.curse).length}`)),
+        h('button', { class: 'btn tiny', onclick: async () => { if (await confirmDialog(t('leaveRun'), 'Return to town? Items, gold and XP are kept; blessings are lost.', t('leaveRun'), t('cancel'))) this.send({ t: 'leave' }); } }, '⇦ ' + t('leaveRun')));
+      z.append(card);
     }
   }
 
@@ -635,7 +644,10 @@ export class GameUI {
     panel.hidden = false;
     panel.classList.toggle('wide', p === 'passives' || p === 'map');
     panel.classList.toggle('win', ['inventory', 'smith', 'quartermaster', 'stash', 'crafting', 'alchemist', 'auction', 'social', 'guild', 'skills', 'passives', 'character', 'season', 'dungeon'].includes(p));
-    panel.append(h('header', { class: 'row between' }, h('h2', null, titles[p]), h('button', { class: 'btn ghost tiny', onclick: () => this.closePanel(), 'aria-label': t('close') }, '✕')), h('div', { class: 'panel-body' }, body));
+    const th = getLang() === 'th';
+    const socialTabs = ['social', 'guild', 'auction'].includes(p) ? h('div', { class: 'win-tabs' }, ...([['auction', 'gavel', th ? 'ห้องประมูล' : 'Auction House'], ['guild', 'crest', th ? 'กิลด์' : 'Guild'], ['social', 'people', th ? 'ปาร์ตี้และเทรด' : 'Party & Trade']] as const).map(([id, ic, label]) => h('button', { class: 'wt icon' + (p === id ? ' on' : ''), onclick: () => { this.openPanel(id); if (id === 'auction') { this.send({ t: 'ah_search', q: this.ah.q }); this.send({ t: 'ah_mine' }); } } }, uiIcon(ic, 22), label))) : null;
+    if (socialTabs) titles[p] = th ? 'สังคมและชุมชน' : 'Social & Community';
+    panel.append(h('header', { class: 'row between' }, h('h2', null, titles[p]), h('button', { class: 'btn ghost tiny', onclick: () => this.closePanel(), 'aria-label': t('close') }, '✕')), h('div', { class: 'panel-body' }, socialTabs, body));
     panel.querySelector('.panel-body')!.scrollTop = scroll;
     translateDom(panel);
     if (p !== 'quests' && p !== 'dungeon') this.panelExtra = null;

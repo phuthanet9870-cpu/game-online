@@ -2,12 +2,15 @@ import { AH, CLASSES, DIFFICULTIES, DIFFICULTY_ORDER, GUILD, RARITIES, RARITY_DE
 import { ct, t } from '../i18n.js';
 import { clear, confirmDialog, h, promptDialog, toast } from './dom.js';
 import { bindTip, hideTip, itemTooltip } from './tooltip.js';
+import { itemIcon, uiIcon } from './icons.js';
+import { statText } from '../l10n.js';
 
 type Send = (m: any) => void;
 
 function itemRow(it: Item, extra: Array<Node | string | null>, onclick?: () => void) {
   const rd = RARITY_DEFS[it.rarity];
-  const row = h('div', { class: 'list-row' + (onclick ? ' click' : '') }, h('span', { class: 'grow', style: `color:${rd.color}` }, `${rd.glyph} ${it.name}`), h('small', { class: 'muted' }, `${rd.name} · lv ${it.reqLevel}`), ...extra);
+  const preview = [...it.implicit, ...it.affixes.map((a) => ({ stat: a.stat, value: a.value }))].slice(0, 2).map((m) => statText(m.stat, m.value)).filter(Boolean).join(' · ');
+  const row = h('div', { class: 'list-row irow' + (onclick ? ' click' : '') }, itemIcon(it, 38), h('div', { class: 'grow' }, h('b', { style: `color:${rd.color}` }, it.name), h('small', { class: 'muted' }, ` ${it.slot}`)), h('small', { class: 'ir-lv' }, `Lv.${it.reqLevel}`), h('small', { class: 'ir-st' }, '★'.repeat(RARITIES.indexOf(it.rarity) + 1)), h('small', { class: 'ir-prev muted' }, preview), ...extra);
   bindTip(row, () => itemTooltip(it));
   if (onclick) row.onclick = () => { hideTip(); onclick(); };
   return row;
@@ -30,7 +33,7 @@ export function auctionPanel(ch: CharacterData, st: AhState, send: Send, rerende
     body = h('div', null,
       h('div', { class: 'row wrap' }, text, slot, rar, h('label', { class: 'check' }, usable, ' usable by me'), h('button', { class: 'btn', onclick: () => search() }, 'Search')),
       r ? h('p', { class: 'muted' }, `${r.total} listings`) : null,
-      h('div', { class: 'list' }, (r?.rows ?? []).map((l) => itemRow(l.item, [h('b', { class: 'price' }, `${l.price}g`), h('small', { class: 'muted' }, l.sellerName),
+      h('div', { class: 'list' }, (r?.rows ?? []).map((l) => itemRow(l.item, [h('b', { class: 'price' }, uiIcon('coin', 16), ` ${l.price.toLocaleString()}`), h('small', { class: 'muted ir-seller' }, l.sellerName),
         h('button', { class: 'btn tiny', disabled: l.price > ch.gold, onclick: async (e: Event) => { e.stopPropagation(); if (await confirmDialog('Buy item', `Buy ${l.item.name} for ${l.price} gold?`, 'Buy', t('cancel'))) send({ t: 'ah_buy', id: l.id, q: st.q }); } }, 'Buy')]))),
       r && r.total > 30 ? h('div', { class: 'row' }, h('button', { class: 'btn ghost tiny', disabled: r.page === 0, onclick: () => search(r.page - 1) }, '‹ Prev'), h('span', { class: 'muted' }, `page ${r.page + 1}`), h('button', { class: 'btn ghost tiny', disabled: (r.page + 1) * 30 >= r.total, onclick: () => search(r.page + 1) }, 'Next ›')) : null);
   } else if (st.tab === 'sell') {
@@ -46,7 +49,8 @@ export function auctionPanel(ch: CharacterData, st: AhState, send: Send, rerende
       l.status === 'sold' ? h('button', { class: 'btn primary tiny', onclick: (e: Event) => { e.stopPropagation(); send({ t: 'ah_claim', id: l.id }); } }, `Collect ${l.proceeds}g`) : null,
       l.status === 'expired' ? h('button', { class: 'btn tiny', onclick: (e: Event) => { e.stopPropagation(); send({ t: 'ah_claim', id: l.id }); } }, 'Take back') : null])) : h('p', { class: 'muted' }, 'No listings.'));
   }
-  return h('div', { class: 'ah' }, head, tabs, body);
+  return h('div', { class: 'ah' }, h('div', { class: 'ah-side' }, ...(['browse', 'sell', 'mine'] as const).map((k) => h('button', { class: 'ah-nav' + (st.tab === k ? ' on' : ''), onclick: () => { st.tab = k; if (k === 'mine') send({ t: 'ah_mine' }); rerender(); } }, uiIcon(k === 'browse' ? 'gavel' : k === 'sell' ? 'trade' : 'scroll', 22), k === 'browse' ? 'Browse (Buy)' : k === 'sell' ? 'Sell (List Item)' : `My Listings (${st.mine.length})`)), h('div', { class: 'ah-art' }, uiIcon('gavel', 90), uiIcon('chestbox', 70))), h('div', { class: 'ah-main' }, h('div', { class: 'sec-title' }, uiIcon('gavel', 20), st.tab === 'browse' ? 'Auction House — Browse Items' : st.tab === 'sell' ? 'Auction House — Sell' : 'Auction House — My Listings'), head, body));
+  void tabs;
 }
 
 // ───────────────────────── Guild ─────────────────────────
@@ -81,7 +85,7 @@ export function guildPanel(ch: CharacterData, data: any, send: Send, inTown: boo
       isOfficer && m.rank !== 'leader' && m.charId !== ch.id && (isLead || m.rank === 'member') ? h('button', { class: 'btn ghost tiny', onclick: async () => { if (await confirmDialog('Remove member', `Remove ${m.name} from the guild?`, t('kick'), t('cancel'))) send({ t: 'guild_kick', name: m.name }); } }, t('kick')) : null))),
     h('h3', null, 'Guild vault', h('small', { class: 'muted' }, `  daily withdrawals: leader unlimited · officer ${VAULT_LIMITS.officer} · member ${VAULT_LIMITS.member}`)),
     h('p', { class: 'hint' }, 'Stand at the Astral Vault in Lumenhold. Click a vault item to withdraw; use the list below to deposit. Every move is logged.'),
-    h('div', { class: 'inv-grid small' }, (g.vault ?? []).map((it: Item | null, i: number) => { const c = h('button', { class: 'cell' + (it ? ' has' : ''), style: it ? `border-color:${RARITY_DEFS[it.rarity].color}` : '', 'aria-label': it ? it.name : 'empty' }, it ? h('span', { style: `color:${RARITY_DEFS[it.rarity].color}` }, RARITY_DEFS[it.rarity].glyph) : null); if (it) { bindTip(c, () => itemTooltip(it)); c.onclick = () => { hideTip(); send({ t: 'guild_vault_take', idx: i }); }; } return c; })),
+    h('div', { class: 'inv-grid small' }, (g.vault ?? []).map((it: Item | null, i: number) => { const c = h('button', { class: 'cell' + (it ? ' has' : ''), 'aria-label': it ? it.name : 'empty' }, it ? itemIcon(it, 40) : null); if (it) { bindTip(c, () => itemTooltip(it)); c.onclick = () => { hideTip(); send({ t: 'guild_vault_take', idx: i }); }; } return c; })),
     h('div', { class: 'list' }, ch.inventory.map((it, i) => it && !it.bound ? itemRow(it, [h('button', { class: 'btn tiny', onclick: (e: Event) => { e.stopPropagation(); send({ t: 'guild_vault_put', inv: i }); } }, 'Deposit')]) : null)),
     h('h3', null, 'Recent activity'), h('ul', { class: 'glog' }, [...g.log].reverse().slice(0, 12).map((l: any) => h('li', null, h('small', { class: 'muted' }, new Date(l.t).toLocaleString() + ' · '), l.text))),
     h('p', { class: 'hint' }, 'Guild chat: /g message. A shared guild vault is planned; it needs per-rank withdrawal limits and an audit view first.'),
@@ -122,7 +126,7 @@ export function tradeModal(ch: CharacterData, tr: any, send: Send): HTMLElement 
   const bag = h('div', { class: 'inv-grid small' }, ch.inventory.map((it) => {
     if (!it) return h('div', { class: 'cell' });
     const rd = RARITY_DEFS[it.rarity];
-    const c = h('button', { class: 'cell has' + (selected.has(it.uid) ? ' sel' : ''), disabled: it.bound, style: `border-color:${rd.color}`, 'aria-label': it.name }, h('span', { style: `color:${rd.color}` }, rd.glyph));
+    const c = h('button', { class: 'cell has' + (selected.has(it.uid) ? ' sel' : ''), disabled: it.bound, style: `border-color:${rd.color}`, 'aria-label': it.name }, itemIcon(it, 40));
     bindTip(c, () => itemTooltip(it));
     c.onclick = () => { hideTip(); if (selected.has(it.uid)) selected.delete(it.uid); else selected.add(it.uid); update(); };
     return c;
