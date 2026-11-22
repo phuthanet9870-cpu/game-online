@@ -72,12 +72,14 @@ interface Session {
   reviveCd?: number;
   fishing?: { spot: string; x: number; y: number; res: string; biteAt: number; until: number; bit: boolean } | null;
   netCache?: { room: string; ents: Map<number, string>; projs: Map<number, string>; areas: Map<number, string> };
+  friendReqs: Set<string>;
 }
 
 interface Room { id: string; kind: 'town' | 'field' | 'dungeon'; world: World; sessions: Set<string>; emptyT: number; difficulty: DifficultyId; seed: number; partyId: string | null; mode?: Activity; floor?: number; startedAt?: number; arena?: { wave: number; nextT: number } }
 export interface LeaderRecord { board: string; charId: string; name: string; cls: string; hardcore: boolean; value: number; at: number }
 interface Party { id: string; leader: string; members: string[] }
 
+export const FRIEND_MAX = 50;
 const MUTATIONS = new Set(['house_buy', 'house_place', 'house_remove', 'use_map', 'guild_vault_put', 'guild_vault_take', 'pet_buy', 'season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose', 'login_claim', 'shop_buy', 'benefit_claim', 'awaken', 'wish', 'emblem_set', 'cosmetic_set', 'afk_claim']);
 
 /** Character as sent to its owner: hidden server knowledge (exact treasure spot) is removed. */
@@ -88,12 +90,12 @@ export function publicChar(ch: CharacterData): CharacterData {
 }
 
 export function emptyAccount(): AccountProgress {
-  return { codex: {}, achievements: [], titles: [], stash: { normal: Array(STASH_SIZE).fill(null), hardcore: Array(STASH_SIZE).fill(null) }, season: null, auras: [], aura: null, pets: [], pet: null, meta: emptyMeta() };
+  return { codex: {}, achievements: [], titles: [], stash: { normal: Array(STASH_SIZE).fill(null), hardcore: Array(STASH_SIZE).fill(null) }, season: null, auras: [], aura: null, pets: [], pet: null, meta: emptyMeta(), friends: [] };
 }
 export function normalizeAccount(a: Partial<AccountProgress> | null | undefined): AccountProgress {
   const e = emptyAccount();
   if (!a) return e;
-  return { codex: a.codex ?? {}, achievements: a.achievements ?? [], titles: a.titles ?? [], stash: { normal: pad(a.stash?.normal, STASH_SIZE), hardcore: pad(a.stash?.hardcore, STASH_SIZE) }, season: a.season ?? null, auras: a.auras ?? [], aura: a.aura ?? null, pets: a.pets ?? [], pet: a.pet ?? null, meta: normalizeMeta(a.meta), house: a.house ? { owned: a.house.owned ?? {}, placed: a.house.placed ?? [], perm: a.house.perm ?? 'private' } : undefined };
+  return { codex: a.codex ?? {}, achievements: a.achievements ?? [], titles: a.titles ?? [], stash: { normal: pad(a.stash?.normal, STASH_SIZE), hardcore: pad(a.stash?.hardcore, STASH_SIZE) }, season: a.season ?? null, auras: a.auras ?? [], aura: a.aura ?? null, pets: a.pets ?? [], pet: a.pet ?? null, meta: normalizeMeta(a.meta), friends: (a.friends ?? []).slice(0, FRIEND_MAX), house: a.house ? { owned: a.house.owned ?? {}, placed: a.house.placed ?? [], perm: a.house.perm ?? 'private' } : undefined };
 }
 const pad = <T>(arr: (T | null)[] | undefined, n: number) => { const o = (arr ?? []).slice(0, n); while (o.length < n) o.push(null); return o; };
 
@@ -158,7 +160,7 @@ export class GameCore {
     const s: Session = {
       id: sessionId, accountId, char, account: normalizeAccount(account), send, roomId: 'town', entId: 0, rids: [], bucket: 60, violations: 0, lastChat: -99,
       dirty: false, saveT: 30, partyId: null, invites: new Set(), blocked: new Set(), pendingChoice: null, run: null, closed: false,
-      tradeId: null, guildInvites: new Set(), chatHist: [], mutedUntil: 0,
+      tradeId: null, guildInvites: new Set(), chatHist: [], mutedUntil: 0, friendReqs: new Set(),
     };
     this.sessions.set(sessionId, s);
     M.afkSettle(char, this.clock());
@@ -342,6 +344,7 @@ export class GameCore {
         case 'block': s.blocked.add(String(msg.name).slice(0, 16)); this.toast(s, `Blocked ${msg.name}`); break;
         case 'report': this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'report', data: { name: String(msg.name).slice(0, 16), reason: String(msg.reason ?? '').slice(0, 200) } }); this.toast(s, 'Report submitted. Thank you.'); break;
         case 'party_invite': this.partyInvite(s, String(msg.name)); break;
+        case 'friend_request': case 'friend_accept': case 'friend_remove': case 'friend_list': this.friends(s, msg); break;
         case 'party_accept': this.partyAccept(s, String(msg.id)); break;
         case 'party_leave': this.leaveParty(s); break;
         case 'party_kick': this.partyKick(s, String(msg.name)); break;
@@ -864,6 +867,54 @@ export class GameCore {
     } else {
       for (const id of room.sessions) { const o = this.sessions.get(id); if (o && !o.blocked.has(s.char.name)) o.send(out); }
     }
+  }
+
+  // ─────────── Friends (mutual, per account) ───────────
+  private friendList(s: Session) {
+    const online = new Map([...this.sessions.values()].map((o) => [o.char.id, o]));
+    s.send({ t: 'friends', list: (s.account.friends ?? []).map((f) => { const o = online.get(f.charId); return { ...f, online: !!o, level: o?.char.level ?? null, room: o ? (o.roomId.startsWith('house:') ? 'hearth' : this.rooms.get(o.roomId)?.kind === 'dungeon' ? 'instance' : o.roomId) : null }; }), requests: [...s.friendReqs].map((id) => ({ id, name: online.get(id)?.char.name ?? '?' })).filter((r) => r.name !== '?') });
+  }
+  private friends(s: Session, msg: any) {
+    const list = (s.account.friends ??= []);
+    const save = (...ss: Session[]) => this.tx({ accounts: ss.map((x) => ({ id: x.accountId, progress: x.account })) });
+    switch (msg.t) {
+      case 'friend_list': break;
+      case 'friend_request': {
+        const name = String(msg.name ?? '').trim().toLowerCase();
+        const target = [...this.sessions.values()].find((o) => o.char.name.toLowerCase() === name);
+        if (!target || target === s) return s.send({ t: 'err', msg: 'Player not found online' });
+        if (target.accountId === s.accountId) return s.send({ t: 'err', msg: 'That is one of your own characters' });
+        if (list.some((f) => f.charId === target.char.id)) return s.send({ t: 'err', msg: 'Already friends' });
+        if (list.length >= FRIEND_MAX) return s.send({ t: 'err', msg: `Friend list is full (${FRIEND_MAX})` });
+        if (target.blocked.has(s.char.name.toLowerCase())) return s.send({ t: 'err', msg: 'Player not found online' });
+        target.friendReqs.add(s.char.id);
+        target.send({ t: 'friend_request', id: s.char.id, from: s.char.name });
+        this.toast(s, `Friend request sent to ${target.char.name}`);
+        return;
+      }
+      case 'friend_accept': {
+        const id = String(msg.id ?? '');
+        const from = [...this.sessions.values()].find((o) => o.char.id === id);
+        if (!from || !s.friendReqs.has(id)) return s.send({ t: 'err', msg: 'Request expired' });
+        s.friendReqs.delete(id);
+        const fl = (from.account.friends ??= []);
+        if (list.length >= FRIEND_MAX || fl.length >= FRIEND_MAX) return s.send({ t: 'err', msg: 'A friend list is full' });
+        if (!list.some((f) => f.charId === from.char.id)) list.push({ charId: from.char.id, name: from.char.name, cls: from.char.cls });
+        if (!fl.some((f) => f.charId === s.char.id)) fl.push({ charId: s.char.id, name: s.char.name, cls: s.char.cls });
+        save(s, from);
+        this.toast(from, `${s.char.name} accepted your friend request`);
+        this.friendList(from);
+        break;
+      }
+      case 'friend_remove': {
+        const id = String(msg.id ?? '');
+        s.account.friends = list.filter((f) => f.charId !== id);
+        const other = [...this.sessions.values()].find((o) => o.char.id === id);
+        if (other) { other.account.friends = (other.account.friends ?? []).filter((f) => f.charId !== s.char.id); save(s, other); this.friendList(other); } else save(s);
+        break;
+      }
+    }
+    this.friendList(s);
   }
 
   private partyInvite(s: Session, name: string) {

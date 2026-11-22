@@ -1,5 +1,5 @@
 import { AH, CLASSES, DIFFICULTIES, DIFFICULTY_ORDER, GUILD, RARITIES, RARITY_DEFS, VAULT_LIMITS, type CharacterData, type Item } from '@astra/shared';
-import { ct, t } from '../i18n.js';
+import { ct, t, getLang as getLangSocial } from '../i18n.js';
 import { clear, confirmDialog, h, promptDialog, toast } from './dom.js';
 import { bindTip, hideTip, itemTooltip } from './tooltip.js';
 import { itemIcon, uiIcon } from './icons.js';
@@ -234,4 +234,24 @@ export function hearthPanel(data: any, send: Send, startPlacing: (id: string) =>
     Object.keys(house.owned).length ? null : h('p', { class: 'muted' }, 'You own no furniture yet — visit Carpenter Odo in Lumenhold.'),
     h('h3', null, 'Placed'),
     h('div', { class: 'list' }, house.placed.map((p: any, i: number) => h('div', { class: 'list-row' }, h('span', { class: 'grow' }, FURNITURE[p.id]?.name ?? p.id), h('small', { class: 'muted' }, `(${p.x}, ${p.y})`), h('button', { class: 'btn ghost tiny', onclick: () => send({ t: 'house_remove', index: i }) }, 'Remove')))));
+}
+
+// ───────────────────────── Friends ─────────────────────────
+export function friendsPanel(data: any, send: Send, whisper: (name: string) => void): HTMLElement {
+  const th = getLangSocial() === 'th';
+  const name = h('input', { type: 'text', maxLength: 16, placeholder: th ? 'ชื่อตัวละคร' : 'Character name', 'aria-label': 'Character name' });
+  name.onkeydown = (e) => e.stopPropagation();
+  const list: any[] = data?.list ?? [];
+  const sorted = [...list].sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
+  return h('div', { class: 'friends' },
+    h('div', { class: 'row wrap' }, name, h('button', { class: 'btn gold', onclick: () => { if (name.value.trim()) send({ t: 'friend_request', name: name.value.trim() }); } }, th ? 'เพิ่มเพื่อน' : 'Add friend'), h('button', { class: 'btn ghost', onclick: () => send({ t: 'friend_list' }) }, th ? 'รีเฟรช' : 'Refresh')),
+    (data?.requests ?? []).length ? h('div', { class: 'list' }, ...data.requests.map((r: any) => h('div', { class: 'list-row' }, uiIcon('mail', 22), h('span', { class: 'grow' }, `${r.name} ${th ? 'ขอเป็นเพื่อน' : 'wants to be friends'}`), h('button', { class: 'btn primary tiny', onclick: () => send({ t: 'friend_accept', id: r.id }) }, th ? 'ตอบรับ' : 'Accept')))) : null,
+    h('div', { class: 'sec-title' }, uiIcon('people', 22), `${th ? 'เพื่อน' : 'Friends'} (${list.filter((f) => f.online).length} ${th ? 'ออนไลน์' : 'online'} / ${list.length})`),
+    h('div', { class: 'list' }, sorted.length ? sorted.map((f) => h('div', { class: 'list-row fr' + (f.online ? '' : ' dim') }, h('div', { class: 'pm-av', style: `--c:${CLASSES[f.cls as keyof typeof CLASSES]?.colors.body ?? '#555'}` }, (f.cls[0] ?? '?').toUpperCase()),
+      h('div', { class: 'grow' }, h('b', null, f.name), h('small', { class: 'muted' }, ` ${CLASSES[f.cls as keyof typeof CLASSES]?.name ?? f.cls}${f.level ? ` · Lv.${f.level}` : ''}`)),
+      h('small', { class: f.online ? 'good' : 'muted' }, f.online ? `● ${th ? 'ออนไลน์' : 'Online'} (${f.room})` : `○ ${th ? 'ออฟไลน์' : 'Offline'}`),
+      f.online ? h('button', { class: 'btn tiny', onclick: () => whisper(f.name) }, th ? 'กระซิบ' : 'Whisper') : null,
+      f.online ? h('button', { class: 'btn tiny', onclick: () => send({ t: 'party_invite', name: f.name }) }, th ? 'ชวนปาร์ตี้' : 'Invite') : null,
+      h('button', { class: 'btn ghost tiny', onclick: () => send({ t: 'house_visit', name: f.name }) }, th ? 'เยี่ยมบ้าน' : 'Visit Hearth'),
+      h('button', { class: 'btn ghost tiny', onclick: async () => { if (await confirmDialog(th ? 'ลบเพื่อน' : 'Remove friend', `${f.name}?`, th ? 'ลบ' : 'Remove', t('cancel'))) send({ t: 'friend_remove', id: f.charId }); } }, '✕'))) : h('p', { class: 'muted' }, th ? 'ยังไม่มีเพื่อน — พิมพ์ชื่อผู้เล่นที่ออนไลน์อยู่แล้วกดเพิ่มเพื่อน' : 'No friends yet — type the name of a player who is online and press Add friend.')));
 }

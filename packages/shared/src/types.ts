@@ -276,6 +276,8 @@ export interface AccountProgress {
   pet: string | null;
   /** Login calendar, wishes, cosmetics, mounts, shop limits (see meta.ts). */
   meta?: import('./meta.js').MetaState;
+  /** Mutual friends (by character). */
+  friends?: Array<{ charId: string; name: string; cls: string }>;
   house?: { owned: Record<string, number>; placed: Array<{ id: string; x: number; y: number }>; perm: 'private' | 'party' | 'guild' | 'public' };
 }
 export interface SeasonProgress { id: string; xp: number; shards: number; claimed: number[]; week: number; weekly: Record<string, number>; weeklyDone: string[]; archive: Array<{ id: string; xp: number; tier: number }> }

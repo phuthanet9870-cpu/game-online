@@ -193,3 +193,28 @@ describe('party, reconnect, world event, chat spam', () => {
     expect(t.audits).toContain('auto_mute');
   });
 });
+
+describe('friends', () => {
+  it('needs a request and an accept, is mutual, persists both accounts, and removes both ways', () => {
+    const t = setup();
+    const a = t.join('a', 'Alpha'), b = t.join('b', 'Bravo');
+    t.core.handle('b', { t: 'friend_accept', id: a.char.id });
+    expect(t.errs('b')).toContain('Request expired'); // no request yet
+    t.core.handle('a', { t: 'friend_request', name: 'bravo' });
+    const req = t.last('b', 'friend_request');
+    expect(req.from).toBe('Alpha');
+    const before = t.txs.length;
+    t.core.handle('b', { t: 'friend_accept', id: req.id });
+    expect(a.account.friends!.map((f) => f.name)).toEqual(['Bravo']);
+    expect(b.account.friends!.map((f) => f.name)).toEqual(['Alpha']);
+    expect(t.txs.length).toBe(before + 1);
+    expect(t.txs.at(-1)!.accounts!.length).toBe(2);
+    const list = t.last('a', 'friends');
+    expect(list.list[0]).toMatchObject({ name: 'Bravo', online: true });
+    t.core.handle('a', { t: 'friend_request', name: 'Bravo' });
+    expect(t.errs('a')).toContain('Already friends');
+    t.core.handle('b', { t: 'friend_remove', id: a.char.id });
+    expect(a.account.friends).toEqual([]);
+    expect(b.account.friends).toEqual([]);
+  });
+});
