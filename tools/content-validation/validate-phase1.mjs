@@ -99,10 +99,22 @@ for (const n of objs.filter((o) => o.type === 'npc')) {
   if (layer('collision').data[ty * map.width + tx]) errors.push(`npc ${n.name} inside a solid tile`);
 }
 
+// Phase 4: Trade Loot — exactly 12 sellable TRD templates per farm map that exists (LOCKED target 360 = 12 x 30)
+const index = load('maps/maps.json');
+const farmIds = index.maps.filter((m) => m.core && m.kind === 'farm').map((m) => m.id);
+for (const f of farmIds) {
+  const trd = items.filter((i) => i.category === 'TRD' && i.sourceMap === f);
+  if (trd.length !== 12) errors.push(`${f}: ${trd.length} trade loot templates (must be 12)`);
+  if (trd.some((i) => !(i.sellPriceGold > 0))) errors.push(`${f}: trade loot must have an NPC sell price`);
+  const ml = (drops.mapLoot ?? []).find((x) => x.mapId === f);
+  if (!ml || new Set(ml.items.map((x) => x.itemId)).size !== 12) errors.push(`${f}: mapLoot must roll its 12 trade loot items`);
+}
+for (const i of items.filter((x) => x.slot)) if (!i.stats) errors.push(`equipment ${i.id} has no stats`);
+
 if (errors.length) {
   console.error(`Content validation FAILED (${errors.length}):\n - ${errors.join('\n - ')}`);
   process.exit(1);
 }
 console.log(
-  `Content validation OK: ${weapons.length} weapons / ${ids.size} weapon skills, ${monsters.length} monsters, map ${map.width}x${map.height} with ${objs.length} objects, ${items.length} items, ${drops.tables.length} drop tables, ${powers.powers.length} powers / ${skillIds.size} power skills`,
+  `Content validation OK: ${weapons.length} weapons / ${ids.size} weapon skills, ${monsters.length} monsters, map ${map.width}x${map.height} with ${objs.length} objects, ${items.length} items, ${drops.tables.length} drop tables, ${powers.powers.length} powers / ${skillIds.size} power skills, ${farmIds.length} farm maps x 12 trade loot`,
 );

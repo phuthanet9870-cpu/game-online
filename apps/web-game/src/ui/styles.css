@@ -1270,3 +1270,19 @@ button:disabled {
   border-radius: 4px;
   padding: 5px;
 }
+
+.npc-dialog {
+  position: absolute;
+  left: 50%;
+  top: 80px;
+  transform: translateX(-50%);
+  width: min(380px, calc(100vw - 32px));
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 10px 12px;
+  font-size: 12px;
+  border-color: var(--gold);
+}
+.row.between {
+  justify-content: space-between;
+}

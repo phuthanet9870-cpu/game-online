@@ -426,12 +426,18 @@ export class WorldScene extends Phaser.Scene {
     } else showToast('ช่องนี้จะปลดล็อกใน Phase ถัดไป');
   }
 
-  /** H: talk to The Severer when close, otherwise pick up the nearest own loot bag. */
+  /** H: talk to the nearest NPC (server validates range), otherwise pick up the nearest own loot bag. */
   private interact(): void {
     const p = this.sim.player;
-    const npc = this.sim.mapData.npcs.find((n) => n.id === 'severer');
-    if (npc && Math.hypot(npc.x - p.pos.x, npc.y - p.pos.y) <= 40) {
-      requestUi('severer');
+    let best: { id: string; d: number } | null = null;
+    for (const n of this.sim.mapData.npcs) {
+      const d = Math.hypot(n.x - p.pos.x, n.y - p.pos.y);
+      if (d <= 40 && (!best || d < best.d)) best = { id: n.id, d };
+    }
+    if (best) {
+      if (this.sim.talk) this.sim.talk(best.id);
+      else if (best.id === 'severer') requestUi('severer');
+      else requestUi('npc', best.id, {});
       return;
     }
     const drop = this.sim.drops.find((d) => Math.hypot(d.x - p.pos.x, d.y - p.pos.y) <= 28);
@@ -1086,6 +1092,7 @@ export class WorldScene extends Phaser.Scene {
       auto: sim.auto,
       gmResult: (sim as { gmResult?: Record<string, unknown> | null }).gmResult ?? null,
       nearSeverer: !!npc && Math.hypot(npc.x - p.pos.x, npc.y - p.pos.y) <= 40,
+      nearNpc: this.sim.mapData.npcs.find((n) => Math.hypot(n.x - p.pos.x, n.y - p.pos.y) <= 40)?.name ?? '',
       dropsNearby: sim.drops.filter((d) => Math.hypot(d.x - p.pos.x, d.y - p.pos.y) <= 28).length,
     };
     hudStore.set(snapshot);

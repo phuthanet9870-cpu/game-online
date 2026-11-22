@@ -111,7 +111,18 @@ export function Root() {
         />
       );
     case 'game':
-      return <GameHud key={screen.world.mode} world={screen.world} onExit={exitGame} />;
+      return (
+        <GameHud
+          key={screen.world.mode}
+          world={screen.world}
+          onExit={exitGame}
+          onTrial={() => {
+            screen.world.dispose?.();
+            stopGame();
+            playOffline();
+          }}
+        />
+      );
   }
 }
 

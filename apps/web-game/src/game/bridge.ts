@@ -60,6 +60,7 @@ export interface HudSnapshot {
   auto: AutoView | null;
   gmResult: Record<string, unknown> | null;
   nearSeverer: boolean;
+  nearNpc: string;
   dropsNearby: number;
   othersCount: number;
   fps: number;
@@ -129,6 +130,7 @@ export const INITIAL_HUD: HudSnapshot = {
   auto: null,
   gmResult: null,
   nearSeverer: false,
+  nearNpc: '',
   dropsNearby: 0,
   othersCount: 0,
   fps: 0,
@@ -140,9 +142,16 @@ export const hudStore = new Store<HudSnapshot>(INITIAL_HUD);
 /** Active hotbar layout (server-persisted online, browser-local in the offline sandbox). */
 export const hotbarStore = new Store<HotbarLayoutEntry[]>(defaultLayout());
 /** One-shot UI requests from the world (e.g. open The Severer dialog). */
-export const uiEventStore = new Store<{ id: number; kind: 'severer' | 'none' }>({ id: 0, kind: 'none' });
+export interface UiEvent {
+  id: number;
+  kind: 'severer' | 'npc' | 'none';
+  npc?: string;
+  data?: Record<string, unknown>;
+}
+export const uiEventStore = new Store<UiEvent>({ id: 0, kind: 'none' });
 let uiEventId = 0;
-export const requestUi = (kind: 'severer'): void => uiEventStore.set({ id: ++uiEventId, kind });
+export const requestUi = (kind: 'severer' | 'npc', npc?: string, data?: Record<string, unknown>): void =>
+  uiEventStore.set({ id: ++uiEventId, kind, npc, data });
 export const logStore = new Store<LogEntry[]>([]);
 export const toastStore = new Store<{ id: number; text: string } | null>(null);
 

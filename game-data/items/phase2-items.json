@@ -1,5 +1,5 @@
 {
- "contentVersion": "phase3-0.1.0",
+ "contentVersion": "phase4-0.1.0",
  "_note": "Phase 2 starter subset of the 1,350-template catalog. IDs follow the catalog prefixes; DEV ids belong to the dev training map (not one of the 30 farm maps). Prices/stack sizes are [TUNING].",
  "items": [
   {
@@ -45,7 +45,12 @@
    "sellPriceGold": 5,
    "tradable": false,
    "gmOnly": false,
-   "weaponType": "staff"
+   "weaponType": "staff",
+   "slot": "weapon",
+   "stats": {
+    "attack": 0
+   },
+   "levelReq": 1
   },
   {
    "id": "WPN-SWD-001",
@@ -56,7 +61,12 @@
    "sellPriceGold": 5,
    "tradable": false,
    "gmOnly": false,
-   "weaponType": "sword"
+   "weaponType": "sword",
+   "slot": "weapon",
+   "stats": {
+    "attack": 0
+   },
+   "levelReq": 1
   },
   {
    "id": "WPN-DGR-001",
@@ -67,7 +77,12 @@
    "sellPriceGold": 5,
    "tradable": false,
    "gmOnly": false,
-   "weaponType": "dagger"
+   "weaponType": "dagger",
+   "slot": "weapon",
+   "stats": {
+    "attack": 0
+   },
+   "levelReq": 1
   },
   {
    "id": "WPN-BOW-001",
@@ -78,7 +93,12 @@
    "sellPriceGold": 5,
    "tradable": false,
    "gmOnly": false,
-   "weaponType": "bow"
+   "weaponType": "bow",
+   "slot": "weapon",
+   "stats": {
+    "attack": 0
+   },
+   "levelReq": 1
   },
   {
    "id": "WPN-GRM-001",
@@ -89,7 +109,12 @@
    "sellPriceGold": 5,
    "tradable": false,
    "gmOnly": false,
-   "weaponType": "grimoire"
+   "weaponType": "grimoire",
+   "slot": "weapon",
+   "stats": {
+    "attack": 0
+   },
+   "levelReq": 1
   },
   {
    "id": "WPN-GNT-001",
@@ -100,7 +125,12 @@
    "sellPriceGold": 5,
    "tradable": false,
    "gmOnly": false,
-   "weaponType": "gauntlet"
+   "weaponType": "gauntlet",
+   "slot": "weapon",
+   "stats": {
+    "attack": 0
+   },
+   "levelReq": 1
   },
   {
    "id": "PWR-001",
@@ -185,6 +215,598 @@
    "rarity": "Rare",
    "maxStack": 999,
    "sellPriceGold": 1,
+   "tradable": true,
+   "gmOnly": false
+  },
+  {
+   "id": "TRD-F01-001",
+   "name": "Meadow Fluff",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 2,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-01"
+  },
+  {
+   "id": "TRD-F01-002",
+   "name": "Clover Bundle",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 2,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-01"
+  },
+  {
+   "id": "TRD-F01-003",
+   "name": "Soft Rabbit Pelt",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 3,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-01"
+  },
+  {
+   "id": "TRD-F01-004",
+   "name": "Dew Pearl",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 3,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-01"
+  },
+  {
+   "id": "TRD-F01-005",
+   "name": "Sweetgrass",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 4,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-01"
+  },
+  {
+   "id": "TRD-F01-006",
+   "name": "Field Mushroom",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 4,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-01"
+  },
+  {
+   "id": "TRD-F01-007",
+   "name": "Gel Droplet",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 5,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-01"
+  },
+  {
+   "id": "TRD-F01-008",
+   "name": "Sunpetal",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 5,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-01"
+  },
+  {
+   "id": "TRD-F01-009",
+   "name": "Wild Honeycomb",
+   "category": "TRD",
+   "rarity": "Uncommon",
+   "maxStack": 999,
+   "sellPriceGold": 8,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-01"
+  },
+  {
+   "id": "TRD-F01-010",
+   "name": "Tiny Antler",
+   "category": "TRD",
+   "rarity": "Uncommon",
+   "maxStack": 999,
+   "sellPriceGold": 8,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-01"
+  },
+  {
+   "id": "TRD-F01-011",
+   "name": "Pebble Charm",
+   "category": "TRD",
+   "rarity": "Uncommon",
+   "maxStack": 999,
+   "sellPriceGold": 9,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-01"
+  },
+  {
+   "id": "TRD-F01-012",
+   "name": "Lucky Clover",
+   "category": "TRD",
+   "rarity": "Uncommon",
+   "maxStack": 999,
+   "sellPriceGold": 9,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-01"
+  },
+  {
+   "id": "TRD-F02-001",
+   "name": "Moss Tuft",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 5,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-02"
+  },
+  {
+   "id": "TRD-F02-002",
+   "name": "Sprite Dust",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 5,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-02"
+  },
+  {
+   "id": "TRD-F02-003",
+   "name": "Glowcap",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 6,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-02"
+  },
+  {
+   "id": "TRD-F02-004",
+   "name": "Whisper Leaf",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 6,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-02"
+  },
+  {
+   "id": "TRD-F02-005",
+   "name": "Bark Shard",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 7,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-02"
+  },
+  {
+   "id": "TRD-F02-006",
+   "name": "Fern Coil",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 7,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-02"
+  },
+  {
+   "id": "TRD-F02-007",
+   "name": "Owl Feather",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 8,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-02"
+  },
+  {
+   "id": "TRD-F02-008",
+   "name": "Pine Resin",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 8,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-02"
+  },
+  {
+   "id": "TRD-F02-009",
+   "name": "Silent Acorn",
+   "category": "TRD",
+   "rarity": "Uncommon",
+   "maxStack": 999,
+   "sellPriceGold": 14,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-02"
+  },
+  {
+   "id": "TRD-F02-010",
+   "name": "Forest Thread",
+   "category": "TRD",
+   "rarity": "Uncommon",
+   "maxStack": 999,
+   "sellPriceGold": 14,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-02"
+  },
+  {
+   "id": "TRD-F02-011",
+   "name": "Lantern Seed",
+   "category": "TRD",
+   "rarity": "Uncommon",
+   "maxStack": 999,
+   "sellPriceGold": 15,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-02"
+  },
+  {
+   "id": "TRD-F02-012",
+   "name": "Elder Twig",
+   "category": "TRD",
+   "rarity": "Uncommon",
+   "maxStack": 999,
+   "sellPriceGold": 15,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-02"
+  },
+  {
+   "id": "TRD-F03-001",
+   "name": "Grey Wolf Pelt",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 10,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-03"
+  },
+  {
+   "id": "TRD-F03-002",
+   "name": "Fang Splinter",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 10,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-03"
+  },
+  {
+   "id": "TRD-F03-003",
+   "name": "Valley Flint",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 11,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-03"
+  },
+  {
+   "id": "TRD-F03-004",
+   "name": "Howl Bone",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 11,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-03"
+  },
+  {
+   "id": "TRD-F03-005",
+   "name": "Rusted Collar",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 12,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-03"
+  },
+  {
+   "id": "TRD-F03-006",
+   "name": "Canyon Salt",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 12,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-03"
+  },
+  {
+   "id": "TRD-F03-007",
+   "name": "Claw Fragment",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 13,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-03"
+  },
+  {
+   "id": "TRD-F03-008",
+   "name": "Thick Hide",
+   "category": "TRD",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 13,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-03"
+  },
+  {
+   "id": "TRD-F03-009",
+   "name": "Alpha Tuft",
+   "category": "TRD",
+   "rarity": "Uncommon",
+   "maxStack": 999,
+   "sellPriceGold": 24,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-03"
+  },
+  {
+   "id": "TRD-F03-010",
+   "name": "Echo Stone",
+   "category": "TRD",
+   "rarity": "Uncommon",
+   "maxStack": 999,
+   "sellPriceGold": 24,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-03"
+  },
+  {
+   "id": "TRD-F03-011",
+   "name": "Pack Totem",
+   "category": "TRD",
+   "rarity": "Uncommon",
+   "maxStack": 999,
+   "sellPriceGold": 25,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-03"
+  },
+  {
+   "id": "TRD-F03-012",
+   "name": "Moonlit Fang",
+   "category": "TRD",
+   "rarity": "Uncommon",
+   "maxStack": 999,
+   "sellPriceGold": 25,
+   "tradable": true,
+   "gmOnly": false,
+   "sourceMap": "FARM-03"
+  },
+  {
+   "id": "WPN-T2-STF",
+   "name": "Iron-Bound Staff",
+   "category": "WPN",
+   "rarity": "Uncommon",
+   "maxStack": 1,
+   "sellPriceGold": 40,
+   "tradable": true,
+   "gmOnly": false,
+   "weaponType": "staff",
+   "slot": "weapon",
+   "levelReq": 5,
+   "stats": {
+    "attack": 8
+   }
+  },
+  {
+   "id": "WPN-T2-SWD",
+   "name": "Iron Longsword",
+   "category": "WPN",
+   "rarity": "Uncommon",
+   "maxStack": 1,
+   "sellPriceGold": 40,
+   "tradable": true,
+   "gmOnly": false,
+   "weaponType": "sword",
+   "slot": "weapon",
+   "levelReq": 5,
+   "stats": {
+    "attack": 8
+   }
+  },
+  {
+   "id": "WPN-T2-DGR",
+   "name": "Iron Kris",
+   "category": "WPN",
+   "rarity": "Uncommon",
+   "maxStack": 1,
+   "sellPriceGold": 40,
+   "tradable": true,
+   "gmOnly": false,
+   "weaponType": "dagger",
+   "slot": "weapon",
+   "levelReq": 5,
+   "stats": {
+    "attack": 8
+   }
+  },
+  {
+   "id": "WPN-T2-BOW",
+   "name": "Ashwood Bow",
+   "category": "WPN",
+   "rarity": "Uncommon",
+   "maxStack": 1,
+   "sellPriceGold": 40,
+   "tradable": true,
+   "gmOnly": false,
+   "weaponType": "bow",
+   "slot": "weapon",
+   "levelReq": 5,
+   "stats": {
+    "attack": 8
+   }
+  },
+  {
+   "id": "WPN-T2-GRM",
+   "name": "Runed Grimoire",
+   "category": "WPN",
+   "rarity": "Uncommon",
+   "maxStack": 1,
+   "sellPriceGold": 40,
+   "tradable": true,
+   "gmOnly": false,
+   "weaponType": "grimoire",
+   "slot": "weapon",
+   "levelReq": 5,
+   "stats": {
+    "attack": 8
+   }
+  },
+  {
+   "id": "WPN-T2-GNT",
+   "name": "Iron Knuckles",
+   "category": "WPN",
+   "rarity": "Uncommon",
+   "maxStack": 1,
+   "sellPriceGold": 40,
+   "tradable": true,
+   "gmOnly": false,
+   "weaponType": "gauntlet",
+   "slot": "weapon",
+   "levelReq": 5,
+   "stats": {
+    "attack": 8
+   }
+  },
+  {
+   "id": "ARM-HLM-001",
+   "name": "Leather Cap",
+   "category": "ARM",
+   "rarity": "Common",
+   "maxStack": 1,
+   "sellPriceGold": 12,
+   "tradable": true,
+   "gmOnly": false,
+   "slot": "helmet",
+   "levelReq": 1,
+   "stats": {
+    "defense": 2,
+    "maxHp": 10
+   }
+  },
+  {
+   "id": "ARM-CHS-001",
+   "name": "Leather Vest",
+   "category": "ARM",
+   "rarity": "Common",
+   "maxStack": 1,
+   "sellPriceGold": 12,
+   "tradable": true,
+   "gmOnly": false,
+   "slot": "chest",
+   "levelReq": 1,
+   "stats": {
+    "defense": 4,
+    "maxHp": 20
+   }
+  },
+  {
+   "id": "ARM-ARG-001",
+   "name": "Leather Bracers",
+   "category": "ARM",
+   "rarity": "Common",
+   "maxStack": 1,
+   "sellPriceGold": 12,
+   "tradable": true,
+   "gmOnly": false,
+   "slot": "armguard",
+   "levelReq": 1,
+   "stats": {
+    "defense": 2,
+    "attack": 1
+   }
+  },
+  {
+   "id": "ARM-LEG-001",
+   "name": "Leather Greaves",
+   "category": "ARM",
+   "rarity": "Common",
+   "maxStack": 1,
+   "sellPriceGold": 12,
+   "tradable": true,
+   "gmOnly": false,
+   "slot": "legs",
+   "levelReq": 1,
+   "stats": {
+    "defense": 3,
+    "maxHp": 10
+   }
+  },
+  {
+   "id": "ARM-BTS-001",
+   "name": "Leather Boots",
+   "category": "ARM",
+   "rarity": "Common",
+   "maxStack": 1,
+   "sellPriceGold": 12,
+   "tradable": true,
+   "gmOnly": false,
+   "slot": "boots",
+   "levelReq": 1,
+   "stats": {
+    "defense": 1,
+    "maxHp": 10
+   }
+  },
+  {
+   "id": "MAT-ORE-001",
+   "name": "Iron Ore",
+   "category": "MAT",
+   "rarity": "Common",
+   "maxStack": 999,
+   "sellPriceGold": 2,
+   "tradable": true,
+   "gmOnly": false
+  },
+  {
+   "id": "MAT-ORE-002",
+   "name": "Enhancement Stone",
+   "category": "MAT",
+   "rarity": "Uncommon",
+   "maxStack": 999,
+   "sellPriceGold": 5,
    "tradable": true,
    "gmOnly": false
   }

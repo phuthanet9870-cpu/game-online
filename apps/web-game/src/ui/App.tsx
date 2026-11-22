@@ -13,6 +13,7 @@ import {
   type HudSnapshot,
   type LogEntry,
 } from '../game/bridge';
+import { NpcDialog } from './Phase4Panels';
 import { AutoPanel, Bag3, CharPanel, GmHud, Hotbar3, PowerPanel, SevererDialog } from './Phase3Panels';
 
 const useHud = () => useSyncExternalStore(hudStore.subscribe, hudStore.get);
@@ -24,7 +25,15 @@ const PHASE_LABEL: Record<'offline' | 'online', string> = {
   online: 'PHASE 4 · ONLINE AUTHORITATIVE · TEST WORLD · ภาพ PLACEHOLDER',
 };
 
-export function GameHud({ world, onExit }: { world: WorldSource; onExit: () => void }) {
+export function GameHud({
+  world,
+  onExit,
+  onTrial,
+}: {
+  world: WorldSource;
+  onExit: () => void;
+  onTrial: () => void;
+}) {
   const hud = useHud();
   const [started, setStarted] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -64,7 +73,8 @@ export function GameHud({ world, onExit }: { world: WorldSource; onExit: () => v
           {panel === 'auto' && <AutoPanel hud={hud} world={world} onClose={() => setPanel(null)} />}
           <GmHud hud={hud} world={world} />
           <SevererDialog hud={hud} world={world} />
-          {(hud.nearSeverer || hud.dropsNearby > 0) && (
+          <NpcDialog hud={hud} world={world} onTrial={onTrial} />
+          {(hud.nearNpc || hud.dropsNearby > 0) && (
             <div className="interact-hint">
               [H] {hud.nearSeverer ? 'คุยกับ The Severer' : `เก็บของ (${hud.dropsNearby})`}
             </div>
@@ -320,7 +330,11 @@ function Minimap({ hud }: { hud: HudSnapshot }) {
       <div className="map-zone">
         {(() => {
           const k = getMap(hud.mapId).kind;
-          return k === 'city' ? 'เมืองปลอดภัย · PvP OFF' : k === 'farm' ? `แมพฟาร์ม ${hud.mapId} · Safe Farming` : 'Dev/Instance (ไม่นับใน 32 แมพ)';
+          return k === 'city'
+            ? 'เมืองปลอดภัย · PvP OFF'
+            : k === 'farm'
+              ? `แมพฟาร์ม ${hud.mapId} · Safe Farming`
+              : 'Dev/Instance (ไม่นับใน 32 แมพ)';
         })()}
       </div>
     </div>

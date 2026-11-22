@@ -123,6 +123,10 @@ export interface WorldSource {
   setAuto?(enabled: boolean | null, settings?: AutoSettings): void;
   pickup?(id: string): void;
   gm?(op: string, args: Record<string, unknown>): void;
+  /* Phase 4 */
+  talk?(npc: string): void;
+  shop?(op: 'buy' | 'sell' | 'sellAllTrade', itemId?: string, qty?: number): void;
+  storage?(op: 'deposit' | 'withdraw', itemId: string, qty: number): void;
 }
 
 export interface PowerSkillView {

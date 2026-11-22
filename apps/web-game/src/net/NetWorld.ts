@@ -32,7 +32,7 @@ import type {
   PowerView,
   WorldSource,
 } from '../core/worldSource';
-import { hotbarStore, pushLog, showToast } from '../game/bridge';
+import { hotbarStore, pushLog, requestUi, showToast } from '../game/bridge';
 import { defaultLayout, validateLayout, type HotbarLayoutEntry } from '../core/hotbar';
 
 /* ----------------------------------------------------------- wire types */
@@ -409,6 +409,10 @@ export class NetWorld implements WorldSource {
         else if (m.op !== 'hotbar' && m.op !== 'loadout')
           pushLog('system', `สำเร็จ: ${m.op}${m.msg ? ` — ${m.msg}` : ''}`, 'good');
         break;
+      case 'npc':
+        if (m.npc === 'severer') requestUi('severer');
+        else requestUi('npc', String(m.npc), m);
+        break;
       case 'gm-result':
         this.gmResult = m;
         break;
@@ -760,6 +764,15 @@ export class NetWorld implements WorldSource {
   }
   gm(op: string, args: Record<string, unknown>): void {
     this.send({ t: 'gm', op, ...args });
+  }
+  talk(npc: string): void {
+    this.send({ t: 'talk', npc });
+  }
+  shop(op: 'buy' | 'sell' | 'sellAllTrade', itemId?: string, qty?: number): void {
+    this.send({ t: 'shop', npc: 'merchant', op, itemId, qty });
+  }
+  storage(op: 'deposit' | 'withdraw', itemId: string, qty: number): void {
+    this.send({ t: 'storage', npc: 'storage', op, itemId, qty });
   }
 
   usePotion(): void {
