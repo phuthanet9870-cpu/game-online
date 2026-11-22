@@ -230,6 +230,8 @@ export class NetWorld implements WorldSource {
     instance: '',
     testWorld: false,
     gm: null,
+    equipment: {},
+    enhance: {},
   };
 
   private ws: WebSocket | null = null;
@@ -366,6 +368,8 @@ export class NetWorld implements WorldSource {
         o.xpNext = Number(m.xpLevelNext);
         o.items = (m.items as OnlineState['items']) ?? [];
         o.slots = Number(m.slots);
+        o.equipment = (m.equipment as Record<string, string>) ?? {};
+        o.enhance = (m.enhance as Record<string, number>) ?? {};
         this.player.base.level = o.level;
         break;
       }
@@ -770,6 +774,15 @@ export class NetWorld implements WorldSource {
   }
   shop(op: 'buy' | 'sell' | 'sellAllTrade', itemId?: string, qty?: number): void {
     this.send({ t: 'shop', npc: 'merchant', op, itemId, qty });
+  }
+  equipItem(itemId: string): void {
+    this.send({ t: 'equipItem', itemId });
+  }
+  unequip(slot: string): void {
+    this.send({ t: 'unequip', target: slot });
+  }
+  smith(op: 'craft' | 'enhance', arg: string): void {
+    this.send({ t: 'smith', npc: 'blacksmith', op, ...(op === 'craft' ? { recipe: arg } : { itemId: arg }) });
   }
   storage(op: 'deposit' | 'withdraw', itemId: string, qty: number): void {
     this.send({ t: 'storage', npc: 'storage', op, itemId, qty });

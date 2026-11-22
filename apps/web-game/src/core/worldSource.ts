@@ -87,6 +87,8 @@ export interface OnlineState {
   instance: string;
   testWorld: boolean;
   gm: { open: boolean; role: string; caps: string[] } | null;
+  equipment: Record<string, string>;
+  enhance: Record<string, number>;
 }
 
 export interface WorldSource {
@@ -127,6 +129,9 @@ export interface WorldSource {
   talk?(npc: string): void;
   shop?(op: 'buy' | 'sell' | 'sellAllTrade', itemId?: string, qty?: number): void;
   storage?(op: 'deposit' | 'withdraw', itemId: string, qty: number): void;
+  equipItem?(itemId: string): void;
+  unequip?(slot: string): void;
+  smith?(op: 'craft' | 'enhance', arg: string): void;
 }
 
 export interface PowerSkillView {

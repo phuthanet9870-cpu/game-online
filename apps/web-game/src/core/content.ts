@@ -325,6 +325,9 @@ export interface ItemTemplate {
   gmOnly: boolean;
   weaponType?: WeaponType;
   powerId?: string;
+  slot?: 'weapon' | 'helmet' | 'chest' | 'armguard' | 'legs' | 'boots';
+  levelReq?: number;
+  stats?: { attack?: number; defense?: number; maxHp?: number };
 }
 
 export const CONTENT = {

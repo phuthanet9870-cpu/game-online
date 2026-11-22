@@ -110,11 +110,27 @@ for (const f of farmIds) {
   if (!ml || new Set(ml.items.map((x) => x.itemId)).size !== 12) errors.push(`${f}: mapLoot must roll its 12 trade loot items`);
 }
 for (const i of items.filter((x) => x.slot)) if (!i.stats) errors.push(`equipment ${i.id} has no stats`);
+// Phase 4: quests reference real monsters/items/NPCs and existing prerequisite quests
+const { quests } = load('quests/quests.json');
+const qids = new Set(quests.map((q) => q.id));
+const npcIds = new Set();
+for (const m of index.maps) for (const o of load(`maps/${m.file}`).layers.find((l) => l.name === 'objects').objects) if (o.type === 'npc') npcIds.add(o.properties.find((p) => p.name === 'npcId').value);
+for (const q of quests) {
+  for (const r of q.requires) if (!qids.has(r)) errors.push(`quest ${q.id}: unknown prerequisite ${r}`);
+  if (!npcIds.has(q.giver) || !npcIds.has(q.turnIn)) errors.push(`quest ${q.id}: giver/turn-in NPC missing`);
+  for (const o of q.objectives) {
+    if (o.type === 'kill' && o.targets.some((t) => !monsters.some((m) => m.id === t))) errors.push(`quest ${q.id}: unknown kill target`);
+    if (o.type === 'collect' && !itemIds.has(o.itemId)) errors.push(`quest ${q.id}: unknown item ${o.itemId}`);
+    if (o.type === 'talk' && !npcIds.has(o.npc)) errors.push(`quest ${q.id}: unknown npc ${o.npc}`);
+    if (!(o.count > 0)) errors.push(`quest ${q.id}: objective count must be > 0`);
+  }
+  for (const it of q.rewards.items) if (!itemIds.has(it.itemId)) errors.push(`quest ${q.id}: unknown reward ${it.itemId}`);
+}
 
 if (errors.length) {
   console.error(`Content validation FAILED (${errors.length}):\n - ${errors.join('\n - ')}`);
   process.exit(1);
 }
 console.log(
-  `Content validation OK: ${weapons.length} weapons / ${ids.size} weapon skills, ${monsters.length} monsters, map ${map.width}x${map.height} with ${objs.length} objects, ${items.length} items, ${drops.tables.length} drop tables, ${powers.powers.length} powers / ${skillIds.size} power skills, ${farmIds.length} farm maps x 12 trade loot`,
+  `Content validation OK: ${weapons.length} weapons / ${ids.size} weapon skills, ${monsters.length} monsters, map ${map.width}x${map.height} with ${objs.length} objects, ${items.length} items, ${drops.tables.length} drop tables, ${powers.powers.length} powers / ${skillIds.size} power skills, ${farmIds.length} farm maps x 12 trade loot, ${quests.length} quests`,
 );

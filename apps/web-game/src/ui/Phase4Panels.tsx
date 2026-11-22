@@ -126,8 +126,95 @@ export function NpcDialog({
           </button>
         </div>
       )}
-      {!['merchant', 'storage', 'trial'].includes(open.npc) && (
+      {open.npc === 'blacksmith' && <Blacksmith hud={hud} world={world} data={open.data} />}
+      {!['merchant', 'storage', 'trial', 'blacksmith'].includes(open.npc) && (
         <p className="hint">บริการนี้กำลังพัฒนาใน Phase 4 (เควสต์ / ดันเจี้ยน / อารีน่า / ตีบวก)</p>
+      )}
+    </div>
+  );
+}
+
+interface RecipeView {
+  id: string;
+  name: string;
+  goldCost?: number;
+  inputs: Array<{ itemId: string; quantity: number }>;
+  output: { itemId: string; quantity: number };
+}
+interface EnhanceCfg {
+  maxLevel: number;
+  statPctPerLevel: number;
+  levels: Array<{ to: number; gold: number; stones: number; chance: number }>;
+}
+
+function Blacksmith({
+  hud,
+  world,
+  data,
+}: {
+  hud: HudSnapshot;
+  world: WorldSource;
+  data: Record<string, unknown>;
+}) {
+  const o = hud.online;
+  if (!o) return null;
+  const have = (id: string) => o.items.find((i) => i.templateId === id)?.quantity ?? 0;
+  const recipes = (data.recipes as RecipeView[]) ?? [];
+  const enh = data.enhance as EnhanceCfg | undefined;
+  const gear = o.items.filter((i) => CONTENT.items.find((t) => t.id === i.templateId)?.slot);
+  return (
+    <div className="col">
+      <h4>คราฟต์ (Gold {o.gold})</h4>
+      {recipes.map((r) => {
+        const ok = r.inputs.every((i) => have(i.itemId) >= i.quantity) && o.gold >= (r.goldCost ?? 0);
+        return (
+          <div key={r.id} className="recipe">
+            <div className="row between">
+              <b>{r.name}</b>
+              <button
+                className="btn-secondary small"
+                disabled={!ok}
+                onClick={() => world.smith?.('craft', r.id)}
+                data-testid={`smith-craft-${r.id}`}
+              >
+                คราฟต์ {r.goldCost ?? 0} G
+              </button>
+            </div>
+            <span className="hint">
+              {r.inputs.map((i) => `${itemName(i.itemId)} ${have(i.itemId)}/${i.quantity}`).join(' · ')}
+            </span>
+          </div>
+        );
+      })}
+      {enh && (
+        <>
+          <h4>
+            ตีบวก (+0 → +{enh.maxLevel}, ล้มเหลวไม่ทำลายของ) · Enhancement Stone {have('MAT-ORE-002')}
+          </h4>
+          {gear.map((g) => {
+            const lvl = o.enhance[g.templateId] ?? 0;
+            const next = enh.levels[lvl];
+            return (
+              <div key={g.templateId} className="row between">
+                <span>
+                  {itemName(g.templateId)} +{lvl}
+                </span>
+                {next ? (
+                  <button
+                    className="btn-secondary small"
+                    disabled={o.gold < next.gold || have('MAT-ORE-002') < next.stones}
+                    onClick={() => world.smith?.('enhance', g.templateId)}
+                    data-testid={`smith-enhance-${g.templateId}`}
+                  >
+                    +{next.to}: {next.gold}G · หิน {next.stones} · {Math.round(next.chance * 100)}%
+                  </button>
+                ) : (
+                  <span className="hint">MAX</span>
+                )}
+              </div>
+            );
+          })}
+        </>
       )}
     </div>
   );

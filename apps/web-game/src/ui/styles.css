@@ -1286,3 +1286,27 @@ button:disabled {
 .row.between {
   justify-content: space-between;
 }
+
+.equip-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+.equip-slot {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #3c2b55;
+  border-radius: 4px;
+  padding: 3px 6px;
+  position: relative;
+  font-size: 11px;
+}
+.equip-slot .x {
+  position: absolute;
+  right: 2px;
+  top: 0;
+}
+.recipe {
+  border-bottom: 1px solid #3c2b55;
+  padding: 3px 0;
+}

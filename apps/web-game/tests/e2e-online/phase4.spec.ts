@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- read-only QA hook access inside page.evaluate */
+import { execFileSync } from 'node:child_process';
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { goToFarm01, walkTo } from './nav';
 
@@ -11,7 +12,7 @@ const st = (page: Page) =>
 const qty = async (page: Page, id: string) => (await st(page)).items.find((i) => i.templateId === id)?.quantity ?? 0;
 const tile = (t: number) => t * 16 + 8;
 
-async function newChar(browser: Browser, prefix: string) {
+async function newChar(browser: Browser, prefix: string, role?: string) {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   const errors: string[] = [];
@@ -25,6 +26,11 @@ async function newChar(browser: Browser, prefix: string) {
   await page.getByRole('button', { name: 'สมัครและเข้าสู่ระบบ' }).click();
   await page.fill('#char-name', char);
   await page.getByRole('button', { name: 'สร้างตัวละคร' }).click();
+  if (role)
+    execFileSync('go', ['run', './cmd/gameserver', 'grant-role', '-username', user, '-role', role], {
+      cwd: '../../server',
+      env: { ...process.env, DATABASE_URL: process.env.E2E_DATABASE_URL, GOTOOLCHAIN: 'local' },
+    });
   await page.getByTestId(`play-${char}`).click();
   await page.getByRole('button', { name: 'เข้าสู่โลก' }).click();
   await expect(page.getByTestId('netpanel')).toContainText('online');
@@ -70,6 +76,40 @@ test('Merchant (talk, buy, sell) and Storage work only through the NPCs, state p
   await a.page.waitForTimeout(500);
   await a.page.getByTestId('menu-exit').click();
   await expect(a.page.getByTestId('chars')).toContainText(`Gold ${gold}`);
+  expect(a.errors).toEqual([]);
+  await a.ctx.close();
+});
+
+test('equipment raises stats, Blacksmith enhances without destroying, equipped items cannot be sold', async ({ browser }) => {
+  const a = await newChar(browser, 'smith', 'owner');
+  await a.page.keyboard.press('Enter');
+  await a.page.keyboard.type('/gmstefanonline');
+  await a.page.keyboard.press('Enter');
+  await a.page.evaluate(() => {
+    const s = (window as any).__TPE__.sim;
+    s.gm('spawnItem', { itemId: 'TRD-F03-012', qty: 10, target: '' });
+    s.gm('spawnItem', { itemId: 'ARM-CHS-001', qty: 1, target: '' });
+    s.gm('spawnItem', { itemId: 'MAT-ORE-002', qty: 5, target: '' });
+  });
+  await expect.poll(async () => qty(a.page, 'MAT-ORE-002')).toBe(5);
+  // sell trade loot for gold at the merchant
+  await walkTo(a.page, tile(10), tile(13), 12);
+  await a.page.keyboard.press('KeyH');
+  await a.page.getByTestId('sell-all-trade').click();
+  await expect.poll(async () => (await st(a.page)).gold).toBeGreaterThan(100);
+  // equip the chest from the bag
+  await a.page.getByTestId('menu-bag').click();
+  await a.page.getByTestId('equip-item-ARM-CHS-001').click();
+  await expect(a.page.getByTestId('equipment')).toContainText('Leather Vest');
+  const maxHp = await a.page.evaluate(() => (window as any).__TPE__.sim.player.maxHp);
+  expect(maxHp).toBeGreaterThan(220);
+  // blacksmith enhancement
+  await walkTo(a.page, tile(40), tile(11), 12);
+  await a.page.keyboard.press('KeyH');
+  await expect(a.page.getByTestId('npc-blacksmith')).toBeVisible();
+  await a.page.getByTestId('smith-enhance-ARM-CHS-001').click();
+  await expect.poll(async () => a.page.evaluate(() => (window as any).__TPE__.sim.online.enhance['ARM-CHS-001'] ?? 0)).toBe(1);
+  expect(await qty(a.page, 'ARM-CHS-001')).toBe(1);
   expect(a.errors).toEqual([]);
   await a.ctx.close();
 });

@@ -1,0 +1,30 @@
+{
+ "contentVersion": "phase4-0.1.0",
+ "_note": "[TUNING] rewards. Objectives: kill (monster ids, counted for loot-eligible contributors), collect (items consumed at turn-in), talk (NPC). Accept/turn in at the Quest Board in Aetheria Capital.",
+ "quests": [
+  { "id": "Q-MAIN-001", "kind": "main", "name": "ก้าวแรกแห่ง Eclipse", "description": "กำจัดมอนสเตอร์ที่ Greenfield Plains เพื่อพิสูจน์ฝีมือ",
+    "levelReq": 1, "requires": [], "giver": "questboard", "turnIn": "questboard",
+    "objectives": [ { "type": "kill", "targets": ["MON-SLIME-001", "MON-RABBIT-001"], "count": 5, "label": "กำจัด Slime/Hopper ใน Greenfield Plains" } ],
+    "rewards": { "xp": 120, "gold": 50, "items": [ { "itemId": "CON-001", "quantity": 3 } ] } },
+  { "id": "Q-MAIN-002", "kind": "main", "name": "เสียงกระซิบในป่า", "description": "Moss Sprite ก่อความวุ่นวายใน Whispering Forest",
+    "levelReq": 3, "requires": ["Q-MAIN-001"], "giver": "questboard", "turnIn": "questboard",
+    "objectives": [ { "type": "kill", "targets": ["MON-SPRITE-001"], "count": 6, "label": "กำจัด Moss Sprite" } ],
+    "rewards": { "xp": 400, "gold": 120, "items": [ { "itemId": "ARM-HLM-001", "quantity": 1 } ] } },
+  { "id": "Q-MAIN-003", "kind": "main", "name": "เขี้ยวแห่งหุบเขา", "description": "จ่าฝูง Greyfang Alpha ครองหุบเขา Wolf Fang",
+    "levelReq": 6, "requires": ["Q-MAIN-002"], "giver": "questboard", "turnIn": "questboard",
+    "objectives": [ { "type": "kill", "targets": ["MON-BOSS-FANG"], "count": 1, "label": "ปราบ Greyfang Alpha (Map Boss)" } ],
+    "rewards": { "xp": 1200, "gold": 400, "items": [ { "itemId": "MAT-ORE-002", "quantity": 5 } ] } },
+  { "id": "Q-SIDE-001", "kind": "side", "name": "สินค้าจากทุ่งหญ้า", "description": "พ่อค้าต้องการ Meadow Fluff",
+    "levelReq": 1, "requires": [], "repeatable": true, "giver": "questboard", "turnIn": "questboard",
+    "objectives": [ { "type": "collect", "itemId": "TRD-F01-001", "count": 5, "label": "รวบรวม Meadow Fluff" } ],
+    "rewards": { "xp": 60, "gold": 40, "items": [] } },
+  { "id": "Q-SIDE-002", "kind": "side", "name": "ช่างตีเหล็กต้องการแร่", "description": "รวบรวม Iron Ore ให้ช่างตีเหล็ก",
+    "levelReq": 4, "requires": [], "giver": "questboard", "turnIn": "questboard",
+    "objectives": [ { "type": "collect", "itemId": "MAT-ORE-001", "count": 6, "label": "รวบรวม Iron Ore" } ],
+    "rewards": { "xp": 150, "gold": 60, "items": [ { "itemId": "ARM-BTS-001", "quantity": 1 } ] } },
+  { "id": "Q-SIDE-003", "kind": "side", "name": "ผู้เฝ้าประตูใต้ดิน", "description": "ไปทักทาย Dungeon Gatekeeper ที่ประตูเมือง",
+    "levelReq": 1, "requires": [], "giver": "questboard", "turnIn": "questboard",
+    "objectives": [ { "type": "talk", "npc": "gatekeeper", "count": 1, "label": "คุยกับ Dungeon Gatekeeper" } ],
+    "rewards": { "xp": 40, "gold": 20, "items": [] } }
+ ]
+}

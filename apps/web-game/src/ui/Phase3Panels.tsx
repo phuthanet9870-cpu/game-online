@@ -399,6 +399,15 @@ export function CharPanel({
 
 /* --------------------------------------------------------------------- bag */
 
+const EQUIP_LABEL: Record<string, string> = {
+  weapon: 'อาวุธ',
+  helmet: 'หมวก',
+  chest: 'เสื้อ',
+  armguard: 'ปลอกแขน',
+  legs: 'กางเกง',
+  boots: 'รองเท้า',
+};
+
 export function Bag3({ hud, world, onClose }: { hud: HudSnapshot; world: WorldSource; onClose: () => void }) {
   const o = hud.online;
   if (!o) return null;
@@ -418,15 +427,19 @@ export function Bag3({ hud, world, onClose }: { hud: HudSnapshot; world: WorldSo
           const t = CONTENT.items.find((x) => x.id === it.templateId);
           return (
             <li key={it.templateId}>
-              <span>{itemName(it.templateId)}</span>
+              <span>
+                {itemName(it.templateId)}
+                {o.enhance[it.templateId] ? ` +${o.enhance[it.templateId]}` : ''}
+              </span>
               <b>x{it.quantity}</b>
               <span className="actions">
-                {t?.weaponType && (
+                {t?.slot && (
                   <button
-                    disabled={hud.weaponId === t.weaponType}
-                    onClick={() => world.equip(t.weaponType as string)}
+                    disabled={o.equipment[t.slot] === it.templateId}
+                    onClick={() => world.equipItem?.(it.templateId)}
+                    data-testid={`equip-item-${it.templateId}`}
                   >
-                    {hud.weaponId === t.weaponType ? 'ใช้อยู่' : 'สวมใส่'}
+                    {o.equipment[t.slot] === it.templateId ? 'สวมอยู่' : 'สวมใส่'}
                   </button>
                 )}
                 {t?.powerId && (
@@ -442,26 +455,49 @@ export function Bag3({ hud, world, onClose }: { hud: HudSnapshot; world: WorldSo
           );
         })}
       </ul>
+      <h4>อุปกรณ์ที่สวมใส่</h4>
+      <div className="equip-grid" data-testid="equipment">
+        {(['weapon', 'helmet', 'chest', 'armguard', 'legs', 'boots'] as const).map((slot) => {
+          const id = o.equipment[slot];
+          return (
+            <div key={slot} className="equip-slot">
+              <span className="hint">{EQUIP_LABEL[slot]}</span>
+              <b>{id ? `${itemName(id)}${o.enhance[id] ? ` +${o.enhance[id]}` : ''}` : '—'}</b>
+              {id && slot !== 'weapon' && (
+                <button
+                  className="x"
+                  onClick={() => world.unequip?.(slot)}
+                  aria-label={`ถอด ${EQUIP_LABEL[slot]}`}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
       <h4>คราฟต์ผลพลัง (Fragment → Fruit)</h4>
-      {CONTENT.recipes.map((r) => {
-        const input = r.inputs[0];
-        const n = input ? have(input.itemId) : 0;
-        return (
-          <div key={r.id} className="row">
-            <span className="hint">
-              {r.name}: {input && itemName(input.itemId)} {n}/{input?.quantity}
-            </span>
-            <button
-              className="btn-secondary small"
-              disabled={!input || n < input.quantity}
-              onClick={() => world.craft?.(r.id)}
-              data-testid={`craft-${r.id}`}
-            >
-              คราฟต์
-            </button>
-          </div>
-        );
-      })}
+      {CONTENT.recipes
+        .filter((r) => r.id.startsWith('RCP-PWR'))
+        .map((r) => {
+          const input = r.inputs[0];
+          const n = input ? have(input.itemId) : 0;
+          return (
+            <div key={r.id} className="row">
+              <span className="hint">
+                {r.name}: {input && itemName(input.itemId)} {n}/{input?.quantity}
+              </span>
+              <button
+                className="btn-secondary small"
+                disabled={!input || n < input.quantity}
+                onClick={() => world.craft?.(r.id)}
+                data-testid={`craft-${r.id}`}
+              >
+                คราฟต์
+              </button>
+            </div>
+          );
+        })}
       <p className="hint">Gold: {o.gold.toLocaleString()} · ผูกพลังได้ครั้งละ 1 ผล</p>
     </div>
   );
