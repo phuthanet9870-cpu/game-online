@@ -4,7 +4,7 @@ import { CLASSES, SKILL_MAP, computeStats, moveCircle, type AccountProgress, typ
 
 export interface CEnt {
   id: number; kind: 0 | 1 | 2; x: number; y: number; f: number; hp: number; mhp: number; barrier: number; def: string; name: string; lv: number; st: string[];
-  flags: number; windup: number; dead: boolean; size: number; affixes: string[]; breakG: number; phase: number; invuln: boolean; aura: string; pet: string;
+  flags: number; windup: number; dead: boolean; size: number; affixes: string[]; breakG: number; phase: number; invuln: boolean; aura: string; pet: string; look: string;
   rx: number; ry: number; moving: number; swingT: number; flash: number; seen: number; petX?: number; petY?: number;
 }
 export interface FloatText { x: number; y: number; text: string; color: string; t: number; size: number; vy: number }
@@ -62,7 +62,7 @@ export class ClientGame {
       if (raw.length === 13) { const st = this.statics.get(id); if (!st) continue; a = [raw[0], st[1], raw[1], raw[2], raw[3], raw[4], st[6], raw[5], st[8], st[9], st[10], raw[6], st[12], raw[7], raw[8], raw[9], st[16], raw[10], raw[11], raw[12], st[20], st[21]]; }
       else this.statics.set(id, raw);
       let e = this.ents.get(id);
-      const next = { id, kind: a[1], x: a[2], y: a[3], f: a[4], hp: a[5], mhp: a[6], barrier: a[7], def: a[8], name: a[9], lv: a[10], st: a[11] ? String(a[11]).split(',') : [], flags: a[12], windup: a[13], dead: !!a[14], size: a[15], affixes: a[16] ? String(a[16]).split(',') : [], breakG: a[17], phase: a[18], invuln: !!a[19], aura: a[20] ?? '', pet: a[21] ?? '' };
+      const next = { id, kind: a[1], x: a[2], y: a[3], f: a[4], hp: a[5], mhp: a[6], barrier: a[7], def: a[8], name: a[9], lv: a[10], st: a[11] ? String(a[11]).split(',') : [], flags: a[12], windup: a[13], dead: !!a[14], size: a[15], affixes: a[16] ? String(a[16]).split(',') : [], breakG: a[17], phase: a[18], invuln: !!a[19], aura: a[20] ?? '', pet: a[21] ?? '', look: a[22] ?? '' };
       if (!e) { e = { ...next, rx: next.x, ry: next.y, moving: 0, swingT: 0, flash: 0, seen: now }; this.ents.set(id, e); }
       else {
         const moved = Math.hypot(next.x - e.x, next.y - e.y);

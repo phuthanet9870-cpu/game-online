@@ -77,7 +77,7 @@ route('POST', /^\/api\/characters$/, () => async (_req, body, _ip, token) => {
   if (count.rows[0].n >= MAX_CHARACTERS) return [400, { error: `Character limit reached (${MAX_CHARACTERS})` }];
   const cls = String(body?.cls) as ClassId;
   if (!CLASS_IDS.includes(cls)) return [400, { error: 'Unknown class' }];
-  const r = createCharacter(acc.id, String(body?.name ?? ''), cls, body?.hardcore === true);
+  const r = createCharacter(acc.id, String(body?.name ?? ''), cls, body?.hardcore === true, body?.look);
   if (!r.ok) return [400, { error: r.reason }];
   const ch = r.value;
   try {
@@ -123,7 +123,7 @@ const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
   'X-Frame-Options': 'DENY',
-  'Content-Security-Policy': "default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'",
+  'Content-Security-Policy': "default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'; frame-ancestors 'none'",
 };
 
 async function serveStatic(req: IncomingMessage, res: ServerResponse) {

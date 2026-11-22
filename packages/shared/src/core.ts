@@ -1462,7 +1462,7 @@ export class GameCore {
     const known = (s.netCache ??= { room: '', ents: new Map<number, string>(), projs: new Map<number, string>(), areas: new Map<number, string>() });
     if (known.room !== s.roomId) { known.room = s.roomId; known.ents.clear(); known.projs.clear(); known.areas.clear(); }
     const ents = (snap.ents as any[][]).map((e) => {
-      const key = `${e[1]}|${e[6]}|${e[8]}|${e[9]}|${e[10]}|${e[12]}|${e[16]}|${e[20]}|${e[21]}`;
+      const key = `${e[1]}|${e[6]}|${e[8]}|${e[9]}|${e[10]}|${e[12]}|${e[16]}|${e[20]}|${e[21]}|${e[22]}`;
       if (known.ents.get(e[0]) === key) return [e[0], e[2], e[3], e[4], e[5], e[7], e[11], e[13], e[14], e[15], e[17], e[18], e[19]];
       known.ents.set(e[0], key);
       return e;
@@ -1617,7 +1617,7 @@ export function expandEntities(statics: Map<number, any[]>, ents: any[][]): any[
   const seen = new Set<number>();
   for (const raw of ents) {
     seen.add(raw[0]);
-    if (raw.length === 13) { const st = statics.get(raw[0]); if (!st) continue; out.push([raw[0], st[1], raw[1], raw[2], raw[3], raw[4], st[6], raw[5], st[8], st[9], st[10], raw[6], st[12], raw[7], raw[8], raw[9], st[16], raw[10], raw[11], raw[12], st[20], st[21]]); }
+    if (raw.length === 13) { const st = statics.get(raw[0]); if (!st) continue; out.push([raw[0], st[1], raw[1], raw[2], raw[3], raw[4], st[6], raw[5], st[8], st[9], st[10], raw[6], st[12], raw[7], raw[8], raw[9], st[16], raw[10], raw[11], raw[12], st[20], st[21], st[22]]); }
     else { statics.set(raw[0], raw); out.push(raw); }
   }
   for (const id of statics.keys()) if (!seen.has(id)) statics.delete(id);

@@ -1,7 +1,8 @@
-import { CLASSES, CLASS_IDS, LORE, type ClassId } from '@astra/shared';
+import { CLASSES, CLASS_IDS, LORE, type ClassId, HAIR_COLORS, OUTFIT_TINTS, lookColors } from '@astra/shared';
 import type { Backend, CharSummary } from '../net.js';
 import { ct, t, getLang, setLang } from '../i18n.js';
-import { drawChibi } from '../render.js';
+import { drawChibi, setAnimTime } from '../sprites.js';
+import { uiIcon, tileIcon } from './icons.js';
 import { clear, confirmDialog, h, promptDialog, toast } from './dom.js';
 
 export function modeBanner(b: Backend, compact = false): HTMLElement {
@@ -76,39 +77,63 @@ export async function renderCharSelect(root: HTMLElement, b: Backend, play: (id:
     return card;
   };
   const creator = () => {
-    let sel: ClassId = 'warrior';
-    const detail = h('div', { class: 'class-detail' });
-    const grid = h('div', { class: 'class-grid', role: 'radiogroup' });
-    const showDetail = () => {
-      const d = CLASSES[sel];
-      clear(detail).append(
-        preview(sel, 120),
-        h('div', null, h('h3', null, ct(`class.${d.id}.name`, d.name), h('span', { class: 'muted' }, ` — ${ct(`class.${d.id}.role`, d.role)}`)), h('p', null, ct(`class.${d.id}.fantasy`, d.fantasy)),
-          h('p', null, h('b', null, 'Mechanic: '), ct(`class.${d.id}.mechanic`, d.mechanic)),
-          h('p', null, h('b', null, 'Resource: '), d.resource.name, d.secondary ? ` + ${d.secondary.name}` : ''),
-          h('p', null, h('b', null, 'Difficulty: '), '★'.repeat(d.difficulty) + '☆'.repeat(3 - d.difficulty)),
-          h('p', null, h('b', null, 'Build archetypes: ')), h('ul', null, d.archetypes.map((a) => h('li', null, a))),
-          h('p', { class: 'muted' }, `Weapon affinity: ${d.weaponAffinity.join(', ')} (+10% damage)`)));
-      for (const el of Array.from(grid.children)) el.classList.toggle('on', (el as HTMLElement).dataset.cls === sel);
+    const th = getLang() === 'th';
+    let sel: ClassId = 'mage';
+    const look = { hair: -1, outfit: -1 };
+    let hard = false;
+    const stage = h('div', { class: 'cc-stage', role: 'radiogroup', 'aria-label': 'Class' });
+    const info = h('div', { class: 'cc-info' });
+    const idle = h('canvas', { class: 'cc-idle', width: 200, height: 200 });
+    const swatches = (label: string, list: string[], key: 'hair' | 'outfit') => {
+      const row = h('div', { class: 'sw-row' });
+      const paint = () => { clear(row).append(h('button', { class: 'sw def' + (look[key] < 0 ? ' on' : ''), title: th ? 'ค่าเริ่มต้นของอาชีพ' : 'Class default', onclick: () => { look[key] = -1; paint(); refresh(); } }, '✦'), ...list.map((c, i) => h('button', { class: 'sw' + (look[key] === i ? ' on' : ''), style: `--c:${c}`, 'aria-label': c, onclick: () => { look[key] = i; paint(); refresh(); } }))); };
+      paint();
+      return h('div', { class: 'cc-field' }, h('label', null, label), row);
     };
-    for (const c of CLASS_IDS) {
-      const btn = h('button', { class: 'class-pick', role: 'radio', 'data-cls': c, onclick: () => { sel = c; showDetail(); } }, preview(c, 56), h('span', null, ct(`class.${c}.name`, CLASSES[c].name)));
-      grid.append(btn);
-    }
-    showDetail();
-    const name = h('input', { type: 'text', maxLength: 16, placeholder: t('name'), 'aria-label': t('name') });
-    const hc = h('input', { type: 'checkbox' });
-    const warn = h('p', { class: 'warn', hidden: true }, t('hardcoreWarn'));
-    hc.onchange = () => { warn.hidden = !hc.checked; };
-    const go = h('button', { class: 'btn primary' }, t('create'));
+    const pedestal = (c: ClassId) => h('button', { class: 'ped', role: 'radio', 'data-cls': c, onclick: () => { sel = c; refresh(); } }, h('div', { class: 'ped-fig' }), h('div', { class: 'ped-base' }), h('span', { class: 'ped-name' }, ct(`class.${c}.name`, CLASSES[c].name)));
+    for (const c of CLASS_IDS) stage.append(pedestal(c));
+    const refresh = () => {
+      for (const el of Array.from(stage.children) as HTMLElement[]) {
+        const c = el.dataset.cls as ClassId; el.classList.toggle('on', c === sel); el.setAttribute('aria-checked', String(c === sel));
+        const lc = lookColors(c, c === sel ? look : null);
+        const cv = h('canvas', { width: 120, height: 150 }); const x = cv.getContext('2d')!; x.imageSmoothingEnabled = false;
+        drawChibi(x, 60, 136, c === sel ? 2.9 : 2.5, Math.PI / 2 - 0.3, lc.body, lc.hair, lc.accent, 0, 0, c);
+        clear(el.querySelector('.ped-fig') as HTMLElement).append(cv);
+      }
+      const d = CLASSES[sel];
+      clear(info).append(
+        h('div', { class: 'cc-head' }, uiIcon('emblem', 52, d.colors.accent), h('div', null, h('h2', null, ct(`class.${d.id}.name`, d.name)), h('small', null, ct(`class.${d.id}.role`, d.role)))),
+        h('div', { class: 'sec-title' }, uiIcon('star', 18, '#ffd36a'), th ? 'สรุปบทบาท' : 'Role Summary'), h('p', null, ct(`class.${d.id}.fantasy`, d.fantasy)),
+        h('div', { class: 'cc-kv' }, h('span', null, uiIcon('crossed', 18), th ? ' อาวุธ' : ' Weapon Type'), h('b', null, d.weaponAffinity.join(' / '))),
+        h('div', { class: 'cc-kv' }, h('span', null, uiIcon('awaken', 18, '#9b6cff'), th ? ' ความยาก' : ' Difficulty'), h('b', { class: 'diamonds' }, '◆'.repeat(d.difficulty) + '◇'.repeat(3 - d.difficulty))),
+        h('div', { class: 'sec-title' }, uiIcon('sigil', 18, '#9b6cff'), th ? 'กลไกหลัก' : 'Key Mechanics'),
+        h('div', { class: 'mech' }, tileIcon('orb', d.resource.color, 'epic', 44), h('div', null, h('b', null, d.resource.name + (d.secondary ? ` + ${d.secondary.name}` : '')), h('small', null, ct(`class.${d.id}.mechanic`, d.mechanic)))),
+        ...d.archetypes.slice(0, 2).map((a) => h('div', { class: 'mech' }, tileIcon('star', d.colors.accent, 'rare', 44), h('div', null, h('b', null, a.split(':')[0] ?? a), h('small', null, a.split(':').slice(1).join(':') || (th ? 'แนวทางบิลด์' : 'Build archetype'))))));
+    };
+    let ang = 0, alive = true;
+    const loop = () => { if (!alive || !idle.isConnected) return; ang += 0.012; setAnimTime(performance.now() / 1000); const x = idle.getContext('2d')!; x.clearRect(0, 0, 200, 200); x.imageSmoothingEnabled = false; const lc = lookColors(sel, look); const dir = [Math.PI / 2, 0, -Math.PI / 2, Math.PI][Math.floor(ang) % 4]!; drawChibi(x, 100, 180, 3.4, dir, lc.body, lc.hair, lc.accent, 0, 0, sel); requestAnimationFrame(loop); };
+    requestAnimationFrame(() => requestAnimationFrame(loop));
+    refresh();
+    const name = h('input', { type: 'text', maxLength: 16, placeholder: th ? 'ตั้งชื่อตัวละคร (3–16 ตัวอักษร)' : 'Enter character name (3–16 characters)', 'aria-label': t('name') });
+    const SYL = ['Ae', 'Lu', 'Sel', 'Ka', 'Ri', 'No', 'Mi', 'Zu', 'Ra', 'Vel', 'Ast', 'Ori', 'Ny', 'El', 'Sha'], END = ['ne', 'ra', 'ion', 'ka', 'ris', 'via', 'lyn', 'mir', 'xor', 'th', 'dra'];
+    const dice = h('button', { class: 'dice', title: th ? 'สุ่มชื่อ' : 'Random name', onclick: () => { name.value = SYL[Math.floor(Math.random() * SYL.length)]! + END[Math.floor(Math.random() * END.length)]! + (Math.random() < 0.4 ? SYL[Math.floor(Math.random() * SYL.length)]!.toLowerCase() : ''); } }, '🎲');
+    const modeCard = (hc: boolean) => h('button', { class: 'mode-card' + (hard === hc ? ' on' : ''), onclick: async () => { if (hc && !(await confirmDialog(t('hardcore'), t('hardcoreWarn'), t('confirm'), t('cancel')))) return; hard = hc; for (const el of Array.from(modes.children).slice(1)) el.classList.toggle('on', (el as HTMLElement).dataset.hc === String(hard)); }, 'data-hc': String(hc) },
+      uiIcon(hc ? 'skull' : 'shield', 26, hc ? '#ff4f5a' : '#5aa8ff'), h('div', null, h('b', null, hc ? t('hardcore') : (th ? 'ปกติ' : 'Normal')), h('small', null, hc ? (th ? 'ตายถาวร · รางวัลมากขึ้น' : 'Permanent death · separate ladder') : (th ? 'ผจญภัยสมดุลสำหรับทุกคน' : 'Balanced adventure for all players.'))));
+    const modes = h('div', { class: 'cc-modes' }, h('span', { class: 'cc-lbl' }, uiIcon('gear', 20), th ? ' โหมดเกม' : ' Game Mode'), modeCard(false), modeCard(true));
+    const go = h('button', { class: 'btn primary cc-go' }, th ? '✦ สร้างตัวละคร ✦' : '✦ Create Character ✦');
     go.onclick = async () => {
-      if (hc.checked && !(await confirmDialog(t('hardcore'), t('hardcoreWarn'), t('create'), t('cancel')))) return;
       go.disabled = true;
-      try { await b.createChar(name.value.trim(), sel, hc.checked); me = await b.me(); draw(); toast('Character created', 'good'); }
+      try { await b.createChar(name.value.trim(), sel, hard, { ...look }); alive = false; me = await b.me(); draw(); toast('Character created', 'good'); }
       catch (e) { toast((e as Error).message, 'error'); }
       finally { go.disabled = false; }
     };
-    return h('section', { class: 'creator' }, h('h2', null, t('newChar')), grid, detail, h('div', { class: 'row wrap' }, name, h('label', { class: 'check' }, hc, ' ', t('hardcore')), go), warn);
+    return h('section', { class: 'creator stage-mode' },
+      h('div', { class: 'cc-title' }, h('h2', null, th ? 'สร้างตัวละคร' : 'Create Character'), h('small', null, th ? 'สร้างตัวละครและเลือกอาชีพ' : 'Character Creation & Class Selection')),
+      h('div', { class: 'cc-cols' },
+        h('div', { class: 'cc-left' }, h('div', { class: 'sec-title' }, th ? '+ ปรับแต่งรูปลักษณ์ +' : '+ Customize Appearance +'), swatches(th ? 'สีผม' : 'Hair Color', HAIR_COLORS, 'hair'), swatches(th ? 'สีชุด' : 'Outfit Tint', OUTFIT_TINTS, 'outfit'),
+          h('div', { class: 'sec-title' }, th ? '+ ตัวอย่างท่ายืน' : '+ Idle Preview'), h('div', { class: 'cc-idle-wrap' }, idle)),
+        stage, info),
+      modes, h('div', { class: 'cc-name' }, h('span', { class: 'cc-lbl' }, uiIcon('person', 20), th ? ' ชื่อตัวละคร' : ' Character Name'), name, dice), go);
   };
   draw();
 }

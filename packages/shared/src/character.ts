@@ -1,3 +1,4 @@
+import { sanitizeLook } from './data/appearance.js';
 import { CLASSES } from './data/classes.js';
 import { PASSIVE_MAP, canAllocate, passivePointsFor, validatePassives } from './data/passives.js';
 import { SKILL_MAP, classSkills } from './data/skills.js';
@@ -29,7 +30,7 @@ export function masteryToNext(level: number): number {
   return Math.round(400 * Math.pow(level, 1.3));
 }
 
-export function createCharacter(accountId: string, name: string, cls: ClassId, hardcore: boolean): Result<CharacterData> {
+export function createCharacter(accountId: string, name: string, cls: ClassId, hardcore: boolean, look?: unknown): Result<CharacterData> {
   const vn = validateName(name);
   if (!vn.ok) return vn;
   if (!CLASS_IDS.includes(cls)) return fail('Unknown class');
@@ -43,7 +44,7 @@ export function createCharacter(accountId: string, name: string, cls: ClassId, h
     inventory: Array(INVENTORY_SIZE).fill(null), equipment: { weapon }, passives: [], bonusPoints: 0, respecTokens: 1,
     loadout: { active: padTo(actives, ACTIVE_SLOTS), ultimate: padTo([], ULTIMATE_SLOTS) },
     presets: [], quests: {}, stats: { kills: 0, deaths: 0, bossKills: 0, runsCleared: 0, highestTier: 0 },
-    createdAt: Date.now(), version: CHARACTER_VERSION, mats: {}, prof: {}, elixir: null,
+    createdAt: Date.now(), version: CHARACTER_VERSION, mats: {}, prof: {}, elixir: null, look: sanitizeLook(look),
   };
   return ok(ch);
 }
@@ -61,7 +62,7 @@ export function normalizeCharacter(raw: CharacterData): CharacterData {
   ch.loadout = { active: padTo(ch.loadout?.active ?? [], ACTIVE_SLOTS), ultimate: padTo(ch.loadout?.ultimate ?? [], ULTIMATE_SLOTS) };
   ch.presets ??= []; ch.quests ??= {}; ch.mastery ??= { level: 1, xp: 0 };
   ch.stats ??= { kills: 0, deaths: 0, bossKills: 0, runsCleared: 0, highestTier: 0 };
-  ch.mats ??= {}; ch.prof ??= {}; ch.elixir ??= null; ch.treasure ??= null;
+  ch.mats ??= {}; ch.prof ??= {}; ch.elixir ??= null; ch.treasure ??= null; ch.look = sanitizeLook(ch.look);
   if (ch.tutorial === undefined) ch.tutorial = ch.level > 2 || ch.stats.kills > 0 ? -1 : 0; // existing characters skip it
   ch.version = CHARACTER_VERSION;
   return ch;

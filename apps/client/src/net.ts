@@ -10,7 +10,7 @@ export interface Backend {
   login(u: string, p: string): Promise<void>;
   logout(): Promise<void>;
   me(): Promise<{ username: string; account: AccountProgress; characters: CharSummary[] }>;
-  createChar(name: string, cls: ClassId, hardcore: boolean): Promise<void>;
+  createChar(name: string, cls: ClassId, hardcore: boolean, look?: { hair: number; outfit: number }): Promise<void>;
   deleteChar(id: string, confirmName: string): Promise<void>;
   connect(charId: string, h: Handlers): Conn;
 }
@@ -44,7 +44,7 @@ export class OnlineBackend implements Backend {
   async login(u: string, p: string) { const j = await this.api('POST', '/api/login', { username: u, password: p }); this.token = j.token; store.set('astra.token', j.token); }
   async logout() { try { await this.api('POST', '/api/logout'); } finally { this.token = null; store.del('astra.token'); } }
   me() { return this.api('GET', '/api/me'); }
-  async createChar(name: string, cls: ClassId, hardcore: boolean) { await this.api('POST', '/api/characters', { name, cls, hardcore }); }
+  async createChar(name: string, cls: ClassId, hardcore: boolean, look?: { hair: number; outfit: number }) { await this.api('POST', '/api/characters', { name, cls, hardcore, look }); }
   async deleteChar(id: string, confirmName: string) { await this.api('DELETE', `/api/characters/${id}`, { confirmName }); }
   connect(charId: string, h: Handlers): Conn {
     let ws: WebSocket | null = null;
@@ -111,13 +111,13 @@ export class OfflineBackend implements Backend {
     const chars = Object.values(this.chars()).filter((c) => c.accountId === a.id).sort((x, y) => x.createdAt - y.createdAt);
     return { username: a.username, account: normalizeAccount(a.progress), characters: chars.map((c) => ({ id: c.id, name: c.name, cls: c.cls, level: c.level, hardcore: c.hardcore, dead: c.dead, mastery: c.mastery.level })) };
   }
-  async createChar(name: string, cls: ClassId, hardcore: boolean) {
+  async createChar(name: string, cls: ClassId, hardcore: boolean, look?: { hair: number; outfit: number }) {
     const a = this.acct();
     const all = this.chars();
     const mine = Object.values(all).filter((c) => c.accountId === a.id);
     if (mine.length >= MAX_CHARACTERS) throw new Error(`Character limit reached (${MAX_CHARACTERS})`);
     if (Object.values(all).some((c) => c.name.toLowerCase() === name.trim().toLowerCase())) throw new Error('That name is taken');
-    const r = createCharacter(a.id, name, cls, hardcore);
+    const r = createCharacter(a.id, name, cls, hardcore, look);
     if (!r.ok) throw new Error(r.reason);
     all[r.value.id] = r.value;
     this.saveChars(all);

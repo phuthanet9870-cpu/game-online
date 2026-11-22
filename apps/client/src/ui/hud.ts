@@ -10,6 +10,8 @@ import { currencyIcon, skillIcon, uiIcon, tileIcon } from './icons.js';
 import { drawChibi } from '../sprites.js';
 import * as P from './panels.js';
 import { passiveTreePanel } from './passive.js';
+import { inventoryWindow } from './invwin.js';
+import { craftingWindow } from './craftwin.js';
 import { modeBanner } from './screens.js';
 import * as S from './social.js';
 import { sound } from '../audio.js';
@@ -605,15 +607,15 @@ export class GameUI {
     const titles: Record<PanelName, string> = { inventory: t('inventory'), skills: t('skills'), passives: t('passives'), character: t('character'), quests: t('quests'), codex: t('codex'), social: t('social'), guild: 'Guild', ladder: 'Leaderboards', alchemist: 'Sister Maelis — alchemy & cooking', season: 'Season & weekly', hearth: 'Your Hearth', carpenter: 'Carpenter Odo — furniture', auction: 'Auctioneer Vell — auction house', settings: t('settings'), dungeon: 'Rift Gate', smith: 'Brenna the Smith — forge, salvage & enchant', quartermaster: 'Quartermaster Sol — potions & selling', trainer: 'Master Ilrin — trainer', stash: 'Astral Vault', map: t('map'), crafting: getLang() === 'th' ? 'คราฟต์และทักษะชีวิต' : 'Crafting & Life Skills' };
     let body: HTMLElement;
     switch (p) {
-      case 'inventory': body = P.inventoryPanel(ctx); break;
-      case 'smith': body = h('div', null, S.craftingSection(ctx.ch, ['smithing'], (m) => this.send(m)), P.inventoryPanel(ctx, 'smith')); break;
+      case 'inventory': body = inventoryWindow(ctx, 'normal', () => this.renderPanel()); break;
+      case 'smith': body = h('div', null, inventoryWindow(ctx, 'smith', () => this.renderPanel()), craftingWindow(ctx.ch, ['smithing'], (m) => this.send(m), () => this.renderPanel())); break;
       case 'hearth': body = S.hearthPanel(this.houseData, (m) => this.send(m), (id) => this.startPlacing(id)); break;
       case 'carpenter': body = S.carpenterPanel(ctx.ch, ctx.account, (m) => this.send(m)); break;
       case 'season': body = S.seasonPanel(this.seasonData, ctx.ch, ctx.account, (m) => this.send(m)); break;
-      case 'alchemist': body = S.craftingSection(ctx.ch, ['alchemy', 'cooking'], (m) => this.send(m)); break;
-      case 'crafting': body = S.craftingSection(ctx.ch, ['smithing', 'alchemy', 'cooking'], (m) => this.send(m)); break;
-      case 'quartermaster': body = P.inventoryPanel(ctx, 'quartermaster'); break;
-      case 'stash': body = P.inventoryPanel(ctx, 'stash'); break;
+      case 'alchemist': body = craftingWindow(ctx.ch, ['alchemy', 'cooking'], (m) => this.send(m), () => this.renderPanel()); break;
+      case 'crafting': body = craftingWindow(ctx.ch, [], (m) => this.send(m), () => this.renderPanel()); break;
+      case 'quartermaster': body = inventoryWindow(ctx, 'quartermaster', () => this.renderPanel()); break;
+      case 'stash': body = inventoryWindow(ctx, 'stash', () => this.renderPanel()); break;
       case 'skills': body = P.skillsPanel(ctx); break;
       case 'passives': body = passiveTreePanel(ctx.ch, ctx.send, inTown); break;
       case 'character': body = P.characterPanel(ctx); break;
@@ -632,6 +634,7 @@ export class GameUI {
     const panel = clear(this.el.panel!);
     panel.hidden = false;
     panel.classList.toggle('wide', p === 'passives' || p === 'map');
+    panel.classList.toggle('win', ['inventory', 'smith', 'quartermaster', 'stash', 'crafting', 'alchemist', 'auction', 'social', 'guild', 'skills', 'passives', 'character', 'season', 'dungeon'].includes(p));
     panel.append(h('header', { class: 'row between' }, h('h2', null, titles[p]), h('button', { class: 'btn ghost tiny', onclick: () => this.closePanel(), 'aria-label': t('close') }, '✕')), h('div', { class: 'panel-body' }, body));
     panel.querySelector('.panel-body')!.scrollTop = scroll;
     translateDom(panel);

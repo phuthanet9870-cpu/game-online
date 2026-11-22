@@ -1,6 +1,7 @@
 // Authoritative world simulation. Runs on the server (and inside the clearly-labelled offline mode).
 // Pure TypeScript, no DOM or Node APIs, deterministic given the same seed and command stream.
 
+import { lookKey } from './data/appearance.js';
 import { CLASSES, MINIONS } from './data/classes.js';
 import { DODGE, MINION_CAPS, SKILL_MAP } from './data/skills.js';
 import { DIFFICULTIES, ELITE_AFFIXES, ENEMIES } from './data/enemies.js';
@@ -1378,7 +1379,7 @@ export class World {
         e.p ? e.p.char.cls : e.e ? e.e.def.id : e.mi!.type, e.name, e.level, e.statuses.map((s) => s.id).filter((v, i, a) => a.indexOf(v) === i).join(','),
         e.e ? (e.e.elite ? 1 : 0) | (e.e.def.boss ? 2 : 0) : 0, pend ? Math.round((1 - pend.t / pend.total) * 100) / 100 : 0, e.dead ? 1 : 0,
         Math.round((e.buffs.reduce((s, b) => s + (b.mods.find((m) => m.stat === 'sizePct')?.value ?? 0), 0))) || 0,
-        e.e?.affixes.join(',') ?? '', e.e ? Math.round((e.e.breakG / (e.e.breakMax || 1)) * 100) / 100 : 0, e.e?.phase ?? 0, e.invuln > 0 || !!e.dash ? 1 : 0, e.p?.aura ?? '', e.p?.pet ?? '',
+        e.e?.affixes.join(',') ?? '', e.e ? Math.round((e.e.breakG / (e.e.breakMax || 1)) * 100) / 100 : 0, e.e?.phase ?? 0, e.invuln > 0 || !!e.dash ? 1 : 0, e.p?.aura ?? '', e.p?.pet ?? '', e.p ? lookKey(e.p.char.look) : '',
       ]);
     }
     const projs = this.projs.filter((p) => dist2(p.x, p.y, cx, cy) < r2).map((p) => [p.id, Math.round(p.x), Math.round(p.y), Math.round(p.vx), Math.round(p.vy), p.r, p.visual, p.team]);

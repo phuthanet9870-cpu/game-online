@@ -252,6 +252,8 @@ export interface CharacterData {
   /** Active treasure hunt: exact spot stays server-side knowledge but is persisted with the character. */
   /** Tutorial step index; -1 = finished or skipped. */
   tutorial?: number;
+  /** Appearance chosen at creation (hair colour / outfit tint palette indexes, -1 = class default). */
+  look?: { hair: number; outfit: number };
   treasure?: { zone: string; x: number; y: number; hx: number; hy: number; hr: number } | null;
 }
 

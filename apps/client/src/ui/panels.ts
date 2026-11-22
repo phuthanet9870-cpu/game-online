@@ -9,6 +9,7 @@ import { BIND_LABELS, DEFAULT_BINDS, keyLabel, saveBinds, type Input } from '../
 import { clear, h, promptDialog, toast } from './dom.js';
 import { bindTip, hideTip, icon, itemTooltip, skillColor, skillTooltip } from './tooltip.js';
 import { passiveTreePanel } from './passive.js';
+import { skillIcon, tileIcon } from './icons.js';
 import { sound } from '../audio.js';
 
 export interface PanelCtx {
@@ -97,7 +98,7 @@ export function skillsPanel(ctx: PanelCtx): HTMLElement {
     const mk = (kind: 'active' | 'ultimate', i: number) => {
       const id = loadout[kind][i];
       const sk = id ? SKILL_MAP[id] : null;
-      const el = h('button', { class: 'skill-slot' + (kind === 'ultimate' ? ' ult' : ''), 'aria-label': `${kind} slot ${i + 1}: ${sk?.name ?? 'empty'}` }, sk ? icon(sk.icon, skillColor(sk), 30) : h('span', { class: 'muted' }, '+'), h('kbd', null, kind === 'active' ? keys[i] : ukeys[i]));
+      const el = h('button', { class: 'skill-slot' + (kind === 'ultimate' ? ' ult' : ''), 'aria-label': `${kind} slot ${i + 1}: ${sk?.name ?? 'empty'}` }, sk ? skillIcon(sk, 44) : h('span', { class: 'muted' }, '+'), h('kbd', null, kind === 'active' ? keys[i] : ukeys[i]));
       if (sk) bindTip(el, () => skillTooltip(sk, ch));
       el.onclick = () => {
         if (!picked) return;
@@ -119,7 +120,7 @@ export function skillsPanel(ctx: PanelCtx): HTMLElement {
     const locked = s.unlockLevel > ch.level;
     const equipped = loadout[kind].includes(s.id);
     const el = h('button', { class: 'skill-card' + (locked ? ' locked' : '') + (equipped ? ' eq' : ''), draggable: !locked, disabled: locked },
-      icon(s.icon, locked ? '#555' : skillColor(s), 28), h('div', { class: 'grow' }, h('b', null, ct(`skill.${s.id}.name`, s.name)), h('div', { class: 'muted' }, locked ? `Unlocks at level ${s.unlockLevel}` : `${s.cost ? s.cost + ' ' + CLASSES[ch.cls].resource.name + ' · ' : ''}${s.cooldown}s`)));
+      skillIcon(s, 44), h('div', { class: 'grow' }, h('b', null, ct(`skill.${s.id}.name`, s.name)), h('div', { class: 'muted' }, locked ? `Unlocks at level ${s.unlockLevel}` : `${s.cost ? s.cost + ' ' + CLASSES[ch.cls].resource.name + ' · ' : ''}${s.cooldown}s`)));
     bindTip(el, () => skillTooltip(s, ch));
     el.onclick = () => { picked = s.id; status.textContent = `Selected ${ct(`skill.${s.id}.name`, s.name)} — now click a ${kind} slot.`; };
     el.ondragstart = (e) => e.dataTransfer?.setData('text/skill', s.id);
@@ -281,12 +282,25 @@ export function settingsPanel(ctx: PanelCtx): HTMLElement {
     h('button', { class: 'btn danger', onclick: () => ctx.logout() }, t('logout') + ' / character select'));
 }
 
+const BLESS_ART: Record<string, [string, string, string]> = { b_fury: ['fire', '#ff5a3a', 'legendary'], b_swift: ['dodge', '#5fe0d0', 'epic'], b_ward: ['shield', '#5bd16a', 'rare'], b_crit: ['mark', '#ffd36a', 'epic'], b_time: ['blink', '#5fe0d0', 'epic'], b_leech: ['drain', '#c42030', 'rare'], b_echo: ['arrows', '#9b6cff', 'rare'] };
+/** Roguelike reward choice (concept 04): three illustrated cards, pick one, confirm. */
 export function choiceModal(kind: 'shrine' | 'altar', options: Array<{ id: string; name: string; desc: string }>, send: (m: any) => void, close: () => void): HTMLElement {
-  return h('div', { class: 'modal-wrap' }, h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true' },
-    h('h2', null, kind === 'shrine' ? t('chooseBlessing') : t('bargain')),
-    h('p', { class: 'muted' }, kind === 'shrine' ? 'A blessing lasts until the end of this Rift run.' : 'Bargains trade power for greater rewards — they last until the run ends.'),
-    h('div', { class: 'choices' }, options.map((o) => h('button', { class: 'choice' + (BLESSING_MAP[o.id]?.curse ? ' curse' : ''), onclick: () => { send({ t: 'choose', choice: o.id }); close(); } }, h('b', null, ct(`bless.${o.id}.name`, o.name)), h('span', null, ct(`bless.${o.id}.desc`, o.desc))))),
-    h('button', { class: 'btn ghost', onclick: () => { send({ t: 'choose', choice: 'decline' }); close(); } }, t('decline'))));
+  const th = getLang() === 'th';
+  let pick: string | null = null;
+  const confirm = h('button', { class: 'btn gold big', disabled: true }, th ? 'ยืนยันการเลือก' : 'Confirm Choice');
+  const cards = h('div', { class: 'reward-cards' }, options.map((o) => {
+    const curse = !!BLESSING_MAP[o.id]?.curse;
+    const [g, c, r] = curse ? ['skull', '#ff4f5a', 'ancient'] : BLESS_ART[o.id] ?? ['star', '#9b6cff', 'epic'];
+    const card = h('button', { class: 'rcard ' + r + (curse ? ' curse' : '') }, h('div', { class: 'rc-kind' }, curse ? (th ? 'ข้อแลกเปลี่ยน' : 'Bargain') : (th ? 'พร' : 'Blessing')), tileIcon(g, c, r, 110), h('b', { class: 'rc-name' }, ct(`bless.${o.id}.name`, o.name)), h('small', { class: 'rc-r' }, curse ? (th ? 'คำสาป' : 'Cursed bargain') : r[0]!.toUpperCase() + r.slice(1) + (th ? ' พร' : ' Blessing')), h('p', null, ct(`bless.${o.id}.desc`, o.desc)));
+    card.onclick = () => { pick = o.id; for (const el of Array.from(cards.children)) el.classList.toggle('on', el === card); confirm.disabled = false; };
+    card.ondblclick = () => { send({ t: 'choose', choice: o.id }); close(); };
+    return card;
+  }));
+  confirm.onclick = () => { if (pick) { send({ t: 'choose', choice: pick }); close(); } };
+  return h('div', { class: 'modal-wrap clear' }, h('div', { class: 'reward-modal', role: 'dialog', 'aria-modal': 'true' },
+    h('div', { class: 'rm-banner' }, h('h2', null, kind === 'shrine' ? (th ? 'เคลียร์ห้องแล้ว!' : 'Room Cleared!') : (th ? 'แท่นแห่งข้อแลกเปลี่ยน' : 'Altar of Bargains')), h('small', null, kind === 'shrine' ? (th ? 'เลือกรางวัลโร้กไลก์' : 'Choose a Roguelike Reward') : (th ? 'แลกพลังกับรางวัลที่มากขึ้น — มีผลจนจบรอบ' : 'Trade power for greater rewards — lasts until the run ends'))),
+    cards,
+    h('div', { class: 'rm-actions' }, h('button', { class: 'btn', onclick: () => { send({ t: 'choose', choice: 'decline' }); close(); } }, t('decline')), confirm)));
 }
 
 export function runEndModal(m: any, close: () => void): HTMLElement {

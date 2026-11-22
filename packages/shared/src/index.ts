@@ -7,6 +7,7 @@ export * from './maps.js';
 export * from './world.js';
 export * from './core.js';
 export * from './data/classes.js';
+export * from './data/appearance.js';
 export * from './data/skills.js';
 export * from './data/passives.js';
 export * from './data/items.js';
