@@ -1,5 +1,5 @@
 import { AH, CLASSES, DIFFICULTIES, DIFFICULTY_ORDER, GUILD, RARITIES, RARITY_DEFS, type CharacterData, type Item } from '@astra/shared';
-import { t } from '../i18n.js';
+import { ct, t } from '../i18n.js';
 import { clear, confirmDialog, h, promptDialog, toast } from './dom.js';
 import { bindTip, hideTip, itemTooltip } from './tooltip.js';
 
@@ -141,3 +141,24 @@ export function worldEventBanner(ev: any): HTMLElement | null {
 }
 
 export { toast, clear };
+
+// ───────────────────────── Crafting (Smith: smithing · Alchemist: alchemy + cooking) ─────────────────────────
+import { CRAFT_SLOTS, ELIXIRS, MATERIALS, PROFESSIONS, PROF_MAX, RECIPES, profXpToNext, type ProfId } from '@astra/shared';
+export function craftingSection(ch: CharacterData, profs: ProfId[], send: Send): HTMLElement {
+  const slot = h('select', { 'aria-label': 'Equipment slot to forge', id: 'craft-slot' }, CRAFT_SLOTS.map((x) => h('option', { value: x }, x)));
+  const lv = (p: ProfId) => ch.prof[p]?.lv ?? 1;
+  return h('div', { class: 'craft' },
+    h('p', { class: 'muted' }, 'Materials: ' + Object.entries(MATERIALS).map(([k, m]) => `${ct(`mat.${k}`, m.name)} ${ch.mats[k] ?? 0}`).join(' · ') + ` · Astral Dust ${ch.dust} · Gold ${ch.gold}`),
+    ch.elixir && ch.elixir.until > Date.now() ? h('p', { class: 'good' }, `Active: ${ELIXIRS[ch.elixir.id]?.name} (${Math.ceil((ch.elixir.until - Date.now()) / 60000)} min left). A new elixir or meal replaces it.`) : null,
+    profs.map((p) => h('div', null,
+      h('h3', null, `${ct(`prof.${p}`, PROFESSIONS[p].name)} — level ${lv(p)}/${PROF_MAX}`, h('small', { class: 'muted' }, lv(p) < PROF_MAX ? `  ${ch.prof[p]?.xp ?? 0}/${profXpToNext(lv(p))} XP` : '  max')),
+      p === 'smithing' ? h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Forge slot:'), slot) : null,
+      h('div', { class: 'list' }, RECIPES.filter((r) => r.prof === p).map((r) => {
+        const missing = Object.entries(r.mats).filter(([m, n]) => (ch.mats[m] ?? 0) < n);
+        const canLv = lv(p) >= r.level;
+        const cost = [...Object.entries(r.mats).map(([m, n]) => `${n} ${MATERIALS[m]?.name ?? m}`), r.dust ? `${r.dust} dust` : '', r.gold ? `${r.gold}g` : ''].filter(Boolean).join(', ');
+        return h('div', { class: 'list-row' }, h('span', { class: 'grow' }, ct(`recipe.${r.id}`, r.name)), h('small', { class: missing.length ? 'muted' : '' }, cost),
+          h('button', { class: 'btn tiny', disabled: !canLv || missing.length > 0 || (r.dust ?? 0) > ch.dust || (r.gold ?? 0) > ch.gold, title: !canLv ? `Requires level ${r.level}` : '', onclick: () => send({ t: 'craft', recipe: r.id, slot: slot.value }) }, canLv ? 'Craft' : `Lv ${r.level}`));
+      })))),
+    h('p', { class: 'hint' }, 'Gather Moonpetal in Duskmeadow; Iron, Starsteel and Emberbloom in the Ashen Highlands (east of Duskmeadow). Beasts drop meat; Cinderkin drop Cinder Cores.'));
+}

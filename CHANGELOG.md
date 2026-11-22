@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0] — 2026-11-22 — Content: second region, professions, story, Thai content
+### Added
+- Ashen Highlands open world (levels 10-20) east of Duskmeadow: lava fields, charred spires, Cinderkin family (Ember Imp, Flamecaller, Magma Golem, Cinder Drakeling).
+- Professions: Mining, Herbalism, Alchemy, Smithing, Cooking (levels 1-10). Iron, Starsteel (Mining 4+), Emberbloom nodes; material drops (Beast Meat, Cinder Core) go to a materials pouch.
+- Crafting at Brenna (forge rare/epic gear for a chosen slot) and the new NPC Sister Maelis (potions, 3 elixirs, 2 meals). One consumable buff at a time, persists across zones.
+- Story Chapter 2 (6 quests) and Chapter 3 (3 quests) ending at the raid; new objective types (gather ore, craft, tower floor, arena wave, clear activity).
+- Thai translations for classes, all 72 skills, quests, enemies, activities, blessings, dungeon modifiers, achievements, professions and recipes.
+- Tests: Thai coverage, Highlands connectivity, crafting and profession gates (34 total).
+
 ## [0.3.0] — 2026-11-22 — Phase 5: Endgame
 ### Added
 - Rift Gate activity picker with server-side unlock rules: Rift, Challenge Arena (lv 1), Endless Tower (lv 5), Ancient Labyrinth (lv 8), Nightmare Rift (lv 10 + cleared Hard), Raid (lv 12).

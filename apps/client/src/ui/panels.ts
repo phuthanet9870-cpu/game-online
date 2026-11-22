@@ -2,8 +2,8 @@ import {
   ACHIEVEMENTS, BLESSING_MAP, CLASSES, DIFFICULTIES, DIFFICULTY_ORDER, DUNGEON_MODIFIERS, ENEMIES, EQUIP_SLOTS, LORE, POTION, QUESTS, RARITY_DEFS, SKILL_MAP, classSkills, computeStats, enchantCost,
   masteryToNext, sellValue, salvageValue, statLabel, xpToNext, AFFIX_MAP, type CharacterData, type EquipSlot, type Item, type AccountProgress,
 } from '@astra/shared';
-import { t, getLang, setLang } from '../i18n.js';
-import { ACTIVITIES, ACTIVITY_ORDER, type Activity } from '@astra/shared';
+import { ct, t, getLang, setLang } from '../i18n.js';
+import { ACTIVITIES, ACTIVITY_ORDER, ELIXIRS, MATERIALS, PROFESSIONS, type Activity } from '@astra/shared';
 import { BIND_LABELS, DEFAULT_BINDS, keyLabel, saveBinds, type Input } from '../input.js';
 import { clear, h, promptDialog, toast } from './dom.js';
 import { bindTip, hideTip, icon, itemTooltip, skillColor, skillTooltip } from './tooltip.js';
@@ -109,15 +109,15 @@ export function skillsPanel(ctx: PanelCtx): HTMLElement {
     const locked = s.unlockLevel > ch.level;
     const equipped = loadout[kind].includes(s.id);
     const el = h('button', { class: 'skill-card' + (locked ? ' locked' : '') + (equipped ? ' eq' : ''), draggable: !locked, disabled: locked },
-      icon(s.icon, locked ? '#555' : skillColor(s), 28), h('div', { class: 'grow' }, h('b', null, s.name), h('div', { class: 'muted' }, locked ? `Unlocks at level ${s.unlockLevel}` : `${s.cost ? s.cost + ' ' + CLASSES[ch.cls].resource.name + ' · ' : ''}${s.cooldown}s`)));
+      icon(s.icon, locked ? '#555' : skillColor(s), 28), h('div', { class: 'grow' }, h('b', null, ct(`skill.${s.id}.name`, s.name)), h('div', { class: 'muted' }, locked ? `Unlocks at level ${s.unlockLevel}` : `${s.cost ? s.cost + ' ' + CLASSES[ch.cls].resource.name + ' · ' : ''}${s.cooldown}s`)));
     bindTip(el, () => skillTooltip(s, ch));
-    el.onclick = () => { picked = s.id; status.textContent = `Selected ${s.name} — now click a ${kind} slot.`; };
+    el.onclick = () => { picked = s.id; status.textContent = `Selected ${ct(`skill.${s.id}.name`, s.name)} — now click a ${kind} slot.`; };
     el.ondragstart = (e) => e.dataTransfer?.setData('text/skill', s.id);
     return el;
   }));
   renderSlots();
   const d = CLASSES[ch.cls];
-  return h('div', null, h('p', { class: 'muted' }, `${d.name} — ${d.mechanic}`), slotsEl, status, h('h3', null, 'Active skills'), lib('active'), h('h3', null, 'Ultimate skills'), lib('ultimate'),
+  return h('div', null, h('p', { class: 'muted' }, `${ct(`class.${d.id}.name`, d.name)} — ${ct(`class.${d.id}.mechanic`, d.mechanic)}`), slotsEl, status, h('h3', null, 'Active skills'), lib('active'), h('h3', null, 'Ultimate skills'), lib('ultimate'),
     h('p', { class: 'hint' }, 'Basic attack: hold left mouse (or the ⚔ button on touch). Dodge: Space. Passives and items can transform your basic attack (extra hits, chains, element conversion).'));
 }
 
@@ -139,8 +139,11 @@ export function characterPanel(ctx: PanelCtx): HTMLElement {
       row('Life regen / leech', `${st.hpRegen.toFixed(1)}/s / ${(st.leech * 100).toFixed(1)}%`), row('Movement speed', Math.round(st.moveSpeed)),
       row('Keystones', [...st.flags].join(', ') || '—')),
     extra.length ? h('div', null, h('h4', null, 'Build modifiers'), h('ul', { class: 'tip-fx' }, extra.map((e) => h('li', null, e)))) : null,
+    h('h4', null, 'Professions'), h('p', null, Object.entries(PROFESSIONS).map(([k, p]) => `${p.name} ${ch.prof?.[k]?.lv ?? 1}`).join(' · ')),
+    h('p', { class: 'muted' }, 'Materials: ' + Object.entries(MATERIALS).map(([k, m]) => `${m.name} ${ch.mats?.[k] ?? 0}`).join(' · ')),
+    ch.elixir && ch.elixir.until > Date.now() ? h('p', null, `Active consumable: ${ELIXIRS[ch.elixir.id]?.name}`) : h('span'),
     h('h4', null, 'Record'), h('p', null, `Kills ${ch.stats.kills} · Bosses ${ch.stats.bossKills} · Rifts cleared ${ch.stats.runsCleared} · Highest tier ${DIFFICULTY_ORDER[ch.stats.highestTier] ?? 'story'} · Deaths ${ch.stats.deaths}`),
-    h('h4', null, `${t('achievements')} (account)`), h('ul', { class: 'ach' }, Object.entries(ACHIEVEMENTS).map(([id, a]) => h('li', { class: account.achievements.includes(id) ? 'got' : '' }, `${account.achievements.includes(id) ? '★' : '☆'} ${a.name} — ${a.desc}`))),
+    h('h4', null, `${t('achievements')} (account)`), h('ul', { class: 'ach' }, Object.entries(ACHIEVEMENTS).map(([id, a]) => h('li', { class: account.achievements.includes(id) ? 'got' : '' }, `${account.achievements.includes(id) ? '★' : '☆'} ${ct(`ach.${id}.name`, a.name)} — ${a.desc}`))),
     h('h4', null, t('titles')), h('p', null, account.titles.join(', ') || '—'),
   );
 }
@@ -148,15 +151,15 @@ export function characterPanel(ctx: PanelCtx): HTMLElement {
 export function questsPanel(ctx: PanelCtx, atGiver: boolean): HTMLElement {
   const { ch, send } = ctx;
   return h('div', { class: 'quests' },
-    h('p', { class: 'lore' }, LORE.intro),
+    h('p', { class: 'lore' }, ct('lore.intro', LORE.intro)),
     !atGiver ? h('p', { class: 'hint' }, 'Visit Commander Aveline in Lumenhold to accept quests and claim rewards.') : null,
     QUESTS.map((q) => {
       const st = ch.quests[q.id];
       const locked = q.requires && !ch.quests[q.requires]?.claimed;
       const rw = Object.entries(q.reward).map(([k, v]) => `${v} ${k}`).join(', ');
       return h('div', { class: 'quest' + (st?.claimed ? ' done' : '') },
-        h('div', { class: 'row between' }, h('b', null, `Ch.${q.chapter} · ${q.name}`), h('span', { class: 'muted' }, st?.claimed ? t('done') : st?.done ? t('complete') : st ? `${st.progress}/${q.objective.count}` : locked ? 'Locked' : '')),
-        h('p', null, q.text), h('small', { class: 'muted' }, `Reward: ${rw}`),
+        h('div', { class: 'row between' }, h('b', null, `Ch.${q.chapter} · ${ct(`quest.${q.id}.name`, q.name)}`), h('span', { class: 'muted' }, st?.claimed ? t('done') : st?.done ? t('complete') : st ? `${st.progress}/${q.objective.count}` : locked ? 'Locked' : '')),
+        h('p', null, ct(`quest.${q.id}.text`, q.text)), h('small', { class: 'muted' }, `Reward: ${rw}`),
         atGiver && !st && !locked ? h('button', { class: 'btn', onclick: () => send({ t: 'quest_accept', id: q.id }) }, t('accept')) : null,
         atGiver && st?.done && !st.claimed ? h('button', { class: 'btn primary', onclick: () => send({ t: 'quest_claim', id: q.id }) }, t('claim')) : null);
     }));
@@ -176,14 +179,14 @@ export function dungeonPanel(ctx: PanelCtx, unlocked: string[], locks: Record<st
     diffRow.hidden = !a.chooseDifficulty;
     for (const b of Array.from(diffRow.children)) (b as HTMLElement).classList.toggle('on', (b as HTMLElement).dataset.d === diff);
     const d = DIFFICULTIES[diff as keyof typeof DIFFICULTIES];
-    clear(info).append(h('h3', null, a.name), h('p', null, a.desc), h('p', { class: 'muted' }, a.rules),
+    clear(info).append(h('h3', null, ct(`activity.${a.id}.name`, a.name)), h('p', null, ct(`activity.${a.id}.desc`, a.desc)), h('p', { class: 'muted' }, a.rules),
       h('p', { class: 'muted' }, `Party up to ${a.maxParty} · requires level ${a.minLevel}${a.needTier !== undefined ? ' and a cleared Hard Rift' : ''}`),
       h('p', { hidden: !a.chooseDifficulty }, `${d.name}: enemy life ×${d.hp} · damage ×${d.dmg} · rarity +${Math.round(d.loot * 100)}% · XP ×${d.xp}${d.extraMechanics.length ? ' · ' + d.extraMechanics.join(', ') : ''}`),
       h('p', { class: 'warn', hidden: !lock }, '🔒 ' + (lock ?? '')));
     go.disabled = !!lock;
-    go.textContent = lock ? 'Locked' : `Enter ${a.name}`;
+    go.textContent = lock ? 'Locked' : `${t('enter')} ${ct(`activity.${a.id}.name`, a.name)}`;
   };
-  for (const m of ACTIVITY_ORDER) modeRow.append(h('button', { class: 'btn', 'data-m': m, onclick: () => { mode = m; render(); } }, (locks[m] ? '🔒 ' : '') + ACTIVITIES[m].name));
+  for (const m of ACTIVITY_ORDER) modeRow.append(h('button', { class: 'btn', 'data-m': m, onclick: () => { mode = m; render(); } }, (locks[m] ? '🔒 ' : '') + ct(`activity.${m}.name`, ACTIVITIES[m].name)));
   for (const d of DIFFICULTY_ORDER) diffRow.append(h('button', { class: 'btn tiny', 'data-d': d, disabled: !unlocked.includes(d), onclick: () => { diff = d; render(); } }, DIFFICULTIES[d].name));
   go.onclick = () => ctx.send({ t: 'enter_dungeon', diff, mode });
   render();
@@ -215,7 +218,7 @@ export function codexPanel(ctx: PanelCtx): HTMLElement {
   return h('div', null, h('p', { class: 'lore' }, LORE.hollowborn), h('p', { class: 'lore' }, LORE.veyra),
     h('div', { class: 'codex' }, Object.values(ENEMIES).filter((e) => e.id !== 'dummy').map((e) => {
       const n = known[e.id] ?? 0;
-      return h('div', { class: 'codex-entry' + (n ? '' : ' unknown') }, h('b', null, n ? e.name : '???'), h('div', { class: 'muted' }, n ? `${e.family} · ${e.role} · defeated ${n}` : 'Not yet encountered'),
+      return h('div', { class: 'codex-entry' + (n ? '' : ' unknown') }, h('b', null, n ? ct(`enemy.${e.id}`, e.name) : '???'), h('div', { class: 'muted' }, n ? `${e.family} · ${e.role} · defeated ${n}` : 'Not yet encountered'),
         n ? h('small', null, `Resists: ${Object.entries(e.res).map(([k, v]) => `${k} ${v}%`).join(', ') || 'none'}${e.boss ? ` · ${e.boss.title}` : ''}`) : null);
     })));
 }
@@ -266,7 +269,7 @@ export function choiceModal(kind: 'shrine' | 'altar', options: Array<{ id: strin
   return h('div', { class: 'modal-wrap' }, h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true' },
     h('h2', null, kind === 'shrine' ? t('chooseBlessing') : t('bargain')),
     h('p', { class: 'muted' }, kind === 'shrine' ? 'A blessing lasts until the end of this Rift run.' : 'Bargains trade power for greater rewards — they last until the run ends.'),
-    h('div', { class: 'choices' }, options.map((o) => h('button', { class: 'choice' + (BLESSING_MAP[o.id]?.curse ? ' curse' : ''), onclick: () => { send({ t: 'choose', choice: o.id }); close(); } }, h('b', null, o.name), h('span', null, o.desc)))),
+    h('div', { class: 'choices' }, options.map((o) => h('button', { class: 'choice' + (BLESSING_MAP[o.id]?.curse ? ' curse' : ''), onclick: () => { send({ t: 'choose', choice: o.id }); close(); } }, h('b', null, ct(`bless.${o.id}.name`, o.name)), h('span', null, ct(`bless.${o.id}.desc`, o.desc))))),
     h('button', { class: 'btn ghost', onclick: () => { send({ t: 'choose', choice: 'decline' }); close(); } }, t('decline'))));
 }
 

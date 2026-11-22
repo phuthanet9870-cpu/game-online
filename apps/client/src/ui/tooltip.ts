@@ -1,5 +1,6 @@
 import { AFFIX_MAP, CLASSES, ITEM_BASE_MAP, LEGENDARY_POWERS, RARITY_DEFS, computeStats, itemMods, statLabel, type CharacterData, type Item, type SkillDef, type SkillEffect, type Derived } from '@astra/shared';
 import { h, svg } from './dom.js';
+import { ct } from '../i18n.js';
 
 const ICONS: Record<string, string> = {
   arc: 'M4 18c4-10 12-12 16-12M6 20c3-6 8-9 14-9', leap: 'M4 20l6-12 4 6 6-10M14 4h6v6', shout: 'M4 10h4l6-5v14l-6-5H4zM18 8c1.5 1.5 1.5 6.5 0 8',
@@ -51,9 +52,9 @@ export function skillTooltip(s: SkillDef, ch: CharacterData | null): HTMLElement
   const st = ch ? computeStats(ch) : null;
   const res = CLASSES[s.cls].resource.name;
   return h('div', { class: 'tip' },
-    h('div', { class: 'tip-title', style: `color:${skillColor(s)}` }, s.name, h('span', { class: 'tip-kind' }, s.kind === 'ultimate' ? ' · ULTIMATE' : ' · Active')),
+    h('div', { class: 'tip-title', style: `color:${skillColor(s)}` }, ct(`skill.${s.id}.name`, s.name), h('span', { class: 'tip-kind' }, s.kind === 'ultimate' ? ' · ULTIMATE' : ' · Active')),
     h('div', { class: 'tip-sub' }, `${s.targeting} · ${s.tags.join(', ')}`),
-    h('p', null, s.desc),
+    h('p', null, ct(`skill.${s.id}.desc`, s.desc)),
     h('ul', { class: 'tip-fx' }, s.effects.map((fx) => effectLine(fx, st)).filter(Boolean).map((l) => h('li', null, l))),
     s.consumeSecondary ? h('p', { class: 'tip-note' }, `Finisher: +${Math.round(s.consumeSecondary.bonusPerPoint * 100)}% damage per ${CLASSES[s.cls].secondary?.name ?? 'point'} consumed.`) : null,
     h('div', { class: 'tip-meta' }, `Cost ${s.cost} ${res} · Cooldown ${s.cooldown}s · Cast ${s.cast}s${s.range ? ` · Range ${s.range}` : ''} · Unlocks at level ${s.unlockLevel}`),

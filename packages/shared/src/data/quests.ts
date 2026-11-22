@@ -6,7 +6,7 @@ export interface QuestDef {
   giver: string;
   chapter: number;
   text: string;
-  objective: { kind: 'kill_family' | 'kill_enemy' | 'boss' | 'gather' | 'elite' | 'clear_tier'; target?: string; count: number };
+  objective: { kind: 'kill_family' | 'kill_enemy' | 'boss' | 'gather' | 'elite' | 'clear_tier' | 'tower_floor' | 'arena_wave' | 'clear_mode' | 'craft'; target?: string; count: number };
   reward: { gold?: number; xp?: number; dust?: number; potions?: number; bonusPoints?: number; respecTokens?: number };
   requires?: string;
 }
@@ -28,8 +28,32 @@ export const QUESTS: QuestDef[] = [
     text: 'Our scouts saw her at the heart of the Rift: Veyra, who once guarded this very gate. Whatever the eclipse made of her, end it.',
     objective: { kind: 'boss', target: 'veyra', count: 1 }, reward: { gold: 400, xp: 900, bonusPoints: 1 } },
   { id: 'q2_hard', chapter: 2, name: 'Deeper Than Dawn', giver: 'Commander Aveline', requires: 'q1_warden',
-    text: 'The Rift is not closing — it is learning. Clear it on Hard difficulty or higher so we can map what lies beneath. (Chapter 2 continues in a future update.)',
+    text: 'The Rift is not closing — it is learning. Clear it on Hard difficulty or higher so we can map what lies beneath.',
     objective: { kind: 'clear_tier', target: 'hard', count: 1 }, reward: { gold: 600, xp: 1500, bonusPoints: 1 } },
+  { id: 'q2_ridge', chapter: 2, name: 'Smoke on the Ridge', giver: 'Commander Aveline', requires: 'q1_warden',
+    text: 'Scouts beyond Duskmeadow report fires that never go out. The Cinderkin are hatching in the Ashen Highlands. Thin them out before they reach the meadow.',
+    objective: { kind: 'kill_family', target: 'cinderkin', count: 20 }, reward: { gold: 500, xp: 2500 } },
+  { id: 'q2_ore', chapter: 2, name: 'Iron for the Wall', giver: 'Commander Aveline', requires: 'q1_warden',
+    text: 'Brenna needs iron to reinforce the gate. The Highland veins run thick with it. Bring back eight loads of ore.',
+    objective: { kind: 'gather', target: 'ore', count: 8 }, reward: { gold: 300, xp: 1200, dust: 20 } },
+  { id: 'q2_forge', chapter: 2, name: "Brenna's Test", giver: 'Commander Aveline', requires: 'q2_ore',
+    text: '"Anyone can swing a sword. Make one." Forge a piece of equipment at Brenna\'s anvil.',
+    objective: { kind: 'craft', target: 'smithing', count: 1 }, reward: { gold: 200, xp: 800, respecTokens: 1 } },
+  { id: 'q2_climb', chapter: 2, name: 'The Endless Climb', giver: 'Commander Aveline', requires: 'q1_warden',
+    text: 'The Rift has grown a tower of stairs that leads nowhere we know. Reach its fifth landing and tell me what waits there.',
+    objective: { kind: 'tower_floor', count: 5 }, reward: { gold: 600, xp: 2000, bonusPoints: 1 } },
+  { id: 'q2_arena', chapter: 2, name: 'Blood and Sand', giver: 'Commander Aveline',
+    text: 'The old garrison arena still opens through the Rift Gate. Our recruits train there. Show them how it is done: survive eight waves.',
+    objective: { kind: 'arena_wave', count: 8 }, reward: { gold: 400, xp: 1500 } },
+  { id: 'q3_coil', chapter: 3, name: 'The Coiled Warden', giver: 'Commander Aveline', requires: 'q2_climb',
+    text: 'Beneath the tower lies a maze older than Lumenhold. Something called Oruk guards it, and it remembers the first eclipse.',
+    objective: { kind: 'clear_mode', target: 'labyrinth', count: 1 }, reward: { gold: 900, xp: 4000, bonusPoints: 1 } },
+  { id: 'q3_nightmare', chapter: 3, name: 'Sleepless Rift', giver: 'Commander Aveline', requires: 'q2_hard',
+    text: 'At night the Rift dreams, and its dreams have teeth. Clear a Nightmare Rift.',
+    objective: { kind: 'clear_mode', target: 'nightmare', count: 1 }, reward: { gold: 1000, xp: 5000 } },
+  { id: 'q3_throne', chapter: 3, name: 'Throne of the Eclipse', giver: 'Commander Aveline', requires: 'q3_coil',
+    text: 'Veyra was only a gatekeeper. The one who keeps the sun dark sits on a throne of black glass: Nyx Aurelion. Gather your strongest allies and end this. (The story continues with Season 1.)',
+    objective: { kind: 'clear_mode', target: 'raid', count: 1 }, reward: { gold: 3000, xp: 12000, bonusPoints: 2 } },
 ];
 export const QUEST_MAP = Object.fromEntries(QUESTS.map((q) => [q.id, q]));
 

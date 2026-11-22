@@ -47,20 +47,24 @@ Last updated: 2026-11-22 (v0.2.0 — Phase 4 MMO systems added on top of the Pha
 | Direct player trade (lock → confirm, atomic swap) | Tested | Unit tests + live Postgres test; both characters saved in one SQL transaction. |
 | Auction house (escrow, 5g deposit, 10% fee, 48h expiry, claim proceeds offline) | Tested | Live test proves a double-buy yields exactly one copy; DB unique index on escrowed item uid. |
 | Per-character ordered writes | Implemented | Saves of the same character are serialized so they cannot commit out of order. |
-| Crafting professions, gathering beyond herbs, housing, pets | Not Started | Herb gathering only. Backlog B-5. |
+| Professions: Mining, Herbalism, Alchemy, Smithing, Cooking (levels 1-10, gated nodes and recipes) | Tested | |
+| Crafting: potions, 3 elixirs, 2 meals (one active buff, persists across zones), forge rare/epic gear by slot | Tested | |
+| Materials pouch (no inventory clutter) with drops from beasts and Cinderkin | Implemented | |
+| Fishing, housing, pets, treasure hunting | Not Started | Backlog B-5. |
 
 ## World & content
 | Feature | Status | Notes |
 |---|---|---|
 | Shared Town (Lumenhold) with NPC services + training dummies | Tested | |
 | Open world zone (Duskmeadow) with respawning packs, level bands 2-9 | Implemented | |
+| Second region: Ashen Highlands (levels 10-20), Cinderkin family (4 enemies), ore veins, lava fields | Tested | Connectivity and spawn bands tested. |
 | Seeded procedural Rift: rooms, branches, elite/treasure/shrine/rest/event rooms | Tested | 300 seeds validated navigable. |
 | Roguelike blessings + bargain curses (run-only) with end-of-run summary | Implemented | |
 | Dungeon modifiers (7) | Implemented | |
 | Difficulty tiers Story → Abyssal with unlock rules | Implemented | |
 | Enemy families: Hollowborn (4 + mini-boss), Duskmeadow wildlife (3) | Implemented | |
 | Boss: Veyra — 3 phases, telegraphs, adds, nova, Break gauge | Tested | |
-| Quests: Chapter 1 (5 quests) + Chapter 2 hook | Implemented | |
+| Quests: Chapter 1 (5), Chapter 2 (6), Chapter 3 (3) — kill, gather, craft, tower, arena, labyrinth, nightmare, raid objectives | Implemented | |
 | Endless Tower (short floors, ×1.12 per floor, Veyra every 5th floor, best floor ranked) | Tested | Unit test of floor progression + scaling. |
 | Challenge Arena (escalating waves, champion waves, no respawn, revive allies, ranked) | Tested | Unit test + live bot run (4 waves, persisted leaderboard). |
 | Ancient Labyrinth (maze generator, caches, Oruk boss) | Tested | 60 seeds validated navigable. |
@@ -89,7 +93,7 @@ Last updated: 2026-11-22 (v0.2.0 — Phase 4 MMO systems added on top of the Pha
 | Panels: inventory, skills, passives, character, quests, codex, party, settings, NPCs | Implemented | |
 | Remappable keys, graphics quality, UI scale, damage-number toggle | Implemented | |
 | Touch controls (joystick + buttons) | Implemented | Only checked in an emulated phone viewport. |
-| Thai / English UI | Implemented | UI chrome localized; content text (skills/items/quests) English only. |
+| Thai / English UI | Tested | UI chrome + classes, 72 skills, quests, enemies, activities, blessings, modifiers, achievements, crafting in Thai (coverage test). Item names and stat labels still English. |
 | Audio | Not Started | Backlog B-7. |
 
 ## Backlog (prioritised)
@@ -101,5 +105,5 @@ Last updated: 2026-11-22 (v0.2.0 — Phase 4 MMO systems added on top of the Pha
 - **B-6 Live ops**: season framework, weekly events, admin panel with RBAC + MFA, content publishing/rollback.
 - **B-7 Audio & art pass**: sound effects/music, sprite art replacing procedural drawing.
 - **B-8 Netcode**: input sequence numbers for exact reconciliation; delta-compressed snapshots.
-- **B-9 Content localization**: Thai translations of skill/item/quest text.
+- **B-9 Localization**: Thai for item names, affix/stat labels and NPC dialogue.
 - **B-10 More tests**: party + reconnect integration tests, cross-browser runs, larger load tests.

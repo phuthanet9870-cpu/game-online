@@ -1,6 +1,6 @@
 import { CLASSES, CLASS_IDS, LORE, type ClassId } from '@astra/shared';
 import type { Backend, CharSummary } from '../net.js';
-import { t, getLang, setLang } from '../i18n.js';
+import { ct, t, getLang, setLang } from '../i18n.js';
 import { drawChibi } from '../render.js';
 import { clear, confirmDialog, h, promptDialog, toast } from './dom.js';
 
@@ -35,7 +35,7 @@ export function renderAuth(root: HTMLElement, b: Backend, done: () => void) {
       catch (err) { errEl.textContent = (err as Error).message; }
       finally { submit.disabled = false; }
     };
-    root.append(h('div', { class: 'screen auth' }, modeBanner(b), langToggle(draw), form, h('p', { class: 'lore' }, LORE.intro)));
+    root.append(h('div', { class: 'screen auth' }, modeBanner(b), langToggle(draw), form, h('p', { class: 'lore' }, ct('lore.intro', LORE.intro))));
     user.focus();
   };
   draw();
@@ -83,8 +83,8 @@ export async function renderCharSelect(root: HTMLElement, b: Backend, play: (id:
       const d = CLASSES[sel];
       clear(detail).append(
         preview(sel, 120),
-        h('div', null, h('h3', null, d.name, h('span', { class: 'muted' }, ` — ${d.role}`)), h('p', null, d.fantasy),
-          h('p', null, h('b', null, 'Mechanic: '), d.mechanic),
+        h('div', null, h('h3', null, ct(`class.${d.id}.name`, d.name), h('span', { class: 'muted' }, ` — ${ct(`class.${d.id}.role`, d.role)}`)), h('p', null, ct(`class.${d.id}.fantasy`, d.fantasy)),
+          h('p', null, h('b', null, 'Mechanic: '), ct(`class.${d.id}.mechanic`, d.mechanic)),
           h('p', null, h('b', null, 'Resource: '), d.resource.name, d.secondary ? ` + ${d.secondary.name}` : ''),
           h('p', null, h('b', null, 'Difficulty: '), '★'.repeat(d.difficulty) + '☆'.repeat(3 - d.difficulty)),
           h('p', null, h('b', null, 'Build archetypes: ')), h('ul', null, d.archetypes.map((a) => h('li', null, a))),
@@ -92,7 +92,7 @@ export async function renderCharSelect(root: HTMLElement, b: Backend, play: (id:
       for (const el of Array.from(grid.children)) el.classList.toggle('on', (el as HTMLElement).dataset.cls === sel);
     };
     for (const c of CLASS_IDS) {
-      const btn = h('button', { class: 'class-pick', role: 'radio', 'data-cls': c, onclick: () => { sel = c; showDetail(); } }, preview(c, 56), h('span', null, CLASSES[c].name));
+      const btn = h('button', { class: 'class-pick', role: 'radio', 'data-cls': c, onclick: () => { sel = c; showDetail(); } }, preview(c, 56), h('span', null, ct(`class.${c}.name`, CLASSES[c].name)));
       grid.append(btn);
     }
     showDetail();

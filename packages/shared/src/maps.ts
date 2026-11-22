@@ -9,12 +9,14 @@ export type MapTheme = 'town' | 'field' | 'dungeon';
 
 export interface Interactable {
   id: string;
-  type: 'portal_dungeon' | 'npc_auction' | 'gate_field' | 'gate_town' | 'npc_smith' | 'npc_trainer' | 'npc_quartermaster' | 'npc_quests' | 'chest' | 'shrine' | 'fountain' | 'altar' | 'exit' | 'herb' | 'stash';
+  type: 'portal_dungeon' | 'npc_auction' | 'npc_alchemist' | 'gate_highlands' | 'gate_meadow' | 'ore' | 'gate_field' | 'gate_town' | 'npc_smith' | 'npc_trainer' | 'npc_quartermaster' | 'npc_quests' | 'chest' | 'shrine' | 'fountain' | 'altar' | 'exit' | 'herb' | 'stash';
   x: number;
   y: number;
   name: string;
   room?: number;
   used?: boolean;
+  res?: string;
+  req?: number;
 }
 
 export interface SpawnPoint { enemy: string; x: number; y: number; room?: number; elite?: boolean; level?: number; group?: number }
@@ -24,6 +26,7 @@ export interface RoomInfo { id: number; type: RoomType; x: number; y: number; w:
 export interface GameMap {
   id: string;
   theme: MapTheme;
+  palette?: 'ash';
   w: number;
   h: number;
   tiles: number[];
@@ -190,6 +193,7 @@ export function buildTown(): GameMap {
     { id: 'quests', type: 'npc_quests', name: 'Commander Aveline', ...T(34, 16) },
     { id: 'stash', type: 'stash', name: 'Astral Vault', ...T(46, 33) },
     { id: 'auction', type: 'npc_auction', name: 'Auctioneer Vell', ...T(20, 16) },
+    { id: 'alchemist', type: 'npc_alchemist', name: 'Sister Maelis', ...T(36, 27) },
   ];
   const spawns: SpawnPoint[] = [
     { enemy: 'dummy', ...T(4, 18), level: 1 }, { enemy: 'dummy', ...T(4, 22), level: 1 }, { enemy: 'dummy', ...T(4, 26), level: 1 },
@@ -198,12 +202,20 @@ export function buildTown(): GameMap {
 }
 
 // ───────────────────────── OPEN WORLD: DUSKMEADOW ─────────────────────────
-export function buildField(seed = 1337): GameMap {
+interface OpenWorldCfg {
+  id: string; seed: number; palette?: 'ash'; levelMin: number; levelMax: number;
+  pool: Array<[string, number, [number, number]]>; // enemy, weight, pack size
+  nodes: Array<{ type: 'herb' | 'ore'; res: string; name: string; count: number; req?: number }>;
+  westGate: Interactable['type']; westName: string; eastGate?: Interactable['type']; eastName?: string; level: number;
+}
+
+function buildOpenWorld(cfg: OpenWorldCfg): GameMap {
   const w = 110, h = 80;
+  const seed = cfg.seed;
   const rng = new Rng(seed);
   const tiles = new Array(w * h).fill(1);
   const set = (x: number, y: number, v: number) => { if (x >= 0 && y >= 0 && x < w && y < h) tiles[y * w + x] = v; };
-  // value noise for forests/lakes
+  // value noise for forests/lakes (lava fields in the Highlands)
   const grid = 10;
   const gw = Math.ceil(w / grid) + 2, gh = Math.ceil(h / grid) + 2;
   const nv = Array.from({ length: gw * gh }, () => rng.next());
@@ -227,15 +239,17 @@ export function buildField(seed = 1337): GameMap {
   for (let x = 0; x < w; x++) {
     ry += rng.int(-1, 1);
     ry = Math.max(10, Math.min(h - 10, ry));
+    if (x > w - 10) ry += Math.sign(40 - ry); // arrive at the east gate
     for (let dy = -2; dy <= 2; dy++) set(x, ry + dy, 2);
     if (x % 22 === 11) for (let yy = 4; yy < h - 4; yy++) { set(x, yy, tiles[yy * w + x] === 3 ? 2 : tiles[yy * w + x] === 4 ? 1 : tiles[yy * w + x]!); }
   }
   for (let x = 0; x < w; x++) { set(x, 0, 0); set(x, h - 1, 0); }
   for (let y = 0; y < h; y++) { set(0, y, 0); set(w - 1, y, 0); }
-  // west gate clearing
   for (let y = 36; y < 45; y++) for (let x = 1; x < 8; x++) set(x, y, 2);
+  if (cfg.eastGate) for (let y = 36; y < 45; y++) for (let x = w - 8; x < w - 1; x++) set(x, y, 2);
   const T = (tx: number, ty: number) => ({ x: tx * TILE + TILE / 2, y: ty * TILE + TILE / 2 });
-  const map: GameMap = { id: 'field', theme: 'field', w, h, tiles, spawn: T(4, 40), interactables: [{ id: 'gate_town', type: 'gate_town', name: 'Road to Lumenhold', ...T(2, 40) }], spawns: [], rooms: [], edges: [], seed, modifiers: [], level: 3 };
+  const map: GameMap = { id: cfg.id, theme: 'field', palette: cfg.palette, w, h, tiles, spawn: T(4, 40), interactables: [{ id: 'gate_w', type: cfg.westGate, name: cfg.westName, ...T(2, 40) }], spawns: [], rooms: [], edges: [], seed, modifiers: [], level: cfg.level };
+  if (cfg.eastGate) map.interactables.push({ id: 'gate_e', type: cfg.eastGate, name: cfg.eastName ?? 'Road', ...T(w - 3, 40) });
   const reach = reachableSet(map, map.spawn.x, map.spawn.y);
   const freeTile = (minX: number, maxX: number): [number, number] => {
     for (let i = 0; i < 400; i++) {
@@ -244,21 +258,33 @@ export function buildField(seed = 1337): GameMap {
     }
     return [10, 40];
   };
-  // spawn groups: level band rises to the east (2 → 9)
+  // spawn groups: level band rises to the east
   let group = 0;
   for (let i = 0; i < 26; i++) {
-    const [tx, ty] = freeTile(14, w - 4);
-    const lvl = 2 + Math.floor((tx / w) * 8);
-    const kind = rng.weighted(['gloomfang', 'thornback', 'wisp'], (k) => (k === 'thornback' ? 1 : 2));
-    const n = kind === 'thornback' ? rng.int(1, 2) : rng.int(2, 4);
+    const [tx, ty] = freeTile(14, w - 10);
+    const lvl = cfg.levelMin + Math.floor((tx / w) * (cfg.levelMax - cfg.levelMin + 1));
+    const [kind, , [a, b]] = rng.weighted(cfg.pool, (p) => p[1]);
+    const n = rng.int(a, b);
     group++;
     for (let j = 0; j < n; j++) map.spawns.push({ enemy: kind, x: tx * TILE + rng.range(-40, 40), y: ty * TILE + rng.range(-40, 40), level: lvl, group, elite: i % 9 === 8 && j === 0 });
   }
-  for (let i = 0; i < 14; i++) {
+  let ni = 0;
+  for (const nd of cfg.nodes) for (let i = 0; i < nd.count; i++) {
     const [tx, ty] = freeTile(8, w - 4);
-    map.interactables.push({ id: `herb${i}`, type: 'herb', name: 'Moonpetal Bloom', ...T(tx, ty) });
+    map.interactables.push({ id: `${nd.type}${ni++}`, type: nd.type, name: nd.name, res: nd.res, req: nd.req, ...T(tx, ty) });
   }
   return map;
+}
+
+export function buildField(seed = 1337): GameMap {
+  return buildOpenWorld({ id: 'field', seed, levelMin: 2, levelMax: 9, level: 3, westGate: 'gate_town', westName: 'Road to Lumenhold', eastGate: 'gate_highlands', eastName: 'Pass to the Ashen Highlands',
+    pool: [['gloomfang', 2, [2, 4]], ['thornback', 1, [1, 2]], ['wisp', 2, [2, 4]]], nodes: [{ type: 'herb', res: 'moonpetal', name: 'Moonpetal Bloom', count: 14 }] });
+}
+
+export function buildHighlands(seed = 4242): GameMap {
+  return buildOpenWorld({ id: 'highlands', seed, palette: 'ash', levelMin: 10, levelMax: 20, level: 12, westGate: 'gate_meadow', westName: 'Back to Duskmeadow',
+    pool: [['ember_imp', 3, [2, 4]], ['flamecaller', 2, [1, 3]], ['magma_golem', 1, [1, 1]], ['cinder_drake', 2, [1, 2]]],
+    nodes: [{ type: 'ore', res: 'iron_ore', name: 'Iron Vein', count: 14 }, { type: 'ore', res: 'starsteel', name: 'Starsteel Vein', count: 5, req: 4 }, { type: 'herb', res: 'emberbloom', name: 'Emberbloom', count: 10 }] });
 }
 
 // ───────────────────────── PROCEDURAL DUNGEON ─────────────────────────

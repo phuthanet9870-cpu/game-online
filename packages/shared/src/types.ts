@@ -244,6 +244,9 @@ export interface CharacterData {
   stats: { kills: number; deaths: number; bossKills: number; runsCleared: number; highestTier: number };
   createdAt: number;
   version: number;
+  mats: Record<string, number>;
+  prof: Record<string, { lv: number; xp: number }>;
+  elixir: { id: string; until: number } | null;
 }
 
 export interface AccountProgress {

@@ -90,6 +90,23 @@ export const ENEMIES: Record<string, EnemyDef> = {
     id: 'wisp', name: 'Eclipse Wisp', family: 'wildlife', role: 'caster', hp: 40, power: 9, armor: 0, res: { shadow: 50, lightning: 30 }, speed: 130, radius: 12, xp: 15, aggroRange: 380, preferRange: 280,
     attacks: [{ id: 'spark', kind: 'projectile', range: 400, cooldown: 1.8, windup: 0.5, dmg: 0.9, type: 'lightning', speed: 420, status: { id: 'shock', chance: 0.3, duration: 2, power: 0.1 } }], color: '#7ad0ff',
   },
+  // Ashen Highlands — the Cinderkin (levels 10-20)
+  ember_imp: {
+    id: 'ember_imp', name: 'Ember Imp', family: 'cinderkin', role: 'flanker', hp: 60, power: 10, armor: 15, res: { fire: 60, ice: -30 }, speed: 185, radius: 12, xp: 16, aggroRange: 320,
+    attacks: [{ id: 'claw', kind: 'melee', range: 44, cooldown: 1.1, windup: 0.35, dmg: 0.9, type: 'fire', status: { id: 'burn', chance: 0.3, duration: 3, power: 0.2 } }], color: '#d9542b',
+  },
+  flamecaller: {
+    id: 'flamecaller', name: 'Cinder Flamecaller', family: 'cinderkin', role: 'caster', hp: 60, power: 12, armor: 10, res: { fire: 60, ice: -30 }, speed: 105, radius: 14, xp: 22, aggroRange: 420, preferRange: 270,
+    attacks: [{ id: 'pyre', kind: 'eruption', range: 400, cooldown: 3.2, windup: 1.0, dmg: 1.7, type: 'fire', radius: 75, count: 2, status: { id: 'burn', chance: 1, duration: 3, power: 0.25 } }], color: '#b2402a',
+  },
+  magma_golem: {
+    id: 'magma_golem', name: 'Magma Golem', family: 'cinderkin', role: 'tank', hp: 240, power: 15, armor: 80, res: { fire: 75, ice: -40, physical: 15 }, speed: 85, radius: 22, xp: 48, aggroRange: 300,
+    attacks: [{ id: 'eruption_slam', kind: 'slam', range: 90, cooldown: 3.0, windup: 0.9, dmg: 1.6, type: 'fire', radius: 110 }], color: '#7a2a1a', lootBonus: 1,
+  },
+  cinder_drake: {
+    id: 'cinder_drake', name: 'Cinder Drakeling', family: 'cinderkin', role: 'ranged', hp: 75, power: 11, armor: 25, res: { fire: 60, ice: -30 }, speed: 150, radius: 15, xp: 24, aggroRange: 440, preferRange: 280,
+    attacks: [{ id: 'flame_spit', kind: 'projectile', range: 440, cooldown: 1.9, windup: 0.5, dmg: 1.0, type: 'fire', speed: 460 }], color: '#e0763a',
+  },
   // Training dummy (town)
   dummy: {
     id: 'dummy', name: 'Training Dummy', family: 'construct', role: 'tank', hp: 1_000_000, power: 0, armor: 0, res: {}, speed: 0, radius: 18, xp: 0, aggroRange: 0, attacks: [], color: '#a8875a',

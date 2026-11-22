@@ -12,8 +12,9 @@ import { decodeBuild } from './data/passives.js';
 import { ACHIEVEMENTS, QUESTS, QUEST_MAP } from './data/quests.js';
 import { generateItem, rollRarity } from './loot.js';
 import { Rng, dist } from './math.js';
-import { buildArena, buildField, buildTown, generateDungeon, generateLabyrinth, type GameMap } from './maps.js';
+import { buildArena, buildField, buildHighlands, buildTown, generateDungeon, generateLabyrinth, type GameMap } from './maps.js';
 import { ACTIVITIES, ACTIVITY_ORDER, NIGHTMARE_MODS, towerScale, type Activity } from './data/activities.js';
+import { MATERIALS, PROFESSIONS, RECIPE_MAP } from './data/crafting.js';
 import type { AccountProgress, CharacterData, DifficultyId, EquipSlot } from './types.js';
 import { EQUIP_SLOTS, PROTOCOL_VERSION, STASH_SIZE } from './types.js';
 import { TICK_RATE, World, type WorldEvent, type WorldOptions } from './world.js';
@@ -68,7 +69,7 @@ interface Room { id: string; kind: 'town' | 'field' | 'dungeon'; world: World; s
 export interface LeaderRecord { board: string; charId: string; name: string; cls: string; hardcore: boolean; value: number; at: number }
 interface Party { id: string; leader: string; members: string[] }
 
-const MUTATIONS = new Set(['trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose']);
+const MUTATIONS = new Set(['craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose']);
 
 export function emptyAccount(): AccountProgress {
   return { codex: {}, achievements: [], titles: [], stash: { normal: Array(STASH_SIZE).fill(null), hardcore: Array(STASH_SIZE).fill(null) } };
@@ -115,6 +116,7 @@ export class GameCore {
   constructor(private persist: Persistence, private opts: { label: string } = { label: 'server' }) {
     this.createRoom('town', buildTown(), 'normal', 0);
     this.createRoom('field', buildField(1337), 'normal', 1337);
+    this.createRoom('highlands', buildHighlands(4242), 'normal', 4242);
   }
 
   private createRoom(id: string, map: GameMap, difficulty: DifficultyId, seed: number, partySize = 1, partyId: string | null = null, extra: Partial<WorldOptions> = {}): Room {
@@ -271,6 +273,18 @@ export class GameCore {
           if (r.ok) { const lr = C.setLoadout(s.char, b.a, b.u); if (!lr.ok) this.toast(s, 'Passives applied; loadout skipped: ' + lr.reason); }
           this.mutateStats(s, r); break;
         }
+        case 'craft': {
+          const r = RECIPE_MAP[String(msg.recipe)];
+          if (!r) return err('Unknown recipe');
+          const npc = r.prof === 'smithing' ? 'npc_smith' : 'npc_alchemist';
+          if (!this.nearNpc(s, room, npc)) return err(r.prof === 'smithing' ? 'Visit Brenna the Smith to forge' : 'Visit Sister Maelis to brew or cook');
+          const res = C.craft(s.char, r.id, typeof msg.slot === 'string' ? msg.slot : undefined, this.rng);
+          if (!res.ok) return err(res.reason);
+          this.toast(s, res.value.text);
+          this.progressQuest(s, 'craft', r.prof, 1);
+          this.mutate(s, { ok: true, value: undefined }, 'craft', { recipe: r.id, item: res.value.item?.uid });
+          break;
+        }
         case 'quest_accept': if (!this.nearNpc(s, room, 'npc_quests')) return err('Talk to Commander Aveline in Lumenhold'); this.questAccept(s, String(msg.id)); break;
         case 'quest_claim': if (!this.nearNpc(s, room, 'npc_quests')) return err('Talk to Commander Aveline in Lumenhold'); this.questClaim(s, String(msg.id)); break;
         case 'stash_put': case 'stash_take': this.stash(s, room, msg); break;
@@ -347,18 +361,27 @@ export class GameCore {
       case 'portal_dungeon': s.send({ t: 'open', what: 'dungeon', unlocked: this.unlockedTiers(s), locks: Object.fromEntries(ACTIVITY_ORDER.map((a) => [a, this.activityLock(s, a)])) }); break;
       case 'gate_field': this.moveTo(s, 'field'); break;
       case 'gate_town': this.moveTo(s, 'town', { x: 52 * 32, y: 22 * 32 + 16 }); break;
+      case 'gate_highlands': if (s.char.level < 8) { this.toast(s, 'The Highlands are dangerous — come back at level 8 or higher (enemies are level 10-20).'); if (s.char.level < 5) break; } this.moveTo(s, 'highlands'); break;
+      case 'gate_meadow': { const f = this.rooms.get('field')!.world.map; this.moveTo(s, 'field', { x: (f.w - 6) * 32, y: 40 * 32 + 16 }); break; }
+      case 'npc_alchemist': s.send({ t: 'open', what: 'alchemist' }); break;
       case 'npc_smith': s.send({ t: 'open', what: 'smith' }); break;
       case 'npc_trainer': s.send({ t: 'open', what: 'trainer' }); break;
       case 'npc_quartermaster': s.send({ t: 'open', what: 'quartermaster' }); break;
       case 'npc_quests': s.send({ t: 'open', what: 'quests' }); break;
       case 'stash': s.send({ t: 'open', what: 'stash' }); break;
       case 'npc_auction': s.send({ t: 'open', what: 'auction' }); this.auction(s, room, { t: 'ah_search', q: {} }); this.auction(s, room, { t: 'ah_mine' }); break;
-      case 'herb': {
-        if (this.herbCooldown(s, it.id)) return this.toast(s, 'This bloom is still regrowing.');
-        s.char.dust += 2;
-        this.progressQuest(s, 'gather', 'herb', 1);
-        this.toast(s, 'Gathered Moonpetal Bloom (+2 Astral Dust)');
-        this.mutate(s, { ok: true, value: undefined }, 'gather', { node: it.id });
+      case 'herb': case 'ore': {
+        const prof = it.type === 'ore' ? 'mining' : 'herbalism';
+        if ((it.req ?? 0) > C.profLevel(s.char, prof)) return this.toast(s, `Requires ${PROFESSIONS[prof].name} level ${it.req}`);
+        if (this.herbCooldown(s, it.id)) return this.toast(s, it.type === 'ore' ? 'This vein is depleted for now.' : 'This bloom is still regrowing.');
+        const res = it.res ?? 'moonpetal';
+        const n = 1 + (this.rng.chance(0.15 * C.profLevel(s.char, prof)) ? 1 : 0);
+        C.addMats(s.char, { [res]: n });
+        s.char.dust += 1;
+        const ups = C.grantProfXp(s.char, prof, it.req ? 25 : 12);
+        this.progressQuest(s, 'gather', it.type, 1);
+        this.toast(s, `Gathered ${n} ${MATERIALS[res]?.name ?? res} (+1 Astral Dust)${ups ? ` · ${PROFESSIONS[prof].name} level ${C.profLevel(s.char, prof)}!` : ''}`);
+        this.mutate(s, { ok: true, value: undefined }, 'gather', { node: it.id, res, n });
         break;
       }
       case 'chest': {
@@ -1087,6 +1110,10 @@ export class GameCore {
     for (const s of this.sessions.values()) { s.saveT -= dt; if (s.saveT <= 0) { s.saveT = 30; if (s.dirty) this.save(s); } }
     for (const [k, v] of this.reconnect) if (v.until < this.now) this.reconnect.delete(k);
     this.tickWorldEvent();
+    if (this.tickN % (TICK_RATE * 5) === 0) {
+      const t = this.clock();
+      for (const s of this.sessions.values()) if (s.char.elixir && s.char.elixir.until <= t) { s.char.elixir = null; this.markDirty(s); this.sendChar(s); this.toast(s, 'Your elixir has worn off.'); }
+    }
     for (const [k, e] of this.pf) if (this.clock() - e.at > 15 * 60_000) this.pf.delete(k);
   }
 
@@ -1120,6 +1147,11 @@ export class GameCore {
             if (ev.boss) this.progressQuest(s, 'boss', ev.enemy, 1);
             if (s.char.stats.kills === 1) this.achieve(s, 'first_blood');
             if (Object.keys(s.account.codex).length >= 8) this.achieve(s, 'codex8');
+            // material drops go straight to the material pouch (no inventory clutter)
+            const drop: Record<string, number> = {};
+            if (fam === 'wildlife' && this.rng.chance(0.3)) drop.beast_meat = 1;
+            if (fam === 'cinderkin') { if (this.rng.chance(0.25)) drop.cinder_core = 1; if (ev.enemy === 'cinder_drake' && this.rng.chance(0.4)) drop.beast_meat = 1; }
+            if (Object.keys(drop).length) { C.addMats(s.char, drop); s.send({ t: 'mats', got: drop }); }
             this.sendChar(s);
           }
           break;

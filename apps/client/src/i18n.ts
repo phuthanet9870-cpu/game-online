@@ -1,7 +1,8 @@
+import { CONTENT_TH } from '@astra/shared';
 // UI string table. Content (skill/item names) is English for now; UI chrome is localized EN/TH.
 type Dict = Record<string, string>;
 const en: Dict = {
-  title: 'ASTRA: ECLIPSE CHRONICLES', tagline: 'An online action roguelike RPG beneath a broken sun',
+  enter: 'Enter', title: 'ASTRA: ECLIPSE CHRONICLES', tagline: 'An online action roguelike RPG beneath a broken sun',
   login: 'Log in', register: 'Create account', username: 'Username', password: 'Password', logout: 'Log out', play: 'Play', create: 'Create', cancel: 'Cancel', close: 'Close', confirm: 'Confirm',
   offlineBanner: 'OFFLINE MODE — the game runs entirely in this browser tab. Not server-authoritative, no other players, saves stay on this device.',
   onlineBanner: 'Online', chooseChar: 'Choose your character', newChar: 'New character', name: 'Name', hardcore: 'Hardcore', hardcoreWarn: 'Hardcore: if this character dies, it is gone forever. Hardcore characters, items and ladders are separate from Normal.',
@@ -18,7 +19,7 @@ const en: Dict = {
   townSafe: 'Lumenhold (safe zone)', trainingGround: 'Training Ground', achievements: 'Achievements', titles: 'Titles', stats: 'Stats', gold: 'Gold', dust: 'Astral Dust',
 };
 const th: Dict = {
-  title: 'ASTRA: ECLIPSE CHRONICLES', tagline: 'เกม Action Roguelike RPG ออนไลน์ ใต้ดวงอาทิตย์ที่แตกสลาย',
+  enter: 'เข้าสู่', title: 'ASTRA: ECLIPSE CHRONICLES', tagline: 'เกม Action Roguelike RPG ออนไลน์ ใต้ดวงอาทิตย์ที่แตกสลาย',
   login: 'เข้าสู่ระบบ', register: 'สร้างบัญชี', username: 'ชื่อผู้ใช้', password: 'รหัสผ่าน', logout: 'ออกจากระบบ', play: 'เล่น', create: 'สร้าง', cancel: 'ยกเลิก', close: 'ปิด', confirm: 'ยืนยัน',
   offlineBanner: 'โหมดออฟไลน์ — เกมทำงานในแท็บเบราว์เซอร์นี้ทั้งหมด ไม่มีเซิร์ฟเวอร์ตรวจสอบ ไม่มีผู้เล่นอื่น และเซฟเก็บไว้ในเครื่องนี้เท่านั้น',
   onlineBanner: 'ออนไลน์', chooseChar: 'เลือกตัวละคร', newChar: 'สร้างตัวละครใหม่', name: 'ชื่อ', hardcore: 'ฮาร์ดคอร์', hardcoreWarn: 'ฮาร์ดคอร์: ถ้าตัวละครตาย จะหายไปถาวร ตัวละคร ไอเทม และอันดับของฮาร์ดคอร์แยกจากโหมดปกติ',
@@ -40,3 +41,5 @@ try { lang = localStorage.getItem('astra.lang') ?? (navigator.language?.startsWi
 export const getLang = () => lang;
 export function setLang(l: string) { lang = tables[l] ? l : 'en'; try { localStorage.setItem('astra.lang', lang); } catch { /* storage unavailable */ } document.documentElement.lang = lang; }
 export const t = (k: string): string => tables[lang]?.[k] ?? en[k] ?? k;
+/** Content translation (skills, quests, enemies…): Thai when selected and available, otherwise the English source text. */
+export const ct = (key: string, fallback: string): string => (lang === 'th' ? CONTENT_TH[key] ?? fallback : fallback);

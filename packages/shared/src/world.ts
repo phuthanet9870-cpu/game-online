@@ -7,7 +7,7 @@ import { DIFFICULTIES, ELITE_AFFIXES, ENEMIES } from './data/enemies.js';
 import { BLESSING_MAP, DUNGEON_MODIFIERS } from './data/dungeon.js';
 import { POTION } from './data/items.js';
 import { generateItem, rollRarity } from './loot.js';
-import { weaponAffinity } from './character.js';
+import { activeElixirMods, weaponAffinity } from './character.js';
 import { computeStats, type Derived } from './stats.js';
 import { Rng, angleDiff, clamp, dist, dist2, normalize } from './math.js';
 import { TILE, circleBlocked, clearPath, findPath, lineOfSight, moveCircle, roomAt, type GameMap } from './maps.js';
@@ -215,7 +215,7 @@ export class World {
 
   refresh(e: Ent) {
     if (!e.p) return;
-    const extra: Mod[] = [...this.modifierMods, ...e.p.runMods];
+    const extra: Mod[] = [...this.modifierMods, ...e.p.runMods, ...activeElixirMods(e.p.char)];
     for (const b of e.buffs) extra.push(...b.mods);
     const st = computeStats(e.p.char, extra);
     const ratio = e.maxHp > 0 ? e.hp / e.maxHp : 1;

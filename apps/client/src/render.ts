@@ -1,11 +1,12 @@
 import { CLASSES, ENEMIES, MINIONS, RARITY_DEFS, TILE, type GameMap, type Interactable, type Rarity } from '@astra/shared';
 import { DMG_COLORS, type CEnt, type ClientGame } from './game.js';
 
-const THEMES = {
+const THEMES: Record<string, { floor: string[]; path: string[]; wall: string; wallTop: string; water: string; tree: string; bg: string }> = {
   town: { floor: ['#5f7d4a', '#668452', '#5a7846'], path: ['#b9a684', '#c2b08e', '#ae9b78'], wall: '#6b5a4a', wallTop: '#8c7660', water: '#3d7fb8', tree: '#2f5a33', bg: '#24331f' },
   field: { floor: ['#4a6a45', '#52734b', '#47643f'], path: ['#8a7a5a', '#937f5e', '#7e6f52'], wall: '#3a4a36', wallTop: '#4f6249', water: '#2d6a96', tree: '#24452a', bg: '#1a2618' },
+  ash: { floor: ['#4a3a34', '#52403a', '#44352f'], path: ['#6e6259', '#776a60', '#655a52'], wall: '#2a1e1a', wallTop: '#3d2c26', water: '#c2481e', tree: '#2a201d', bg: '#1a120f' },
   dungeon: { floor: ['#2d2a3d', '#322e44', '#2a2739'], path: ['#3a3450', '#3f3857', '#363049'], wall: '#17141f', wallTop: '#3b3352', water: '#2a2460', tree: '#4a3f66', bg: '#0b0910' },
-} as const;
+};
 
 const hash = (x: number, y: number) => { let h = (x * 374761393 + y * 668265263) >>> 0; h = ((h ^ (h >>> 13)) * 1274126177) >>> 0; return (h ^ (h >>> 16)) >>> 0; };
 
@@ -46,7 +47,7 @@ export class Renderer {
     this.minimap = document.createElement('canvas');
     this.minimap.width = m.w; this.minimap.height = m.h;
     const mc = this.minimap.getContext('2d')!;
-    const th = THEMES[m.theme];
+    const th = THEMES[m.palette ?? m.theme];
     const img = mc.createImageData(m.w, m.h);
     const col = (hex: string) => [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
     for (let i = 0; i < m.tiles.length; i++) {
@@ -65,7 +66,8 @@ export class Renderer {
     c = document.createElement('canvas');
     c.width = CH * TILE; c.height = CH * TILE + TILE;
     const x = c.getContext('2d')!;
-    const th = THEMES[m.theme];
+    const th = THEMES[m.palette ?? m.theme];
+    const ash = m.palette === 'ash';
     for (let ty = cy * CH; ty < cy * CH + CH; ty++)
       for (let tx = cx * CH; tx < cx * CH + CH; tx++) {
         if (tx < 0 || ty < 0 || tx >= m.w || ty >= m.h) continue;
@@ -87,11 +89,15 @@ export class Renderer {
         if (m.theme === 'dungeon') { x.strokeStyle = 'rgba(0,0,0,0.25)'; x.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1); if (hv % 11 === 0) { x.fillStyle = 'rgba(140,110,220,0.18)'; x.fillRect(px + (hv % 20), py + ((hv >> 5) % 20), 4, 4); } }
         else if (t === 1 && hv % 5 === 0) { x.fillStyle = 'rgba(255,255,255,0.06)'; x.fillRect(px + (hv % 24), py + ((hv >> 4) % 24), 3, 6); }
         if (t === 2 && m.theme === 'town') { x.strokeStyle = 'rgba(0,0,0,0.12)'; x.strokeRect(px + 0.5, py + 0.5, TILE - 1, TILE - 1); }
-        if (t === 3) { x.fillStyle = th.water; x.fillRect(px, py, TILE, TILE); x.fillStyle = 'rgba(255,255,255,0.12)'; x.fillRect(px + (hv % 20), py + 8 + (hv % 10), 10, 2); }
+        if (t === 3) { x.fillStyle = th.water; x.fillRect(px, py, TILE, TILE); x.fillStyle = ash ? 'rgba(255,210,90,0.35)' : 'rgba(255,255,255,0.12)'; x.fillRect(px + (hv % 20), py + 8 + (hv % 10), 10, 2); }
         if (t === 4) {
           if (m.theme === 'dungeon') { // pillar
             x.fillStyle = 'rgba(0,0,0,0.4)'; x.beginPath(); x.ellipse(px + 16, py + 26, 14, 6, 0, 0, Math.PI * 2); x.fill();
             x.fillStyle = '#4b4266'; x.fillRect(px + 6, py - 14, 20, 38); x.fillStyle = '#6a5d8f'; x.fillRect(px + 6, py - 18, 20, 6);
+          } else if (ash) { // charred spire
+            x.fillStyle = 'rgba(0,0,0,0.35)'; x.beginPath(); x.ellipse(px + 16, py + 26, 12, 5, 0, 0, Math.PI * 2); x.fill();
+            x.fillStyle = '#1f1714'; x.beginPath(); x.moveTo(px + 8, py + 26); x.lineTo(px + 16, py - 18); x.lineTo(px + 24, py + 26); x.closePath(); x.fill();
+            x.fillStyle = 'rgba(255,120,40,0.5)'; x.fillRect(px + 15, py - 4, 2, 10);
           } else { // tree
             x.fillStyle = 'rgba(0,0,0,0.3)'; x.beginPath(); x.ellipse(px + 16, py + 26, 15, 6, 0, 0, Math.PI * 2); x.fill();
             x.fillStyle = '#5a3d25'; x.fillRect(px + 13, py + 10, 6, 16);
@@ -113,7 +119,7 @@ export class Renderer {
     this.ensureMap(m);
     const me = g.me();
     if (me) { this.cam.x += (me.rx - this.cam.x) * Math.min(1, dt * 10); this.cam.y += (me.ry - this.cam.y) * Math.min(1, dt * 10); }
-    const th = THEMES[m.theme];
+    const th = THEMES[m.palette ?? m.theme];
     ctx.fillStyle = th.bg; ctx.fillRect(0, 0, this.w, this.h);
     const z = this.cam.zoom;
     const sx = g.shake > 0.3 ? (Math.random() - 0.5) * g.shake : 0, sy = g.shake > 0.3 ? (Math.random() - 0.5) * g.shake : 0;
@@ -235,7 +241,13 @@ export class Renderer {
         ctx.fillStyle = grd; ctx.beginPath(); ctx.ellipse(0, -20, 26, 38, 0, 0, Math.PI * 2); ctx.fill();
         break;
       }
-      case 'gate_field': case 'gate_town':
+      case 'ore': {
+        const star = it.res === 'starsteel';
+        ctx.fillStyle = '#4a4240'; ctx.beginPath(); ctx.moveTo(-16, 4); ctx.lineTo(-10, -16); ctx.lineTo(4, -20); ctx.lineTo(16, -6); ctx.lineTo(14, 4); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = star ? `rgba(160,220,255,${0.7 + Math.sin(t * 3) * 0.3})` : '#c48a5a'; for (const [ox, oy] of [[-6, -8], [4, -12], [8, -2]]) { ctx.beginPath(); ctx.arc(ox!, oy!, 2.5, 0, Math.PI * 2); ctx.fill(); }
+        break;
+      }
+      case 'gate_field': case 'gate_town': case 'gate_highlands': case 'gate_meadow':
         ctx.fillStyle = '#6b4a2b'; ctx.fillRect(-3, -40, 6, 46); ctx.fillStyle = '#c9a66b'; ctx.beginPath(); ctx.moveTo(-18, -38); ctx.lineTo(18, -38); ctx.lineTo(26, -30); ctx.lineTo(18, -22); ctx.lineTo(-18, -22); ctx.closePath(); ctx.fill();
         break;
       case 'chest':
@@ -260,7 +272,7 @@ export class Renderer {
         break;
       default: {
         // NPC: chibi townsfolk
-        const colors: Record<string, [string, string]> = { npc_auction: ['#6b4a8f', '#d8c08a'], npc_smith: ['#8a4b2b', '#2b1a10'], npc_trainer: ['#3b5c8f', '#e0e0e8'], npc_quartermaster: ['#5c7a3b', '#6b3b1f'], npc_quests: ['#8f2b3b', '#f0d070'] };
+        const colors: Record<string, [string, string]> = { npc_alchemist: ['#3b7a6a', '#e8e0f0'], npc_auction: ['#6b4a8f', '#d8c08a'], npc_smith: ['#8a4b2b', '#2b1a10'], npc_trainer: ['#3b5c8f', '#e0e0e8'], npc_quartermaster: ['#5c7a3b', '#6b3b1f'], npc_quests: ['#8f2b3b', '#f0d070'] };
         const [body, hair] = colors[it.type] ?? ['#777', '#333'];
         drawChibi(ctx, 0, 0, 1, Math.PI / 2, body, hair, '#ccc', 0, Math.sin(t * 2) * 1.5, '');
         ctx.fillStyle = '#ffd23a'; ctx.font = '900 18px system-ui'; ctx.textAlign = 'center'; if (it.type === 'npc_quests') ctx.fillText('!', 0, -58 + Math.sin(t * 4) * 2);
@@ -317,7 +329,7 @@ export class Renderer {
     const fx = Math.cos(e.f), fy = Math.sin(e.f);
     if (e.def === 'dummy') {
       ctx.fillStyle = '#7a5a34'; ctx.fillRect(-3, -10, 6, 18); ctx.fillStyle = '#c8a46a'; ctx.beginPath(); ctx.ellipse(0, -22, 13, 16, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#a33'; ctx.beginPath(); ctx.arc(0, -24, 5, 0, Math.PI * 2); ctx.fill();
-    } else if (fam === 'wildlife' && e.def !== 'wisp') {
+    } else if ((fam === 'wildlife' && e.def !== 'wisp') || e.def === 'cinder_drake') {
       // quadruped beast
       ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(0, -r * 0.6 - bob * 0.5, r * 1.15, r * 0.7, 0, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.arc(fx * r * 0.9, -r * 0.7 + fy * r * 0.4 - bob * 0.5, r * 0.55, 0, Math.PI * 2); ctx.fill();

@@ -2,7 +2,7 @@
 
 A browser-playable online action roguelike RPG: six standalone classes, an 8 Active + 4 Ultimate skill loadout, a 135-node passive tree with Keystones, seeded procedural Rifts with a three-phase boss, Normal and Hardcore modes, and a server-authoritative Node + PostgreSQL backend.
 
-**Status: v0.3.0 — vertical slice + Phase 4 MMO systems + Phase 5 endgame (tower, arena, labyrinth, nightmare, raid, leaderboards).** See [docs/FEATURES.md](docs/FEATURES.md) for exactly what is implemented, tested, and still missing. Nothing is publicly deployed yet.
+**Status: v0.4.0 — vertical slice, MMO systems, endgame, second region, professions/crafting, Thai content.** See [docs/FEATURES.md](docs/FEATURES.md) for exactly what is implemented, tested, and still missing. Nothing is publicly deployed yet.
 
 ## Play it locally
 Requirements: Node 22+, PostgreSQL 16.

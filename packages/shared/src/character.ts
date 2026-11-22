@@ -1,7 +1,8 @@
 import { CLASSES } from './data/classes.js';
 import { PASSIVE_MAP, canAllocate, passivePointsFor, validatePassives } from './data/passives.js';
 import { SKILL_MAP, classSkills } from './data/skills.js';
-import { ITEM_BASE_MAP } from './data/items.js';
+import { ITEM_BASE_MAP, ITEM_BASES, POTION } from './data/items.js';
+import { CRAFT_SLOTS, ELIXIRS, MATERIALS, PROFESSIONS, PROF_MAX, RECIPE_MAP, profXpToNext, type ProfId } from './data/crafting.js';
 import { generateItem, makeUid, salvageValue, sellValue, enchantCost, rerollAffix, STARTER_WEAPON } from './loot.js';
 import { Rng } from './math.js';
 import type { CharacterData, ClassId, EquipSlot, Item } from './types.js';
@@ -42,7 +43,7 @@ export function createCharacter(accountId: string, name: string, cls: ClassId, h
     inventory: Array(INVENTORY_SIZE).fill(null), equipment: { weapon }, passives: [], bonusPoints: 0, respecTokens: 1,
     loadout: { active: padTo(actives, ACTIVE_SLOTS), ultimate: padTo([], ULTIMATE_SLOTS) },
     presets: [], quests: {}, stats: { kills: 0, deaths: 0, bossKills: 0, runsCleared: 0, highestTier: 0 },
-    createdAt: Date.now(), version: CHARACTER_VERSION,
+    createdAt: Date.now(), version: CHARACTER_VERSION, mats: {}, prof: {}, elixir: null,
   };
   return ok(ch);
 }
@@ -60,6 +61,7 @@ export function normalizeCharacter(raw: CharacterData): CharacterData {
   ch.loadout = { active: padTo(ch.loadout?.active ?? [], ACTIVE_SLOTS), ultimate: padTo(ch.loadout?.ultimate ?? [], ULTIMATE_SLOTS) };
   ch.presets ??= []; ch.quests ??= {}; ch.mastery ??= { level: 1, xp: 0 };
   ch.stats ??= { kills: 0, deaths: 0, bossKills: 0, runsCleared: 0, highestTier: 0 };
+  ch.mats ??= {}; ch.prof ??= {}; ch.elixir ??= null;
   ch.version = CHARACTER_VERSION;
   return ch;
 }
@@ -257,6 +259,49 @@ export function weaponAffinity(ch: CharacterData): boolean {
 
 export function classInfo(cls: ClassId) {
   return CLASSES[cls];
+}
+
+// ─────────── Professions & crafting ───────────
+export function profLevel(ch: CharacterData, p: ProfId): number { return ch.prof[p]?.lv ?? 1; }
+export function grantProfXp(ch: CharacterData, p: ProfId, xp: number): number {
+  const st = (ch.prof[p] ??= { lv: 1, xp: 0 });
+  if (st.lv >= PROF_MAX) return 0;
+  st.xp += xp;
+  let ups = 0;
+  while (st.lv < PROF_MAX && st.xp >= profXpToNext(st.lv)) { st.xp -= profXpToNext(st.lv); st.lv++; ups++; }
+  return ups;
+}
+export function addMats(ch: CharacterData, mats: Record<string, number>) { for (const [k, v] of Object.entries(mats)) ch.mats[k] = (ch.mats[k] ?? 0) + v; }
+
+export function craft(ch: CharacterData, recipeId: string, slot: string | undefined, rng: Rng): Result<{ text: string; item?: Item }> {
+  const r = RECIPE_MAP[recipeId];
+  if (!r) return fail('Unknown recipe');
+  if (profLevel(ch, r.prof) < r.level) return fail(`Requires ${PROFESSIONS[r.prof].name} level ${r.level}`);
+  for (const [m, n] of Object.entries(r.mats)) if ((ch.mats[m] ?? 0) < n) return fail(`Need ${n} ${MATERIALS[m]?.name ?? m} (have ${ch.mats[m] ?? 0})`);
+  if ((r.dust ?? 0) > ch.dust) return fail(`Need ${r.dust} Astral Dust`);
+  if ((r.gold ?? 0) > ch.gold) return fail(`Need ${r.gold} gold`);
+  let item: Item | undefined;
+  let text = '';
+  if (r.result.kind === 'potion') { if (ch.potions >= POTION.maxCharges) return fail('Potion belt is full'); ch.potions++; text = '+1 potion charge'; }
+  else if (r.result.kind === 'elixir') { const e = ELIXIRS[r.result.id]!; ch.elixir = { id: r.result.id, until: Date.now() + e.minutes * 60_000 }; text = `${e.name} active for ${e.minutes} minutes`; }
+  else {
+    const sl = (CRAFT_SLOTS as readonly string[]).includes(slot ?? '') ? slot! : 'weapon';
+    const bases = ITEM_BASES.filter((b) => b.slot === sl && (sl !== 'weapon' || b.classes?.includes(ch.cls)));
+    if (ch.inventory.indexOf(null) < 0) return fail('Inventory full');
+    item = generateItem({ rng, ilvl: ch.level, rarity: r.result.rarity, baseId: rng.pick(bases.length ? bases : ITEM_BASES.filter((b) => b.slot === sl)).id, cls: ch.cls, hardcore: ch.hardcore });
+    ch.inventory[ch.inventory.indexOf(null)] = item;
+    text = `Forged ${item.name}`;
+  }
+  for (const [m, n] of Object.entries(r.mats)) ch.mats[m]! -= n;
+  ch.dust -= r.dust ?? 0;
+  ch.gold -= r.gold ?? 0;
+  const ups = grantProfXp(ch, r.prof, r.xp);
+  if (ups) text += ` · ${PROFESSIONS[r.prof].name} level ${profLevel(ch, r.prof)}!`;
+  return ok({ text, item });
+}
+
+export function activeElixirMods(ch: CharacterData, now = Date.now()) {
+  return ch.elixir && ch.elixir.until > now ? ELIXIRS[ch.elixir.id]?.mods ?? [] : [];
 }
 
 export { PASSIVE_MAP };
