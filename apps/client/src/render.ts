@@ -14,6 +14,7 @@ const THEMES: Record<string, { floor: string[]; path: string[]; wall: string; wa
   dungeon: { floor: ['#2d2a3d', '#322e44', '#2a2739'], path: ['#3a3450', '#3f3857', '#363049'], wall: '#17141f', wallTop: '#3b3352', water: '#2a2460', tree: '#4a3f66', bg: '#0b0910' },
 };
 
+export const NPC_COLORS: Record<string, [string, string]> = { npc_carpenter: ['#7a5a2a', '#c87a3a'], npc_alchemist: ['#3b7a6a', '#e8e0f0'], npc_auction: ['#6b4a8f', '#d8c08a'], npc_smith: ['#8a4b2b', '#2b1a10'], npc_trainer: ['#3b5c8f', '#e0e0e8'], npc_quartermaster: ['#5c7a3b', '#6b3b1f'], npc_quests: ['#8f2b3b', '#f0d070'] };
 const AURA_COLORS: Record<string, string> = { ember: '#ff7a2e', starlight: '#9fd8ff', eclipse: '#f2c46b' };
 const hash = (x: number, y: number) => { let h = (x * 374761393 + y * 668265263) >>> 0; h = ((h ^ (h >>> 13)) * 1274126177) >>> 0; return (h ^ (h >>> 16)) >>> 0; };
 
@@ -246,7 +247,7 @@ export class Renderer {
         break;
       default: {
         // NPC: chibi townsfolk
-        const colors: Record<string, [string, string]> = { npc_carpenter: ['#7a5a2a', '#c87a3a'], npc_alchemist: ['#3b7a6a', '#e8e0f0'], npc_auction: ['#6b4a8f', '#d8c08a'], npc_smith: ['#8a4b2b', '#2b1a10'], npc_trainer: ['#3b5c8f', '#e0e0e8'], npc_quartermaster: ['#5c7a3b', '#6b3b1f'], npc_quests: ['#8f2b3b', '#f0d070'] };
+        const colors = NPC_COLORS;
         const [body, hair] = colors[it.type] ?? ['#777', '#333'];
         drawChibi(ctx, 0, 0, 1, Math.PI / 2, body, hair, '#ccc', 0, Math.sin(t * 2) * 1.5, '');
         ctx.fillStyle = '#ffd23a'; ctx.font = '900 18px system-ui'; ctx.textAlign = 'center'; if (it.type === 'npc_quests') ctx.fillText('!', 0, -58 + Math.sin(t * 4) * 2);
@@ -355,7 +356,7 @@ export class Renderer {
   }
 }
 
-function drawFurniture(ctx: CanvasRenderingContext2D, id: string, fw: number, fh: number, t: number) {
+export function drawFurniture(ctx: CanvasRenderingContext2D, id: string, fw: number, fh: number, t: number) {
   const W = fw * TILE, H = fh * TILE;
   const c = FURNITURE[id]?.color ?? '#888';
   const solid = FURNITURE[id]?.solid;

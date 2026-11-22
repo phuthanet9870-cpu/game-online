@@ -6,14 +6,14 @@ import { t } from '../i18n.js';
 import { confirmDialog, h, promptDialog, toast } from './dom.js';
 import { hideTip, showTip } from './tooltip.js';
 
-export function passiveTreePanel(ch: CharacterData, send: (m: any) => void, inTown: boolean): HTMLElement {
+export function passiveTreePanel(ch: CharacterData, send: (m: any) => void, inTown: boolean, focus?: string): HTMLElement {
   const canvas = h('canvas', { class: 'tree-canvas', tabIndex: 0, 'aria-label': 'Passive tree. Click a node to allocate; right click to refund.' });
   const search = h('input', { type: 'search', placeholder: t('search'), 'aria-label': t('search') });
   const pts = passivePointsFor(ch.level, ch.bonusPoints) - ch.passives.length;
   const own = new Set([...ch.passives, `${ch.cls}_start`]);
   const view = { x: 0, y: 0, z: 0.32 };
   // centre on class start
-  const start = PASSIVE_MAP[`${ch.cls}_start`]!;
+  const start = focus === 'central' ? { x: 0, y: 0 } : PASSIVE_MAP[`${focus ?? ch.cls}_start`] ?? PASSIVE_MAP[`${ch.cls}_start`]!;
   view.x = start.x * 0.6; view.y = start.y * 0.6;
   let hover: PassiveNode | null = null;
   let drag: { x: number; y: number; vx: number; vy: number; moved: boolean } | null = null;

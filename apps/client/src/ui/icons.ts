@@ -124,6 +124,13 @@ const GLYPH: Record<string, (c: string) => Sh[]> = {
   grid: (c) => [R(`c:${c}`, 8, 8, 21, 21, 3), R(`c:${c}`, 35, 8, 21, 21, 3), R(`c:${c}`, 8, 35, 21, 21, 3), R(`c:${c}`, 35, 35, 21, 21, 3)],
   dodge: (c) => [D(`glow:${c}`, 'M14 48 C20 26 36 14 54 12 C42 20 36 30 34 44 Z'), D('white', 'M8 36 L22 36 M6 44 L20 44 M10 52 L24 52', { noGloss: true, sw: 2.4, noLine: true })],
   crossed: () => [L('metal', [10, 52], [50, 12], 4.5), L('metal', [54, 52], [14, 12], 4.5), L('gold', [14, 42], [24, 52], 4), L('gold', [50, 42], [40, 52], 4), C('gold', 8, 56, 3.5), C('gold', 56, 56, 3.5)],
+  rug: (c) => [E(`c:${c}`, 32, 36, 28, 16), E('gold', 32, 36, 20, 11, { noGloss: true }), E(`c:${c}`, 32, 36, 16, 8), P('gold', star(32, 36, 8, 3, 4), { noLine: true })],
+  lantern: (c) => [R('dark', 22, 8, 20, 6, 2), D('gold', 'M24 14 L40 14 L44 48 L20 48 Z'), D(`glow:${c}`, 'M27 18 L37 18 L40 44 L24 44 Z', { noLine: true }), R('dark', 18, 48, 28, 8, 2), C('white', 32, 30, 3, { noLine: true })],
+  plant: (c) => [D('c:#b85a3a', 'M18 40 L46 40 L42 58 L22 58 Z'), ...[0, 1, 2, 3, 4].map((i) => { const a = (i / 5) * Math.PI * 2 - Math.PI / 2; return E(`c:${c}`, 32 + Math.cos(a) * 9, 22 + Math.sin(a) * 9, 7, 5); }), C('gold', 32, 22, 4), L('c:#4aa02a', [32, 30], [32, 40], 2.4)],
+  table: () => [R('wood', 6, 20, 52, 12, 3), R('wood', 10, 32, 6, 24, 2), R('wood', 48, 32, 6, 24, 2), R('c:#c8905a', 8, 20, 48, 4, 2, { noLine: true })],
+  bed: (c) => [R('wood', 6, 14, 52, 42, 4), R(`c:${c}`, 10, 28, 44, 26, 3), R('white', 12, 18, 18, 10, 4), R('white', 34, 18, 18, 10, 4), R(`c:${c}`, 10, 34, 44, 4, 1, { noGloss: true })],
+  bookshelf: () => [R('wood', 8, 6, 48, 52, 3), ...[14, 30, 46].flatMap((y) => [R('dark', 12, y - 4, 40, 12, 1, { noGloss: true }), ...[0, 1, 2, 3, 4].map((i) => R(['c:#c83a3a', 'c:#3a5ab0', 'c:#5bd16a', 'c:#e8c062', 'c:#9b6cff'][(i + y) % 5] as `c:${string}`, 14 + i * 7, y - 3, 6, 11, 1))])],
+  throne: (c) => [P(`gem:${c}`, crystal(32, 34, 12, 22)), P(`gem:${c}`, crystal(18, 40, 6, 12, -3)), P(`gem:${c}`, crystal(46, 40, 6, 12, 3)), R('dark', 10, 50, 44, 8, 2)],
   skull: () => [D('bone', 'M32 8 C46 8 54 18 54 30 C54 38 50 42 46 44 L46 54 L18 54 L18 44 C14 42 10 38 10 30 C10 18 18 8 32 8 Z'), E('dark', 23, 32, 6, 7, { noGloss: true }), E('dark', 41, 32, 6, 7, { noGloss: true }), P('dark', [[32, 38], [35, 45], [29, 45]], { noGloss: true })],
   sigil: (c) => [C(`c:${c}`, 32, 32, 26), C('dark', 32, 32, 20, { noGloss: true }), P(`glow:${c}`, star(32, 32, 16, 6.5, 6)), C('dark', 32, 32, 4, { noGloss: true })],
 };

@@ -1,3 +1,4 @@
+import * as NW from './npcwin.js';
 import { combatPower, weeklyObjectives, ACTIVITY_ORDER, QUESTS, FURNITURE, validatePlacement, applyContentPatch, ACTIVITIES, MATERIALS, CLASSES, DIFFICULTIES, DUNGEON_MODIFIERS, BLESSING_MAP, SKILL_MAP, ENEMIES, computeStats, xpToNext, type CharacterData } from '@astra/shared';
 import { ClientGame } from '../game.js';
 import { Renderer } from '../render.js';
@@ -48,6 +49,7 @@ export class GameUI {
 
   constructor(private root: HTMLElement, private backend: Backend, private charId: string, private exit: () => void) {
     try { Object.assign(this.settings, JSON.parse(store.get('astra.settings') ?? '{}')); } catch { /* defaults */ }
+    if (import.meta.env.VITE_OFFLINE) (window as any).__ui = this; // offline-only test hook
   }
 
   start() {
@@ -722,7 +724,7 @@ export class GameUI {
       case 'inventory': body = inventoryWindow(ctx, 'normal', () => this.renderPanel()); break;
       case 'smith': body = h('div', null, inventoryWindow(ctx, 'smith', () => this.renderPanel()), craftingWindow(ctx.ch, ['smithing'], (m) => this.send(m), () => this.renderPanel())); break;
       case 'hearth': body = S.hearthPanel(this.houseData, (m) => this.send(m), (id) => this.startPlacing(id)); break;
-      case 'carpenter': body = S.carpenterPanel(ctx.ch, ctx.account, (m) => this.send(m)); break;
+      case 'carpenter': body = NW.carpenterWindow(ctx.ch, ctx.account, (m) => this.send(m), () => this.renderPanel()); break;
       case 'season': body = S.seasonPanel(this.seasonData, ctx.ch, ctx.account, (m) => this.send(m)); break;
       case 'alchemist': body = craftingWindow(ctx.ch, ['alchemy', 'cooking'], (m) => this.send(m), () => this.renderPanel()); break;
       case 'crafting': body = craftingWindow(ctx.ch, [], (m) => this.send(m), () => this.renderPanel()); break;
@@ -748,14 +750,14 @@ export class GameUI {
       case 'settings': body = h('div', null, h('button', { class: 'btn gold', onclick: () => this.openPanel('auto') }, getLang() === 'th' ? '⚙ ตั้งค่าระบบออโต้' : '⚙ Auto settings'), P.settingsPanel(ctx)); break;
       case 'dungeon': body = P.dungeonPanel(ctx, this.panelExtra?.unlocked ?? ['story', 'normal'], this.panelExtra?.locks ?? {}); break;
       case 'ladder': body = P.ladderPanel(this.ladderData, ctx.ch, (m) => this.send(m)); break;
-      case 'trainer': body = P.trainerPanel(ctx); break;
+      case 'trainer': body = NW.trainerWindow(ctx, inTown, () => this.renderPanel()); break;
       case 'map': body = h('div', null, h('canvas', { class: 'bigmap', width: 640, height: 480 })); break;
     }
     const scroll = this.el.panel!.querySelector('.panel-body')?.scrollTop ?? 0;
     const panel = clear(this.el.panel!);
     panel.hidden = false;
-    panel.classList.toggle('wide', p === 'passives' || p === 'map');
-    panel.classList.toggle('win', ['inventory', 'smith', 'quartermaster', 'stash', 'crafting', 'alchemist', 'auction', 'social', 'guild', 'skills', 'passives', 'character', 'season', 'dungeon', 'friends', 'gm', 'auto', 'login', 'shop', 'benefits', 'wish', 'awaken', 'wardrobe'].includes(p));
+    panel.classList.toggle('wide', p === 'passives' || p === 'map' || (p === 'trainer' && NW.trainerState.tab === 'tree'));
+    panel.classList.toggle('win', ['inventory', 'smith', 'quartermaster', 'stash', 'crafting', 'alchemist', 'auction', 'social', 'guild', 'skills', 'passives', 'character', 'season', 'dungeon', 'friends', 'gm', 'auto', 'login', 'shop', 'benefits', 'wish', 'awaken', 'wardrobe', 'trainer', 'carpenter'].includes(p));
     const th = getLang() === 'th';
     const socialTabs = ['social', 'guild', 'auction', 'friends'].includes(p) ? h('div', { class: 'win-tabs' }, ...([['auction', 'gavel', th ? 'ห้องประมูล' : 'Auction House'], ['guild', 'crest', th ? 'กิลด์' : 'Guild'], ['social', 'people', th ? 'ปาร์ตี้และเทรด' : 'Party & Trade'], ['friends', 'person', th ? 'เพื่อน' : 'Friends']] as const).map(([id, ic, label]) => h('button', { class: 'wt icon' + (p === id ? ' on' : ''), onclick: () => { this.openPanel(id); if (id === 'friends') this.send({ t: 'friend_list' }); if (id === 'auction') { this.send({ t: 'ah_search', q: this.ah.q }); this.send({ t: 'ah_mine' }); } } }, uiIcon(ic, 22), label))) : null;
     if (socialTabs) titles[p] = th ? 'สังคมและชุมชน' : 'Social & Community';
