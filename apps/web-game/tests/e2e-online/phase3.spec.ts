@@ -143,6 +143,7 @@ test('Auto Farm kills PvE monsters, auto-loots and reports on stop', async ({ br
   const a = await player(browser, 'auto', 'Sword', 'gm');
   await gmChat(a.page, '/gm god on');
   await goToFarm01(a.page); // Auto works on farm maps; the city has no monsters
+  await walkTo(a.page, 16 * 16 + 8, 20 * 16 + 8, 12); // into the field so monsters are inside the Auto radius
   await a.page.getByTestId('menu-auto').click();
   await a.page.getByTestId('auto-start').click();
   await expect.poll(async () => (await sim(a.page)).auto?.enabled, { timeout: 5000 }).toBe(true);
