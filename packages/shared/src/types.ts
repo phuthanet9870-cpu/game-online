@@ -258,6 +258,9 @@ export interface CharacterData {
   benefits?: string[];
   awaken?: number;
   emblems?: string[];
+  /** AFK camp: set when logging out in the open world; settled into `afkPending` on the next login. */
+  afk?: { from: number; zone: string } | null;
+  afkPending?: { minutes: number; zone: string; xp: number; gold: number; mats: Record<string, number> } | null;
   treasure?: { zone: string; x: number; y: number; hx: number; hy: number; hr: number } | null;
 }
 

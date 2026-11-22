@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.13.0] — 2026-11-22 — Concept UI, new systems, auto play
+### Added
+- **Concept UI** (from the 10 concept images): gold-on-violet ornate theme with Cinzel display font; HUD laid out as in the concepts — portrait card (HP / resource / secondary bars, Combat Power, Renown badge, portrait frame), party box, feature menu with notification dots, location + round minimap, quest/activity tracker, tabbed chat, 20-slot hotbar (Active 1~8, Ultimate 9~12, Items/Utilities 13~20), round menu, EXP line with three currencies.
+- **Glossy vector icon engine** for every item base, material, consumable, all 84 skills (glyph + element tile + motif so no two skills look alike), menus, currencies and rewards.
+- Windows rebuilt per concept: Inventory (paper doll, filters, Equipped vs Selected comparison with stat deltas, cosmetic layers, materials, collections), Crafting & Life Skills, Passive Tree & build summary, Social & Community (auction rows with icons, guild, party & trade), roguelike reward cards, dungeon run card, raid-style boss bar with phases, Character Creation stage.
+- **Appearance**: hair colour and outfit tint at creation (server-validated, visible to everyone).
+- **New systems** (server-authoritative, persisted, in-game currency only — no real money): 28-day cumulative login calendar; Shop (gold / Astral Dust / season shards, daily limits); level & achievement Benefits; **Renown** (VIP-style badge earned by playing; perks are convenience only); **Awakening** (10 levels of damage/life); **Emblems** (8, unlocked by achievements, 3 equipped); Wardrobe (costumes, portrait frames); **Mounts** (+30–35% speed out of combat, any fight dismounts); **Astral Wish** (cosmetics/mounts/materials, published odds N 60% / R 28% / SR 10% / SSR 2%, SSR pity at 60).
+- **Auto play**: AUTO button (auto-combat with target choice, approach, basic attacks and a skill rotation that saves ultimates for bosses/elites/packs), auto-potion threshold, auto-loot by minimum rarity, ▶ on a quest to travel there (A* in-zone, zone-to-zone via gates), accept/hand in automatically and hunt; any manual input pauses it. **AFK camp**: logging out in the open world pays a capped (10 min–12 h), lower-than-active reward on the next login.
+### Fixed
+- The client dropped appearance fields after the first snapshot (its tuple expansion was out of sync with the server's).
+- Meta rewards could be written to a stale copy of the account state, letting the daily login be claimed twice (caught by a new test).
+### Verified
+- 60 tests (6 new: login, shop, wish pity, awakening, emblems/benefits, AFK camp); Chromium screenshots of HUD, inventory, crafting, passive tree, creation, shop, wish, mount; an auto-quest run that accepted a quest, travelled to Duskmeadow and progressed it 4/10 unaided. Not done: PvP 5v5 arena and a friends list (no backing systems yet); Firefox/Safari untested.
+
 ## [0.12.0] — 2026-11-22 — Pixel-art characters, enemy effects, skill polish
 ### Added
 - **Pixel sprites** (`apps/client/src/sprites.ts`) on the same pixel grid as the effects: all 7 classes (front / side / back views, 4-frame walk, idle, wind-up → strike → follow-through, per-class headgear and weapons), NPCs, every enemy family (hooded Hollowborn with weapons, beasts, golems, imps, crystal seer, the Gloomheart tree, wisps, starlings) and bosses (Veyra's umbral wings, Nyx's eclipse halo, crowns), minions (skeletons, Bone Colossus, wraiths, hawks, turrets, sentinels); white hit-flash frames; dithered pixel shadows. Sprites are generated in code and cached per pose.

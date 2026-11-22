@@ -106,6 +106,10 @@ Last updated: 2026-11-22 (v0.9.0 — Phases 0-1, 4, 5, 6, 7, content expansion, 
 | Thai / English UI | Tested | UI chrome + classes, 72 skills, quests, enemies, activities, blessings, modifiers, achievements, crafting in Thai (coverage test). Item names and stat labels still English. |
 | Audio (synthesized SFX + ambience, volume settings) | Implemented | No recorded music/voice. |
 | Pixel-art skill VFX (per-skill effects, light buffer, dither fades, hit-stop) | Implemented | Checked by screenshots in Chromium for all 7 classes. |
+| Concept UI (HUD + windows) and glossy icon engine | Implemented | Matches the concept layouts; painted art in the concepts is not reproducible in code. |
+| Login calendar, Shop, Benefits, Renown, Awakening, Emblems, Wardrobe, Mounts, Astral Wish | Tested | Unit tests + Chromium; in-game currency only. |
+| Auto play (combat, potion, loot, quest travel) + AFK camp | Implemented | Auto-quest verified end-to-end in Chromium; AFK rates not yet tuned with real players. |
+| PvP arena (5v5), friends list | Not started | Shown in concept 09/10; needs design. |
 | Pixel-art sprites (classes, NPCs, enemies, bosses, minions) + enemy/boss effects | Implemented | Generated in code; checked via sprite sheet and in-game screenshots (Chromium only). |
 
 ## Backlog (prioritised)

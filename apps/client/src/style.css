@@ -713,3 +713,14 @@ h3 { font-family: var(--f-display); color: var(--gold-2); }
 .emb { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px; text-align: center; background: linear-gradient(180deg, #221a40, #120c24); border: 1px solid #ffffff14; border-radius: 8px; cursor: pointer; color: #fff; font-size: .82em; }
 .emb.on { border-color: var(--gold-1); box-shadow: 0 0 12px #e8c06266; } .emb.locked { opacity: .45; cursor: not-allowed; }
 .slot.util.on { box-shadow: 0 0 0 2px var(--gold-1), 0 0 12px #e8c062aa; }
+/* auto system */
+.auto-box { position: absolute; left: calc(50% + 470px * var(--ui)); bottom: calc(env(safe-area-inset-bottom, 0px) + 126px); display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: auto; }
+.auto-btn { width: 58px; height: 58px; border-radius: 50%; border: 2px solid var(--gold-2); background: radial-gradient(circle at 50% 35%, #3a2c62, #120d24); color: var(--gold-1); font: 800 13px var(--f-display); cursor: pointer; box-shadow: 0 0 0 2px #000, 0 4px 10px #000a; }
+.auto-btn.on { background: radial-gradient(circle at 50% 35%, #9b6cff, #3a1a8a); color: #fff; box-shadow: 0 0 0 2px #000, 0 0 18px #9b6cff; animation: autospin 2s linear infinite; }
+@keyframes autospin { 50% { box-shadow: 0 0 0 2px #000, 0 0 26px #b48aff; } }
+.auto-st { font-size: 10px; color: #fff; text-shadow: 0 1px 2px #000; white-space: nowrap; }
+.tq-auto { display: inline-grid; place-items: center; width: 18px; height: 18px; margin-right: 4px; border-radius: 50%; background: #2a2050; border: 1px solid var(--gold-3); color: var(--gold-1); font-size: 9px; cursor: pointer; float: left; }
+.tq-auto.on { background: #6a3ad8; color: #fff; }
+.modal.afk { text-align: center; align-items: center; }
+.afk-rw { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; } .afk-rw span { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
+@media (max-width: 1280px) { .auto-box { left: auto; right: 10px; bottom: 120px; } }

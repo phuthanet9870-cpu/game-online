@@ -7,6 +7,7 @@ import { MATERIALS } from './data/crafting.js';
 import { POTION } from './data/items.js';
 import type { AccountProgress, CharacterData, Mod } from './types.js';
 import type { Rng } from './math.js';
+import { grantXp, xpToNext } from './character.js';
 
 type Result<T> = { ok: true; value: T } | { ok: false; reason: string };
 const ok = <T>(value: T): Result<T> => ({ ok: true, value });
@@ -256,3 +257,29 @@ export function wish(acc: AccountProgress, ch: CharacterData, count: number, rng
   return ok(out);
 }
 export { ACHIEVEMENTS };
+
+// ── AFK camp (offline farming) ─────────────────────────────
+// Logging out in an open-world zone "makes camp". On the next login the server pays a modest, capped reward for
+// the time away (10 minutes minimum, 12 hours maximum): far below active play, so it never replaces playing.
+export const AFK_MIN = 10, AFK_MAX = 720;
+const AFK_MATS: Record<string, string[]> = { field: ['moonpetal', 'beast_meat'], highlands: ['iron_ore', 'emberbloom'], wastes: ['starbloom', 'starsteel'] };
+export function afkStart(ch: CharacterData, zone: string, now: number) { if (AFK_MATS[zone]) ch.afk = { from: now, zone }; }
+export function afkSettle(ch: CharacterData, now: number) {
+  const a = ch.afk;
+  ch.afk = null;
+  if (!a) return;
+  const minutes = Math.min(AFK_MAX, Math.floor((now - a.from) / 60_000));
+  if (minutes < AFK_MIN) return;
+  const mats: Record<string, number> = {};
+  for (const m of AFK_MATS[a.zone] ?? []) mats[m] = Math.floor(minutes / 45);
+  const prev = ch.afkPending;
+  ch.afkPending = { minutes: Math.min(AFK_MAX, minutes + (prev?.minutes ?? 0)), zone: a.zone, xp: Math.round(minutes * xpToNext(ch.level) * 0.0012) + (prev?.xp ?? 0), gold: Math.round(minutes * (3 + ch.level)) + (prev?.gold ?? 0), mats };
+}
+export function claimAfk(acc: AccountProgress, ch: CharacterData): Result<{ minutes: number; xp: number; gold: number; levels: number }> {
+  const p = ch.afkPending;
+  if (!p) return fail('Nothing to collect');
+  ch.afkPending = null;
+  grantReward(acc, ch, { gold: p.gold, mats: p.mats });
+  const lv = grantXp(ch, p.xp);
+  return ok({ minutes: p.minutes, xp: p.xp, gold: p.gold, levels: lv.levels });
+}

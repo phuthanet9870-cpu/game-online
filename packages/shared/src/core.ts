@@ -78,7 +78,7 @@ interface Room { id: string; kind: 'town' | 'field' | 'dungeon'; world: World; s
 export interface LeaderRecord { board: string; charId: string; name: string; cls: string; hardcore: boolean; value: number; at: number }
 interface Party { id: string; leader: string; members: string[] }
 
-const MUTATIONS = new Set(['house_buy', 'house_place', 'house_remove', 'use_map', 'guild_vault_put', 'guild_vault_take', 'pet_buy', 'season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose', 'login_claim', 'shop_buy', 'benefit_claim', 'awaken', 'wish', 'emblem_set', 'cosmetic_set']);
+const MUTATIONS = new Set(['house_buy', 'house_place', 'house_remove', 'use_map', 'guild_vault_put', 'guild_vault_take', 'pet_buy', 'season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose', 'login_claim', 'shop_buy', 'benefit_claim', 'awaken', 'wish', 'emblem_set', 'cosmetic_set', 'afk_claim']);
 
 /** Character as sent to its owner: hidden server knowledge (exact treasure spot) is removed. */
 export function publicChar(ch: CharacterData): CharacterData {
@@ -161,6 +161,7 @@ export class GameCore {
       tradeId: null, guildInvites: new Set(), chatHist: [], mutedUntil: 0,
     };
     this.sessions.set(sessionId, s);
+    M.afkSettle(char, this.clock());
     const rc = this.reconnect.get(char.id);
     if (rc && rc.until > this.now && this.rooms.has(rc.roomId)) {
       this.reconnect.delete(char.id);
@@ -169,6 +170,7 @@ export class GameCore {
     } else this.joinRoom(s, 'town');
     if (this.announcement) this.toast(s, this.announcement);
     this.sendTutorial(s);
+    if (char.afkPending) s.send({ t: 'afk', pending: char.afkPending });
     const g = this.guildOf(char.id);
     if (g) { const m = g.members.find((x) => x.charId === char.id)!; m.level = char.level; m.name = char.name; this.sendGuild(s); }
   }
@@ -183,6 +185,7 @@ export class GameCore {
     if (room && room.kind === 'dungeon' && ent && !ent.dead) this.reconnect.set(s.char.id, { roomId: room.id, until: this.now + 90, x: ent.x, y: ent.y });
     this.cancelTrade(s, 'Trade cancelled: player left');
     this.pf.delete(s.id);
+    if (room?.kind === 'field' && ent && !ent.dead) M.afkStart(s.char, room.id, this.clock());
     this.leaveRoom(s);
     this.leaveParty(s);
     this.save(s);
@@ -361,7 +364,7 @@ export class GameCore {
         case 'house_buy': case 'house_place': case 'house_remove': case 'house_perm': case 'house_visit': this.housing(s, room, msg); break;
         case 'guild_vault_put': case 'guild_vault_take': this.guildVault(s, room, msg); break;
         case 'pet_buy': case 'pet_set': this.pets(s, room, msg); break;
-        case 'login_claim': case 'shop_buy': case 'benefit_claim': case 'awaken': case 'wish': case 'emblem_set': case 'cosmetic_set': case 'mount_toggle': this.metaMsg(s, room, msg); break;
+        case 'login_claim': case 'shop_buy': case 'benefit_claim': case 'awaken': case 'wish': case 'emblem_set': case 'cosmetic_set': case 'mount_toggle': case 'afk_claim': this.metaMsg(s, room, msg); break;
         case 'guild_create': case 'guild_invite': case 'guild_accept': case 'guild_leave': case 'guild_kick': case 'guild_rank': case 'guild_transfer': case 'guild_motd': case 'guild_info': this.guild(s, room, msg); break;
         default: break;
       }
@@ -1280,6 +1283,7 @@ export class GameCore {
       case 'shop_buy': r = M.buyShop(s.account, s.char, String(msg.id ?? ''), now); if (r.ok) text = `Bought ${r.value.item.name}`; break;
       case 'benefit_claim': r = M.claimBenefit(s.account, s.char, String(msg.id ?? '')); if (r.ok) text = `Benefit claimed: ${M.rewardText(r.value.reward)}`; break;
       case 'awaken': r = M.awaken(s.char); if (r.ok) text = `Awakening ${r.value.level} reached`; break;
+      case 'afk_claim': r = M.claimAfk(s.account, s.char); if (r.ok) { text = `Camp rewards collected: ${r.value.gold} gold, ${r.value.xp} XP${r.value.levels ? ` (+${r.value.levels} level)` : ''}`; if (ent) room.world.refresh(ent); } break;
       case 'emblem_set': r = M.setEmblems(s.account, s.char, msg.ids); break;
       case 'cosmetic_set': { const kind = msg.kind === 'frame' ? 'frame' : msg.kind === 'mount' ? 'mount' : 'costume'; r = M.setCosmetic(s.account, kind, msg.id === null ? null : String(msg.id ?? '')); if (r.ok && ent?.p) { ent.p.costume = meta.cosmetics.costume; if (kind === 'mount' && !meta.mount) ent.p.mount = null; } break; }
       case 'mount_toggle': {

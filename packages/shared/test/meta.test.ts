@@ -55,3 +55,19 @@ describe('meta systems', () => {
     expect(setCosmetic(acc, 'costume', 'cos_sovereign').ok).toBe(false);
   });
 });
+
+import { afkStart, afkSettle, claimAfk, AFK_MAX } from '../src/index.js';
+describe('AFK camp', () => {
+  it('pays only for open-world camps, with a minimum and a cap', () => {
+    const { ch, acc } = mk();
+    afkStart(ch, 'town', 0); expect(ch.afk ?? null).toBeNull();
+    afkStart(ch, 'field', 0); afkSettle(ch, 5 * 60_000); expect(ch.afkPending ?? null).toBeNull(); // under 10 minutes
+    afkStart(ch, 'field', 0); afkSettle(ch, 48 * 3600_000);
+    expect(ch.afkPending!.minutes).toBe(AFK_MAX);
+    const g = ch.gold;
+    const r = claimAfk(acc, ch);
+    expect(r.ok).toBe(true);
+    expect(ch.gold).toBeGreaterThan(g);
+    expect(claimAfk(acc, ch).ok).toBe(false);
+  });
+});

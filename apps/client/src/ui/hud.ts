@@ -6,13 +6,14 @@ import { store, type Backend, type Conn } from '../net.js';
 import { ct, getLang, t } from '../i18n.js';
 import { clear, confirmDialog, h, toast } from './dom.js';
 import { bindTip, hideTip, skillTooltip } from './tooltip.js';
-import { currencyIcon, skillIcon, uiIcon, tileIcon } from './icons.js';
+import { currencyIcon, matIcon, skillIcon, uiIcon, tileIcon } from './icons.js';
 import { drawChibi } from '../sprites.js';
 import * as P from './panels.js';
 import { passiveTreePanel } from './passive.js';
 import { inventoryWindow } from './invwin.js';
 import { craftingWindow } from './craftwin.js';
 import * as MW from './metawin.js';
+import { AutoPilot } from '../auto.js';
 import { BENEFITS, benefitReady, dayIndex, normalizeMeta, COSMETICS } from '@astra/shared';
 import { modeBanner } from './screens.js';
 import * as S from './social.js';
@@ -23,6 +24,7 @@ type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 
 
 export class GameUI {
   game = new ClientGame();
+  auto!: AutoPilot;
   renderer!: Renderer;
   input!: Input;
   conn!: Conn;
@@ -86,6 +88,7 @@ export class GameUI {
           E.chatIn = h('input', { class: 'chat-in', maxLength: 200, placeholder: th ? 'พิมพ์ข้อความ…' : 'Type a message…', 'aria-label': 'Chat' }),
           h('button', { class: 'chat-send', 'aria-label': 'Send', onclick: () => this.sendChat() }, '➤'))),
       E.bar = h('div', { class: 'hotbar' }),
+      E.autoBox = h('div', { class: 'auto-box' }, E.autoBtn = h('button', { class: 'auto-btn', onclick: () => { this.auto.setCombat(!this.auto.s.combat); this.renderAuto(); } }, 'AUTO'), E.autoSt = h('small', { class: 'auto-st' })),
       E.menu = h('nav', { class: 'rmenu', 'aria-label': 'Game menu' }),
       h('div', { class: 'xpline' }, E.xp = h('div', { class: 'xpbar' }, h('i'), h('span')), E.cur = h('div', { class: 'currencies' })),
       E.panel = h('aside', { class: 'panel', hidden: true, role: 'dialog' }),
@@ -96,6 +99,7 @@ export class GameUI {
     E.goal = h('div', { class: 'goal', hidden: true });
     this.root.append(E.wrap);
     this.renderer = new Renderer(canvas, this.game);
+    this.auto = new AutoPilot(this.game, (m) => this.send(m));
     this.input = new Input(canvas);
     this.input.onAction = (a) => this.onAction(a);
     if (this.touch) this.input.attachTouch(E.joy, E.knob);
@@ -179,6 +183,7 @@ export class GameUI {
       case 'achievement': toast(`★ Achievement: ${m.name}`, 'good'); break;
       case 'hc_dead': this.showModal(h('div', { class: 'modal-wrap' }, h('div', { class: 'modal hc-dead' }, h('h2', null, `☠ ${m.name} ${t('hcDead')}`), h('p', null, `Level ${m.level}. Their legend is recorded on the Hardcore ladder.`), h('button', { class: 'btn', onclick: () => this.leave() }, t('close'))))); break;
       case 'pong': g.rtt = performance.now() - m.c; break;
+      case 'afk': this.showAfk(m.pending); break;
       case 'wish_result': this.lastWish = m.prizes; sound.loot(m.prizes.some((p: any) => p.r === 'SSR') ? 'legendary' : 'rare'); this.openPanel('wish'); break;
       default: break;
     }
@@ -245,9 +250,13 @@ export class GameUI {
 
   private handleInput(dt: number) {
     const g = this.game;
-    const [mx, my] = this.input.enabled && document.activeElement !== this.el.chatIn ? this.input.moveVector() : [0, 0];
+    let [mx, my] = this.input.enabled && document.activeElement !== this.el.chatIn ? this.input.moveVector() : [0, 0];
+    if (mx || my || this.input.mouse.left) this.auto.pause();
+    const ov = this.auto.update(dt);
+    if (ov) { mx = ov.mx; my = ov.my; }
     g.input.mx = mx; g.input.my = my;
-    const [ax, ay] = this.aim();
+    let [ax, ay] = this.aim();
+    if (ov) { ax = ov.ax; ay = ov.ay; }
     // hover detection for targeting
     const [wx, wy] = this.renderer.screenToWorld(this.input.mouse.x, this.input.mouse.y);
     let hover = 0;
@@ -261,7 +270,7 @@ export class GameUI {
       this.renderer.ghost = { x: gx, y: gy, w: f.w, h: f.h, ok };
     }
     const overUI = this.panel !== null && this.input.mouse.x > innerWidth - (this.el.panel!.offsetWidth || 0);
-    const atk = (this.input.mouse.left && !overUI && !this.touch) || this.touchAttack;
+    const atk = (this.input.mouse.left && !overUI && !this.touch) || this.touchAttack || !!ov?.atk;
     this.sendT -= dt;
     const key = `${mx.toFixed(2)},${my.toFixed(2)},${atk}`;
     if (this.sendT <= 0 || key !== this.lastInput) {
@@ -280,6 +289,7 @@ export class GameUI {
   }
 
   private cast(kind: 'a' | 'u', slot: number) {
+    this.auto.pause(1.5);
     const [ax, ay] = this.aim();
     const g = this.game;
     const tid = this.settings.style === 'tab' || this.touch ? g.self?.target || this.nearestEnemy(700)?.id || 0 : this.renderer.hoverId || 0;
@@ -432,6 +442,7 @@ export class GameUI {
     const curKey = `${ch.gold}|${ch.dust}|${shards}`;
     if (this.curKey !== curKey) { this.curKey = curKey; clear(E.cur!).append(...([['gold', ch.gold, th ? 'ทอง' : 'Gold'], ['dust', ch.dust, th ? 'ผงดวงดาว' : 'Astral Dust'], ['shard', shards, th ? 'เศษอัมเบอร์ (ซีซัน)' : 'Ember Shards (season)']] as const).map(([k, v, label]) => { const el = h('div', { class: 'cur' }, currencyIcon(k, 24), h('b', null, v.toLocaleString())); bindTip(el, () => h('div', { class: 'tip' }, label)); return el; })); }
     this.trackerT -= 0.1;
+    this.renderAuto();
     if (this.trackerT <= 0) {
       this.trackerT = 1; this.renderTracker(); this.renderParty(); this.renderPill();
       const acc = g.account, meta = normalizeMeta(acc?.meta);
@@ -527,6 +538,32 @@ export class GameUI {
       ...p.members.map((m) => { const e = byName.get(m.name); const cd = CLASSES[m.cls as keyof typeof CLASSES];
         return h('div', { class: 'pm' }, h('div', { class: 'pm-av', style: `--c:${cd?.colors.body ?? '#555'}` }, (m.cls[0] ?? '?').toUpperCase()), h('div', { class: 'grow' }, h('div', { class: 'pm-n' }, m.name === p.leader ? uiIcon('crown', 14) : null, h('em', null, `Lv.${m.level}`), ` ${m.name}`), e ? h('div', { class: 'gbar thin hp' }, h('i', { style: `width:${(e.hp / e.mhp) * 100}%` })) : h('small', { class: 'muted' }, m.room))); }));
   }
+  private showAfk(p: any) {
+    const th = getLang() === 'th';
+    const close = () => this.closeModal();
+    const hrs = Math.floor(p.minutes / 60), mins = p.minutes % 60;
+    this.showModal(h('div', { class: 'modal-wrap' }, h('div', { class: 'modal afk' },
+      h('h2', null, th ? 'ระหว่างที่คุณไม่อยู่…' : 'While you were away…'),
+      h('p', null, th ? `ตัวละครตั้งแคมป์ล่าใน ${p.zone} เป็นเวลา ${hrs} ชม. ${mins} นาที (สูงสุด 12 ชม.)` : `Your character camped and hunted in ${p.zone} for ${hrs}h ${mins}m (max 12h).`),
+      h('div', { class: 'afk-rw' }, h('span', null, currencyIcon('gold', 26), ` ${p.gold.toLocaleString()}`), h('span', null, uiIcon('star', 26, '#7be08a'), ` ${p.xp.toLocaleString()} XP`), ...Object.entries(p.mats as Record<string, number>).filter(([, n]) => n > 0).map(([k, n]) => h('span', null, matIcon(k, 26), ` ×${n}`))),
+      h('button', { class: 'btn gold big', onclick: () => { this.send({ t: 'afk_claim' }); close(); } }, th ? 'รับรางวัล' : 'Collect'),
+      h('small', { class: 'muted' }, th ? 'ออกจากเกมในโลกเปิด (ไม่ใช่ในเมือง) เพื่อตั้งแคมป์ฟาร์ม · อัตราต่ำกว่าการเล่นจริง' : 'Log out in the open world (not in town) to make camp. Camp rewards are lower than active play.'))));
+  }
+  private autoSettings() {
+    const a = this.auto, th = getLang() === 'th';
+    const sel = (label: string, value: string, opts: Array<[string, string]>, on: (v: string) => void) => h('label', { class: 'set' }, label, h('select', { onchange: (e: Event) => { on((e.target as HTMLSelectElement).value); a.save(); } }, ...opts.map(([v, l]) => h('option', { value: v, selected: v === value }, l))));
+    return h('div', { class: 'settings' }, h('h3', null, th ? 'ระบบออโต้' : 'Auto system'),
+      sel(th ? 'ดื่มยาอัตโนมัติเมื่อ HP ต่ำกว่า' : 'Auto-potion below HP', a.s.potion ? String(a.s.potionPct) : '0', [['0', th ? 'ปิด' : 'Off'], ['30', '30%'], ['40', '40%'], ['50', '50%'], ['60', '60%']], (v) => { a.s.potion = v !== '0'; if (v !== '0') a.s.potionPct = Number(v); }),
+      sel(th ? 'เก็บของอัตโนมัติ (ความหายากขั้นต่ำ)' : 'Auto-loot (minimum rarity)', a.s.loot ? a.s.lootMin : 'off', [['off', th ? 'ปิด' : 'Off'], ['common', 'Common+'], ['uncommon', 'Uncommon+'], ['rare', 'Rare+'], ['epic', 'Epic+']], (v) => { a.s.loot = v !== 'off'; if (v !== 'off') a.s.lootMin = v; }),
+      sel(th ? 'ใช้อัลติเมตอัตโนมัติ (บอส/อีลิต/ฝูง)' : 'Auto-use ultimates (bosses, elites, packs)', a.s.useUlts ? '1' : '0', [['1', th ? 'เปิด' : 'On'], ['0', th ? 'ปิด' : 'Off']], (v) => { a.s.useUlts = v === '1'; }),
+      sel(th ? 'ระยะไล่ล่าจากจุดเริ่ม' : 'Hunt radius from start point', String(a.s.leash), [['400', '400'], ['700', '700'], ['1000', '1000']], (v) => { a.s.leash = Number(v); }),
+      h('p', { class: 'hint' }, th ? 'ออโต้ใช้ข้อความเดียวกับผู้เล่นและเซิร์ฟเวอร์ตรวจทุกอย่าง · กดเดินหรือใช้สกิลเองจะหยุดชั่วคราว 2.5 วินาที · ปุ่ม ▶ ข้างเควสต์จะเดินไปทำเควสต์ให้' : 'Auto sends the same messages a player does and the server checks everything. Moving or casting yourself pauses it for 2.5s. The ▶ next to a quest travels to it and does it.'));
+  }
+  renderAuto() {
+    const a = this.auto, th = getLang() === 'th';
+    this.el.autoBtn!.classList.toggle('on', a.s.combat);
+    this.el.autoSt!.textContent = a.active ? ({ combat: th ? 'กำลังต่อสู้' : 'Fighting', loot: th ? 'เก็บของ' : 'Looting', searching: th ? 'ค้นหาศัตรู' : 'Searching', paused: th ? 'หยุดชั่วคราว (ควบคุมเอง)' : 'Paused (manual)' } as Record<string, string>)[a.status] ?? a.status : (th ? 'ปิดอยู่' : 'Off');
+  }
   private trackerT = 0;
   shopState = { tab: 'supplies' as 'supplies' | 'materials' | 'cosmetics' | 'mounts' };
   lastWish: any[] | null = null;
@@ -573,8 +610,9 @@ export class GameUI {
       if (this.tut?.cur) { const c = this.tut.cur; body.append(h('div', { class: 'tq tut' }, h('div', { class: 'tq-t' }, uiIcon('star', 16, '#ffd36a'), h('b', null, `[${th ? 'บทสอน' : 'Tutorial'} ${this.tut.step + 1}/${this.tut.total}] `), th ? c.th : c.en), h('small', null, th ? c.hintTh : c.hintEn), h('div', { class: 'row between' }, h('small', { class: 'gold' }, `${th ? 'รางวัล' : 'Reward'}: ${c.gold}g`), h('button', { class: 'btn ghost tiny', onclick: () => this.send({ t: 'tutorial_skip' }) }, th ? 'ข้าม' : 'Skip')))); }
       const active = QUESTS.filter((q) => ch.quests[q.id] && !ch.quests[q.id]!.claimed);
       const next = QUESTS.find((q) => !ch.quests[q.id] && (!q.requires || ch.quests[q.requires]?.claimed));
-      for (const q of active.slice(0, 4)) { const st = ch.quests[q.id]!; body.append(h('button', { class: 'tq', onclick: () => this.toggle('quests') }, h('div', { class: 'tq-t' }, h('b', { class: 'tag-main' }, `[${th ? 'หลัก' : 'Main'}] `), ct(`quest.${q.id}.name`, q.name)), h('small', null, st.done ? (th ? '• สำเร็จ — กลับไปส่งเควสต์' : '• Complete — return to the quest giver') : `• ${th ? 'ความคืบหน้า' : 'Progress'} (${st.progress}/${q.objective.count})`))); }
-      if (next) body.append(h('button', { class: 'tq', onclick: () => this.toggle('quests') }, h('div', { class: 'tq-t' }, h('b', { class: 'tag-story' }, `[${th ? 'เนื้อเรื่อง' : 'Story'}] `), ct(`quest.${next.id}.name`, next.name)), h('small', null, `• ${th ? 'รับเควสต์จาก' : 'Accept from'} ${next.giver}`)));
+      const autoQ = (id: string) => h('span', { class: 'tq-auto' + (this.auto.quest === id ? ' on' : ''), title: th ? 'เดินทำเควสต์อัตโนมัติ' : 'Auto-travel & do this quest', onclick: (e: Event) => { e.stopPropagation(); this.auto.setQuest(this.auto.quest === id ? null : id); this.renderTracker(); this.renderAuto(); } }, this.auto.quest === id ? '■' : '▶');
+      for (const q of active.slice(0, 4)) { const st = ch.quests[q.id]!; body.append(h('button', { class: 'tq', onclick: () => this.toggle('quests') }, autoQ(q.id), h('div', { class: 'tq-t' }, h('b', { class: 'tag-main' }, `[${th ? 'หลัก' : 'Main'}] `), ct(`quest.${q.id}.name`, q.name)), h('small', null, st.done ? (th ? '• สำเร็จ — กลับไปส่งเควสต์' : '• Complete — return to the quest giver') : `• ${th ? 'ความคืบหน้า' : 'Progress'} (${st.progress}/${q.objective.count})`))); }
+      if (next) body.append(h('button', { class: 'tq', onclick: () => this.toggle('quests') }, autoQ(next.id), h('div', { class: 'tq-t' }, h('b', { class: 'tag-story' }, `[${th ? 'เนื้อเรื่อง' : 'Story'}] `), ct(`quest.${next.id}.name`, next.name)), h('small', null, `• ${th ? 'รับเควสต์จาก' : 'Accept from'} ${next.giver}`)));
       const wk = weeklyObjectives(Date.now()), prog = g.account?.season;
       for (const o of wk) { const v = prog?.weekly?.[o.id] ?? 0, done = prog?.weeklyDone?.includes(o.id); body.append(h('button', { class: 'tq', onclick: () => this.toggle('season') }, h('div', { class: 'tq-t' }, h('b', { class: 'tag-weekly' }, `[${th ? 'รายสัปดาห์' : 'Weekly'}] `), o.name), h('small', null, done ? (th ? '• สำเร็จ ✓' : '• Done ✓') : `• (${Math.min(v, o.count)}/${o.count})`))); }
     } else {
@@ -656,7 +694,7 @@ export class GameUI {
       case 'social': body = h('div', null, P.socialPanel(ctx), S.finderSection(ctx.ch, this.pfEntries, this.nearbyPlayers(), (m) => this.send(m))); break;
       case 'guild': body = S.guildPanel(ctx.ch, this.guildData, (m) => this.send(m), inTown); break;
       case 'auction': body = S.auctionPanel(ctx.ch, this.ah, (m) => this.send(m), () => this.renderPanel()); break;
-      case 'settings': body = P.settingsPanel(ctx); break;
+      case 'settings': body = h('div', null, this.autoSettings(), P.settingsPanel(ctx)); break;
       case 'dungeon': body = P.dungeonPanel(ctx, this.panelExtra?.unlocked ?? ['story', 'normal'], this.panelExtra?.locks ?? {}); break;
       case 'ladder': body = P.ladderPanel(this.ladderData, ctx.ch, (m) => this.send(m)); break;
       case 'trainer': body = P.trainerPanel(ctx); break;
