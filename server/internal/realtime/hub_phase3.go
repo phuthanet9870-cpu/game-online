@@ -25,6 +25,7 @@ func (h *Hub) loadExtras(s *session, p *game.Player, x *store.CharacterExtras) {
 	s.storage = map[string]int{}
 	s.equip = map[string]string{}
 	s.enh = map[string]int{}
+	s.quests = map[string]*questState{}
 	s.autoCfg = game.DefaultAutoSettings()
 	defer func() {
 		// characters created before equipment existed: the carried weapon type maps to its template
@@ -48,6 +49,7 @@ func (h *Hub) loadExtras(s *session, p *game.Player, x *store.CharacterExtras) {
 	for id, l := range x.Enhance {
 		s.enh[id] = l
 	}
+	h.loadQuests(s, x.Quests)
 	for _, it := range x.Storage {
 		s.storage[it.TemplateID] = it.Quantity
 	}

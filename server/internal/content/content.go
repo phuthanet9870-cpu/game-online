@@ -411,6 +411,46 @@ type Content struct {
 	Shops                map[string][]ShopItem // npc id -> stock
 	MapLoot              map[string]*MapLoot
 	Enhance              EnhanceConfig
+	Quests               []QuestDef
+}
+
+type QuestObjective struct {
+	Type    string   `json:"type"` // kill | collect | talk
+	Targets []string `json:"targets,omitempty"`
+	ItemID  string   `json:"itemId,omitempty"`
+	NPC     string   `json:"npc,omitempty"`
+	Count   int      `json:"count"`
+	Label   string   `json:"label"`
+}
+
+type QuestDef struct {
+	ID          string           `json:"id"`
+	Kind        string           `json:"kind"`
+	Name        string           `json:"name"`
+	Description string           `json:"description"`
+	LevelReq    int              `json:"levelReq"`
+	Requires    []string         `json:"requires"`
+	Repeatable  bool             `json:"repeatable"`
+	Giver       string           `json:"giver"`
+	TurnIn      string           `json:"turnIn"`
+	Objectives  []QuestObjective `json:"objectives"`
+	Rewards     struct {
+		XP    int64 `json:"xp"`
+		Gold  int64 `json:"gold"`
+		Items []struct {
+			ItemID   string `json:"itemId"`
+			Quantity int    `json:"quantity"`
+		} `json:"items"`
+	} `json:"rewards"`
+}
+
+func (c *Content) Quest(id string) *QuestDef {
+	for i := range c.Quests {
+		if c.Quests[i].ID == id {
+			return &c.Quests[i]
+		}
+	}
+	return nil
 }
 
 type ShopItem struct {
@@ -588,6 +628,13 @@ func Load(dir string) (*Content, error) {
 	for _, sh := range shops.Shops {
 		c.Shops[sh.NPC] = sh.Items
 	}
+	var qs struct {
+		Quests []QuestDef `json:"quests"`
+	}
+	if err := readJSON(dir, "quests/quests.json", &qs); err != nil {
+		return nil, err
+	}
+	c.Quests = qs.Quests
 	c.Powers = &PowerConfig{}
 	if err := readJSON(dir, "powers/powers.json", c.Powers); err != nil {
 		return nil, err

@@ -255,3 +255,7 @@ func (f *fakeStore) SetEquipment(context.Context, int64, string, string) error  
 func (f *fakeStore) Enhance(context.Context, string, int64, string, int64, []store.ItemStack, bool) error {
 	return nil
 }
+func (f *fakeStore) SaveQuest(context.Context, int64, string, string, []int) error { return nil }
+func (f *fakeStore) CompleteQuest(context.Context, string, int64, string, int64, int, store.Exchange) error {
+	return nil
+}

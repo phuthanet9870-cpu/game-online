@@ -29,6 +29,7 @@ type CharacterExtras struct {
 	Storage      []ItemStack
 	Equipment    map[string]string
 	Enhance      map[string]int
+	Quests       []QuestRow
 }
 
 func (s *Store) Extras(ctx context.Context, charID int64) (*CharacterExtras, error) {
@@ -50,6 +51,9 @@ func (s *Store) Extras(ctx context.Context, charID int64) (*CharacterExtras, err
 		return nil, err
 	}
 	if x.Enhance, err = s.EnhanceLevels(ctx, charID); err != nil {
+		return nil, err
+	}
+	if x.Quests, err = s.Quests(ctx, charID); err != nil {
 		return nil, err
 	}
 	rows, err := s.DB.Query(ctx, `select power_id, points, times_bound, times_destroyed from power_archive where character_id = $1 order by power_id`, charID)

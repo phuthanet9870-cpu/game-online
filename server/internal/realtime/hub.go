@@ -52,6 +52,8 @@ type Store interface {
 	Craft(ctx context.Context, txID string, charID int64, inputs []store.ItemStack, output store.ItemStack) error
 	ApplyExchange(ctx context.Context, x store.Exchange) error
 	SetEquipment(ctx context.Context, charID int64, slot, templateID string) error
+	SaveQuest(ctx context.Context, charID int64, questID, status string, counters []int) error
+	CompleteQuest(ctx context.Context, txID string, charID int64, questID string, xp int64, levelAfter int, x store.Exchange) error
 	Enhance(ctx context.Context, txID string, charID int64, templateID string, gold int64, stones []store.ItemStack, success bool) error
 	MoveStorage(ctx context.Context, txID string, charID int64, templateID string, qty int) error
 }
@@ -112,6 +114,7 @@ type session struct {
 	storage    map[string]int
 	equip      map[string]string // slot -> template
 	enh        map[string]int    // template -> +level
+	quests     map[string]*questState
 }
 
 type JoinRequest struct {
@@ -345,6 +348,7 @@ func (h *Hub) join(r JoinRequest) error {
 	h.sendPower(s)
 	h.send(s.client, map[string]any{"t": "hotbar", "slots": s.hotbar})
 	h.sendAuto(s, nil)
+	h.sendQuests(s)
 	h.broadcastSys(fmt.Sprintf("%s เข้าสู่โลก", s.name), "normal", pid)
 	h.log.Info("player joined", "pid", pid, "name", s.name, "online", h.Online.Load())
 	return nil
@@ -447,6 +451,8 @@ func (h *Hub) onMessage(s *session, m clientMsg) {
 		h.send(s.client, map[string]any{"t": "pong", "c": m.C, "s": h.world.Time})
 	case "equip", "bind", "unbind", "loadout", "craft", "hotbar", "auto", "pickup", "gm":
 		h.onPhase3(s, m)
+	case "quest":
+		h.questOp(s, m)
 	case "talk", "shop", "storage", "equipItem", "unequip", "smith":
 		h.onPhase4(s, m)
 	default:
@@ -739,6 +745,7 @@ func (h *Hub) processRewards() {
 			base := fmt.Sprintf("%s:%s:%d:%d", h.instanceID, r.MonsterID, r.DeathSeq, s.charID)
 			rw := store.Reward{TxID: "kill:" + base, CharID: s.charID, XPDelta: loot.XP, LevelAfter: s.level, Reason: "kill:" + r.MonsterDef}
 			h.persist.Enqueue(rw.TxID, func(ctx context.Context) error { return h.st.ApplyReward(ctx, rw) })
+			h.questEvent(s, "kill", r.MonsterDef)
 			if s.auto.Enabled {
 				s.auto.Report.Kills++
 				s.auto.Report.XP += loot.XP

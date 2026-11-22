@@ -46,7 +46,11 @@ func (h *Hub) talk(s *session, p *game.Player, npc string) {
 		h.fail(s, "talk", "อยู่ไกล NPC เกินไป")
 		return
 	}
+	h.questEvent(s, "talk", npc)
 	msg := map[string]any{"t": "npc", "npc": npc, "name": npcNames[npc]}
+	if npc == "questboard" {
+		h.sendQuests(s)
+	}
 	switch npc {
 	case "merchant":
 		msg["shop"] = h.c.Shops["merchant"]

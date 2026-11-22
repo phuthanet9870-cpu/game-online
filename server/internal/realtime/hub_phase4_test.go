@@ -141,3 +141,48 @@ func TestMapTradeLootDropsOnFarmMaps(t *testing.T) {
 		t.Fatal("no FARM-01 trade loot dropped in 6 kills")
 	}
 }
+
+func TestQuestAcceptKillTurnIn(t *testing.T) {
+	h, _, p := newTestHub(t)
+	defer p.Close()
+	c, s, pl := joinWith(t, h, 1, "player", "sword", nil)
+	drain(c)
+	h.onMessage(s, clientMsg{T: "quest", Op: "accept", ItemID: "Q-MAIN-001"})
+	if s.quests["Q-MAIN-001"] != nil {
+		t.Fatal("accepting away from the Quest Board must fail")
+	}
+	standAt(h, pl, "questboard")
+	h.onMessage(s, clientMsg{T: "quest", Op: "accept", ItemID: "Q-MAIN-002"})
+	if s.quests["Q-MAIN-002"] != nil {
+		t.Fatal("prerequisite not done: must be locked")
+	}
+	h.onMessage(s, clientMsg{T: "quest", Op: "accept", ItemID: "Q-MAIN-001"})
+	h.onMessage(s, clientMsg{T: "quest", Op: "turnin", ItemID: "Q-MAIN-001"})
+	if s.quests["Q-MAIN-001"].Status != "active" {
+		t.Fatal("cannot turn in before objectives are done")
+	}
+	for i := 0; i < 5; i++ {
+		h.questEvent(s, "kill", "MON-SLIME-001")
+	}
+	h.questEvent(s, "kill", "MON-WOLF-001") // not a target
+	gold, xp := s.gold, s.xp
+	h.onMessage(s, clientMsg{T: "quest", Op: "turnin", ItemID: "Q-MAIN-001"})
+	if s.quests["Q-MAIN-001"].Status != "completed" || s.gold != gold+50 || s.xp != xp+120 || s.inv["CON-001"] != 3 {
+		t.Fatalf("turn-in: %+v gold %d xp %d inv %v", s.quests["Q-MAIN-001"], s.gold, s.xp, s.inv)
+	}
+	h.onMessage(s, clientMsg{T: "quest", Op: "accept", ItemID: "Q-MAIN-001"})
+	if s.quests["Q-MAIN-001"].Status != "completed" {
+		t.Fatal("non-repeatable quest cannot be taken again")
+	}
+	// collect quest consumes items at turn-in; talk objective counts NPC talks
+	s.inv["TRD-F01-001"] = 5
+	h.onMessage(s, clientMsg{T: "quest", Op: "accept", ItemID: "Q-SIDE-001"})
+	h.onMessage(s, clientMsg{T: "quest", Op: "turnin", ItemID: "Q-SIDE-001"})
+	if s.inv["TRD-F01-001"] != 0 || s.quests["Q-SIDE-001"].Status != "completed" {
+		t.Fatal("collect quest should consume items")
+	}
+	h.onMessage(s, clientMsg{T: "quest", Op: "accept", ItemID: "Q-SIDE-001"})
+	if s.quests["Q-SIDE-001"].Status != "active" {
+		t.Fatal("repeatable quest can be accepted again")
+	}
+}
