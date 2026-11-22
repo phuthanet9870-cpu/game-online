@@ -61,8 +61,9 @@ func (h *Hub) partyView(pt *party) map[string]any {
 		if ms == nil {
 			continue
 		}
-		v := map[string]any{"charId": cid, "name": ms.name, "level": ms.level, "map": ms.mapID, "online": ms.client != nil, "leader": cid == pt.leader}
+		v := map[string]any{"charId": cid, "name": ms.name, "level": ms.level, "map": "", "online": ms.client != nil, "leader": cid == pt.leader}
 		if w := h.worlds[ms.mapID]; w != nil {
+			v["map"] = w.Map.MapID
 			if p := w.Player(ms.pid); p != nil {
 				v["hp"], v["maxHp"] = math.Round(p.Hp), p.MaxHp
 			}

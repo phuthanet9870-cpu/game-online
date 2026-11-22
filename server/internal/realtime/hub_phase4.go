@@ -66,6 +66,10 @@ func (h *Hub) talk(s *session, p *game.Player, npc string) {
 		sort.Slice(recipes, func(i, j int) bool { return recipes[i].(*content.Recipe).ID < recipes[j].(*content.Recipe).ID })
 		msg["recipes"] = recipes
 		msg["enhance"] = h.c.Enhance
+	case "gatekeeper":
+		for k, v := range h.gatekeeperMenu(s) {
+			msg[k] = v
+		}
 	}
 	h.send(s.client, msg)
 }

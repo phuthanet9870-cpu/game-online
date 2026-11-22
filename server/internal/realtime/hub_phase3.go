@@ -396,6 +396,10 @@ func (h *Hub) autoCommand(s *session, p *game.Player, m clientMsg) {
 				h.fail(s, "auto", "เปิด Auto ไม่ได้ขณะเสียชีวิต")
 				return
 			}
+			if h.world.Map.Instanced() {
+				h.fail(s, "auto", "ในดันเจี้ยน/อารีน่าต้องต่อสู้เอง (Normal Dungeon ใช้ได้เฉพาะ Auto Loot)")
+				return
+			}
 			// Auto is PvE-only: the dev map is PvP-off; PvP/Ranked/Guild War maps (Phase 6) refuse it.
 			s.auto.Start(p, h.world.Time, s.autoCfg)
 			h.sendSys(s, "เปิด Auto Farm (PvE เท่านั้น · หยุดเมื่อหลุดการเชื่อมต่อ)", "good")

@@ -31,6 +31,13 @@
    "file": "training-ground.json",
    "core": false,
    "kind": "dev"
+  },
+  {
+   "id": "DUN-N01",
+   "file": "dungeon-n01.json",
+   "core": false,
+   "kind": "dungeon",
+   "separateInstance": true
   }
  ]
 }

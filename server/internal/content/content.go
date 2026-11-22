@@ -370,6 +370,51 @@ type MapData struct {
 	Kind          string // city | farm | dev | dungeon | arena
 	PvPPolicy     string
 	Core          bool // counts toward the LOCKED 32 core maps
+	BossSpawn     *[2]float64
+}
+
+// Instanced reports whether the map is a template for separate instances (dungeon/arena) that the
+// hub creates on demand instead of running one shared world.
+func (m *MapData) Instanced() bool { return m.Kind == "dungeon" || m.Kind == "arena" }
+
+// DungeonDef (spec §14): entry ONLY via the Dungeon Gatekeeper NPC in the city.
+type DungeonDef struct {
+	ID               string  `json:"id"`
+	Type             string  `json:"type"`
+	Name             string  `json:"name"`
+	Description      string  `json:"description"`
+	Map              string  `json:"map"`
+	NPC              string  `json:"npc"`
+	EntryLevel       int     `json:"entryLevel"`
+	PartyMin         int     `json:"partyMin"`
+	PartyMax         int     `json:"partyMax"`
+	KeyItem          string  `json:"keyItem"`
+	Difficulty       string  `json:"difficulty"`
+	TimeLimitMs      float64 `json:"timeLimitMs"`
+	ReadyCheckMs     float64 `json:"readyCheckMs"`
+	ExitAfterClearMs float64 `json:"exitAfterClearMs"`
+	EmptyCloseMs     float64 `json:"emptyCloseMs"`
+	AutoPolicy       string  `json:"autoPolicy"`
+	Lockout          string  `json:"lockout"`
+	Objectives       []struct {
+		Type      string `json:"type"`
+		MonsterID string `json:"monsterId,omitempty"`
+		Label     string `json:"label"`
+	} `json:"objectives"`
+	Boss       string `json:"boss"`
+	Completion struct {
+		XP   int64 `json:"xp"`
+		Gold int64 `json:"gold"`
+	} `json:"completion"`
+}
+
+func (c *Content) Dungeon(id string) *DungeonDef {
+	for i := range c.Dungeons {
+		if c.Dungeons[i].ID == id {
+			return &c.Dungeons[i]
+		}
+	}
+	return nil
 }
 
 // Portal is a rectangle that moves a player to another map (server-validated).
@@ -412,6 +457,7 @@ type Content struct {
 	MapLoot              map[string]*MapLoot
 	Enhance              EnhanceConfig
 	Quests               []QuestDef
+	Dungeons             []DungeonDef
 }
 
 type QuestObjective struct {
@@ -581,6 +627,8 @@ func parseMap(t tiledMap) (*MapData, error) {
 						}
 					}
 					m.NPCs = append(m.NPCs, n)
+				case "boss_spawn":
+					m.BossSpawn = &[2]float64{o.X, o.Y}
 				case "monster_spawn":
 					s := MonsterSpawn{ID: o.Name, X: o.X, Y: o.Y}
 					for _, p := range o.Properties {
@@ -635,6 +683,13 @@ func Load(dir string) (*Content, error) {
 		return nil, err
 	}
 	c.Quests = qs.Quests
+	var ds struct {
+		Dungeons []DungeonDef `json:"dungeons"`
+	}
+	if err := readJSON(dir, "dungeons/dungeons.json", &ds); err != nil {
+		return nil, err
+	}
+	c.Dungeons = ds.Dungeons
 	c.Powers = &PowerConfig{}
 	if err := readJSON(dir, "powers/powers.json", c.Powers); err != nil {
 		return nil, err
@@ -851,6 +906,45 @@ func (c *Content) Validate() []string {
 		for _, n := range m.NPCs {
 			if n.ID == "" || m.Collision[int(n.Y/m.TileSize)*m.Width+int(n.X/m.TileSize)] == 1 {
 				errs = append(errs, id+": npc "+n.Name+" invalid or inside a wall")
+			}
+		}
+	}
+	// LOCKED §14: dungeons are separate instance maps entered only via a city Gatekeeper NPC
+	for _, d := range c.Dungeons {
+		m := c.Maps[d.Map]
+		switch {
+		case m == nil || m.Kind != "dungeon" || m.Core:
+			errs = append(errs, "dungeon "+d.ID+": map must be a non-core dungeon instance map")
+		case m.BossSpawn == nil || c.Monsters[d.Boss] == nil || c.Drops[d.Boss] == nil:
+			errs = append(errs, "dungeon "+d.ID+": boss / boss_spawn / boss drop table missing")
+		case d.NPC != "gatekeeper" || d.PartyMin < 1 || d.PartyMax < d.PartyMin || d.PartyMax > 4 || d.TimeLimitMs <= 0:
+			errs = append(errs, "dungeon "+d.ID+": invalid npc/party/time limit")
+		}
+		if d.KeyItem != "" && c.Items[d.KeyItem] == nil {
+			errs = append(errs, "dungeon "+d.ID+": unknown key item")
+		}
+	}
+	for id, m := range c.Maps {
+		if m.Kind != "dungeon" {
+			continue
+		}
+		used := false
+		for _, d := range c.Dungeons {
+			used = used || d.Map == id
+		}
+		if !used {
+			errs = append(errs, "dungeon map "+id+" has no DungeonDef")
+		}
+		for _, pt := range m.Portals {
+			if t := c.Maps[pt.TargetMap]; t == nil || t.Kind != "city" {
+				errs = append(errs, "dungeon map "+id+": exits must lead to a city")
+			}
+		}
+	}
+	for id, m := range c.Maps {
+		for _, pt := range m.Portals {
+			if t := c.Maps[pt.TargetMap]; t != nil && t.Instanced() {
+				errs = append(errs, id+": portal "+pt.ID+" leads into an instance map (entry is via NPC only)")
 			}
 		}
 	}

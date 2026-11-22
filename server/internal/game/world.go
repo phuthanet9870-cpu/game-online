@@ -277,6 +277,7 @@ type KillReward struct {
 
 type World struct {
 	Map         *content.MapData
+	NoRespawn   bool // instance maps: killed monsters stay dead
 	Time        float64
 	Grid        *Grid
 	C           *content.Content
@@ -337,6 +338,13 @@ func (w *World) SpawnTestMonster(def *content.MonsterDef, at Vec, ttlMs float64)
 	m := w.addMonster(w.nextID("gm"), def, at)
 	m.NoLoot = true
 	m.ExpiresAt = w.Time + ttlMs
+	w.emit(Event{Type: "spawn", Time: w.Time, EntityID: m.ID, Pos: vp(at), Action: def.ID})
+	return m
+}
+
+// SpawnBoss adds a real (lootable) monster at a position, e.g. a dungeon boss after its objective.
+func (w *World) SpawnBoss(def *content.MonsterDef, at Vec) *Monster {
+	m := w.addMonster(w.nextID("boss"), def, at)
 	w.emit(Event{Type: "spawn", Time: w.Time, EntityID: m.ID, Pos: vp(at), Action: def.ID})
 	return m
 }
@@ -1594,7 +1602,7 @@ func (w *World) updateMonster(m *Monster, dt float64) {
 		w.tickMonsterStatuses(m)
 	}
 	if m.AI == "DEAD" {
-		if m.ExpiresAt == 0 && now >= m.respawnAt {
+		if m.ExpiresAt == 0 && !w.NoRespawn && now >= m.respawnAt {
 			m.Pos = m.Spawn
 			m.Hp = m.Def.MaxHp
 			m.attackResolved = false

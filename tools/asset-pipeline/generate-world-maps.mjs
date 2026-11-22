@@ -149,6 +149,35 @@ farm('farm-02.json', 'FARM-02', 'Whispering Forest', 202, 'forest', ['FARM-01', 
 farm('farm-03.json', 'FARM-03', 'Wolf Fang Valley', 303, 'valley', ['FARM-02', 60, 20, '← Whispering Forest'], null,
   [[30, 'MON-WOLF-001', 14, 13], [31, 'MON-WOLF-002', 20, 27], [32, 'MON-WOLF-001', 28, 12], [33, 'MON-WOLF-002', 36, 27], [34, 'MON-WOLF-001', 44, 13], [35, 'MON-WOLF-002', 50, 26], [36, 'MON-BOSS-FANG', 56, 20]], 8, 14);
 
+/* ------------------------------------------------- Normal Dungeon (instance) */
+{
+  const m = makeMap(9001);
+  for (let i = 0; i < W * H; i++) {
+    m.ground[i] = T.WALL;
+    m.collision[i] = 1;
+  }
+  const room = (x0, y0, x1, y1) => {
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) m.set(x, y, m.rnd() < 0.2 ? T.DARKGRASS : T.SAND);
+  };
+  room(2, 15, 12, 24); // entrance hall (exit portal west)
+  room(13, 18, 18, 21); // corridor
+  room(19, 8, 32, 31); // ossuary
+  room(33, 18, 39, 21); // corridor
+  room(40, 10, 60, 30); // warden's chamber
+  for (const [x, y] of [[24, 14], [27, 25], [45, 15], [55, 25], [45, 25], [55, 15]]) m.set(x, y, T.WALL, 1);
+  const objects = [
+    { id: 1, name: 'player_spawn', type: 'player_spawn', x: px(6), y: px(20) },
+    portal(20, 'exit_city', 2, 18, 'CITY-AETHERIA', 52, 15, '← ออกสู่ Aetheria'),
+    spawn(30, 'MON-OOZE-001', 22, 12),
+    spawn(31, 'MON-OOZE-001', 29, 13),
+    spawn(32, 'MON-HOUND-001', 25, 20),
+    spawn(33, 'MON-OOZE-001', 22, 28),
+    spawn(34, 'MON-HOUND-001', 30, 27),
+    spawn(35, 'MON-HOUND-001', 43, 20),
+    { id: 40, name: 'boss_spawn', type: 'boss_spawn', x: px(54), y: px(20) },
+  ];
+  write('dungeon-n01.json', 'DUN-N01', 'Mossroot Catacombs', { kind: 'dungeon', pvpPolicy: 'off', levelMin: 3, levelMax: 10 }, m, objects);
+}
 writeFileSync(
   new URL('../../game-data/maps/maps.json', import.meta.url),
   JSON.stringify(
@@ -161,6 +190,7 @@ writeFileSync(
         { id: 'FARM-02', file: 'farm-02.json', core: true, kind: 'farm' },
         { id: 'FARM-03', file: 'farm-03.json', core: true, kind: 'farm' },
         { id: 'DEV-TRAINING-01', file: 'training-ground.json', core: false, kind: 'dev' },
+        { id: 'DUN-N01', file: 'dungeon-n01.json', core: false, kind: 'dungeon', separateInstance: true },
       ],
     },
     null,

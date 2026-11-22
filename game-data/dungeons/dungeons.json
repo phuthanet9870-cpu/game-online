@@ -1,0 +1,41 @@
+{
+ "contentVersion": 1,
+ "_note": "Normal Dungeon definitions (spec §14). Entry ONLY via the Dungeon Gatekeeper NPC in Aetheria Capital. Instance maps are separateInstance (not counted in the 32 core maps).",
+ "dungeons": [
+  {
+   "id": "DUN-N01",
+   "type": "normal",
+   "name": "Mossroot Catacombs",
+   "description": "สุสานใต้ราก — กวาดล้างผู้พิทักษ์แล้วปราบ Catacomb Warden",
+   "map": "DUN-N01",
+   "npc": "gatekeeper",
+   "entryLevel": 3,
+   "partyMin": 1,
+   "partyMax": 4,
+   "keyItem": "",
+   "difficulty": "normal",
+   "timeLimitMs": 900000,
+   "readyCheckMs": 30000,
+   "exitAfterClearMs": 90000,
+   "emptyCloseMs": 60000,
+   "autoPolicy": "loot-only",
+   "lockout": "none",
+   "objectives": [
+    {
+     "type": "clear",
+     "label": "กวาดล้างมอนสเตอร์ในสุสาน"
+    },
+    {
+     "type": "boss",
+     "monsterId": "MON-BOSS-WARDEN",
+     "label": "ปราบ Catacomb Warden"
+    }
+   ],
+   "boss": "MON-BOSS-WARDEN",
+   "completion": {
+    "xp": 250,
+    "gold": 100
+   }
+  }
+ ]
+}

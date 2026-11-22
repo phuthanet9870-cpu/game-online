@@ -230,6 +230,93 @@
      "max": 1
     }
    ]
+  },
+  {
+   "id": "DROP-OOZE-001",
+   "monsterId": "MON-OOZE-001",
+   "xp": 40,
+   "gold": [
+    6,
+    12
+   ],
+   "items": [
+    {
+     "itemId": "CON-001",
+     "chance": 0.2,
+     "min": 1,
+     "max": 1
+    },
+    {
+     "itemId": "MAT-ORE-001",
+     "chance": 0.3,
+     "min": 1,
+     "max": 1
+    }
+   ]
+  },
+  {
+   "id": "DROP-HOUND-001",
+   "monsterId": "MON-HOUND-001",
+   "xp": 55,
+   "gold": [
+    8,
+    15
+   ],
+   "items": [
+    {
+     "itemId": "MAT-ORE-001",
+     "chance": 0.35,
+     "min": 1,
+     "max": 2
+    },
+    {
+     "itemId": "MAT-PWR-002",
+     "chance": 0.2,
+     "min": 1,
+     "max": 1
+    }
+   ]
+  },
+  {
+   "id": "DROP-BOSS-WARDEN",
+   "monsterId": "MON-BOSS-WARDEN",
+   "xp": 450,
+   "gold": [
+    90,
+    150
+   ],
+   "items": [
+    {
+     "itemId": "MAT-ORE-002",
+     "chance": 1,
+     "min": 1,
+     "max": 2
+    },
+    {
+     "itemId": "MAT-PWR-002",
+     "chance": 1,
+     "min": 2,
+     "max": 4
+    },
+    {
+     "itemId": "ARM-CHS-001",
+     "chance": 0.3,
+     "min": 1,
+     "max": 1
+    },
+    {
+     "itemId": "ARM-HLM-001",
+     "chance": 0.3,
+     "min": 1,
+     "max": 1
+    },
+    {
+     "itemId": "PWR-002",
+     "chance": 0.08,
+     "min": 1,
+     "max": 1
+    }
+   ]
   }
  ],
  "recipes": [

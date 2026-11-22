@@ -154,6 +154,9 @@ type Hub struct {
 	partyOf    map[int64]int // charID -> party id
 	invites    map[int64]partyInvite
 	partySeq   int
+	dungeons   map[string]*dungeonInstance
+	dungeonSeq int
+	ready      map[int]*readyCheck
 	tick       uint64
 	lastSave   time.Time
 	Online     atomic.Int32
@@ -182,9 +185,14 @@ func NewHub(cfg Config, c *content.Content, st Store, persist *Persister, log *s
 		parties:    map[int]*party{},
 		partyOf:    map[int64]int{},
 		invites:    map[int64]partyInvite{},
+		dungeons:   map[string]*dungeonInstance{},
+		ready:      map[int]*readyCheck{},
 	}
 	i := uint32(0)
 	for id, m := range c.Maps {
+		if m.Instanced() {
+			continue // dungeon/arena templates: instances are created on demand
+		}
 		i++
 		w := game.NewWorldForMap(c, m, seed+i*7919)
 		w.ConsumeItem = h.consumeItem
@@ -349,7 +357,7 @@ func (h *Hub) join(r JoinRequest) error {
 	h.send(s.client, map[string]any{
 		"t": "welcome", "instance": h.instanceID, "serverTime": h.world.Time, "tickMs": 1000 / h.cfg.TickHz,
 		"you": map[string]any{"id": pid, "charId": ch.ID, "name": s.name, "level": s.level, "weapon": p.Weapon.ID},
-		"map": s.mapID, "testWorld": h.cfg.TestWorld,
+		"map": h.world.Map.MapID, "testWorld": h.cfg.TestWorld,
 	})
 	h.sendInventory(s)
 	h.sendPower(s)
@@ -462,6 +470,8 @@ func (h *Hub) onMessage(s *session, m clientMsg) {
 		h.questOp(s, m)
 	case "party":
 		h.partyOp(s, m)
+	case "dungeon":
+		h.dungeonOp(s, m)
 	case "talk", "shop", "storage", "equipItem", "unequip", "smith":
 		h.onPhase4(s, m)
 	default:
@@ -608,6 +618,8 @@ func (h *Hub) step(dt float64) {
 		h.pending[id] = append(h.pending[id], w.DrainEvents()...)
 		h.processRewards()
 	}
+	h.stepDungeons()
+	h.expireReadyChecks()
 	h.checkPortals()
 	h.tick++
 	if h.tick%uint64(h.cfg.SnapshotEvery) == 0 {
@@ -680,8 +692,8 @@ func (h *Hub) transfer(s *session, mapID string, pos game.Vec) {
 	to := h.use(s)
 	to.TransferIn(p, pos)
 	s.move = game.Vec{}
-	m := h.c.Maps[mapID]
-	h.send(s.client, map[string]any{"t": "map", "map": mapID, "name": m.DisplayName, "kind": m.Kind, "pos": p.Pos})
+	m := to.Map
+	h.send(s.client, map[string]any{"t": "map", "map": m.MapID, "name": m.DisplayName, "kind": m.Kind, "pos": p.Pos})
 	h.saveState(s)
 }
 
