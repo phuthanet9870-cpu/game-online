@@ -7,9 +7,14 @@ const uid = () => Math.random().toString(36).slice(2, 8);
 const st = (page: Page) =>
   page.evaluate(() => {
     const s = (window as any).__TPE__.sim;
-    return { map: s.mapData.mapId, gold: s.online.gold, items: s.online.items as Array<{ templateId: string; quantity: number }> };
+    return {
+      map: s.mapData.mapId,
+      gold: s.online.gold,
+      items: s.online.items as Array<{ templateId: string; quantity: number }>,
+    };
   });
-const qty = async (page: Page, id: string) => (await st(page)).items.find((i) => i.templateId === id)?.quantity ?? 0;
+const qty = async (page: Page, id: string) =>
+  (await st(page)).items.find((i) => i.templateId === id)?.quantity ?? 0;
 const tile = (t: number) => t * 16 + 8;
 
 async function newChar(browser: Browser, prefix: string, role?: string) {
@@ -37,11 +42,15 @@ async function newChar(browser: Browser, prefix: string, role?: string) {
   return { ctx, page, user, char, errors };
 }
 
-test('new characters start in Aetheria Capital and travel to farm maps through portals', async ({ browser }) => {
+test('new characters start in Aetheria Capital and travel to farm maps through portals', async ({
+  browser,
+}) => {
   const a = await newChar(browser, 'trv');
   expect((await st(a.page)).map).toBe('CITY-AETHERIA');
   await goToFarm01(a.page);
-  await expect.poll(async () => a.page.evaluate(() => (window as any).__TPE__.sim.monsters.length)).toBeGreaterThan(0);
+  await expect
+    .poll(async () => a.page.evaluate(() => (window as any).__TPE__.sim.monsters.length))
+    .toBeGreaterThan(0);
   // logout/login keeps the map
   await a.page.reload();
   await a.page.getByTestId(`play-${a.char}`).click();
@@ -51,7 +60,9 @@ test('new characters start in Aetheria Capital and travel to farm maps through p
   await a.ctx.close();
 });
 
-test('Merchant (talk, buy, sell) and Storage work only through the NPCs, state persists', async ({ browser }) => {
+test('Merchant (talk, buy, sell) and Storage work only through the NPCs, state persists', async ({
+  browser,
+}) => {
   const a = await newChar(browser, 'shop');
   await walkTo(a.page, tile(10), tile(13), 12);
   await a.page.keyboard.press('KeyH');
@@ -80,7 +91,9 @@ test('Merchant (talk, buy, sell) and Storage work only through the NPCs, state p
   await a.ctx.close();
 });
 
-test('equipment raises stats, Blacksmith enhances without destroying, equipped items cannot be sold', async ({ browser }) => {
+test('equipment raises stats, Blacksmith enhances without destroying, equipped items cannot be sold', async ({
+  browser,
+}) => {
   const a = await newChar(browser, 'smith', 'owner');
   await a.page.keyboard.press('Enter');
   await a.page.keyboard.type('/gmstefanonline');
@@ -108,8 +121,45 @@ test('equipment raises stats, Blacksmith enhances without destroying, equipped i
   await a.page.keyboard.press('KeyH');
   await expect(a.page.getByTestId('npc-blacksmith')).toBeVisible();
   await a.page.getByTestId('smith-enhance-ARM-CHS-001').click();
-  await expect.poll(async () => a.page.evaluate(() => (window as any).__TPE__.sim.online.enhance['ARM-CHS-001'] ?? 0)).toBe(1);
+  await expect
+    .poll(async () => a.page.evaluate(() => (window as any).__TPE__.sim.online.enhance['ARM-CHS-001'] ?? 0))
+    .toBe(1);
   expect(await qty(a.page, 'ARM-CHS-001')).toBe(1);
+  expect(a.errors).toEqual([]);
+  await a.ctx.close();
+});
+
+test('Quest Board: accept, server counts a talk objective, tracker updates, turn-in pays rewards once', async ({
+  browser,
+}) => {
+  const a = await newChar(browser, 'qst');
+  const questState = (id: string) =>
+    a.page.evaluate((q) => (window as any).__TPE__.sim.online.quests.find((x: any) => x.id === q)?.state, id);
+  await walkTo(a.page, tile(35), tile(16), 12);
+  await a.page.keyboard.press('KeyH');
+  await expect(a.page.getByTestId('npc-questboard')).toBeVisible();
+  await expect(a.page.getByTestId('quest-Q-MAIN-002')).toHaveAttribute('data-state', 'locked');
+  await a.page.getByTestId('quest-accept-Q-SIDE-003').click();
+  await a.page.getByTestId('quest-accept-Q-MAIN-001').click();
+  await expect.poll(() => questState('Q-SIDE-003')).toBe('active');
+  await expect(a.page.getByTestId('quest-tracker')).toContainText('คุยกับ Dungeon Gatekeeper 0/1');
+  await walkTo(a.page, tile(52), tile(14), 12);
+  await a.page.keyboard.press('KeyH');
+  await expect.poll(() => questState('Q-SIDE-003')).toBe('ready');
+  await expect(a.page.getByTestId('quest-tracker')).toContainText('กลับไปส่งที่ Quest Board');
+  await walkTo(a.page, tile(35), tile(16), 12);
+  await a.page.keyboard.press('KeyH');
+  const gold = (await st(a.page)).gold;
+  await a.page.getByTestId('quest-turnin-Q-SIDE-003').click();
+  await expect.poll(async () => (await st(a.page)).gold).toBe(gold + 20);
+  await expect(a.page.getByTestId('quest-Q-SIDE-003')).toHaveAttribute('data-state', 'completed');
+  // persisted across relog: completed side quest + active main quest
+  await a.page.reload();
+  await a.page.getByTestId(`play-${a.char}`).click();
+  await a.page.getByRole('button', { name: 'เข้าสู่โลก' }).click();
+  await expect.poll(() => questState('Q-SIDE-003'), { timeout: 10_000 }).toBe('completed');
+  expect(await questState('Q-MAIN-001')).toBe('active');
+  expect((await st(a.page)).gold).toBe(gold + 20);
   expect(a.errors).toEqual([]);
   await a.ctx.close();
 });

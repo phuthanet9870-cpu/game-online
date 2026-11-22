@@ -232,6 +232,7 @@ export class NetWorld implements WorldSource {
     gm: null,
     equipment: {},
     enhance: {},
+    quests: [],
   };
 
   private ws: WebSocket | null = null;
@@ -412,6 +413,9 @@ export class NetWorld implements WorldSource {
         if (!m.ok) showToast(String(m.error ?? 'ทำรายการไม่สำเร็จ'));
         else if (m.op !== 'hotbar' && m.op !== 'loadout')
           pushLog('system', `สำเร็จ: ${m.op}${m.msg ? ` — ${m.msg}` : ''}`, 'good');
+        break;
+      case 'quests':
+        this.online.quests = (m.quests as OnlineState['quests']) ?? [];
         break;
       case 'npc':
         if (m.npc === 'severer') requestUi('severer');
@@ -768,6 +772,9 @@ export class NetWorld implements WorldSource {
   }
   gm(op: string, args: Record<string, unknown>): void {
     this.send({ t: 'gm', op, ...args });
+  }
+  quest(op: 'accept' | 'abandon' | 'turnin', questId: string): void {
+    this.send({ t: 'quest', op, itemId: questId });
   }
   talk(npc: string): void {
     this.send({ t: 'talk', npc });

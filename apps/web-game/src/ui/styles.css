@@ -1310,3 +1310,23 @@ button:disabled {
   border-bottom: 1px solid #3c2b55;
   padding: 3px 0;
 }
+.quest-tracker {
+  position: absolute;
+  top: 176px;
+  right: 10px;
+  width: 206px;
+  padding: 6px 8px;
+  font-size: 12px;
+  pointer-events: none;
+}
+.quest-tracker .qt-row {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+}
+@media (max-width: 700px) {
+  .quest-tracker {
+    top: 130px;
+    width: 150px;
+  }
+}

@@ -89,6 +89,29 @@ export interface OnlineState {
   gm: { open: boolean; role: string; caps: string[] } | null;
   equipment: Record<string, string>;
   enhance: Record<string, number>;
+  quests: QuestView[];
+}
+
+export interface QuestObjectiveView {
+  type: 'kill' | 'collect' | 'talk';
+  targets?: string[];
+  itemId?: string;
+  npc?: string;
+  count: number;
+  label?: string;
+}
+
+export interface QuestView {
+  id: string;
+  kind: 'main' | 'side';
+  name: string;
+  description: string;
+  state: 'locked' | 'available' | 'active' | 'ready' | 'completed';
+  levelReq: number;
+  objectives: QuestObjectiveView[];
+  counts: number[];
+  rewards: { xp: number; gold: number; items?: Array<{ itemId: string; quantity: number }> };
+  repeatable: boolean;
 }
 
 export interface WorldSource {
@@ -132,6 +155,7 @@ export interface WorldSource {
   equipItem?(itemId: string): void;
   unequip?(slot: string): void;
   smith?(op: 'craft' | 'enhance', arg: string): void;
+  quest?(op: 'accept' | 'abandon' | 'turnin', questId: string): void;
 }
 
 export interface PowerSkillView {

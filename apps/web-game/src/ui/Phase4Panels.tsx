@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { CONTENT, itemName } from '../core/content';
-import type { WorldSource } from '../core/worldSource';
+import type { QuestView, WorldSource } from '../core/worldSource';
 import { uiEventStore, type HudSnapshot } from '../game/bridge';
 
 interface ShopItem {
@@ -127,7 +127,8 @@ export function NpcDialog({
         </div>
       )}
       {open.npc === 'blacksmith' && <Blacksmith hud={hud} world={world} data={open.data} />}
-      {!['merchant', 'storage', 'trial', 'blacksmith'].includes(open.npc) && (
+      {open.npc === 'questboard' && <QuestBoard quests={hud.online?.quests ?? []} world={world} />}
+      {!['merchant', 'storage', 'trial', 'blacksmith', 'questboard'].includes(open.npc) && (
         <p className="hint">บริการนี้กำลังพัฒนาใน Phase 4 (เควสต์ / ดันเจี้ยน / อารีน่า / ตีบวก)</p>
       )}
     </div>
@@ -216,6 +217,96 @@ function Blacksmith({
           })}
         </>
       )}
+    </div>
+  );
+}
+
+const QUEST_STATE: Record<QuestView['state'], string> = {
+  locked: '🔒 ยังไม่ปลดล็อก',
+  available: 'รับได้',
+  active: 'กำลังทำ',
+  ready: '✅ ส่งได้',
+  completed: 'สำเร็จแล้ว',
+};
+
+function objectiveText(q: QuestView): string {
+  return q.objectives.map((o, i) => `${o.label ?? o.type} ${q.counts[i] ?? 0}/${o.count}`).join(' · ');
+}
+
+function QuestBoard({ quests, world }: { quests: QuestView[]; world: WorldSource }) {
+  const groups: Array<[string, QuestView[]]> = [
+    ['เควสต์หลัก', quests.filter((q) => q.kind === 'main')],
+    ['เควสต์รอง', quests.filter((q) => q.kind === 'side')],
+  ];
+  return (
+    <div className="col">
+      {groups.map(([title, list]) => (
+        <div key={title} className="col">
+          <h4>{title}</h4>
+          {list.map((q) => (
+            <div key={q.id} className="recipe" data-testid={`quest-${q.id}`} data-state={q.state}>
+              <div className="row between">
+                <b>{q.name}</b>
+                <span className="hint">
+                  {QUEST_STATE[q.state]}
+                  {q.state === 'locked' && q.levelReq > 1 ? ` (Lv.${q.levelReq})` : ''}
+                </span>
+              </div>
+              <span className="hint">{q.description}</span>
+              <span className="hint">{objectiveText(q)}</span>
+              <span className="hint">
+                รางวัล: EXP {q.rewards.xp} · Gold {q.rewards.gold}
+                {(q.rewards.items ?? []).map((i) => ` · ${itemName(i.itemId)} x${i.quantity}`).join('')}
+                {q.repeatable ? ' · ทำซ้ำได้' : ''}
+              </span>
+              <div className="row">
+                {q.state === 'available' && (
+                  <button
+                    className="btn-primary small"
+                    onClick={() => world.quest?.('accept', q.id)}
+                    data-testid={`quest-accept-${q.id}`}
+                  >
+                    รับเควสต์
+                  </button>
+                )}
+                {q.state === 'ready' && (
+                  <button
+                    className="btn-primary small"
+                    onClick={() => world.quest?.('turnin', q.id)}
+                    data-testid={`quest-turnin-${q.id}`}
+                  >
+                    ส่งเควสต์
+                  </button>
+                )}
+                {(q.state === 'active' || q.state === 'ready') && (
+                  <button className="btn-secondary small" onClick={() => world.quest?.('abandon', q.id)}>
+                    ยกเลิก
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Small always-on tracker for active quests (top-right, under the minimap). */
+export function QuestTracker({ hud }: { hud: HudSnapshot }) {
+  const active = (hud.online?.quests ?? []).filter((q) => q.state === 'active' || q.state === 'ready');
+  if (active.length === 0) return null;
+  return (
+    <div className="quest-tracker panel" data-testid="quest-tracker">
+      <div className="panel-title">
+        <span>📜 เควสต์</span>
+      </div>
+      {active.slice(0, 4).map((q) => (
+        <div key={q.id} className="qt-row">
+          <b>{q.name}</b>
+          <span className="hint">{q.state === 'ready' ? 'กลับไปส่งที่ Quest Board' : objectiveText(q)}</span>
+        </div>
+      ))}
     </div>
   );
 }

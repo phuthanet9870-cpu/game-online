@@ -13,12 +13,23 @@ import {
   type HudSnapshot,
   type LogEntry,
 } from '../game/bridge';
-import { NpcDialog } from './Phase4Panels';
+import { NpcDialog, QuestTracker } from './Phase4Panels';
 import { AutoPanel, Bag3, CharPanel, GmHud, Hotbar3, PowerPanel, SevererDialog } from './Phase3Panels';
 
 const useHud = () => useSyncExternalStore(hudStore.subscribe, hudStore.get);
 const useLogs = () => useSyncExternalStore(logStore.subscribe, logStore.get);
 const useToast = () => useSyncExternalStore(toastStore.subscribe, toastStore.get);
+
+const NPC_LABEL: Record<string, string> = {
+  merchant: 'Merchant',
+  storage: 'Storage Keeper',
+  blacksmith: 'Blacksmith',
+  severer: 'The Severer',
+  gatekeeper: 'Dungeon Gatekeeper',
+  trial: 'Power Trial Warden',
+  questboard: 'Quest Board',
+  arena: 'Arena Master',
+};
 
 const PHASE_LABEL: Record<'offline' | 'online', string> = {
   offline: 'SANDBOX · POWER TRIAL · ออฟไลน์ ไม่บันทึก · ภาพ PLACEHOLDER',
@@ -74,9 +85,13 @@ export function GameHud({
           <GmHud hud={hud} world={world} />
           <SevererDialog hud={hud} world={world} />
           <NpcDialog hud={hud} world={world} onTrial={onTrial} />
+          <QuestTracker hud={hud} />
           {(hud.nearNpc || hud.dropsNearby > 0) && (
             <div className="interact-hint">
-              [H] {hud.nearSeverer ? 'คุยกับ The Severer' : `เก็บของ (${hud.dropsNearby})`}
+              [H]{' '}
+              {hud.nearNpc
+                ? `คุยกับ ${NPC_LABEL[hud.nearNpc] ?? hud.nearNpc}`
+                : `เก็บของ (${hud.dropsNearby})`}
             </div>
           )}
           {hud.auto?.enabled && <div className="auto-badge">AUTO · กำจัด {hud.auto.live?.kills ?? 0}</div>}

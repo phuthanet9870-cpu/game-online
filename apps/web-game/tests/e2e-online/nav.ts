@@ -10,7 +10,9 @@ export async function walkTo(page: Page, x: number, y: number, tol = 10, maxStep
     const dx = x - p.x;
     const dy = y - p.y;
     if (Math.hypot(dx, dy) <= tol) return;
-    const keys = [dx > 3 ? 'KeyD' : dx < -3 ? 'KeyA' : '', dy > 3 ? 'KeyS' : dy < -3 ? 'KeyW' : ''].filter(Boolean);
+    const keys = [dx > 3 ? 'KeyD' : dx < -3 ? 'KeyA' : '', dy > 3 ? 'KeyS' : dy < -3 ? 'KeyW' : ''].filter(
+      Boolean,
+    );
     for (const k of keys) await page.keyboard.down(k);
     await page.waitForTimeout(110);
     for (const k of keys) await page.keyboard.up(k);
