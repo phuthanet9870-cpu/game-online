@@ -251,7 +251,7 @@ export class Renderer {
         break;
       default: {
         // NPC: chibi townsfolk
-        const colors: Record<string, [string, string]> = { npc_smith: ['#8a4b2b', '#2b1a10'], npc_trainer: ['#3b5c8f', '#e0e0e8'], npc_quartermaster: ['#5c7a3b', '#6b3b1f'], npc_quests: ['#8f2b3b', '#f0d070'] };
+        const colors: Record<string, [string, string]> = { npc_auction: ['#6b4a8f', '#d8c08a'], npc_smith: ['#8a4b2b', '#2b1a10'], npc_trainer: ['#3b5c8f', '#e0e0e8'], npc_quartermaster: ['#5c7a3b', '#6b3b1f'], npc_quests: ['#8f2b3b', '#f0d070'] };
         const [body, hair] = colors[it.type] ?? ['#777', '#333'];
         drawChibi(ctx, 0, 0, 1, Math.PI / 2, body, hair, '#ccc', 0, Math.sin(t * 2) * 1.5, '');
         ctx.fillStyle = '#ffd23a'; ctx.font = '900 18px system-ui'; ctx.textAlign = 'center'; if (it.type === 'npc_quests') ctx.fillText('!', 0, -58 + Math.sin(t * 4) * 2);
@@ -385,6 +385,7 @@ export class Renderer {
     x.imageSmoothingEnabled = false;
     x.drawImage(this.minimap, ox, oy, m.w * scale, m.h * scale);
     const dot = (wx: number, wy: number, col: string, r: number) => { x.fillStyle = col; x.beginPath(); x.arc(ox + (wx / TILE) * scale, oy + (wy / TILE) * scale, r, 0, Math.PI * 2); x.fill(); };
+    if (g.worldEvent?.active && m.theme === 'field') { const pulse = 4 + Math.sin(performance.now() / 200) * 2; dot(g.worldEvent.x, g.worldEvent.y, '#ff4f9a', big ? pulse + 3 : pulse); }
     for (const it of m.interactables) if (!it.used && !g.usedIts.has(it.id)) dot(it.x, it.y, it.type === 'exit' || it.type === 'portal_dungeon' ? '#c58cff' : it.type === 'herb' ? '#d8c6ff' : '#ffd23a', big ? 4 : 3);
     for (const e of g.ents.values()) dot(e.rx, e.ry, e.id === g.pid ? '#ffffff' : e.kind === 0 ? '#5fd0ff' : e.kind === 2 ? '#7be0b5' : (e.flags & 2) ? '#ff4f9a' : '#ff5f5f', e.id === g.pid ? 4 : (e.flags & 2) ? 5 : 2);
     if (big) for (const r of m.rooms) { x.fillStyle = '#e8d8ff'; x.font = '10px system-ui'; x.textAlign = 'center'; if (r.type !== 'combat') x.fillText(r.type, ox + r.cx * scale, oy + (r.cy - r.h / 2 - 1) * scale); }

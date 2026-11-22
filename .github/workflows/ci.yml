@@ -26,3 +26,4 @@ jobs:
           sleep 3
           curl -sf localhost:8080/api/health
           timeout 120 npx tsx apps/server/test/bot.ts http://localhost:8080 paladin --bots 3
+          timeout 120 npx tsx apps/server/test/social-e2e.ts http://localhost:8080

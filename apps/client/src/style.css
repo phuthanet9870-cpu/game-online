@@ -239,3 +239,23 @@ input[type=text], input[type=password], input[type=search], select { background:
   .touch-btns { bottom: calc(env(safe-area-inset-bottom, 0px) + 230px); }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* Phase 4: social & economy */
+.list { display: flex; flex-direction: column; gap: 3px; margin: 6px 0; }
+.list-row { display: flex; gap: 8px; align-items: center; background: var(--dusk-2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; min-width: 0; }
+.list-row > .grow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-row.click { cursor: pointer; }
+.price { color: var(--corona); font-variant-numeric: tabular-nums; }
+.tag.good { border-color: var(--good); color: var(--good); }
+.tag.warnt { border-color: var(--warn); color: var(--warn); }
+.motd { background: var(--dusk-2); border-radius: 6px; padding: 6px 10px; margin: 6px 0; }
+.glog { list-style: none; padding: 0; margin: 0; font-size: .9em; }
+.wevent { background: #2a0f22e6; border: 1px solid #7a2a5a; border-radius: 6px; padding: 3px 8px; max-width: 240px; text-align: right; }
+.wevent.active { border-color: #ff4f9a; box-shadow: 0 0 12px #ff4f9a55; }
+.modal.trade { width: min(720px, 100%); }
+.trade-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.trade-side { background: var(--dusk-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-width: 0; }
+.trade-side.locked { border-color: var(--warn); }
+.trade-side.confirmed { border-color: var(--good); }
+.inv-grid.small { grid-template-columns: repeat(10, minmax(0, 1fr)); }
+@media (max-width: 560px) { .trade-grid { grid-template-columns: 1fr; } .inv-grid.small { grid-template-columns: repeat(8, minmax(0, 1fr)); } }

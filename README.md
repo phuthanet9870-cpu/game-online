@@ -2,7 +2,7 @@
 
 A browser-playable online action roguelike RPG: six standalone classes, an 8 Active + 4 Ultimate skill loadout, a 135-node passive tree with Keystones, seeded procedural Rifts with a three-phase boss, Normal and Hardcore modes, and a server-authoritative Node + PostgreSQL backend.
 
-**Status: v0.1.0 — Phase 0 + Phase 1 vertical slice complete, with early Phase 2/3 systems.** See [docs/FEATURES.md](docs/FEATURES.md) for exactly what is implemented, tested, and still missing. Nothing is publicly deployed yet.
+**Status: v0.2.0 — Phase 1 vertical slice + Phase 4 MMO systems (guilds, trading, auction house, party finder, world boss).** See [docs/FEATURES.md](docs/FEATURES.md) for exactly what is implemented, tested, and still missing. Nothing is publicly deployed yet.
 
 ## Play it locally
 Requirements: Node 22+, PostgreSQL 16.
@@ -27,8 +27,8 @@ npm run build:offline   # → apps/client/dist-offline/astra-offline.html
 | Dodge / Potion / Interact | Space / Q / E |
 | Cycle target (Tab Target) | Tab · or click an enemy |
 | Pick up item | Z · or click the drop |
-| Inventory / Skills / Passives / Character / Quests / Codex / Party / Map | I / K / P / C / J / O / L / M |
-| Chat | Enter (`/p`, `/w name`, `/invite name`, `/block`, `/report`) |
+| Inventory / Skills / Passives / Character / Quests / Codex / Party / Guild / Map | I / K / P / C / J / O / L / H / M |
+| Chat | Enter (`/p`, `/g`, `/w name`, `/trade name`, `/invite name`, `/block`, `/report`) |
 
 ## Repository layout
 ```

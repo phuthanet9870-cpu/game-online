@@ -9,7 +9,7 @@ export type MapTheme = 'town' | 'field' | 'dungeon';
 
 export interface Interactable {
   id: string;
-  type: 'portal_dungeon' | 'gate_field' | 'gate_town' | 'npc_smith' | 'npc_trainer' | 'npc_quartermaster' | 'npc_quests' | 'chest' | 'shrine' | 'fountain' | 'altar' | 'exit' | 'herb' | 'stash';
+  type: 'portal_dungeon' | 'npc_auction' | 'gate_field' | 'gate_town' | 'npc_smith' | 'npc_trainer' | 'npc_quartermaster' | 'npc_quests' | 'chest' | 'shrine' | 'fountain' | 'altar' | 'exit' | 'herb' | 'stash';
   x: number;
   y: number;
   name: string;
@@ -189,6 +189,7 @@ export function buildTown(): GameMap {
     { id: 'quartermaster', type: 'npc_quartermaster', name: 'Quartermaster Sol', ...T(10, 33) },
     { id: 'quests', type: 'npc_quests', name: 'Commander Aveline', ...T(34, 16) },
     { id: 'stash', type: 'stash', name: 'Astral Vault', ...T(46, 33) },
+    { id: 'auction', type: 'npc_auction', name: 'Auctioneer Vell', ...T(20, 16) },
   ];
   const spawns: SpawnPoint[] = [
     { enemy: 'dummy', ...T(4, 18), level: 1 }, { enemy: 'dummy', ...T(4, 22), level: 1 }, { enemy: 'dummy', ...T(4, 26), level: 1 },

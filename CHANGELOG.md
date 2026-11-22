@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.2.0] — 2026-11-22 — Phase 4: MMORPG systems
+### Added
+- Direct player trading: request/accept, offers of up to 8 items + gold, both lock then both confirm, any change unlocks both sides; atomic swap saved in one transaction; bound and Hardcore/Normal cross-trades refused.
+- Auction house at Auctioneer Vell: search/filter/sort/paging, item escrow, 5g deposit, 10% sale fee, 48h expiry, proceeds and expired items claimed later (works while the seller is offline), separate Hardcore market.
+- Guilds: found for 500g, invite, officer/member ranks, kick rules, message of the day, leadership transfer guarded by typing the guild name, guild XP and levels from Rift clears and world boss kills, activity log, guild chat (/g), guild tag shown on characters.
+- Party finder with join requests; party leadership transfer.
+- World boss public event: Gloomheart, the Eclipsed Grove, spawns in Duskmeadow every ~5 minutes while players are present, life scales with players, shown on the minimap and HUD.
+- Chat spam protection (repeat-message auto-mute, audited).
+- Migration 002 (guilds, auction_listings with a unique index on escrowed item uid); single-transaction `transact()`; shared state reload on startup.
+- Tests: 9 new unit tests (24 total); live Postgres test `apps/server/test/social-e2e.ts`.
+
+### Fixed
+- A player's first chat message within 0.7s of server start was rejected.
+- Two quick saves of the same character could commit out of order through the connection pool; writes are now serialized per character.
+- A failed fire-and-forget database write would have crashed the server (unhandled rejection); failures are now logged.
+- Escape in the trade window now cancels the trade on the server instead of only hiding the window.
+
 ## [0.1.0] — 2026-11-22
 ### Added
 - Monorepo (npm workspaces): `packages/shared`, `apps/server`, `apps/client`.

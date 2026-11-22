@@ -24,6 +24,7 @@ export class ClientGame {
   blessings: string[] = [];
   party: { id: string | null; leader: string | null; members: Array<{ name: string; cls: string; level: number; room: string }> } = { id: null, leader: null, members: [] };
   usedIts = new Set<string>();
+  worldEvent: any = null;
   shake = 0;
   lastSnap = 0;
   snapInterval = 66;

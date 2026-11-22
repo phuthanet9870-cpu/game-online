@@ -250,6 +250,17 @@ export class World {
     return e;
   }
 
+  /** Public-event boss: life scales with the number of players present (shared world, not a party). */
+  spawnWorldBoss(defId: string, x: number, y: number, level: number, players: number): Ent | null {
+    const e = this.spawnEnemy(defId, x, y, level, false);
+    if (!e) return null;
+    const scale = 1 + 0.75 * Math.max(0, players - 1);
+    e.maxHp = Math.round(e.maxHp * scale); e.hp = e.maxHp;
+    e.e!.breakMax *= scale;
+    e.e!.home = { x, y };
+    return e;
+  }
+
   spawnMinion(owner: Ent, type: string, duration: number): Ent | null {
     const md = MINIONS[type];
     if (!md || !owner.stats) return null;
@@ -744,6 +755,7 @@ export class World {
       this.areas.push(this.mkArea(target, { x: target.x, y: target.y, r: 90, delay: 1.1, packet: pk, visual: 'shadow' }));
     }
     for (const p of players) this.rollLoot(p, target);
+    if (es.def.boss && es.def.id !== 'veyra') this.events.push({ t: 'boss_killed', enemy: es.def.id, players: players.map((p) => p.id) });
     if (es.def.boss && es.def.id === 'veyra') {
       this.bossDefeated = true;
       this.events.push({ t: 'boss_killed', enemy: es.def.id, players: players.map((p) => p.id) });
@@ -766,14 +778,14 @@ export class World {
     const ch = p.p!.char;
     const mf = (p.stats?.m.magicFindPct ?? 0) / 100;
     const bonus = this.diff.loot + this.lootBonus + mf + p.p!.lootBonus + (es.def.lootBonus ?? 0) * 0.15 + (es.elite ? 0.3 : 0);
-    const rolls = es.def.boss ? (es.def.id === 'veyra' ? 3 : 2) : es.elite ? 2 : 1;
+    const rolls = es.def.boss ? (es.def.id === 'veyra' || es.def.id === 'gloomheart' ? 3 : 2) : es.elite ? 2 : 1;
     const dropChance = es.def.boss || es.elite ? 1 : 0.22;
     const gf = 1 + (p.stats?.m.goldFindPct ?? 0) / 100;
     // gold
     if (this.rng.chance(0.6) || es.def.boss) this.addDrop(p, enemy.x + this.rng.range(-20, 20), enemy.y + this.rng.range(-20, 20), undefined, Math.round((3 + es.level * 2) * (es.def.boss ? 15 : es.elite ? 4 : 1) * gf * this.rng.range(0.7, 1.3)));
     for (let i = 0; i < rolls; i++) {
       if (!this.rng.chance(dropChance)) continue;
-      const min = es.def.id === 'veyra' && i === 0 ? 'rare' : es.def.boss && i === 0 ? 'uncommon' : 'common';
+      const min = (es.def.id === 'veyra' || es.def.id === 'gloomheart') && i === 0 ? 'rare' : es.def.boss && i === 0 ? 'uncommon' : 'common';
       const rarity = rollRarity(this.rng, bonus, min);
       const item = generateItem({ rng: this.rng, ilvl: es.level, rarity, cls: ch.cls, hardcore: ch.hardcore });
       this.addDrop(p, enemy.x + this.rng.range(-30, 30), enemy.y + this.rng.range(-30, 30), item);

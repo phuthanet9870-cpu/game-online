@@ -9,8 +9,9 @@ import { bindTip, hideTip, icon, skillColor, skillTooltip } from './tooltip.js';
 import * as P from './panels.js';
 import { passiveTreePanel } from './passive.js';
 import { modeBanner } from './screens.js';
+import * as S from './social.js';
 
-type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 'codex' | 'social' | 'settings' | 'dungeon' | 'smith' | 'quartermaster' | 'trainer' | 'stash' | 'map';
+type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 'codex' | 'social' | 'guild' | 'auction' | 'settings' | 'dungeon' | 'smith' | 'quartermaster' | 'trainer' | 'stash' | 'map';
 
 export class GameUI {
   game = new ClientGame();
@@ -54,7 +55,7 @@ export class GameUI {
         E.buffs = h('div', { class: 'buffs' })),
       E.target = h('div', { class: 'target-frame', hidden: true }),
       E.boss = h('div', { class: 'boss-bar', hidden: true }),
-      h('div', { class: 'hud-tr' }, E.mini = h('canvas', { class: 'minimap', width: 180, height: 140, onclick: () => this.toggle('map') }), E.zone = h('div', { class: 'zone' }), E.party = h('div', { class: 'party-frames' })),
+      h('div', { class: 'hud-tr' }, E.mini = h('canvas', { class: 'minimap', width: 180, height: 140, onclick: () => this.toggle('map') }), E.zone = h('div', { class: 'zone' }), E.wevent = h('div', { class: 'wevent', hidden: true }), E.party = h('div', { class: 'party-frames' })),
       E.prompt = h('div', { class: 'interact-prompt', hidden: true }),
       E.dps = h('div', { class: 'dps', hidden: true }),
       E.bar = h('div', { class: 'skillbar' }),
@@ -113,16 +114,25 @@ export class GameUI {
   private onMessage(m: any) {
     const g = this.game;
     switch (m.t) {
-      case 'welcome': g.welcome(m); this.status(null); this.buildBar(); this.updateZone(); this.closePanel(); if (m.mode === 'offline' && !this.offlineNoted) { this.offlineNoted = true; this.chatLine('system', 'Offline mode: this session is simulated locally in your browser.'); } this.chatLine('system', `Entered ${m.room.kind === 'town' ? 'Lumenhold' : m.room.kind === 'field' ? 'Duskmeadow (open world, levels 2-9)' : 'the Rift'}.`); break;
+      case 'welcome': g.welcome(m); this.status(null); this.buildBar(); this.updateZone(); this.closePanel(); this.renderWorldEvent(); if (m.mode === 'offline' && !this.offlineNoted) { this.offlineNoted = true; this.chatLine('system', 'Offline mode: this session is simulated locally in your browser.'); } this.chatLine('system', `Entered ${m.room.kind === 'town' ? 'Lumenhold' : m.room.kind === 'field' ? 'Duskmeadow (open world, levels 2-9)' : 'the Rift'}.`); break;
       case 'snap': g.applySnap(m); break;
       case 'ev': g.events(m.list); for (const ev of m.list) if (ev.t === 'msg') this.chatLine('system', ev.text); else if (ev.t === 'pickup' && ev.item) toast(`Picked up ${ev.item.name}`, 'good'); break;
-      case 'char': g.char = m.char; g.account = m.account; this.buildBar(); if (this.panel && this.panel !== 'map') this.renderPanel(); break;
+      case 'char': g.char = m.char; g.account = m.account; this.buildBar(); if (this.panel && this.panel !== 'map') this.renderPanel(); if (this.trade) this.showModal(S.tradeModal(g.char!, this.trade, (x) => this.send(x))); break;
       case 'err': if (m.fatal) { toast(m.msg, 'error'); this.status(m.msg); setTimeout(() => this.leave(), 2500); } else this.flashErr(m.msg); break;
       case 'toast': toast(m.msg); this.chatLine('system', m.msg); break;
       case 'chat': this.chatLine(m.ch, `${m.ch === 'whisper' && m.to ? `→ ${m.to}` : m.from}: ${m.text}`); break;
       case 'party': g.party = m; this.renderParty(); if (this.panel === 'social') this.renderPanel(); break;
       case 'party_invite': void confirmDialog('Party invite', `${m.from} invited you to a party.`, t('accept'), t('decline')).then((ok) => { if (ok) this.send({ t: 'party_accept', id: m.id }); }); break;
       case 'open': this.panelExtra = m; this.openPanel(m.what === 'dungeon' ? 'dungeon' : m.what); break;
+      case 'pf': this.pfEntries = m.entries; if (this.panel === 'social') this.renderPanel(); break;
+      case 'party_request': void confirmDialog('Join request', `${m.from} (level ${m.level}) wants to join your party.`, t('invite'), t('decline')).then((ok) => { if (ok) this.send({ t: 'party_invite', name: m.from }); }); break;
+      case 'trade_request': void confirmDialog('Trade request', `${m.from} wants to trade with you.`, t('accept'), t('decline')).then((ok) => this.send({ t: 'trade_respond', id: m.id, accept: ok })); break;
+      case 'trade': if (m.closed) { this.trade = null; this.closeModal(); } else { this.trade = m; this.showModal(S.tradeModal(g.char!, m, (x) => this.send(x))); } break;
+      case 'ah_results': this.ah.results = m; if (this.panel === 'auction') this.renderPanel(); break;
+      case 'ah_mine': this.ah.mine = m.rows; if (this.panel === 'auction') this.renderPanel(); break;
+      case 'guild': this.guildData = m; if (this.panel === 'guild') this.renderPanel(); break;
+      case 'guild_invite': void confirmDialog('Guild invite', `${m.from} invited you to ‹${m.tag}› ${m.name}.`, t('accept'), t('decline')).then((ok) => { if (ok) this.send({ t: 'guild_accept', id: m.id }); }); break;
+      case 'world_event': g.worldEvent = m; this.renderWorldEvent(); break;
       case 'choice': this.showModal(P.choiceModal(m.kind, m.options, (x) => this.send(x), () => this.closeModal())); break;
       case 'run': g.blessings = m.blessings; this.updateZone(); break;
       case 'run_end': this.showModal(P.runEndModal(m, () => this.closeModal())); break;
@@ -134,6 +144,18 @@ export class GameUI {
     }
   }
   private offlineNoted = false;
+  private pfEntries: any[] = [];
+  private trade: any = null;
+  private ah: S.AhState = { results: null, mine: [], q: {}, tab: 'browse' };
+  private guildData: any = null;
+  private renderWorldEvent() {
+    const el = this.el.wevent!;
+    const ev = this.game.room?.kind === 'field' ? this.game.worldEvent : null;
+    const b = S.worldEventBanner(ev);
+    el.hidden = !b;
+    clear(el);
+    if (b) { el.append(b); el.classList.toggle('active', !!ev?.active); }
+  }
 
   private errT = 0;
   private flashErr(msg: string) {
@@ -228,8 +250,8 @@ export class GameUI {
         break;
       }
       case 'chat': (this.el.chatIn as HTMLInputElement).focus(); break;
-      case 'escape': if (this.el.modal!.firstChild) this.closeModal(); else if (this.panel) this.closePanel(); else this.openPanel('settings'); break;
-      case 'inventory': case 'skills': case 'passives': case 'character': case 'quests': case 'codex': case 'social': case 'map': this.toggle(a as PanelName); break;
+      case 'escape': if (this.trade) this.send({ t: 'trade_cancel' }); else if (this.el.modal!.firstChild) this.closeModal(); else if (this.panel) this.closePanel(); else this.openPanel('settings'); break;
+      case 'inventory': case 'skills': case 'passives': case 'character': case 'quests': case 'codex': case 'social': case 'guild': case 'map': this.toggle(a as PanelName); break;
       default: break;
     }
   }
@@ -243,7 +265,7 @@ export class GameUI {
 
   // ─────────── HUD ───────────
   private buildMenu() {
-    const items: Array<[PanelName, string, string]> = [['inventory', t('inventory'), 'inventory'], ['skills', t('skills'), 'skills'], ['passives', t('passives'), 'passives'], ['character', t('character'), 'character'], ['quests', t('quests'), 'quests'], ['codex', t('codex'), 'codex'], ['social', t('social'), 'social'], ['settings', t('settings'), '']];
+    const items: Array<[PanelName, string, string]> = [['inventory', t('inventory'), 'inventory'], ['skills', t('skills'), 'skills'], ['passives', t('passives'), 'passives'], ['character', t('character'), 'character'], ['quests', t('quests'), 'quests'], ['codex', t('codex'), 'codex'], ['social', t('social'), 'social'], ['guild', 'Guild', 'guild'], ['settings', t('settings'), '']];
     clear(this.el.menu!).append(...items.map(([p, label, bind]) => h('button', { class: 'menu-btn', onclick: () => this.toggle(p), title: label }, label, bind ? h('kbd', null, keyLabel(this.input?.binds[bind] ?? '')) : h('kbd', null, 'Esc'))));
   }
 
@@ -374,18 +396,21 @@ export class GameUI {
     const [arg, ...more] = rest!.split(' ');
     switch (cmd) {
       case 'p': this.send({ t: 'chat', ch: 'party', text: rest }); break;
+      case 'g': this.send({ t: 'chat', ch: 'guild', text: rest }); break;
+      case 'trade': this.send({ t: 'trade_request', name: arg }); break;
       case 'w': this.send({ t: 'chat', ch: 'whisper', to: arg, text: more.join(' ') }); break;
       case 'invite': this.send({ t: 'party_invite', name: arg }); break;
       case 'leave': this.send({ t: 'party_leave' }); break;
       case 'block': this.send({ t: 'block', name: arg }); break;
       case 'report': this.send({ t: 'report', name: arg, reason: more.join(' ') }); break;
-      default: this.chatLine('system', 'Commands: /p, /w name, /invite name, /leave, /block name, /report name reason');
+      default: this.chatLine('system', 'Commands: /p, /g, /w name, /trade name, /invite name, /leave, /block name, /report name reason');
     }
   }
 
   // ─────────── Panels ───────────
+  private nearbyPlayers(): string[] { return [...this.game.ents.values()].filter((e) => e.kind === 0 && e.id !== this.game.pid).map((e) => e.name.split(' ‹')[0]!); }
   private toggle(p: PanelName) { if (this.panel === p) this.closePanel(); else { this.panelExtra = null; this.openPanel(p); } }
-  openPanel(p: PanelName) { this.panel = p; this.renderPanel(); }
+  openPanel(p: PanelName) { this.panel = p; if (p === 'social') this.send({ t: 'pf_list' }); if (p === 'guild') this.send({ t: 'guild_info' }); this.renderPanel(); }
   closePanel() { this.panel = null; this.el.panel!.hidden = true; hideTip(); }
   private ctx(): P.PanelCtx {
     return { ch: this.game.char!, account: this.game.account!, send: (m) => this.send(m), room: this.game.room, input: this.input, settings: this.settings, applySettings: () => this.applySettings(), logout: () => this.leave(), extra: { open: (p: PanelName) => this.openPanel(p) }, party: this.game.party };
@@ -395,7 +420,7 @@ export class GameUI {
     if (!p || !this.game.char) return;
     const ctx = this.ctx();
     const inTown = this.game.room?.kind === 'town';
-    const titles: Record<PanelName, string> = { inventory: t('inventory'), skills: t('skills'), passives: t('passives'), character: t('character'), quests: t('quests'), codex: t('codex'), social: t('social'), settings: t('settings'), dungeon: 'Rift Gate', smith: 'Brenna the Smith — salvage & enchant', quartermaster: 'Quartermaster Sol — potions & selling', trainer: 'Master Ilrin — trainer', stash: 'Astral Vault', map: t('map') };
+    const titles: Record<PanelName, string> = { inventory: t('inventory'), skills: t('skills'), passives: t('passives'), character: t('character'), quests: t('quests'), codex: t('codex'), social: t('social'), guild: 'Guild', auction: 'Auctioneer Vell — auction house', settings: t('settings'), dungeon: 'Rift Gate', smith: 'Brenna the Smith — salvage & enchant', quartermaster: 'Quartermaster Sol — potions & selling', trainer: 'Master Ilrin — trainer', stash: 'Astral Vault', map: t('map') };
     let body: HTMLElement;
     switch (p) {
       case 'inventory': body = P.inventoryPanel(ctx); break;
@@ -407,7 +432,9 @@ export class GameUI {
       case 'character': body = P.characterPanel(ctx); break;
       case 'quests': body = P.questsPanel(ctx, this.panelExtra?.what === 'quests' && inTown); break;
       case 'codex': body = P.codexPanel(ctx); break;
-      case 'social': body = P.socialPanel(ctx); break;
+      case 'social': body = h('div', null, P.socialPanel(ctx), S.finderSection(ctx.ch, this.pfEntries, this.nearbyPlayers(), (m) => this.send(m))); break;
+      case 'guild': body = S.guildPanel(ctx.ch, this.guildData, (m) => this.send(m), inTown); break;
+      case 'auction': body = S.auctionPanel(ctx.ch, this.ah, (m) => this.send(m), () => this.renderPanel()); break;
       case 'settings': body = P.settingsPanel(ctx); break;
       case 'dungeon': body = P.dungeonPanel(ctx, this.panelExtra?.unlocked ?? ['story', 'normal']); break;
       case 'trainer': body = P.trainerPanel(ctx); break;

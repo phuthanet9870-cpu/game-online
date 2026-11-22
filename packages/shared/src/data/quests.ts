@@ -46,6 +46,7 @@ export const ACHIEVEMENTS: Record<string, { name: string; desc: string; title?: 
   tier_hard: { name: 'Into the Deep', desc: 'Clear a Rift on Hard or higher.' },
   tier_nightmare: { name: 'Nightmare Walker', desc: 'Clear a Rift on Nightmare or higher.', title: 'Nightmare-Touched' },
   legendary: { name: 'Starfall Treasure', desc: 'Find a Legendary or Ancient item.' },
+  world_boss: { name: 'Grove Breaker', desc: 'Help defeat the world boss Gloomheart in Duskmeadow.', title: 'Grovebreaker' },
   level10: { name: 'Seasoned', desc: 'Reach level 10 with any character.' },
   level25: { name: 'Veteran of the Eclipse', desc: 'Reach level 25 with any character.' },
   codex8: { name: 'Bestiary Scholar', desc: 'Record 8 enemy types in the Codex.' },

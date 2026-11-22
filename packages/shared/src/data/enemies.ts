@@ -42,6 +42,16 @@ export const ENEMIES: Record<string, EnemyDef> = {
       { id: 'eclipse', kind: 'nova', range: 600, cooldown: 9, windup: 1.4, dmg: 1.3, type: 'shadow', count: 28, speed: 200, phase: 2 },
     ], color: '#2a1a40', boss: { phases: [0.6, 0.25], breakGauge: 900, title: 'Guardian of the First Rift' }, lootBonus: 4,
   },
+  // World boss — spawns as a public event in Duskmeadow
+  gloomheart: {
+    id: 'gloomheart', name: 'Gloomheart, the Eclipsed Grove', family: 'wildlife', role: 'boss', hp: 2600, power: 14, armor: 70, res: { poison: 40, fire: -20, shadow: 30 }, speed: 70, radius: 40, xp: 500, aggroRange: 460,
+    attacks: [
+      { id: 'root_slam', kind: 'slam', range: 130, cooldown: 3.4, windup: 1.0, dmg: 1.5, type: 'physical', radius: 140, status: { id: 'slow', chance: 1, duration: 2, power: 0.4 } },
+      { id: 'spores', kind: 'nova', range: 520, cooldown: 7, windup: 1.1, dmg: 0.9, type: 'poison', count: 18, speed: 210 },
+      { id: 'thorns', kind: 'eruption', range: 560, cooldown: 5.5, windup: 1.2, dmg: 1.7, type: 'physical', radius: 85, count: 5 },
+      { id: 'brood', kind: 'summon', range: 600, cooldown: 15, windup: 1.2, dmg: 0, type: 'physical', summon: 'gloomfang', count: 3, phase: 1 },
+    ], color: '#2f4a2a', boss: { phases: [0.5], breakGauge: 700, title: 'World Boss' }, lootBonus: 4,
+  },
   // Open world — Duskmeadow
   gloomfang: {
     id: 'gloomfang', name: 'Gloomfang Wolf', family: 'wildlife', role: 'flanker', hp: 55, power: 8, armor: 15, res: { ice: 20 }, speed: 175, radius: 14, xp: 12, aggroRange: 300,

@@ -139,7 +139,7 @@ describe('GameCore', () => {
   const setup = () => {
     const saved: CharacterData[] = [];
     const audits: string[] = [];
-    const persist: Persistence = { saveCharacter: async (c) => { saved.push(JSON.parse(JSON.stringify(c))); }, saveAccount: async () => {}, audit: (e) => audits.push(e.action) };
+    const persist: Persistence = { saveCharacter: async (c) => { saved.push(JSON.parse(JSON.stringify(c))); }, saveAccount: async () => {}, audit: (e) => { audits.push(e.action); }, transact: async () => {}, loadShared: async () => ({ guilds: [], listings: [] }) };
     const core = new GameCore(persist, { label: 'test' });
     const inbox: any[] = [];
     const ch = mk('ranger');
@@ -186,7 +186,7 @@ describe('GameCore', () => {
   });
   it('hardcore death is permanent and persisted', async () => {
     const saved: CharacterData[] = [];
-    const core = new GameCore({ saveCharacter: async (c) => { saved.push(JSON.parse(JSON.stringify(c))); }, saveAccount: async () => {}, audit: () => {} });
+    const core = new GameCore({ saveCharacter: async (c) => { saved.push(JSON.parse(JSON.stringify(c))); }, saveAccount: async () => {}, audit: () => {}, transact: async () => {}, loadShared: async () => ({ guilds: [], listings: [] }) });
     const ch = mk('assassin', true);
     const inbox: any[] = [];
     core.connect('h', 'acc', ch, emptyAccount(), (m) => inbox.push(m));

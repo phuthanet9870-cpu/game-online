@@ -2,7 +2,7 @@
 
 Statuses: `Not Started` · `In Progress` · `Implemented` (code exists, manually exercised) · `Tested` (covered by automated tests or the e2e bot) · `Released` (deployed to a public HTTPS URL — nothing is Released yet).
 
-Last updated: 2026-11-22 (v0.1.0, Phase 0 + Phase 1 vertical slice, early Phase 2/3 foundations).
+Last updated: 2026-11-22 (v0.2.0 — Phase 4 MMO systems added on top of the Phase 1 vertical slice).
 
 ## Platform & architecture
 | Feature | Status | Notes |
@@ -13,7 +13,7 @@ Last updated: 2026-11-22 (v0.1.0, Phase 0 + Phase 1 vertical slice, early Phase 
 | PostgreSQL persistence + migrations | Tested | Characters, accounts, sessions, audit log. |
 | Offline mode (same core in-browser, labelled) | Tested | Used for the claude.ai artifact build. Not server-authoritative. |
 | Rate limiting, idempotent mutations, audit log | Tested | Unit tests for flood + replayed request id. |
-| Reconnect into dungeon instance (90 s grace) | Implemented | Not covered by an automated test yet. |
+| Reconnect into dungeon instance (90 s grace) | Tested | Unit test + live reconnect in `social-e2e.ts`. |
 | Docker image / compose | Implemented | Written but **not built in this environment** (no Docker daemon). |
 | CI workflow | Implemented | Not yet run on GitHub. |
 | HTTPS deployment | Not Started | Needs a host + domain; see docs/OPERATIONS.md. |
@@ -44,7 +44,9 @@ Last updated: 2026-11-22 (v0.1.0, Phase 0 + Phase 1 vertical slice, early Phase 
 | Salvage, sell, enchant (affix reroll), potion vendor | Implemented | NPC proximity enforced server-side. |
 | Normal death (5% gold loss, respawn) | Tested | e2e bot died and respawned. |
 | Hardcore permadeath + separate items/stash | Tested | |
-| Trading / auction house | Not Started | Backlog B-3. |
+| Direct player trade (lock → confirm, atomic swap) | Tested | Unit tests + live Postgres test; both characters saved in one SQL transaction. |
+| Auction house (escrow, 5g deposit, 10% fee, 48h expiry, claim proceeds offline) | Tested | Live test proves a double-buy yields exactly one copy; DB unique index on escrowed item uid. |
+| Per-character ordered writes | Implemented | Saves of the same character are serialized so they cannot commit out of order. |
 | Crafting professions, gathering beyond herbs, housing, pets | Not Started | Herb gathering only. Backlog B-5. |
 
 ## World & content
@@ -60,15 +62,16 @@ Last updated: 2026-11-22 (v0.1.0, Phase 0 + Phase 1 vertical slice, early Phase 
 | Boss: Veyra — 3 phases, telegraphs, adds, nova, Break gauge | Tested | |
 | Quests: Chapter 1 (5 quests) + Chapter 2 hook | Implemented | |
 | Endless Tower, Nightmare Dungeon, Labyrinth, Raids, Eclipse Dimension, Arena | Not Started | Backlog B-4. |
-| World bosses / public events | Not Started | Backlog B-4. |
+| World boss public event (Gloomheart in Duskmeadow, every ~5 min, scales with players) | Tested | Spawn tested; kill reward path shares the normal boss code. |
 | Seasons & weekly events | Not Started | Backlog B-6. |
 
 ## Social
 | Feature | Status | Notes |
 |---|---|---|
-| Parties (invite/accept/leave/kick, leader hand-off, shared Rift, HP scaling) | Implemented | Not covered by automated test. |
-| Chat: local, party, whisper; block; report → audit log | Implemented | |
-| Guilds | Not Started | Backlog B-2. |
+| Parties (invite/accept/leave/kick, leader transfer + hand-off, shared Rift, HP scaling) | Tested | Unit test for shared Rift entry. |
+| Party finder (post/browse/request to join) | Implemented | Browser-checked. |
+| Chat: local, party, guild, whisper; block; report → audit log; repeat-spam auto-mute | Tested | |
+| Guilds: found (500g), invite, ranks, kick rules, MOTD, guarded leader transfer, guild XP/levels, activity log, guild chat | Tested | Guild vault deliberately not built yet (needs per-rank limits + audit UI). |
 | Leaderboard endpoint (Normal/Hardcore) | Implemented | `GET /api/ladder`; no UI yet. |
 
 ## UX
@@ -84,8 +87,8 @@ Last updated: 2026-11-22 (v0.1.0, Phase 0 + Phase 1 vertical slice, early Phase 
 
 ## Backlog (prioritised)
 - **B-1 Deployment**: HTTPS host, domain, TLS proxy, managed Postgres backups. Blocked on the owner choosing a host.
-- **B-2 Guilds**: ranks, permissions, guild chat, audit-logged guild storage.
-- **B-3 Trading + auction house**: atomic SQL transactions, fees, bound/seasonal/hardcore restrictions.
+- **B-2 Guild vault**: per-rank withdrawal limits, audit view.
+- **B-3 Economy telemetry**: gold sources/sinks dashboard, price history.
 - **B-4 Endgame**: Endless Tower (reuse Rift generator with floor scaling), raids (4-8), world boss, arena.
 - **B-5 Life skills**: mining/fishing/cooking/alchemy recipes, housing, pets.
 - **B-6 Live ops**: season framework, weekly events, admin panel with RBAC + MFA, content publishing/rollback.

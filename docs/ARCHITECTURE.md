@@ -26,6 +26,7 @@ The **same `GameCore` and `World` code** runs on the server (authoritative) and 
 | ADR-6 | Character state stored as validated JSONB + indexed columns | Schema evolves quickly during early phases; `normalizeCharacter` migrates old saves. Hot fields (level, name, hardcore, dead) are real columns. | Trading/auction needs item rows (B-3): items move to their own table with row-level locking. |
 | ADR-7 | Redis not used yet | Single process holds sessions in memory; no cross-process pub/sub needed. | Second game process or shard. |
 | ADR-8 | Simulation 30 Hz, snapshots 15 Hz, interest radius 1400 px | Readable telegraphs under ~150 ms latency; snapshot size ~3-8 KB. | Larger zones (delta compression, B-8). |
+| ADR-10 | Multi-object changes (trade, auction, guild) go through `Persistence.transact()` = one SQL transaction; writes per character are serialized | Prevents item duplication and lost updates if the process crashes mid-write. | Multiple game processes (needs row versioning). |
 | ADR-9 | Client prediction for own movement only; server position wins | Movement feels instant; combat outcomes stay server-side. | Competitive PvP (needs input sequence numbers). |
 
 ## Trust boundaries
@@ -41,8 +42,8 @@ The **same `GameCore` and `World` code** runs on the server (authoritative) and 
 Death is permanent and is saved immediately. A player who disconnects is removed from the world at once (no lingering body), so a disconnect cannot cause a Hardcore death. Confirmed server faults (crash during combat) are handled by restoring from the audit log + database backup (manual, staff-only; tooling in B-6). Hardcore characters never convert to Normal.
 
 ## Message protocol (v1)
-Client → server: `auth`, `input{mx,my,ax,ay,atk}`, `cast{k,s,ax,ay,tid}`, `dodge`, `potion`, `target`, `pickup`, `interact`, `choose`, `enter_dungeon{diff}`, `leave`, `equip`, `unequip`, `move_inv`, `salvage`, `sell`, `enchant`, `buy_potion`, `loadout`, `passive_alloc`, `passive_refund`, `respec`, `preset_save`, `preset_load`, `import_build`, `quest_accept`, `quest_claim`, `stash_put`, `stash_take`, `chat`, `block`, `report`, `party_*`, `ping`.
+Client → server: `auth`, `input{mx,my,ax,ay,atk}`, `cast{k,s,ax,ay,tid}`, `dodge`, `potion`, `target`, `pickup`, `interact`, `choose`, `enter_dungeon{diff}`, `leave`, `equip`, `unequip`, `move_inv`, `salvage`, `sell`, `enchant`, `buy_potion`, `loadout`, `passive_alloc`, `passive_refund`, `respec`, `preset_save`, `preset_load`, `import_build`, `quest_accept`, `quest_claim`, `stash_put`, `stash_take`, `chat`, `block`, `report`, `party_*` (incl. `party_transfer`), `pf_list|post|remove|join`, `trade_request|respond|offer|lock|confirm|cancel`, `ah_search|list|buy|cancel|claim|mine`, `guild_create|invite|accept|leave|kick|rank|transfer|motd|info`, `ping`.
 
-Server → client: `welcome` (map + private character), `snap` (15 Hz), `ev` (visual/game events), `char`, `party`, `open`, `choice`, `run`, `run_end`, `toast`, `err`, `chat`, `achievement`, `hc_dead`, `it_used`, `pong`.
+Server → client: `welcome` (map + private character), `snap` (15 Hz), `ev` (visual/game events), `char`, `party`, `open`, `choice`, `run`, `run_end`, `toast`, `err`, `chat`, `achievement`, `hc_dead`, `it_used`, `pf`, `party_request`, `trade_request`, `trade`, `ah_results`, `ah_mine`, `guild`, `guild_invite`, `world_event`, `pong`.
 
 Snapshot entity tuple: `[id, kind, x, y, facing, hp, maxHp, barrier, def, name, level, statuses, flags, windup, dead, size%, affixes, break, phase, invuln]`.

@@ -15,6 +15,7 @@ Without a server the client falls back to **Offline mode** (clearly bannered).
 - `npm test` — Vitest (content invariants, loadout/passive validation, 300 dungeon seeds, combat for all six classes, boss phases, idempotency, hardcore death, rate limiting).
 - `npx tsx apps/server/test/bot.ts http://localhost:8080 warrior` — full online run (register → create → walk to Rift Gate → clear rooms → kill Veyra → exit).
 - `... --bots N` — concurrent load test (each bot runs its own Rift instance).
+- `npx tsx apps/server/test/social-e2e.ts` — two live clients: trade, auction sale, bound-item refusal, reconnect; verifies rows in Postgres.
 
 ## Production deployment (not yet done)
 1. Provision PostgreSQL 16 with automated daily backups + point-in-time recovery.

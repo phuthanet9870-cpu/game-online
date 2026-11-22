@@ -9,7 +9,7 @@ import {
   CLASS_IDS, CONTENT_SCHEMA_VERSION, GameCore, MAX_CHARACTERS, PROTOCOL_VERSION, SIM_DT, createCharacter, normalizeAccount, normalizeCharacter, type CharacterData, type ClassId,
 } from '@astra/shared';
 import { accountForToken, createSession, hashPassword, rateLimited, revokeSession, USERNAME_RE, validatePassword, verifyPassword } from './auth.js';
-import { audit, flushAudit, migrate, pool, saveAccount, saveCharacter } from './db.js';
+import { audit, flushAudit, loadShared, migrate, pool, saveAccount, saveCharacter, transact } from './db.js';
 
 const PORT = Number(process.env.PORT ?? 8080);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -17,7 +17,7 @@ const STATIC_DIR = resolve(process.env.STATIC_DIR ?? [join(here, '../../client/d
 const MAX_BODY = 16 * 1024;
 const log = (level: string, msg: string, extra: Record<string, unknown> = {}) => console.log(JSON.stringify({ t: new Date().toISOString(), level, msg, ...extra }));
 
-const core = new GameCore({ saveCharacter, saveAccount, audit }, { label: 'online' });
+const core = new GameCore({ saveCharacter, saveAccount, audit, transact, loadShared }, { label: 'online' });
 
 // ───────────────────────── HTTP ─────────────────────────
 type Handler = (req: IncomingMessage, body: any, ip: string, token: string | null) => Promise<[number, unknown]>;
@@ -226,4 +226,6 @@ process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
 const applied = await migrate();
 if (applied.length) log('info', 'migrations applied', { applied });
+await core.init();
+log('info', 'shared state loaded', { guilds: core.guilds.size, listings: core.listings.size });
 server.listen(PORT, () => log('info', 'listening', { port: PORT, static: STATIC_DIR }));
