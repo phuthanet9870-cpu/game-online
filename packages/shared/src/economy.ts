@@ -2,7 +2,7 @@
 // persists every multi-object change through one Persistence.transact() call so it commits atomically.
 
 import type { CharacterData, ClassId, Item, Rarity } from './types.js';
-import { INVENTORY_SIZE, RARITIES } from './types.js';
+import { INVENTORY_SIZE, LEVEL_CAP, RARITIES } from './types.js';
 import type { Result } from './character.js';
 
 const ok = <T>(value: T): Result<T> => ({ ok: true, value });
@@ -142,8 +142,67 @@ export function searchListings(all: Iterable<Listing>, q: AhQuery, hardcore: boo
 // ───────────────────────── Guilds ─────────────────────────
 export type GuildRank = 'leader' | 'officer' | 'member';
 export interface GuildMember { charId: string; name: string; cls: ClassId; level: number; rank: GuildRank; joinedAt: number }
-export interface Guild { id: string; name: string; tag: string; motd: string; createdAt: number; members: GuildMember[]; log: Array<{ t: number; text: string }>; level: number; xp: number; hardcore: boolean; vault?: (Item | null)[]; withdrawals?: Record<string, { day: number; n: number }> }
+export interface Guild { id: string; name: string; tag: string; motd: string; createdAt: number; members: GuildMember[]; log: Array<{ t: number; text: string }>; level: number; xp: number; hardcore: boolean; vault?: (Item | null)[]; withdrawals?: Record<string, { day: number; n: number }>; category?: GuildCategory; desc?: string; open?: boolean; minLevel?: number; requests?: GuildRequest[] }
 export const GUILD_VAULT_SIZE = 30;
+// ── Guild discovery: categories, join requests, rankings ──
+export type GuildCategory = 'adventure' | 'raid' | 'pvp' | 'crafting' | 'social' | 'newbie';
+export const GUILD_CATEGORIES: Record<GuildCategory, { name: string; th: string; icon: string }> = {
+  adventure: { name: 'Adventure', th: 'ผจญภัย', icon: 'map' }, raid: { name: 'Raid & Dungeon', th: 'เรดและดันเจี้ยน', icon: 'skull' }, pvp: { name: 'PvP', th: 'พีวีพี', icon: 'crossed' },
+  crafting: { name: 'Crafting & Trade', th: 'คราฟต์และค้าขาย', icon: 'anvil' }, social: { name: 'Social & Chill', th: 'สังคมชิลๆ', icon: 'people' }, newbie: { name: 'Beginner friendly', th: 'มือใหม่', icon: 'star' },
+};
+export interface GuildRequest { charId: string; name: string; cls: ClassId; level: number; hardcore: boolean; msg: string; at: number }
+export const GUILD_REQ_MAX = 30;
+export function normalizeGuild(g: Guild) { g.category ??= 'adventure'; g.desc ??= ''; g.open ??= false; g.minLevel ??= 1; g.requests ??= []; }
+/** Summary row for the guild browser / ranking (no member ids leak). */
+export function guildCard(g: Guild) {
+  const power = g.members.reduce((a, m) => a + m.level, 0);
+  return { id: g.id, name: g.name, tag: g.tag, level: g.level, xp: g.xp, members: g.members.length, max: GUILD.maxMembers, category: g.category ?? 'adventure', desc: g.desc ?? '', open: !!g.open, minLevel: g.minLevel ?? 1, hardcore: g.hardcore, power, leader: g.members.find((m) => m.rank === 'leader')?.name ?? '', createdAt: g.createdAt };
+}
+export function browseGuilds(all: Iterable<Guild>, q: { cat?: string; text?: string; hardcore: boolean; openOnly?: boolean }) {
+  const text = (q.text ?? '').trim().toLowerCase();
+  return [...all].filter((g) => g.hardcore === q.hardcore && (!q.cat || q.cat === 'all' || (g.category ?? 'adventure') === q.cat) && (!q.openOnly || g.open) && (!text || g.name.toLowerCase().includes(text) || g.tag.toLowerCase().includes(text)))
+    .map(guildCard).sort((a, b) => b.level - a.level || b.members - a.members).slice(0, 60);
+}
+export type GuildBoard = 'level' | 'power' | 'members';
+export function rankGuilds(all: Iterable<Guild>, board: GuildBoard, hardcore: boolean) {
+  const key = (c: ReturnType<typeof guildCard>) => board === 'members' ? c.members * 1e9 + c.power : board === 'power' ? c.power * 1e6 + c.level : c.level * 1e12 + c.xp;
+  return [...all].filter((g) => g.hardcore === hardcore).map(guildCard).sort((a, b) => key(b) - key(a) || a.createdAt - b.createdAt).slice(0, 50).map((c, i) => ({ rank: i + 1, ...c }));
+}
+/** Apply to a guild. Open guilds accept instantly (returns 'joined'); otherwise the request waits for an officer. */
+export function applyGuild(g: Guild, ch: CharacterData, msg: string, now: number, inGuild: boolean): Result<'joined' | 'pending'> {
+  normalizeGuild(g);
+  if (inGuild) return fail('Leave your current guild first');
+  if (g.hardcore !== ch.hardcore) return fail('Hardcore and Normal guilds are separate');
+  if (ch.level < (g.minLevel ?? 1)) return fail(`This guild requires level ${g.minLevel}`);
+  if (g.members.length >= GUILD.maxMembers) return fail('Guild is full');
+  if (g.open) { const r = addMember(g, ch, now); return r.ok ? ok('joined') : r; }
+  if (g.requests!.some((r) => r.charId === ch.id)) return fail('You already applied to this guild');
+  if (g.requests!.length >= GUILD_REQ_MAX) return fail('This guild has too many pending requests — try later');
+  g.requests!.push({ charId: ch.id, name: ch.name, cls: ch.cls, level: ch.level, hardcore: ch.hardcore, msg: msg.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 120), at: now });
+  logGuild(g, now, `${ch.name} asked to join`);
+  return ok('pending');
+}
+/** Officer decision on a pending request. The applicant may be offline: the request stores what membership needs. */
+export function decideRequest(g: Guild, actorId: string, charId: string, accept: boolean, now: number, applicantInGuild: boolean): Result<GuildRequest> {
+  normalizeGuild(g);
+  if (!can(g, actorId, 'invite')) return fail('Only officers and the leader can answer requests');
+  const r = g.requests!.find((x) => x.charId === charId);
+  if (!r) return fail('Request not found');
+  g.requests = g.requests!.filter((x) => x !== r);
+  if (!accept) { logGuild(g, now, `${r.name}'s request was declined`); return ok(r); }
+  if (applicantInGuild) return fail(`${r.name} already joined another guild`);
+  const res = addMember(g, { id: r.charId, name: r.name, cls: r.cls, level: r.level, hardcore: r.hardcore } as CharacterData, now);
+  return res.ok ? ok(r) : res;
+}
+export function guildSettings(g: Guild, actorId: string, set: { category?: string; desc?: string; open?: boolean; minLevel?: number }): Result<void> {
+  normalizeGuild(g);
+  if (!can(g, actorId, 'motd')) return fail('Only officers and the leader can change guild settings');
+  if (set.category !== undefined) { if (!(set.category in GUILD_CATEGORIES)) return fail('Unknown category'); g.category = set.category as GuildCategory; }
+  if (set.desc !== undefined) g.desc = String(set.desc).replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 160);
+  if (set.open !== undefined) g.open = !!set.open;
+  if (set.minLevel !== undefined) g.minLevel = Math.max(1, Math.min(LEVEL_CAP, Math.floor(Number(set.minLevel) || 1)));
+  return ok(undefined);
+}
 /** Daily withdrawal limit per rank (anti-scam: a new member cannot empty the vault). */
 export const VAULT_LIMITS: Record<GuildRank, number> = { leader: 999, officer: 20, member: 3 };
 export const GUILD = { createCost: 500, maxMembers: 50, nameRe: /^[A-Za-z฀-๿][A-Za-z0-9฀-๿ ]{2,23}$/, tagRe: /^[A-Z0-9]{2,5}$/ };

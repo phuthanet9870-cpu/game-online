@@ -3,7 +3,7 @@
 import { BAG_MAX_EXTRA, BAG_STEP, INVENTORY_SIZE, bagExpandCost, AFFIX_MAP, CLASSES, EQUIP_SLOTS, ITEM_BASE_MAP, MATERIALS, PETS, POTION, RARITIES, RARITY_DEFS, AURAS, ACHIEVEMENTS, ENEMIES, combatPower, computeStats, enchantCost, itemMods, salvageValue, sellValue, type EquipSlot, type Item } from '@astra/shared';
 import { getLang, t } from '../i18n.js';
 import { itemName, powerDesc, rarityName, slotName, statText } from '../l10n.js';
-import { clear, h } from './dom.js';
+import { clear, confirmDialog, h } from './dom.js';
 import { bindTip, hideTip, itemTooltip } from './tooltip.js';
 import { itemIcon, matIcon, uiIcon, tileIcon } from './icons.js';
 import { drawChibi } from '../sprites.js';
@@ -114,7 +114,8 @@ export function inventoryWindow(ctx: PanelCtx, mode: Mode, rerender: () => void)
     ui.multi ? h('button', { class: 'btn tiny', onclick: () => { ui.picked.clear(); rerender(); } }, th ? 'ล้าง' : 'Clear') : null,
     ui.multi ? h('b', null, `${picked.length} ${th ? 'ชิ้น' : 'selected'}`) : null,
     ui.multi ? (() => { const b = h('button', { class: 'btn tiny gold', disabled: !picked.length || mode !== 'quartermaster', onclick: () => { send({ t: 'sell_many', inv: picked }); ui.picked.clear(); } }, `${th ? 'ขายที่เลือก' : 'Sell selected'} (+${pickedGold.toLocaleString()}g)`); if (mode !== 'quartermaster') b.title = th ? 'ไปหา Quartermaster Sol เพื่อขาย' : 'Visit Quartermaster Sol to sell'; return b; })() : null,
-    ui.multi ? (() => { const b = h('button', { class: 'btn tiny', disabled: !picked.length || mode !== 'stash', onclick: () => { send({ t: 'stash_put_many', inv: picked }); ui.picked.clear(); } }, th ? 'ฝากคลังที่เลือก' : 'Store selected'); if (mode !== 'stash') b.title = th ? 'ไปที่ Astral Vault เพื่อฝาก' : 'Visit the Astral Vault to store'; return b; })() : null);
+    ui.multi ? (() => { const b = h('button', { class: 'btn tiny', disabled: !picked.length || mode !== 'stash', onclick: () => { send({ t: 'stash_put_many', inv: picked }); ui.picked.clear(); } }, th ? 'ฝากคลังที่เลือก' : 'Store selected'); if (mode !== 'stash') b.title = th ? 'ไปที่ Astral Vault เพื่อฝาก' : 'Visit the Astral Vault to store'; return b; })() : null,
+    ui.multi ? h('button', { class: 'btn tiny danger', disabled: !picked.length, onclick: async () => { if (await confirmDialog(th ? 'ทิ้งไอเทมที่เลือก' : 'Discard selected', th ? `ทิ้ง ${picked.length} ชิ้นถาวร? กู้คืนเองไม่ได้` : `Permanently destroy ${picked.length} item(s)? This cannot be undone.`, th ? 'ทิ้งทั้งหมด' : 'Discard all', t('cancel'))) { send({ t: 'discard', inv: picked }); ui.picked.clear(); } } }, `🗑 ${th ? 'ทิ้งที่เลือก' : 'Discard selected'}`) : null);
   mid.insertBefore(multiBar, grid);
   const right = h('div', { class: 'inv-right' },
     h('div', { class: 'cmp' }, itemCard(eq, th ? 'สวมอยู่' : 'Equipped', null, 'eqd'), itemCard(sel, th ? 'ที่เลือก' : 'Selected', eq, 'seld')),
@@ -123,6 +124,7 @@ export function inventoryWindow(ctx: PanelCtx, mode: Mode, rerender: () => void)
       sel?.slot === 'ring' ? act(th ? 'ใส่แหวนขวา' : 'Equip ring (R)', 'ring', true, '', () => send({ t: 'equip', inv: i, slot: 'ring2' })) : null,
       act(th ? `แยกชิ้นส่วน${sel ? ` (+${salvageValue(sel)}✦)` : ''}` : `Salvage${sel ? ` (+${salvageValue(sel)}✦)` : ''}`, 'anvil', mode === 'smith' && !!sel, need('Brenna the Smith'), () => send({ t: 'salvage', inv: i }), 'gold'),
       act(th ? `ขาย${sel ? ` (+${sellValue(sel)}g)` : ''}` : `Sell${sel ? ` (+${sellValue(sel)}g)` : ''}`, 'coin', mode === 'quartermaster' && !!sel, need('Quartermaster Sol'), () => send({ t: 'sell', inv: i }), 'gold'),
+      act(th ? 'ทิ้งไอเทม' : 'Discard', 'trash', !!sel, '', async () => { if (sel && await confirmDialog(th ? 'ทิ้งไอเทม' : 'Discard item', th ? `ทิ้ง "${sel.name}" ถาวร? ไอเทมจะหายไปและกู้คืนเองไม่ได้` : `Permanently destroy "${sel.name}"? This cannot be undone.`, th ? 'ทิ้ง' : 'Discard', t('cancel'))) send({ t: 'discard', inv: [i] }); }, 'danger'),
       act(th ? 'ฝากคลัง' : 'Store', 'chestbox', mode === 'stash' && !!sel && !sel.bound, sel?.bound ? (th ? 'ไอเทมผูกกับตัวละคร' : 'Bound items cannot be stored') : need('the Astral Vault'), () => send({ t: 'stash_put', inv: i }))),
     mode === 'smith' && sel && sel.affixes.length ? h('div', { class: 'reroll' }, h('small', { class: 'muted' }, th ? `เสริมพลัง (${enchantCost(sel).dust}✦ ${enchantCost(sel).gold}g) — เลือกค่าเสริมที่จะสุ่มใหม่:` : `Enchant (${enchantCost(sel).dust}✦ ${enchantCost(sel).gold}g) — choose an affix to reroll:`), ...sel.affixes.map((a, ai) => h('button', { class: 'btn tiny', onclick: () => send({ t: 'enchant', inv: i, affix: ai }) }, `↻ ${AFFIX_MAP[a.id]?.label.replace('{v}', String(a.value)) ?? a.stat}`))) : null,
     !sel ? h('p', { class: 'hint' }, th ? 'คลิกไอเทมเพื่อเลือก · คลิกขวาเพื่อสวมทันที' : 'Click an item to compare · right-click to equip') : null);

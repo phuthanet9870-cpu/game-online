@@ -812,3 +812,21 @@ h3 { font-family: var(--f-display); color: var(--gold-2); }
 .carp-cost .mc { display: inline-flex; align-items: center; gap: 2px; }
 .tr-paths { max-height: 470px; overflow-y: auto; }
 .tr-path { padding: 4px 8px; }
+/* ── Guild window ── */
+.guildwin .win-tabs.sub { margin-bottom: 8px; flex-wrap: wrap; }
+.gw-browse { display: grid; grid-template-columns: 200px 1fr; gap: 10px; }
+.gw-cats { display: flex; flex-direction: column; gap: 6px; }
+.gw-list { display: flex; flex-direction: column; gap: 6px; }
+.gw-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 10px; background: rgba(30,22,55,.75); border: 1px solid rgba(200,170,255,.18); }
+.gw-row .grow { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.gw-stats { display: flex; flex-direction: column; align-items: flex-end; font-size: 12px; color: #d8c8ff; }
+.g-crest { display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; color: #fff; font-weight: 800; letter-spacing: .5px; border: 2px solid #c8a46a; text-shadow: 0 1px 2px #000; flex: none; vertical-align: middle; }
+.gw-profile { display: flex; flex-direction: column; gap: 10px; max-width: 480px; }
+.gw-profile label { display: flex; flex-direction: column; gap: 4px; }
+.gw-profile label.chk { flex-direction: row; align-items: center; }
+.gw-rank { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.gw-rank th, .gw-rank td { padding: 6px 8px; text-align: left; border-bottom: 1px solid rgba(200,170,255,.12); }
+.gw-rank th { color: #ffd98a; font-weight: 600; }
+.gw-rank tr.me td { background: rgba(90,168,255,.15); }
+.gw-rank tr.top1 td:first-child, .gw-rank tr.top2 td:first-child, .gw-rank tr.top3 td:first-child { font-size: 18px; }
+@media (max-width: 720px) { .gw-browse { grid-template-columns: 1fr; } }

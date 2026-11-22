@@ -267,3 +267,60 @@ describe('batch sell / store', () => {
     expect(t.txs.at(-1)!.accounts!.length).toBe(1);
   });
 });
+
+describe('guild discovery', () => {
+  it('applies, gets accepted by an officer, and clears other requests', () => {
+    const t = setup();
+    const a = t.join('a', 'Leader'), b = t.join('b', 'Founder'), c = t.join('c', 'Seeker');
+    a.char.gold = 1000; b.char.gold = 1000;
+    t.core.handle('a', { t: 'guild_create', name: 'Moon Watch', tag: 'MOON', rid: 'r1' });
+    t.core.handle('b', { t: 'guild_create', name: 'Sun Guard', tag: 'SUN', rid: 'r2' });
+    t.core.handle('a', { t: 'guild_settings', category: 'raid', desc: 'Raid every night', minLevel: 1, rid: 'r3' });
+    const browse = () => { t.core.handle('c', { t: 'guild_browse', cat: 'raid' }); return t.last('c', 'guild_browse').rows; };
+    expect(browse().map((r: any) => r.tag)).toEqual(['MOON']);
+    t.core.handle('c', { t: 'guild_apply', id: browse()[0].id, msg: 'hi', rid: 'r4' });
+    t.core.handle('c', { t: 'guild_apply', id: [...t.core.guilds.values()].find((g) => g.tag === 'SUN')!.id, rid: 'r5' });
+    expect(t.errs('c')).toEqual([]);
+    // members cannot see or answer requests; the leader can
+    t.core.handle('c', { t: 'guild_req', charId: c.char.id, accept: true, rid: 'r6' });
+    expect(t.errs('c')).toContain('You are not in a guild');
+    t.core.handle('a', { t: 'guild_info' });
+    expect(t.last('a', 'guild').guild.requests.map((r: any) => r.name)).toEqual(['Seeker']);
+    t.core.handle('a', { t: 'guild_req', charId: c.char.id, accept: true, rid: 'r7' });
+    expect(t.core.guildOf(c.char.id)?.tag).toBe('MOON');
+    expect([...t.core.guilds.values()].find((g) => g.tag === 'SUN')!.requests).toEqual([]);
+    expect(t.audits).toContain('guild_req_accept');
+  });
+  it('open guilds accept instantly, enforce min level, and rankings sort', () => {
+    const t = setup();
+    const a = t.join('a', 'Leader'), c = t.join('c', 'Seeker');
+    a.char.gold = 1000;
+    t.core.handle('a', { t: 'guild_create', name: 'Open Door', tag: 'OPEN', rid: 'r1' });
+    const g = t.core.guildOf(a.char.id)!;
+    t.core.handle('a', { t: 'guild_settings', open: true, minLevel: 5, rid: 'r2' });
+    t.core.handle('c', { t: 'guild_apply', id: g.id, rid: 'r3' });
+    expect(t.errs('c').at(-1)).toMatch(/level 5/);
+    c.char.level = 6;
+    t.core.handle('c', { t: 'guild_apply', id: g.id, rid: 'r4' });
+    expect(t.core.guildOf(c.char.id)).toBe(g);
+    t.core.handle('c', { t: 'guild_ranking', board: 'members' });
+    const r = t.last('c', 'guild_ranking');
+    expect(r.rows[0]).toMatchObject({ rank: 1, tag: 'OPEN', members: 2 });
+    expect(r.mine).toBe(g.id);
+  });
+});
+
+describe('discard', () => {
+  it('destroys single and multiple items anywhere and audits the items', () => {
+    const t = setup();
+    const a = t.join('a', 'Tosser');
+    t.giveItem(a.char, 0); t.giveItem(a.char, 1); t.giveItem(a.char, 2); const lastIt = t.giveItem(a.char, a.char.inventory.length - 1);
+    t.core.handle('a', { t: 'discard', inv: [1], rid: 'd1' });
+    expect(a.char.inventory[1]).toBeNull();
+    expect(a.char.inventory[0]).not.toBeNull();
+    t.core.handle('a', { t: 'discard', inv: [0, 2, 0, 99], rid: 'd2' });
+    expect(a.char.inventory.slice(0, 3)).toEqual([null, null, null]);
+    expect(a.char.inventory.at(-1)).toBe(lastIt);
+    expect(t.audits.filter((x) => x === 'discard')).toHaveLength(2);
+  });
+});

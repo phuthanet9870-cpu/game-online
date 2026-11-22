@@ -15,6 +15,7 @@ import { POTION } from './data/items.js';
 import { decodeBuild } from './data/passives.js';
 import { ACHIEVEMENTS, QUESTS, QUEST_MAP } from './data/quests.js';
 import { generateItem, rollRarity } from './loot.js';
+import type { Item } from './types.js';
 import { Rng, dist } from './math.js';
 import { buildArena, buildField, buildHighlands, buildHouse, buildTown, buildWastes, validatePlacement, generateDungeon, generateLabyrinth, type GameMap } from './maps.js';
 import { ACTIVITIES, ACTIVITY_ORDER, ECLIPSE_POOL, NIGHTMARE_MODS, towerScale, type Activity } from './data/activities.js';
@@ -84,7 +85,7 @@ export interface LeaderRecord { board: string; charId: string; name: string; cls
 interface Party { id: string; leader: string; members: string[] }
 
 export const FRIEND_MAX = 50;
-const MUTATIONS = new Set(['house_buy', 'house_place', 'house_remove', 'use_map', 'guild_vault_put', 'guild_vault_take', 'pet_buy', 'season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose', 'login_claim', 'shop_buy', 'benefit_claim', 'awaken', 'wish', 'emblem_set', 'cosmetic_set', 'afk_claim', 'bag_expand', 'sell_many', 'stash_put_many']);
+const MUTATIONS = new Set(['house_buy', 'house_place', 'house_remove', 'use_map', 'guild_vault_put', 'guild_vault_take', 'pet_buy', 'season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose', 'login_claim', 'shop_buy', 'benefit_claim', 'awaken', 'wish', 'emblem_set', 'cosmetic_set', 'afk_claim', 'bag_expand', 'sell_many', 'stash_put_many', 'guild_apply', 'guild_req', 'guild_settings', 'discard']);
 
 /** Character as sent to its owner: hidden server knowledge (exact treasure spot) is removed. */
 export function publicChar(ch: CharacterData): CharacterData {
@@ -129,7 +130,7 @@ export class GameCore {
   /** Load persisted shared state. Call once before accepting players. */
   async init() {
     const st = await this.persist.loadShared();
-    for (const g of st.guilds) { g.vault ??= Array(EC.GUILD_VAULT_SIZE).fill(null); g.withdrawals ??= {}; this.guilds.set(g.id, g); }
+    for (const g of st.guilds) { g.vault ??= Array(EC.GUILD_VAULT_SIZE).fill(null); g.withdrawals ??= {}; EC.normalizeGuild(g); this.guilds.set(g.id, g); }
     for (const l of st.listings) this.listings.set(l.id, l);
     for (const r of st.records ?? []) this.records.set(`${r.board}:${r.charId}`, r);
   }
@@ -344,7 +345,7 @@ export class GameCore {
         case 'quest_accept': if (!this.nearNpc(s, room, 'npc_quests')) return err('Talk to Commander Aveline in Lumenhold'); this.questAccept(s, String(msg.id)); break;
         case 'quest_claim': if (!this.nearNpc(s, room, 'npc_quests')) return err('Talk to Commander Aveline in Lumenhold'); this.questClaim(s, String(msg.id)); break;
         case 'stash_put': case 'stash_take': this.stash(s, room, msg); break;
-        case 'sell_many': case 'stash_put_many': this.batchItems(s, room, msg); break;
+        case 'sell_many': case 'stash_put_many': case 'discard': this.batchItems(s, room, msg); break;
         case 'chat': this.chat(s, room, msg); break;
         case 'block': s.blocked.add(String(msg.name).slice(0, 16)); this.toast(s, `Blocked ${msg.name}`); break;
         case 'report': this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'report', data: { name: String(msg.name).slice(0, 16), reason: String(msg.reason ?? '').slice(0, 200) } }); this.toast(s, 'Report submitted. Thank you.'); break;
@@ -374,7 +375,7 @@ export class GameCore {
         case 'guild_vault_put': case 'guild_vault_take': this.guildVault(s, room, msg); break;
         case 'pet_buy': case 'pet_set': this.pets(s, room, msg); break;
         case 'login_claim': case 'shop_buy': case 'benefit_claim': case 'awaken': case 'wish': case 'emblem_set': case 'cosmetic_set': case 'mount_toggle': case 'afk_claim': case 'bag_expand': this.metaMsg(s, room, msg); break;
-        case 'guild_create': case 'guild_invite': case 'guild_accept': case 'guild_leave': case 'guild_kick': case 'guild_rank': case 'guild_transfer': case 'guild_motd': case 'guild_info': this.guild(s, room, msg); break;
+        case 'guild_create': case 'guild_invite': case 'guild_accept': case 'guild_leave': case 'guild_kick': case 'guild_rank': case 'guild_transfer': case 'guild_motd': case 'guild_info': case 'guild_browse': case 'guild_apply': case 'guild_req': case 'guild_settings': case 'guild_ranking': case 'guild_withdraw_req': this.guild(s, room, msg); break;
         default: break;
       }
     } catch (e) {
@@ -819,9 +820,19 @@ export class GameCore {
   // ─────────── Stash (account storage, separated by mode) ───────────
   /** Sell or store several selected items in one go (one transaction). */
   private batchItems(s: Session, room: Room, msg: any) {
-    const idx = [...new Set((Array.isArray(msg.inv) ? msg.inv : []).slice(0, 80).map((v: unknown) => clampInt(v, 0, s.char.inventory.length - 1)))] as number[];
+    // Invalid indexes are dropped, never clamped: clamping could hit an item the player did not pick.
+    const idx = [...new Set((Array.isArray(msg.inv) ? msg.inv : []).slice(0, 80).filter((v: unknown) => Number.isInteger(v) && (v as number) >= 0 && (v as number) < s.char.inventory.length))] as number[];
     if (!idx.length) return;
     let n = 0, gold = 0, skipped = 0;
+    if (msg.t === 'discard') {
+      // Destroy (not drop on the ground: ground drops would bypass trade/bound rules). Item ids are audited for support recovery.
+      const gone: Item[] = [];
+      for (const i of idx) { const it = s.char.inventory[i]; if (!it) continue; gone.push(it); s.char.inventory[i] = null; n++; }
+      this.tx({ characters: [s.char] });
+      this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'discard', data: { n, items: gone } });
+      this.toast(s, `Discarded ${n} item${n === 1 ? '' : 's'}`);
+      return this.mutate(s, { ok: true, value: undefined }, null);
+    }
     if (msg.t === 'sell_many') {
       if (!this.nearNpc(s, room, 'npc_quartermaster')) return s.send({ t: 'err', msg: 'Visit the Quartermaster to sell' });
       for (const i of idx) { const r = C.sellItem(s.char, i); if (r.ok) { n++; gold += r.value; } else skipped++; }
@@ -1212,9 +1223,15 @@ export class GameCore {
   // ─────────── Guilds ───────────
   private sendGuild(s: Session) {
     const g = this.guildOf(s.char.id);
-    if (!g) return s.send({ t: 'guild', guild: null, invites: [...s.guildInvites].map((id) => { const x = this.guilds.get(id); return x ? { id, name: x.name, tag: x.tag } : null; }).filter(Boolean) });
+    if (!g) return s.send({ t: 'guild', guild: null, invites: [...s.guildInvites].map((id) => { const x = this.guilds.get(id); return x ? { id, name: x.name, tag: x.tag } : null; }).filter(Boolean), pending: [...this.guilds.values()].filter((x) => x.requests?.some((r) => r.charId === s.char.id)).map((x) => ({ id: x.id, name: x.name, tag: x.tag })) });
     const online = new Set([...this.sessions.values()].map((o) => o.char.id));
-    s.send({ t: 'guild', guild: { ...g, members: g.members.map((m) => ({ ...m, online: online.has(m.charId) })), xpToNext: EC.guildXpToNext(g.level) }, invites: [] });
+    s.send({ t: 'guild', guild: { ...g, members: g.members.map((m) => ({ ...m, online: online.has(m.charId) })), xpToNext: EC.guildXpToNext(g.level), requests: EC.can(g, s.char.id, 'invite') ? g.requests ?? [] : [] }, invites: [] });
+  }
+  /** A character joined `joined`: drop their pending requests everywhere else. */
+  private clearRequests(charId: string, joined: Guild) {
+    const touched: Guild[] = [];
+    for (const x of this.guilds.values()) if (x !== joined && x.requests?.some((r) => r.charId === charId)) { x.requests = x.requests.filter((r) => r.charId !== charId); touched.push(x); }
+    if (touched.length) { this.tx({ guilds: touched }); for (const x of touched) this.guildSync(x); }
   }
   private guildSync(g: Guild) { for (const o of this.sessions.values()) if (g.members.some((m) => m.charId === o.char.id)) this.sendGuild(o); }
   private guildXp(s: Session, xp: number, why: string) {
@@ -1236,7 +1253,7 @@ export class GameCore {
         if (room.kind !== 'town') return fail('Guilds are founded in Lumenhold');
         const r = EC.createGuild(s.char, String(msg.name ?? ''), String(msg.tag ?? ''), this.guilds.values(), now, this.uid('g'));
         if (!r.ok) return fail(r.reason);
-        this.guilds.set(r.value.id, r.value);
+        EC.normalizeGuild(r.value); this.clearRequests(s.char.id, r.value); this.guilds.set(r.value.id, r.value);
         this.markDirty(s); this.sendChar(s);
         this.toast(s, `Founded ‹${r.value.tag}› ${r.value.name}`);
         return commit(r.value, [s.char], 'guild_create');
@@ -1257,7 +1274,7 @@ export class GameCore {
         if (g) return fail('Leave your current guild first');
         const r = EC.addMember(gg, s.char, now);
         if (!r.ok) return fail(r.reason);
-        s.guildInvites.clear();
+        s.guildInvites.clear(); this.clearRequests(s.char.id, gg);
         return commit(gg, [], 'guild_join');
       }
       case 'guild_leave': {
@@ -1286,6 +1303,51 @@ export class GameCore {
         if (!g) return fail('You are not in a guild');
         const r = EC.transferLeader(g, s.char.id, String(msg.name ?? ''), String(msg.confirm ?? ''), now);
         return r.ok ? commit(g, [], 'guild_transfer') : fail(r.reason);
+      }
+      case 'guild_browse': {
+        const mine = new Set([...this.guilds.values()].filter((x) => x.requests?.some((r) => r.charId === s.char.id)).map((x) => x.id));
+        return s.send({ t: 'guild_browse', rows: EC.browseGuilds(this.guilds.values(), { cat: String(msg.cat ?? 'all'), text: String(msg.q ?? ''), hardcore: s.char.hardcore, openOnly: !!msg.openOnly }).map((r) => ({ ...r, applied: mine.has(r.id) })) });
+      }
+      case 'guild_ranking': {
+        const board = (['level', 'power', 'members'] as const).includes(msg.board) ? msg.board as EC.GuildBoard : 'level';
+        return s.send({ t: 'guild_ranking', board, rows: EC.rankGuilds(this.guilds.values(), board, s.char.hardcore), mine: g?.id ?? null });
+      }
+      case 'guild_apply': {
+        const gg = this.guilds.get(String(msg.id));
+        if (!gg) return fail('Guild not found');
+        const r = EC.applyGuild(gg, s.char, String(msg.msg ?? ''), now, !!g);
+        if (!r.ok) return fail(r.reason);
+        if (r.value === 'joined') { this.clearRequests(s.char.id, gg); this.toast(s, `Joined ‹${gg.tag}› ${gg.name}`); commit(gg, [], 'guild_join'); return this.sendGuild(s); }
+        commit(gg, [], 'guild_apply');
+        this.toast(s, `Request sent to ‹${gg.tag}› ${gg.name}`);
+        for (const o of this.sessions.values()) if (EC.can(gg, o.char.id, 'invite')) this.toast(o, `${s.char.name} (Lv ${s.char.level}) asked to join the guild`);
+        return;
+      }
+      case 'guild_withdraw_req': {
+        const gg = this.guilds.get(String(msg.id));
+        if (!gg?.requests?.some((r) => r.charId === s.char.id)) return fail('No pending request');
+        gg.requests = gg.requests.filter((r) => r.charId !== s.char.id);
+        this.tx({ guilds: [gg] }); this.guildSync(gg);
+        return this.toast(s, 'Request withdrawn');
+      }
+      case 'guild_req': {
+        if (!g) return fail('You are not in a guild');
+        const cid = String(msg.charId ?? '');
+        const r = EC.decideRequest(g, s.char.id, cid, !!msg.accept, now, !!this.guildOf(cid));
+        if (!r.ok) { this.tx({ guilds: [g] }); this.guildSync(g); return fail(r.reason); }
+        if (msg.accept) this.clearRequests(cid, g);
+        commit(g, [], msg.accept ? 'guild_req_accept' : 'guild_req_decline');
+        const t = [...this.sessions.values()].find((o) => o.char.id === cid);
+        if (t) { this.toast(t, msg.accept ? `You were accepted into ‹${g.tag}› ${g.name}!` : `‹${g.tag}› ${g.name} declined your request`); this.sendGuild(t); }
+        return;
+      }
+      case 'guild_settings': {
+        if (!g) return fail('You are not in a guild');
+        const r = EC.guildSettings(g, s.char.id, { category: msg.category, desc: msg.desc, open: msg.open, minLevel: msg.minLevel });
+        if (!r.ok) return fail(r.reason);
+        EC.logGuild(g, now, `${s.char.name} updated the guild profile`);
+        this.toast(s, 'Guild profile saved');
+        return commit(g, [], 'guild_settings');
       }
       case 'guild_motd': {
         if (!g) return fail('You are not in a guild');

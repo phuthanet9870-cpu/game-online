@@ -1,4 +1,5 @@
 import * as NW from './npcwin.js';
+import { guildWindow, guildUI } from './guildwin.js';
 import { combatPower, weeklyObjectives, ACTIVITY_ORDER, QUESTS, FURNITURE, validatePlacement, applyContentPatch, ACTIVITIES, MATERIALS, CLASSES, DIFFICULTIES, DUNGEON_MODIFIERS, BLESSING_MAP, SKILL_MAP, ENEMIES, computeStats, xpToNext, type CharacterData } from '@astra/shared';
 import { ClientGame } from '../game.js';
 import { Renderer } from '../render.js';
@@ -194,6 +195,8 @@ export class GameUI {
       case 'ah_results': this.ah.results = m; if (this.panel === 'auction') this.renderPanel(); break;
       case 'ah_mine': this.ah.mine = m.rows; if (this.panel === 'auction') this.renderPanel(); break;
       case 'guild': this.guildData = m; if (this.panel === 'guild') this.renderPanel(); break;
+      case 'guild_browse': guildUI.browse = m.rows; if (this.panel === 'guild') this.renderPanel(); break;
+      case 'guild_ranking': guildUI.ranking = m; if (this.panel === 'guild') this.renderPanel(); break;
       case 'guild_invite': void confirmDialog('Guild invite', `${m.from} invited you to ‹${m.tag}› ${m.name}.`, t('accept'), t('decline')).then((ok) => { if (ok) this.send({ t: 'guild_accept', id: m.id }); }); break;
       case 'season': this.seasonData = m; if (this.panel === 'season') this.renderPanel(); break;
       case 'fish': if (m.state === 'cast') this.status('Fishing… press Interact (E) the moment a fish bites'); else if (m.state === 'bite') { this.status('!!! A fish is biting — press E now !!!'); sound.warn(); } else this.status(null); break;
@@ -745,7 +748,7 @@ export class GameUI {
       case 'quests': body = P.questsPanel(ctx, this.panelExtra?.what === 'quests' && inTown); break;
       case 'codex': body = P.codexPanel(ctx); break;
       case 'social': body = h('div', null, P.socialPanel(ctx), S.finderSection(ctx.ch, this.pfEntries, this.nearbyPlayers(), (m) => this.send(m))); break;
-      case 'guild': body = S.guildPanel(ctx.ch, this.guildData, (m) => this.send(m), inTown); break;
+      case 'guild': body = guildWindow(ctx.ch, this.guildData, (m) => this.send(m), inTown, () => this.renderPanel()); break;
       case 'auction': body = S.auctionPanel(ctx.ch, this.ah, (m) => this.send(m), () => this.renderPanel()); break;
       case 'settings': body = h('div', null, h('button', { class: 'btn gold', onclick: () => this.openPanel('auto') }, getLang() === 'th' ? '⚙ ตั้งค่าระบบออโต้' : '⚙ Auto settings'), P.settingsPanel(ctx)); break;
       case 'dungeon': body = P.dungeonPanel(ctx, this.panelExtra?.unlocked ?? ['story', 'normal'], this.panelExtra?.locks ?? {}); break;
