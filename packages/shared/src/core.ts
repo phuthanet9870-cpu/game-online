@@ -3,6 +3,8 @@
 // message channel + browser storage. Both run this exact code.
 
 import * as M from './meta.js';
+import { ITEM_BASE_MAP } from './data/items.js';
+import { RARITIES, LEVEL_CAP } from './types.js';
 import { emptyMeta, normalizeMeta } from './meta.js';
 import * as C from './character.js';
 import { CLASSES } from './data/classes.js';
@@ -73,6 +75,8 @@ interface Session {
   fishing?: { spot: string; x: number; y: number; res: string; biteAt: number; until: number; bit: boolean } | null;
   netCache?: { room: string; ents: Map<number, string>; projs: Map<number, string>; areas: Map<number, string> };
   friendReqs: Set<string>;
+  role: string;
+  gm: boolean;
 }
 
 interface Room { id: string; kind: 'town' | 'field' | 'dungeon'; world: World; sessions: Set<string>; emptyT: number; difficulty: DifficultyId; seed: number; partyId: string | null; mode?: Activity; floor?: number; startedAt?: number; arena?: { wave: number; nextT: number } }
@@ -152,7 +156,7 @@ export class GameCore {
   }
 
   // ─────────── Connection lifecycle ───────────
-  connect(sessionId: string, accountId: string, rawChar: CharacterData, account: AccountProgress, send: Send): void {
+  connect(sessionId: string, accountId: string, rawChar: CharacterData, account: AccountProgress, send: Send, opts: { role?: string } = {}): void {
     const char = C.normalizeCharacter(rawChar);
     if (char.dead) { send({ t: 'err', msg: 'This Hardcore character has fallen and cannot be played.', fatal: true }); return; }
     // one live session per character
@@ -160,7 +164,7 @@ export class GameCore {
     const s: Session = {
       id: sessionId, accountId, char, account: normalizeAccount(account), send, roomId: 'town', entId: 0, rids: [], bucket: 60, violations: 0, lastChat: -99,
       dirty: false, saveT: 30, partyId: null, invites: new Set(), blocked: new Set(), pendingChoice: null, run: null, closed: false,
-      tradeId: null, guildInvites: new Set(), chatHist: [], mutedUntil: 0, friendReqs: new Set(),
+      tradeId: null, guildInvites: new Set(), chatHist: [], mutedUntil: 0, friendReqs: new Set(), role: opts.role ?? 'player', gm: false,
     };
     this.sessions.set(sessionId, s);
     M.afkSettle(char, this.clock());
@@ -344,6 +348,7 @@ export class GameCore {
         case 'block': s.blocked.add(String(msg.name).slice(0, 16)); this.toast(s, `Blocked ${msg.name}`); break;
         case 'report': this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'report', data: { name: String(msg.name).slice(0, 16), reason: String(msg.reason ?? '').slice(0, 200) } }); this.toast(s, 'Report submitted. Thank you.'); break;
         case 'party_invite': this.partyInvite(s, String(msg.name)); break;
+        case 'gm_open': case 'gm': this.gmMsg(s, room, msg); break;
         case 'friend_request': case 'friend_accept': case 'friend_remove': case 'friend_list': this.friends(s, msg); break;
         case 'party_accept': this.partyAccept(s, String(msg.id)); break;
         case 'party_leave': this.leaveParty(s); break;
@@ -867,6 +872,72 @@ export class GameCore {
     } else {
       for (const id of room.sessions) { const o = this.sessions.get(id); if (o && !o.blocked.has(s.char.name)) o.send(out); }
     }
+  }
+
+  // ─────────── GM tools (admin accounts only; every action is audited) ───────────
+  static readonly GM_CODE = 'gmadminonline01';
+  private gmMsg(s: Session, room: Room, msg: any) {
+    if (msg.t === 'gm_open') {
+      if (s.role !== 'admin' || msg.code !== GameCore.GM_CODE) return s.send({ t: 'err', msg: 'Unknown command' }); // never reveal that the command exists
+      s.gm = true;
+      this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'gm_open', data: null });
+      return s.send({ t: 'gm', on: true });
+    }
+    if (!s.gm || s.role !== 'admin') return s.send({ t: 'err', msg: 'Unknown command' });
+    const w = room.world, me = w.ents.get(s.entId);
+    const int = (v: unknown, lo: number, hi: number, d: number) => { const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
+    const a = String(msg.a ?? '');
+    let note = '';
+    switch (a) {
+      case 'item': {
+        const base = ITEM_BASE_MAP[String(msg.baseId)];
+        if (!base) return s.send({ t: 'err', msg: 'Unknown item' });
+        const rarity = RARITIES.includes(msg.rarity) ? msg.rarity : 'rare';
+        const n = int(msg.n, 1, 10, 1);
+        let given = 0;
+        for (let k = 0; k < n; k++) { const slot = s.char.inventory.indexOf(null); if (slot < 0) break; s.char.inventory[slot] = generateItem({ rng: this.rng, ilvl: int(msg.ilvl, 1, 100, s.char.level), rarity, baseId: base.id, cls: s.char.cls, hardcore: s.char.hardcore }); given++; }
+        note = `Created ${given}× ${rarity} ${base.name}${given < n ? ' (bags full)' : ''}`; break;
+      }
+      case 'mat': { const id = String(msg.id); if (!MATERIALS[id]) return s.send({ t: 'err', msg: 'Unknown material' }); s.char.mats[id] = (s.char.mats[id] ?? 0) + int(msg.n, 1, 9999, 10); note = `+${int(msg.n, 1, 9999, 10)} ${MATERIALS[id]!.name}`; break; }
+      case 'currency': {
+        const n = int(msg.n, -1e9, 1e9, 0), k = String(msg.k);
+        if (k === 'gold') s.char.gold = Math.max(0, s.char.gold + n); else if (k === 'dust') s.char.dust = Math.max(0, s.char.dust + n);
+        else if (k === 'tokens') { const mm = M.ensureMeta(s.account); mm.wish.tokens = Math.max(0, mm.wish.tokens + n); }
+        else if (k === 'shards') { if (!s.account.season) return s.send({ t: 'err', msg: 'No season running' }); s.account.season.shards = Math.max(0, s.account.season.shards + n); }
+        else if (k === 'potions') s.char.potions = Math.max(0, s.char.potions + n);
+        else return s.send({ t: 'err', msg: 'Unknown currency' });
+        note = `${n >= 0 ? '+' : ''}${n} ${k}`; break;
+      }
+      case 'level': { s.char.level = int(msg.n, 1, LEVEL_CAP, s.char.level); s.char.xp = 0; note = `Level set to ${s.char.level}`; break; }
+      case 'heal': { if (me) { me.dead = false; me.hp = me.maxHp; if (me.p) { me.p.res = me.stats?.maxRes ?? me.p.res; me.p.cds = {}; } } note = 'Fully restored, cooldowns reset'; break; }
+      case 'god': { if (!me) break; const on = !me.buffs.some((b) => b.name === 'GM: God Mode'); me.buffs = me.buffs.filter((b) => b.name !== 'GM: God Mode'); if (on) w.addBuff(me, 'GM: God Mode', 1e9, [{ stat: 'invuln', value: 1 }]); note = on ? 'God mode ON' : 'God mode OFF'; break; }
+      case 'spawn': {
+        const def = ENEMIES[String(msg.id)];
+        if (!def || !me) return s.send({ t: 'err', msg: 'Unknown monster' });
+        const n = int(msg.n, 1, 20, 1), lv = int(msg.level, 1, 100, s.char.level);
+        let made = 0;
+        for (let k = 0; k < n; k++) { const ang = (k / n) * Math.PI * 2, r = 110 + (n > 1 ? 40 : 0); if (w.spawnEnemy(def.id, me.x + Math.cos(ang) * r, me.y + Math.sin(ang) * r, lv, !!msg.elite)) made++; }
+        note = `Spawned ${made}× ${def.name} (Lv.${lv}${msg.elite ? ', elite' : ''})`; break;
+      }
+      case 'killall': { let k = 0; for (const e of [...w.ents.values()]) if (e.kind === 'enemy' && !e.dead && e.e?.def.id !== 'dummy') { e.invuln = 0; w.applyHit(e, { amount: 1e12, type: 'holy', critChance: 0, critMult: 1, src: me?.id ?? 0, tags: [] }); k++; } note = `Defeated ${k} enemies`; break; }
+      case 'cleardrops': { w.drops = []; note = 'Drops cleared'; break; }
+      case 'teleport': { const z = String(msg.zone); if (!['town', 'field', 'highlands', 'wastes'].includes(z)) return s.send({ t: 'err', msg: 'Unknown zone' }); this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'gm_teleport', data: { zone: z } }); this.moveTo(s, z); return; }
+      case 'announce': { const text = String(msg.text ?? '').slice(0, 200); if (!text) return; for (const o of this.sessions.values()) this.toast(o, `[GM] ${text}`); note = 'Announced'; break; }
+      case 'kick': case 'mute': {
+        const target = [...this.sessions.values()].find((o) => o.char.name.toLowerCase() === String(msg.name ?? '').toLowerCase());
+        if (!target) return s.send({ t: 'err', msg: 'Player not found online' });
+        if (a === 'kick') { this.disconnect(target.id, 'You were removed from the game by a GM'); note = `Kicked ${target.char.name}`; }
+        else { target.mutedUntil = this.now + int(msg.minutes, 1, 1440, 10) * 60; this.toast(target, 'A GM muted you'); note = `Muted ${target.char.name}`; }
+        break;
+      }
+      default: return s.send({ t: 'err', msg: 'Unknown GM action' });
+    }
+    this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'gm_' + a, data: { ...msg, t: undefined } });
+    if (me) { me.dirty = true; if (a === 'level') w.refresh(me); }
+    s.dirty = true;
+    this.tx({ characters: [s.char], accounts: [{ id: s.accountId, progress: s.account }] });
+    if (note) this.toast(s, `[GM] ${note}`);
+    this.sendChar(s);
   }
 
   // ─────────── Friends (mutual, per account) ───────────

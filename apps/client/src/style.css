@@ -724,3 +724,15 @@ h3 { font-family: var(--f-display); color: var(--gold-2); }
 .modal.afk { text-align: center; align-items: center; }
 .afk-rw { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; } .afk-rw span { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
 @media (max-width: 1280px) { .auto-box { left: auto; right: 10px; bottom: 120px; } }
+/* GM console */
+.gm-bar { margin-bottom: 8px; gap: 8px; }
+.gm-f { display: inline-flex; align-items: center; gap: 4px; font-size: .85em; } .gm-f input { width: 80px; }
+.gm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.gm-grid.mon { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+.gm-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; background: linear-gradient(180deg, #221a40, #120c24); border: 1px solid #a9772a55; border-radius: 8px; cursor: pointer; color: #fff; text-align: center; }
+.gm-cell:hover { border-color: var(--gold-1); box-shadow: 0 0 10px #e8c06244; }
+.gm-cell.boss { border-color: #ff4f9a; }
+.gm-cell small { font-size: 10px; line-height: 1.1; } .gm-cell em { font-size: 9px; font-style: normal; color: #b8afd0; }
+.mon-ico { image-rendering: pixelated; }
+.gm-cur { display: flex; align-items: center; gap: 8px; }
+.gm-cur span { min-width: 120px; }

@@ -172,7 +172,7 @@ export class OfflineBackend implements Backend {
     setTimeout(() => {
       if (!ch) { h.onMessage({ t: 'err', msg: 'Character not found', fatal: true }); return; }
       h.onStatus('open');
-      core.connect(sid, a.id, JSON.parse(JSON.stringify(ch)), normalizeAccount(a.progress), deliver);
+      core.connect(sid, a.id, JSON.parse(JSON.stringify(ch)), normalizeAccount(a.progress), deliver, { role: 'admin' }); // offline mode: the player owns this device, so GM tools are allowed
     }, 30);
     return { send: (m) => { if (!closed) core.handle(sid, JSON.parse(JSON.stringify(m))); }, close: () => { closed = true; core.disconnect(sid); } };
   }

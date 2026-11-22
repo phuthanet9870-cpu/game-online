@@ -12,11 +12,11 @@ function setup() {
   let now = 1_000_000;
   core.clock = () => now;
   const inbox = new Map<string, any[]>();
-  const join = (sid: string, name: string, opts: { hc?: boolean; acc?: string } = {}) => {
+  const join = (sid: string, name: string, opts: { hc?: boolean; acc?: string; role?: string } = {}) => {
     const r = createCharacter(opts.acc ?? 'acc-' + sid, name, 'warrior', !!opts.hc);
     if (!r.ok) throw new Error(r.reason);
     inbox.set(sid, []);
-    core.connect(sid, opts.acc ?? 'acc-' + sid, r.value, emptyAccount(), (m) => inbox.get(sid)!.push(m));
+    core.connect(sid, opts.acc ?? 'acc-' + sid, r.value, emptyAccount(), (m) => inbox.get(sid)!.push(m), { role: opts.role });
     return core.sessions.get(sid)!;
   };
   const place = (sid: string, type: string, dy = 40) => {
@@ -216,5 +216,32 @@ describe('friends', () => {
     t.core.handle('b', { t: 'friend_remove', id: a.char.id });
     expect(a.account.friends).toEqual([]);
     expect(b.account.friends).toEqual([]);
+  });
+});
+
+describe('GM tools', () => {
+  it('only admins can open them, the code is required, and every action is audited', () => {
+    const t = setup();
+    const p = t.join('p', 'Player'), a = t.join('a', 'Admin', { role: 'admin' });
+    const pg = p.char.gold, ag = a.char.gold;
+    t.core.handle('p', { t: 'gm_open', code: 'gmadminonline01' });
+    expect(t.errs('p')).toContain('Unknown command');
+    t.core.handle('p', { t: 'gm', a: 'currency', k: 'gold', n: 999 });
+    expect(p.char.gold).toBe(pg);
+    t.core.handle('a', { t: 'gm', a: 'currency', k: 'gold', n: 999 }); // not opened yet
+    expect(a.char.gold).toBe(ag);
+    t.core.handle('a', { t: 'gm_open', code: 'wrong' });
+    expect(t.last('a', 'gm')).toBeUndefined();
+    t.core.handle('a', { t: 'gm_open', code: 'gmadminonline01' });
+    expect(t.last('a', 'gm').on).toBe(true);
+    t.core.handle('a', { t: 'gm', a: 'currency', k: 'gold', n: 999 });
+    expect(a.char.gold).toBe(ag + 999);
+    t.core.handle('a', { t: 'gm', a: 'item', baseId: 'w_bow', rarity: 'legendary', ilvl: 20, n: 2 });
+    expect(a.char.inventory.filter((x) => x?.baseId === 'w_bow' && x.rarity === 'legendary').length).toBe(2);
+    const room = t.core.rooms.get(a.roomId)!;
+    const before = [...room.world.ents.values()].filter((e) => e.kind === 'enemy').length;
+    t.core.handle('a', { t: 'gm', a: 'spawn', id: 'gloomfang', n: 3, level: 5 });
+    expect([...room.world.ents.values()].filter((e) => e.kind === 'enemy').length).toBe(before + 3);
+    expect(t.audits).toEqual(expect.arrayContaining(['gm_open', 'gm_currency', 'gm_item', 'gm_spawn']));
   });
 });

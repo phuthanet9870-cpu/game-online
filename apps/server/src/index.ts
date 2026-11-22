@@ -189,7 +189,7 @@ wss.on('connection', (ws: WebSocket, req) => {
       authed = true;
       clearTimeout(authTimer);
       const ch = normalizeCharacter(r.rows[0].data as CharacterData);
-      core.connect(sid, acc.id, ch, normalizeAccount(acc.progress as any), send);
+      core.connect(sid, acc.id, ch, normalizeAccount(acc.progress as any), send, { role: acc.role });
       const mu = await pool.query('SELECT muted_until FROM accounts WHERE id = $1 AND muted_until > now()', [acc.id]);
       if (mu.rows[0]) core.muteAccount(acc.id, new Date(mu.rows[0].muted_until).getTime());
       log('info', 'session start', { sid, account: acc.id, char: ch.id, ip });
