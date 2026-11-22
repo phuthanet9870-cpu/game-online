@@ -104,7 +104,8 @@ export function finderSection(ch: CharacterData, entries: any[], nearby: string[
     h('div', { class: 'list' }, nearby.length ? nearby.map((n) => h('div', { class: 'list-row' }, h('span', { class: 'grow' }, n),
       h('button', { class: 'btn tiny', onclick: () => send({ t: 'party_invite', name: n }) }, t('invite')),
       h('button', { class: 'btn tiny', onclick: () => send({ t: 'trade_request', name: n }) }, 'Trade'),
-      h('button', { class: 'btn ghost tiny', onclick: () => send({ t: 'guild_invite', name: n }) }, 'Guild invite'))) : h('p', { class: 'muted' }, 'Nobody else is in this zone.')),
+      h('button', { class: 'btn ghost tiny', onclick: () => send({ t: 'guild_invite', name: n }) }, 'Guild invite'),
+      h('button', { class: 'btn ghost tiny', onclick: () => send({ t: 'house_visit', name: n }) }, 'Visit Hearth'))) : h('p', { class: 'muted' }, 'Nobody else is in this zone.')),
     void ch);
 }
 
@@ -201,4 +202,32 @@ export function seasonPanel(data: any, ch: CharacterData, account: any, send: Se
     h('div', { class: 'trade-grid' }, h('div', null, h('b', null, 'Permanent'), h('ul', null, s.permanent.map((x: string) => h('li', null, x)))), h('div', null, h('b', null, 'Resets at season end'), h('ul', null, s.resets.map((x: string) => h('li', null, x))))),
     pr.archive?.length ? h('p', { class: 'muted' }, 'Past seasons: ' + pr.archive.map((a: any) => `${a.id} tier ${a.tier}`).join(', ')) : null,
     void ch);
+}
+
+// ───────────────────────── Hearth (housing) ─────────────────────────
+import { FURNITURE, HOUSE } from '@astra/shared';
+export function carpenterPanel(ch: CharacterData, account: any, send: Send): HTMLElement {
+  const owned = account?.house?.owned ?? {};
+  return h('div', null, h('p', { class: 'muted' }, `Furniture for your Hearth (Hearthstone Lane, east road). Functional pieces: chest = vault access, alchemy table = brewing & cooking, anvil = forging, dummy = damage testing. Gold: ${ch.gold}`),
+    h('div', { class: 'list' }, Object.values(FURNITURE).map((f) => {
+      const locked = f.req && !account?.achievements?.includes(f.req);
+      const cost = `${f.cost.gold}g${Object.entries(f.cost.mats ?? {}).map(([m, n]) => ` + ${n} ${MATERIALS[m]?.name ?? m}`).join('')}`;
+      return h('div', { class: 'list-row' }, h('span', { class: 'grow' }, `${f.name}${f.utility ? ' ★' : ''}`), h('small', { class: 'muted' }, `${f.w}×${f.h} · ${cost}${owned[f.id] ? ` · owned ${owned[f.id]}` : ''}`),
+        h('button', { class: 'btn tiny', disabled: !!locked, title: locked ? 'Locked by an achievement' : '', onclick: () => send({ t: 'house_buy', id: f.id }) }, locked ? 'Locked' : 'Buy'));
+    })));
+}
+export function hearthPanel(data: any, send: Send, startPlacing: (id: string) => void): HTMLElement {
+  if (!data?.mine) return h('div', null, h('p', null, data ? `You are visiting ${data.owner}'s Hearth.` : 'Enter your Hearth at Hearthstone Lane in Lumenhold.'), h('p', { class: 'hint' }, 'To visit a friend: stand in Lumenhold and use /visit name, or the Visit button in the Party panel. Their Hearth must allow you in.'));
+  const house = data.house;
+  const placedCount: Record<string, number> = {};
+  for (const p of house.placed) placedCount[p.id] = (placedCount[p.id] ?? 0) + 1;
+  const perm = h('select', { id: 'house-perm', 'aria-label': 'Who can visit' }, ['private', 'party', 'guild', 'public'].map((p) => h('option', { value: p, selected: house.perm === p }, p)));
+  perm.onchange = () => send({ t: 'house_perm', perm: perm.value });
+  return h('div', null,
+    h('div', { class: 'row' }, h('span', { class: 'muted' }, 'Visitors:'), perm, h('small', { class: 'muted' }, `${house.placed.length}/${HOUSE.maxPlaced} placed`)),
+    h('h3', null, 'Place furniture'), h('p', { class: 'hint' }, 'Pick a piece, then click a spot in the room (green = valid). Right-click or Esc cancels. The server keeps the doorway clear and every functional piece reachable.'),
+    h('div', { class: 'list' }, Object.entries(house.owned).map(([id, n]) => { const left = (n as number) - (placedCount[id] ?? 0); const f = FURNITURE[id]!; return h('div', { class: 'list-row' }, h('span', { class: 'grow' }, f.name), h('small', { class: 'muted' }, `${left} to place`), h('button', { class: 'btn tiny', disabled: left <= 0, onclick: () => startPlacing(id) }, 'Place')); })),
+    Object.keys(house.owned).length ? null : h('p', { class: 'muted' }, 'You own no furniture yet — visit Carpenter Odo in Lumenhold.'),
+    h('h3', null, 'Placed'),
+    h('div', { class: 'list' }, house.placed.map((p: any, i: number) => h('div', { class: 'list-row' }, h('span', { class: 'grow' }, FURNITURE[p.id]?.name ?? p.id), h('small', { class: 'muted' }, `(${p.x}, ${p.y})`), h('button', { class: 'btn ghost tiny', onclick: () => send({ t: 'house_remove', index: i }) }, 'Remove')))));
 }

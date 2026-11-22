@@ -2,7 +2,7 @@
 
 Statuses: `Not Started` · `In Progress` · `Implemented` (code exists, manually exercised) · `Tested` (covered by automated tests or the e2e bot) · `Released` (deployed to a public HTTPS URL — nothing is Released yet).
 
-Last updated: 2026-11-22 (v0.8.0 — Phases 0-1, 4, 5, 6, 7 (partial), content expansion, polish).
+Last updated: 2026-11-22 (v0.9.0 — Phases 0-1, 4, 5, 6, 7, content expansion, polish).
 
 ## Platform & architecture
 | Feature | Status | Notes |
@@ -56,7 +56,9 @@ Last updated: 2026-11-22 (v0.8.0 — Phases 0-1, 4, 5, 6, 7 (partial), content e
 | Fishing (server-timed bite window, Fishing profession, 3 catches, 3 new meals) | Tested | |
 | Companions/pets (3, cosmetic + wider pickup reach, no combat power) | Tested | |
 | Guild vault (30 slots, per-rank daily withdrawal limits, logged, atomic saves) | Tested | |
-| Housing, treasure hunting, third region | Not Started | Backlog B-5 / B-11. |
+| Hearth housing: 13 furniture pieces (4 functional: vault chest, alchemy table, anvil, dummy; 3 achievement/catch trophies), server-validated placement, visitor permissions (private/party/guild/public), purchases saved atomically with the account | Tested | |
+| Treasure hunting: maps drop in the open world; search circle; warm/cold digging; exact spot never sent to clients | Tested | |
+| Third region: Starfall Wastes (levels 20-30), Shardborn family (4), Starglass (Mining 6) and legendary forging, Chapter 4 (4 quests) | Tested | |
 
 ## World & content
 | Feature | Status | Notes |
@@ -113,5 +115,4 @@ Last updated: 2026-11-22 (v0.8.0 — Phases 0-1, 4, 5, 6, 7 (partial), content e
 - **B-7 Audio & art pass**: sound effects/music, sprite art replacing procedural drawing.
 - **B-8 Netcode**: binary encoding (MessagePack) and per-entity update rates for very crowded zones.
 - **B-9 Localization**: Thai for item names, affix/stat labels and NPC dialogue.
-- **B-11 Third region** and housing (personal instanced plot with placeable furniture).
 - **B-10 More tests**: party + reconnect integration tests, cross-browser runs, larger load tests.

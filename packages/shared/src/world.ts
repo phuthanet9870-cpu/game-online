@@ -405,6 +405,7 @@ export class World {
   }
 
   private townAllowsCombat(e: Ent): boolean {
+    if (this.map.palette === 'house') return true; // Hearth training dummy
     return e.x < 10 * TILE; // training ground on the west side of town
   }
 
@@ -1400,7 +1401,7 @@ export class World {
     if (!e) return null;
     let best = null, bd = reach * reach;
     for (const it of this.map.interactables) {
-      if (it.used) continue;
+      if (it.used || it.deco) continue;
       const d = dist2(it.x, it.y, e.x, e.y);
       if (d < bd) { bd = d; best = it; }
     }

@@ -81,6 +81,7 @@ export function inventoryPanel(ctx: PanelCtx, mode: 'normal' | 'smith' | 'quarte
   return h('div', { class: 'inv-panel' },
     h('div', { class: 'row between' }, h('span', null, `💰 ${ch.gold} ${t('gold')} · ✦ ${ch.dust} ${t('dust')} · 🧪 ${ch.potions}/${POTION.maxCharges}`), mode === 'quartermaster' ? h('button', { class: 'btn', onclick: () => send({ t: 'buy_potion' }) }, `Buy potion (${POTION.buyPrice}g)`) : null),
     h('h3', null, t('equipment'), h('span', { class: 'muted' }, ' — click to unequip')), eq,
+    (ch.mats?.treasure_map ?? 0) > 0 || ch.treasure ? h('div', { class: 'row' }, h('span', null, `🗺 Treasure Maps: ${ch.mats?.treasure_map ?? 0}`), ch.treasure ? h('small', { class: 'muted' }, ' — a hunt is active (yellow circle on your minimap)') : h('button', { class: 'btn tiny', onclick: () => send({ t: 'use_map' }) }, 'Read a map here')) : null,
     h('h3', null, t('inventory'), h('span', { class: 'muted' }, ` ${ch.inventory.filter(Boolean).length}/${ch.inventory.length}`)), inv, actions, stash, petBox);
 }
 

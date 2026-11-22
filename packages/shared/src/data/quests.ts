@@ -6,8 +6,8 @@ export interface QuestDef {
   giver: string;
   chapter: number;
   text: string;
-  objective: { kind: 'kill_family' | 'kill_enemy' | 'boss' | 'gather' | 'elite' | 'clear_tier' | 'tower_floor' | 'arena_wave' | 'clear_mode' | 'craft'; target?: string; count: number };
-  reward: { gold?: number; xp?: number; dust?: number; potions?: number; bonusPoints?: number; respecTokens?: number };
+  objective: { kind: 'kill_family' | 'kill_enemy' | 'boss' | 'gather' | 'elite' | 'clear_tier' | 'tower_floor' | 'arena_wave' | 'clear_mode' | 'craft' | 'treasure' | 'house'; target?: string; count: number };
+  reward: { gold?: number; xp?: number; dust?: number; potions?: number; bonusPoints?: number; respecTokens?: number; mats?: Record<string, number> };
   requires?: string;
 }
 
@@ -54,6 +54,18 @@ export const QUESTS: QuestDef[] = [
   { id: 'q3_throne', chapter: 3, name: 'Throne of the Eclipse', giver: 'Commander Aveline', requires: 'q3_coil',
     text: 'Veyra was only a gatekeeper. The one who keeps the sun dark sits on a throne of black glass: Nyx Aurelion. Gather your strongest allies and end this. (The story continues with Season 1.)',
     objective: { kind: 'clear_mode', target: 'raid', count: 1 }, reward: { gold: 3000, xp: 12000, bonusPoints: 2 } },
+  { id: 'q4_wastes', chapter: 4, name: 'Where the Stars Fell', giver: 'Commander Aveline', requires: 'q3_throne',
+    text: 'With Nyx gone, the sky cracked. Shards of the old sun fell beyond the Highlands and grew into living crystal. Something there is building itself a new body. Push into the Starfall Wastes and break the Shardborn.',
+    objective: { kind: 'kill_family', target: 'shardborn', count: 25 }, reward: { gold: 1500, xp: 9000, mats: { treasure_map: 1 } } },
+  { id: 'q4_colossi', chapter: 4, name: 'Glass Giants', giver: 'Commander Aveline', requires: 'q4_wastes',
+    text: 'The Glass Colossi carry the largest shards. Shatter five of them and bring Brenna the pieces.',
+    objective: { kind: 'kill_enemy', target: 'glass_colossus', count: 5 }, reward: { gold: 1200, xp: 7000, mats: { starglass: 6 } } },
+  { id: 'q4_treasure', chapter: 4, name: "A Smuggler's Map", giver: 'Commander Aveline',
+    text: 'Smugglers buried their hauls all over the frontier before the eclipse. Read a Treasure Map in the open world, follow the circle, and dig up a cache.',
+    objective: { kind: 'treasure', count: 1 }, reward: { gold: 400, xp: 1500, mats: { treasure_map: 1 } } },
+  { id: 'q4_hearth', chapter: 4, name: 'A Place to Return To', giver: 'Commander Aveline',
+    text: 'Heroes need somewhere to rest between eclipses. Visit Carpenter Odo, then place three pieces of furniture in your Hearth.',
+    objective: { kind: 'house', count: 3 }, reward: { gold: 500, xp: 1000 } },
 ];
 export const QUEST_MAP = Object.fromEntries(QUESTS.map((q) => [q.id, q]));
 
@@ -78,6 +90,8 @@ export const ACHIEVEMENTS: Record<string, { name: string; desc: string; title?: 
   labyrinth: { name: 'Out of the Coil', desc: 'Defeat Oruk, Warden of the Coil.' },
   nightmare_timed: { name: 'Against the Clock', desc: 'Clear a Nightmare Rift in under 10 minutes.' },
   raid_clear: { name: 'Sovereign-Slayer', desc: 'Defeat Nyx Aurelion in the Eclipse Throne raid.', title: 'Sunbringer' },
+  treasure_hunter: { name: 'X Marks the Spot', desc: 'Dig up a buried treasure cache.' },
+  homeowner: { name: 'Hearth and Home', desc: 'Place furniture in your Hearth.' },
   level10: { name: 'Seasoned', desc: 'Reach level 10 with any character.' },
   level25: { name: 'Veteran of the Eclipse', desc: 'Reach level 25 with any character.' },
   codex8: { name: 'Bestiary Scholar', desc: 'Record 8 enemy types in the Codex.' },

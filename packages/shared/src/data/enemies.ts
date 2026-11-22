@@ -107,6 +107,23 @@ export const ENEMIES: Record<string, EnemyDef> = {
     id: 'cinder_drake', name: 'Cinder Drakeling', family: 'cinderkin', role: 'ranged', hp: 75, power: 11, armor: 25, res: { fire: 60, ice: -30 }, speed: 150, radius: 15, xp: 24, aggroRange: 440, preferRange: 280,
     attacks: [{ id: 'flame_spit', kind: 'projectile', range: 440, cooldown: 1.9, windup: 0.5, dmg: 1.0, type: 'fire', speed: 460 }], color: '#e0763a',
   },
+  // Starfall Wastes — the Shardborn (levels 20-30): crystal life grown from fallen stars
+  shard_stalker: {
+    id: 'shard_stalker', name: 'Shard Stalker', family: 'shardborn', role: 'flanker', hp: 70, power: 12, armor: 40, res: { lightning: 40, holy: 30, physical: -10 }, speed: 195, radius: 13, xp: 22, aggroRange: 340,
+    attacks: [{ id: 'facet', kind: 'melee', range: 46, cooldown: 1.1, windup: 0.3, dmg: 1.0, type: 'lightning', status: { id: 'shock', chance: 0.25, duration: 2, power: 0.1 } }, { id: 'pounce', kind: 'charge', range: 260, cooldown: 6, windup: 0.6, dmg: 1.1, type: 'physical' }], color: '#7fd8ff',
+  },
+  prism_seer: {
+    id: 'prism_seer', name: 'Prism Seer', family: 'shardborn', role: 'caster', hp: 65, power: 13, armor: 20, res: { holy: 50, shadow: -20 }, speed: 100, radius: 14, xp: 26, aggroRange: 440, preferRange: 290,
+    attacks: [{ id: 'refract', kind: 'nova', range: 420, cooldown: 4.5, windup: 0.9, dmg: 0.8, type: 'holy', count: 10, speed: 280 }, { id: 'lens', kind: 'eruption', range: 420, cooldown: 3.4, windup: 1.0, dmg: 1.6, type: 'holy', radius: 70 }], color: '#e8d6ff',
+  },
+  glass_colossus: {
+    id: 'glass_colossus', name: 'Glass Colossus', family: 'shardborn', role: 'tank', hp: 280, power: 16, armor: 120, res: { physical: 25, lightning: 30, fire: -25 }, speed: 80, radius: 24, xp: 60, aggroRange: 300,
+    attacks: [{ id: 'shatter_slam', kind: 'slam', range: 100, cooldown: 3.2, windup: 1.0, dmg: 1.7, type: 'physical', radius: 120, status: { id: 'slow', chance: 1, duration: 2, power: 0.35 } }], color: '#a8e0ea', lootBonus: 1,
+  },
+  starling: {
+    id: 'starling', name: 'Starling Swarm', family: 'shardborn', role: 'ranged', hp: 45, power: 11, armor: 10, res: { holy: 30, ice: -20 }, speed: 165, radius: 11, xp: 18, aggroRange: 420, preferRange: 260,
+    attacks: [{ id: 'glint', kind: 'projectile', range: 420, cooldown: 1.6, windup: 0.4, dmg: 0.9, type: 'holy', speed: 520 }], color: '#fff4b8',
+  },
   // Training dummy (town)
   dummy: {
     id: 'dummy', name: 'Training Dummy', family: 'construct', role: 'tank', hp: 1_000_000, power: 0, armor: 0, res: {}, speed: 0, radius: 18, xp: 0, aggroRange: 0, attacks: [], color: '#a8875a',

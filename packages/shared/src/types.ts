@@ -249,6 +249,8 @@ export interface CharacterData {
   mats: Record<string, number>;
   prof: Record<string, { lv: number; xp: number }>;
   elixir: { id: string; until: number } | null;
+  /** Active treasure hunt: exact spot stays server-side knowledge but is persisted with the character. */
+  treasure?: { zone: string; x: number; y: number; hx: number; hy: number; hr: number } | null;
 }
 
 export interface AccountProgress {
@@ -261,6 +263,7 @@ export interface AccountProgress {
   aura: string | null;
   pets: string[];
   pet: string | null;
+  house?: { owned: Record<string, number>; placed: Array<{ id: string; x: number; y: number }>; perm: 'private' | 'party' | 'guild' | 'public' };
 }
 export interface SeasonProgress { id: string; xp: number; shards: number; claimed: number[]; week: number; weekly: Record<string, number>; weeklyDone: string[]; archive: Array<{ id: string; xp: number; tier: number }> }
 export const STASH_SIZE = 20;

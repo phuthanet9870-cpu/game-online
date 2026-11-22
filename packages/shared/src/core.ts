@@ -12,10 +12,11 @@ import { decodeBuild } from './data/passives.js';
 import { ACHIEVEMENTS, QUESTS, QUEST_MAP } from './data/quests.js';
 import { generateItem, rollRarity } from './loot.js';
 import { Rng, dist } from './math.js';
-import { buildArena, buildField, buildHighlands, buildTown, generateDungeon, generateLabyrinth, type GameMap } from './maps.js';
+import { buildArena, buildField, buildHighlands, buildHouse, buildTown, buildWastes, validatePlacement, generateDungeon, generateLabyrinth, type GameMap } from './maps.js';
 import { ACTIVITIES, ACTIVITY_ORDER, ECLIPSE_POOL, NIGHTMARE_MODS, towerScale, type Activity } from './data/activities.js';
 import { MATERIALS, PROFESSIONS, RECIPE_MAP } from './data/crafting.js';
 import { PETS } from './data/pets.js';
+import { FURNITURE, emptyHouse, type HouseState } from './data/housing.js';
 import { AURAS, DEFAULT_LIVE, SEASON_XP_PER_TIER, SHARD_SOURCES, currentSeason, weekIndex, weeklyEvent, weeklyObjectives, type LiveConfig, type SeasonDef } from './data/seasons.js';
 import type { AccountProgress, CharacterData, DifficultyId, EquipSlot } from './types.js';
 import { EQUIP_SLOTS, PROTOCOL_VERSION, STASH_SIZE } from './types.js';
@@ -23,7 +24,7 @@ import { TICK_RATE, World, type WorldEvent, type WorldOptions } from './world.js
 import * as EC from './economy.js';
 import { applyContentPatch, type ContentPatch } from './content.js';
 import type { Guild, Listing, TradeOffer } from './economy.js';
-import { TILE, reachableSet } from './maps.js';
+import { TILE, circleBlocked, reachableSet } from './maps.js';
 
 export interface Persistence {
   saveCharacter(ch: CharacterData): Promise<void>;
@@ -34,7 +35,7 @@ export interface Persistence {
   /** Load shared world state (guilds, auction listings) at startup. */
   loadShared(): Promise<{ guilds: Guild[]; listings: Listing[]; records?: LeaderRecord[] }>;
 }
-export interface PersistTx { characters?: CharacterData[]; listings?: Listing[]; guilds?: Guild[]; deleteGuilds?: string[]; records?: LeaderRecord[] }
+export interface PersistTx { characters?: CharacterData[]; accounts?: Array<{ id: string; progress: AccountProgress }>; listings?: Listing[]; guilds?: Guild[]; deleteGuilds?: string[]; records?: LeaderRecord[] }
 
 interface TradeState { id: string; a: string; b: string; open: boolean; offers: Record<string, TradeOffer>; locked: Set<string>; confirmed: Set<string> }
 interface PfEntry { sid: string; name: string; cls: string; level: number; note: string; diff: string; size: number; hardcore: boolean; at: number }
@@ -74,7 +75,14 @@ interface Room { id: string; kind: 'town' | 'field' | 'dungeon'; world: World; s
 export interface LeaderRecord { board: string; charId: string; name: string; cls: string; hardcore: boolean; value: number; at: number }
 interface Party { id: string; leader: string; members: string[] }
 
-const MUTATIONS = new Set(['guild_vault_put', 'guild_vault_take', 'pet_buy', 'season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose']);
+const MUTATIONS = new Set(['house_buy', 'house_place', 'house_remove', 'use_map', 'guild_vault_put', 'guild_vault_take', 'pet_buy', 'season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose']);
+
+/** Character as sent to its owner: hidden server knowledge (exact treasure spot) is removed. */
+export function publicChar(ch: CharacterData): CharacterData {
+  if (!ch.treasure) return ch;
+  const { x: _x, y: _y, ...hint } = ch.treasure;
+  return { ...ch, treasure: { ...hint, x: -1, y: -1 } };
+}
 
 export function emptyAccount(): AccountProgress {
   return { codex: {}, achievements: [], titles: [], stash: { normal: Array(STASH_SIZE).fill(null), hardcore: Array(STASH_SIZE).fill(null) }, season: null, auras: [], aura: null, pets: [], pet: null };
@@ -82,7 +90,7 @@ export function emptyAccount(): AccountProgress {
 export function normalizeAccount(a: Partial<AccountProgress> | null | undefined): AccountProgress {
   const e = emptyAccount();
   if (!a) return e;
-  return { codex: a.codex ?? {}, achievements: a.achievements ?? [], titles: a.titles ?? [], stash: { normal: pad(a.stash?.normal, STASH_SIZE), hardcore: pad(a.stash?.hardcore, STASH_SIZE) }, season: a.season ?? null, auras: a.auras ?? [], aura: a.aura ?? null, pets: a.pets ?? [], pet: a.pet ?? null };
+  return { codex: a.codex ?? {}, achievements: a.achievements ?? [], titles: a.titles ?? [], stash: { normal: pad(a.stash?.normal, STASH_SIZE), hardcore: pad(a.stash?.hardcore, STASH_SIZE) }, season: a.season ?? null, auras: a.auras ?? [], aura: a.aura ?? null, pets: a.pets ?? [], pet: a.pet ?? null, house: a.house ? { owned: a.house.owned ?? {}, placed: a.house.placed ?? [], perm: a.house.perm ?? 'private' } : undefined };
 }
 const pad = <T>(arr: (T | null)[] | undefined, n: number) => { const o = (arr ?? []).slice(0, n); while (o.length < n) o.push(null); return o; };
 
@@ -126,6 +134,7 @@ export class GameCore {
     this.createRoom('town', buildTown(), 'normal', 0);
     this.createRoom('field', buildField(1337), 'normal', 1337);
     this.createRoom('highlands', buildHighlands(4242), 'normal', 4242);
+    this.createRoom('wastes', buildWastes(9090), 'normal', 9090);
   }
 
   private createRoom(id: string, map: GameMap, difficulty: DifficultyId, seed: number, partySize = 1, partyId: string | null = null, extra: Partial<WorldOptions> = {}): Room {
@@ -191,7 +200,7 @@ export class GameCore {
     s.entId = ent.id;
     s.send({
       t: 'welcome', v: PROTOCOL_VERSION, mode: this.opts.label, pid: ent.id, room: { id: room.id, kind: room.kind, mode: room.mode, floor: room.floor, difficulty: room.difficulty, seed: room.seed, modifiers: room.world.map.modifiers, level: room.world.map.level },
-      map: room.world.map, char: s.char, account: s.account, content: this.contentPatch,
+      map: room.world.map, char: publicChar(s.char), account: s.account, content: this.contentPatch,
     });
     this.sendParty(s);
     if (room.kind === 'field') this.sendWorldEvent(s);
@@ -288,6 +297,22 @@ export class GameCore {
           if (r.ok) { const lr = C.setLoadout(s.char, b.a, b.u); if (!lr.ok) this.toast(s, 'Passives applied; loadout skipped: ' + lr.reason); }
           this.mutateStats(s, r); break;
         }
+        case 'use_map': {
+          if (s.char.treasure) return err('You are already following a treasure map');
+          if ((s.char.mats.treasure_map ?? 0) < 1) return err('You have no Treasure Map');
+          if (room.kind !== 'field') return err('Read the map in the open world (Duskmeadow, Ashen Highlands or Starfall Wastes)');
+          const m = room.world.map;
+          const reach = reachableSet(m, m.spawn.x, m.spawn.y);
+          let spot: [number, number] | null = null;
+          for (let i = 0; i < 400 && !spot; i++) { const tx = this.rng.int(12, m.w - 6), ty = this.rng.int(4, m.h - 5); if (reach.has(ty * m.w + tx)) spot = [tx * TILE + 16, ty * TILE + 16]; }
+          if (!spot) return err('The map is unreadable here');
+          const a = this.rng.range(0, Math.PI * 2), off = this.rng.range(0, 220);
+          s.char.mats.treasure_map! -= 1;
+          s.char.treasure = { zone: room.id, x: spot[0], y: spot[1], hx: Math.round(spot[0] + Math.cos(a) * off), hy: Math.round(spot[1] + Math.sin(a) * off), hr: 300 };
+          this.toast(s, 'The map marks a circle on your minimap. Search inside it and press Interact (E) to dig.');
+          this.mutate(s, { ok: true, value: undefined }, 'use_map', { zone: room.id });
+          break;
+        }
         case 'craft': {
           const r = RECIPE_MAP[String(msg.recipe)];
           if (!r) return err('Unknown recipe');
@@ -327,6 +352,7 @@ export class GameCore {
         // auction house
         case 'ah_search': case 'ah_list': case 'ah_buy': case 'ah_cancel': case 'ah_claim': case 'ah_mine': this.auction(s, room, msg); break;
         // guilds
+        case 'house_buy': case 'house_place': case 'house_remove': case 'house_perm': case 'house_visit': this.housing(s, room, msg); break;
         case 'guild_vault_put': case 'guild_vault_take': this.guildVault(s, room, msg); break;
         case 'pet_buy': case 'pet_set': this.pets(s, room, msg); break;
         case 'guild_create': case 'guild_invite': case 'guild_accept': case 'guild_leave': case 'guild_kick': case 'guild_rank': case 'guild_transfer': case 'guild_motd': case 'guild_info': this.guild(s, room, msg); break;
@@ -348,7 +374,7 @@ export class GameCore {
   }
   private mutateStats(s: Session, r: C.Result<unknown>) { this.mutate(s, r, null); }
 
-  private sendChar(s: Session) { s.send({ t: 'char', char: s.char, account: s.account }); }
+  private sendChar(s: Session) { s.send({ t: 'char', char: publicChar(s.char), account: s.account }); }
   private toast(s: Session, msg: string) { s.send({ t: 'toast', msg }); }
 
   private nearNpc(s: Session, room: Room, type: string): boolean {
@@ -373,7 +399,7 @@ export class GameCore {
       }
     }
     const it = w.interactableNear(s.entId, 110);
-    if (!it) return;
+    if (!it) { if (ent && !ent.dead) this.dig(s, room, ent.x, ent.y); return; }
     if (!ent || ent.dead) return;
     switch (it.type) {
       case 'portal_dungeon': s.send({ t: 'open', what: 'dungeon', unlocked: this.unlockedTiers(s), locks: Object.fromEntries(ACTIVITY_ORDER.map((a) => [a, this.activityLock(s, a)])) }); break;
@@ -382,6 +408,11 @@ export class GameCore {
       case 'gate_highlands': if (s.char.level < 8) { this.toast(s, 'The Highlands are dangerous — come back at level 8 or higher (enemies are level 10-20).'); if (s.char.level < 5) break; } this.moveTo(s, 'highlands'); break;
       case 'gate_meadow': { const f = this.rooms.get('field')!.world.map; this.moveTo(s, 'field', { x: (f.w - 6) * 32, y: 40 * 32 + 16 }); break; }
       case 'npc_alchemist': s.send({ t: 'open', what: 'alchemist' }); break;
+      case 'npc_carpenter': s.send({ t: 'open', what: 'carpenter' }); break;
+      case 'house_door': this.enterHouse(s, s); break;
+      case 'house_exit': { const d = this.rooms.get('town')!.world.map.interactables.find((i) => i.type === 'house_door')!; this.moveTo(s, 'town', { x: d.x, y: d.y + 40 }); break; }
+      case 'gate_wastes': if (s.char.level < 18) { this.toast(s, 'The Starfall Wastes are deadly — come back at level 18 or higher (enemies are level 20-30).'); if (s.char.level < 15) break; } this.moveTo(s, 'wastes'); break;
+      case 'gate_ash': { const hl = this.rooms.get('highlands')!.world.map; this.moveTo(s, 'highlands', { x: (hl.w - 6) * 32, y: 40 * 32 + 16 }); break; }
       case 'npc_smith': s.send({ t: 'open', what: 'smith' }); break;
       case 'npc_trainer': s.send({ t: 'open', what: 'trainer' }); break;
       case 'npc_quartermaster': s.send({ t: 'open', what: 'quartermaster' }); break;
@@ -456,6 +487,25 @@ export class GameCore {
       case 'exit': if (room.mode === 'tower') this.towerNext(room); else this.returnToTown(s, room, true); break;
       default: break;
     }
+  }
+
+  /** Treasure hunting: digging gives warm/cold feedback; within 70px of the exact spot unearths the cache. */
+  private dig(s: Session, room: Room, x: number, y: number) {
+    const tr = s.char.treasure;
+    if (!tr || tr.zone !== room.id) return;
+    const d = dist(x, y, tr.x, tr.y);
+    if (d > 70) return this.toast(s, d < 200 ? 'Warm — the soil here was disturbed recently.' : d < 450 ? 'Lukewarm — keep searching inside the circle.' : 'Cold — nothing buried here.');
+    s.char.treasure = null;
+    const lvl = room.world.map.level + 6;
+    const ent = room.world.ents.get(s.entId)!;
+    room.world.addDrop(ent, x, y - 20, undefined, Math.round((100 + lvl * 20) * this.effects().goldMul));
+    for (let i = 0; i < 2; i++) room.world.addDrop(ent, x + (i ? 26 : -26), y + 10, generateItem({ rng: this.rng, ilvl: lvl, rarity: rollRarity(this.rng, 0.8, 'rare'), cls: s.char.cls, hardcore: s.char.hardcore }));
+    s.char.dust += 10;
+    if (this.rng.chance(0.15)) C.addMats(s.char, { treasure_map: 1 });
+    this.progressQuest(s, 'treasure', undefined, 1);
+    this.achieve(s, 'treasure_hunter');
+    this.toast(s, 'You unearthed a buried cache!');
+    this.mutate(s, { ok: true, value: undefined }, 'treasure_dig', { zone: room.id });
   }
 
   private herbCd = new Map<string, number>();
@@ -690,6 +740,7 @@ export class GameCore {
     s.char.potions = Math.min(POTION.maxCharges, s.char.potions + (r.potions ?? 0));
     s.char.bonusPoints += r.bonusPoints ?? 0;
     s.char.respecTokens += r.respecTokens ?? 0;
+    if (r.mats) C.addMats(s.char, r.mats);
     if (r.xp) this.giveXp(s, r.xp);
     this.mutate(s, { ok: true, value: undefined }, 'quest_reward', { quest: id, reward: r });
     this.toast(s, `Quest complete: ${q.name}`);
@@ -1207,6 +1258,92 @@ export class GameCore {
     this.markDirty(s); this.sendChar(s);
   }
 
+  // ─────────── Hearth (player housing) ───────────
+  private houseOf(s: Session): HouseState { return (s.account.house ??= emptyHouse()); }
+  private enterHouse(s: Session, owner: Session) {
+    const id = `house:${owner.accountId}`;
+    let room = this.rooms.get(id);
+    if (!room) room = this.createRoom(id, buildHouse(owner.accountId, owner.char.name, this.houseOf(owner)), 'normal', 0);
+    this.moveTo(s, id);
+    s.send({ t: 'house', owner: owner.char.name, mine: owner.accountId === s.accountId, house: owner.accountId === s.accountId ? this.houseOf(owner) : null });
+  }
+  /** Rebuild the owner's house map in place (players stay where they are) and push it to everyone inside. */
+  private refreshHouse(owner: Session) {
+    const room = this.rooms.get(`house:${owner.accountId}`);
+    if (!room) return;
+    const map = buildHouse(owner.accountId, owner.char.name, this.houseOf(owner));
+    const w = room.world;
+    for (const e of [...w.ents.values()]) if (e.kind === 'enemy') w.ents.delete(e.id);
+    w.map = map;
+    for (const sp of map.spawns) w.spawnEnemy(sp.enemy, sp.x, sp.y, 1, false);
+    for (const e of w.ents.values()) if (e.kind === 'player') { const [x, y] = [e.x, e.y]; if (circleBlocked(map, x, y, e.r)) { e.x = map.spawn.x; e.y = map.spawn.y; } }
+    this.broadcast(room, { t: 'map_update', map });
+  }
+  private housing(s: Session, room: Room, msg: any) {
+    const err = (m: string) => s.send({ t: 'err', msg: m });
+    const house = this.houseOf(s);
+    const inOwnHouse = room.id === `house:${s.accountId}`;
+    const commit = (action: string, data: unknown) => {
+      this.tx({ characters: [s.char], accounts: [{ id: s.accountId, progress: s.account }] }); // gold/materials and furniture in one transaction
+      this.persist.audit({ accountId: s.accountId, charId: s.char.id, action, data });
+      this.markDirty(s); this.sendChar(s);
+      s.send({ t: 'house', owner: s.char.name, mine: true, house });
+    };
+    switch (msg.t) {
+      case 'house_buy': {
+        if (!this.nearNpc(s, room, 'npc_carpenter')) return err('Furniture is sold by Carpenter Odo in Lumenhold');
+        const f = FURNITURE[String(msg.id)];
+        if (!f) return err('Unknown furniture');
+        if (f.req && !s.account.achievements.includes(f.req)) return err(`Requires the achievement "${ACHIEVEMENTS[f.req]?.name ?? f.req}"`);
+        if (s.char.gold < f.cost.gold) return err(`Needs ${f.cost.gold} gold`);
+        for (const [m, n] of Object.entries(f.cost.mats ?? {})) if ((s.char.mats[m] ?? 0) < n) return err(`Needs ${n} ${MATERIALS[m]?.name ?? m}`);
+        s.char.gold -= f.cost.gold;
+        for (const [m, n] of Object.entries(f.cost.mats ?? {})) s.char.mats[m]! -= n;
+        house.owned[f.id] = (house.owned[f.id] ?? 0) + 1;
+        this.toast(s, `Bought ${f.name} — place it in your Hearth`);
+        return commit('house_buy', { id: f.id, cost: f.cost });
+      }
+      case 'house_place': {
+        if (!inOwnHouse) return err('Enter your Hearth to place furniture');
+        const id = String(msg.id), x = Math.floor(Number(msg.x)), y = Math.floor(Number(msg.y));
+        const why = validatePlacement(house, id, x, y);
+        if (why) return err(why);
+        house.placed.push({ id, x, y });
+        this.progressQuest(s, 'house', undefined, house.placed.length, true);
+        this.achieve(s, 'homeowner');
+        commit('house_place', { id, x, y });
+        return this.refreshHouse(s);
+      }
+      case 'house_remove': {
+        if (!inOwnHouse) return err('Enter your Hearth first');
+        const i = clampInt(msg.index, 0, 999);
+        if (!house.placed[i]) return err('Nothing there');
+        house.placed.splice(i, 1);
+        commit('house_remove', { index: i });
+        return this.refreshHouse(s);
+      }
+      case 'house_perm': {
+        const p = String(msg.perm);
+        if (!['private', 'party', 'guild', 'public'].includes(p)) return err('Bad permission');
+        house.perm = p as HouseState['perm'];
+        this.saveAcct(s.accountId, s.account);
+        return s.send({ t: 'house', owner: s.char.name, mine: true, house });
+      }
+      case 'house_visit': {
+        if (room.kind !== 'town') return err('Visit Hearths from Lumenhold');
+        const o = [...this.sessions.values()].find((x) => x.char.name.toLowerCase() === String(msg.name ?? '').toLowerCase());
+        if (!o) return err('That player is not online');
+        const perm = this.houseOf(o).perm;
+        const sameParty = !!s.partyId && s.partyId === o.partyId;
+        const g = this.guildOf(o.char.id);
+        const sameGuild = !!g && g.members.some((m) => m.charId === s.char.id);
+        const allowed = o.accountId === s.accountId || perm === 'public' || (perm === 'party' && sameParty) || (perm === 'guild' && sameGuild);
+        if (!allowed) return err(`${o.char.name}'s Hearth is ${perm === 'private' ? 'private' : `open to their ${perm} only`}`);
+        return this.enterHouse(s, o);
+      }
+    }
+  }
+
   // ─────────── Open-world public event: world boss ───────────
   private tickWorldEvent() {
     const field = this.rooms.get('field');
@@ -1256,13 +1393,14 @@ export class GameCore {
     this.tickN++;
     for (const s of this.sessions.values()) s.bucket = Math.min(90, s.bucket + dt * 45);
     for (const room of [...this.rooms.values()]) {
+      if (room.sessions.size === 0 && room.id.startsWith('house:')) { room.emptyT += dt; if (room.emptyT > 60) this.rooms.delete(room.id); continue; }
       if (room.sessions.size === 0 && room.kind !== 'dungeon' && room.kind !== 'field') continue;
       room.world.tick(dt);
       this.processEvents(room, room.world.events);
       room.world.events = [];
       this.tickInstance(room);
-      if (room.kind === 'dungeon') {
-        if (room.sessions.size === 0) { room.emptyT += dt; if (room.emptyT > 120) this.rooms.delete(room.id); }
+      if (room.kind === 'dungeon' || room.id.startsWith('house:')) {
+        if (room.sessions.size === 0) { room.emptyT += dt; if (room.emptyT > (room.kind === 'dungeon' ? 120 : 60)) this.rooms.delete(room.id); }
       }
     }
     if (this.tickN % 2 === 0) {
@@ -1354,6 +1492,8 @@ export class GameCore {
             // material drops go straight to the material pouch (no inventory clutter)
             const drop: Record<string, number> = {};
             if (fam === 'wildlife' && this.rng.chance(0.3)) drop.beast_meat = 1;
+            if (room.kind === 'field' && this.rng.chance(0.02)) drop.treasure_map = 1;
+            if (fam === 'shardborn' && this.rng.chance(0.2)) drop.starglass = 1;
             if (fam === 'cinderkin') { if (this.rng.chance(0.25)) drop.cinder_core = 1; if (ev.enemy === 'cinder_drake' && this.rng.chance(0.4)) drop.beast_meat = 1; }
             if (Object.keys(drop).length) { C.addMats(s.char, drop); s.send({ t: 'mats', got: drop }); }
             this.sendChar(s);

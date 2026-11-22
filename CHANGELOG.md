@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.9.0] — 2026-11-22 — Phase 7 complete
+### Added
+- **Starfall Wastes** (levels 20-30) beyond the Ashen Highlands: crystal desert, **Shardborn** family (Shard Stalker, Prism Seer, Glass Colossus, Starling Swarm), Starglass clusters (Mining 6+), Starbloom herbs, legendary Starglass forging (Smithing 8) and Starbloom Tonic.
+- **Chapter 4** (4 quests): the Wastes, Glass Giants, a treasure hunt and furnishing your Hearth. Quest rewards can now include materials.
+- **Treasure hunting**: Treasure Maps drop rarely in the open world; reading one marks a search circle; digging gives warm/cold feedback and the cache holds gold, dust and rare+ gear. The exact spot is kept server-side and redacted from client payloads.
+- **Hearth housing**: Carpenter Odo and Hearthstone Lane in Lumenhold; personal instanced plot; 13 furniture pieces incl. functional vault chest, alchemy table, anvil and training dummy, and trophies gated by achievements; placement validated server-side (bounds, overlap, doorway, reachability); visitor permissions private/party/guild/public; /visit name.
+- Transactions can now include account records, so furniture purchases (gold + account) commit atomically.
+- 5 new tests (52 total).
+
 ## [0.8.0] — 2026-11-22 — Phase 7: Expansion (partial)
 ### Added
 - 7th standalone class **Chronomancer**: Flux resource + Sand finisher resource; Time Echo (every third skill replays its damage 1s later at 50%); 8 Active + 4 Ultimate skills; passive tree with the Closed Loop keystone; Hourglass/Chrono Staff weapons; Thai text.

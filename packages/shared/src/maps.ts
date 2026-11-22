@@ -1,15 +1,16 @@
 import { DUNGEON_MODIFIERS, type RoomType } from './data/dungeon.js';
 import { Rng } from './math.js';
+import { FURNITURE, HOUSE, type HouseState } from './data/housing.js';
 
 export const TILE = 32;
 // Tile ids: 0 wall, 1 floor, 2 path/plaza, 3 water (solid), 4 tree/pillar (solid), 5 dark floor (dungeon), 6 rift floor (boss)
-export const SOLID = new Set([0, 3, 4]);
+export const SOLID = new Set([0, 3, 4, 7]); // 7 = solid furniture (housing)
 
 export type MapTheme = 'town' | 'field' | 'dungeon';
 
 export interface Interactable {
   id: string;
-  type: 'portal_dungeon' | 'npc_auction' | 'npc_alchemist' | 'gate_highlands' | 'gate_meadow' | 'ore' | 'fishing' | 'gate_field' | 'gate_town' | 'npc_smith' | 'npc_trainer' | 'npc_quartermaster' | 'npc_quests' | 'chest' | 'shrine' | 'fountain' | 'altar' | 'exit' | 'herb' | 'stash';
+  type: 'portal_dungeon' | 'npc_auction' | 'npc_alchemist' | 'npc_carpenter' | 'house_door' | 'house_exit' | 'furniture' | 'gate_highlands' | 'gate_meadow' | 'gate_wastes' | 'gate_ash' | 'ore' | 'fishing' | 'dig' | 'gate_field' | 'gate_town' | 'npc_smith' | 'npc_trainer' | 'npc_quartermaster' | 'npc_quests' | 'chest' | 'shrine' | 'fountain' | 'altar' | 'exit' | 'herb' | 'stash';
   x: number;
   y: number;
   name: string;
@@ -17,6 +18,8 @@ export interface Interactable {
   used?: boolean;
   res?: string;
   req?: number;
+  /** Housing: furniture id, footprint and whether it is decoration only (not interactable). */
+  furn?: string; fw?: number; fh?: number; deco?: boolean;
 }
 
 export interface SpawnPoint { enemy: string; x: number; y: number; room?: number; elite?: boolean; level?: number; group?: number }
@@ -26,7 +29,7 @@ export interface RoomInfo { id: number; type: RoomType; x: number; y: number; w:
 export interface GameMap {
   id: string;
   theme: MapTheme;
-  palette?: 'ash';
+  palette?: 'ash' | 'star' | 'house';
   w: number;
   h: number;
   tiles: number[];
@@ -194,6 +197,8 @@ export function buildTown(): GameMap {
     { id: 'stash', type: 'stash', name: 'Astral Vault', ...T(46, 33) },
     { id: 'auction', type: 'npc_auction', name: 'Auctioneer Vell', ...T(20, 16) },
     { id: 'alchemist', type: 'npc_alchemist', name: 'Sister Maelis', ...T(36, 27) },
+    { id: 'carpenter', type: 'npc_carpenter', name: 'Carpenter Odo', ...T(40, 18) },
+    { id: 'house_door', type: 'house_door', name: 'Hearthstone Lane (your Hearth)', ...T(48, 22) },
   ];
   const spawns: SpawnPoint[] = [
     { enemy: 'dummy', ...T(4, 18), level: 1 }, { enemy: 'dummy', ...T(4, 22), level: 1 }, { enemy: 'dummy', ...T(4, 26), level: 1 },
@@ -203,7 +208,7 @@ export function buildTown(): GameMap {
 
 // ───────────────────────── OPEN WORLD: DUSKMEADOW ─────────────────────────
 interface OpenWorldCfg {
-  id: string; seed: number; palette?: 'ash'; levelMin: number; levelMax: number;
+  id: string; seed: number; palette?: 'ash' | 'star'; levelMin: number; levelMax: number;
   pool: Array<[string, number, [number, number]]>; // enemy, weight, pack size
   nodes: Array<{ type: 'herb' | 'ore'; res: string; name: string; count: number; req?: number }>;
   fishing?: { res: string; name: string; count: number; req?: number };
@@ -294,8 +299,14 @@ export function buildField(seed = 1337): GameMap {
     pool: [['gloomfang', 2, [2, 4]], ['thornback', 1, [1, 2]], ['wisp', 2, [2, 4]]], nodes: [{ type: 'herb', res: 'moonpetal', name: 'Moonpetal Bloom', count: 14 }], fishing: { res: 'fish', name: 'Moonlake Shore', count: 6 } });
 }
 
+export function buildWastes(seed = 9090): GameMap {
+  return buildOpenWorld({ id: 'wastes', seed, palette: 'star', levelMin: 20, levelMax: 30, level: 22, westGate: 'gate_ash', westName: 'Back to the Ashen Highlands',
+    pool: [['shard_stalker', 3, [2, 4]], ['prism_seer', 2, [1, 2]], ['glass_colossus', 1, [1, 1]], ['starling', 2, [3, 5]]],
+    nodes: [{ type: 'ore', res: 'starglass', name: 'Starglass Cluster', count: 10, req: 6 }, { type: 'ore', res: 'starsteel', name: 'Starsteel Vein', count: 6, req: 4 }, { type: 'herb', res: 'starbloom', name: 'Starbloom', count: 10 }] });
+}
+
 export function buildHighlands(seed = 4242): GameMap {
-  return buildOpenWorld({ id: 'highlands', seed, palette: 'ash', levelMin: 10, levelMax: 20, level: 12, westGate: 'gate_meadow', westName: 'Back to Duskmeadow',
+  return buildOpenWorld({ id: 'highlands', seed, palette: 'ash', levelMin: 10, levelMax: 20, level: 12, westGate: 'gate_meadow', westName: 'Back to Duskmeadow', eastGate: 'gate_wastes', eastName: 'Trail to the Starfall Wastes',
     pool: [['ember_imp', 3, [2, 4]], ['flamecaller', 2, [1, 3]], ['magma_golem', 1, [1, 1]], ['cinder_drake', 2, [1, 2]]],
     nodes: [{ type: 'ore', res: 'iron_ore', name: 'Iron Vein', count: 14 }, { type: 'ore', res: 'starsteel', name: 'Starsteel Vein', count: 5, req: 4 }, { type: 'herb', res: 'emberbloom', name: 'Emberbloom', count: 10 }], fishing: { res: 'ember_eel', name: 'Lava Pool', count: 5, req: 3 } });
 }
@@ -486,6 +497,49 @@ export function buildArena(kind: 'arena' | 'raid', seed: number, level: number):
   const map: GameMap = { id: `${kind}_${seed}`, theme: 'dungeon', w, h, tiles, spawn: T(c, h - 4), interactables: [], spawns: [], rooms: [{ id: 0, type: kind === 'raid' ? 'boss' : 'combat', x: 1, y: 1, w: w - 2, h: h - 2, cx: c, cy: c, cell: [0, 0] }], edges: [], seed, modifiers: [], level };
   if (kind === 'raid') map.spawns.push({ enemy: 'sovereign', ...T(c, c - 3), room: 0 });
   return map;
+}
+
+// ───────────────────────── HEARTH (player housing) ─────────────────────────
+const FURN_UTILITY_TYPE: Record<string, Interactable['type']> = { stash: 'stash', alchemy: 'npc_alchemist', anvil: 'npc_smith' };
+export function buildHouse(ownerAccount: string, ownerName: string, house: HouseState): GameMap {
+  const { w, h, doorX } = HOUSE;
+  const tiles = new Array(w * h).fill(0);
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) tiles[y * w + x] = 2;
+  tiles[(h - 1) * w + doorX] = 2; // doorway
+  const T = (tx: number, ty: number) => ({ x: tx * TILE + TILE / 2, y: ty * TILE + TILE / 2 });
+  const map: GameMap = { id: `house:${ownerAccount}`, theme: 'town', palette: 'house', w, h, tiles, spawn: T(doorX, h - 2), interactables: [{ id: 'exit', type: 'house_exit', name: `Leave ${ownerName}'s Hearth`, ...T(doorX, h - 1) }], spawns: [], rooms: [], edges: [], seed: 0, modifiers: [], level: 1 };
+  house.placed.forEach((p, i) => {
+    const f = FURNITURE[p.id];
+    if (!f) return;
+    if (f.solid) for (let y = p.y; y < p.y + f.h; y++) for (let x = p.x; x < p.x + f.w; x++) tiles[y * w + x] = 7;
+    const cx = (p.x + f.w / 2) * TILE, cy = (p.y + f.h / 2) * TILE;
+    if (f.utility === 'dummy') map.spawns.push({ enemy: 'dummy', x: cx, y: cy, level: 1 });
+    const utilType = f.utility ? FURN_UTILITY_TYPE[f.utility] : undefined;
+    map.interactables.push({ id: `f${i}`, type: utilType ?? 'furniture', name: f.name, x: cx, y: cy + (f.solid ? (f.h * TILE) / 2 + 8 : 0), furn: f.id, fw: f.w, fh: f.h, deco: !utilType });
+  });
+  return map;
+}
+
+/** Placement rules: inside the room, no overlap, doorway kept clear, and every utility still reachable. */
+export function validatePlacement(house: HouseState, id: string, x: number, y: number): string | null {
+  const f = FURNITURE[id];
+  if (!f) return 'Unknown furniture';
+  if (!Number.isInteger(x) || !Number.isInteger(y)) return 'Bad position';
+  if (x < 1 || y < 1 || x + f.w > HOUSE.w - 1 || y + f.h > HOUSE.h - 1) return 'It does not fit there';
+  if (house.placed.length >= HOUSE.maxPlaced) return `At most ${HOUSE.maxPlaced} pieces`;
+  const placedOfId = house.placed.filter((p) => p.id === id).length;
+  if ((house.owned[id] ?? 0) <= placedOfId) return 'You have none of that left to place';
+  if (y + f.h >= HOUSE.h - 3 && x <= HOUSE.doorX + 1 && x + f.w >= HOUSE.doorX) return 'Keep the doorway clear';
+  for (const p of house.placed) { const g = FURNITURE[p.id]!; if (x < p.x + g.w && x + f.w > p.x && y < p.y + g.h && y + f.h > p.y) return 'Overlaps other furniture'; }
+  const next: HouseState = { ...house, placed: [...house.placed, { id, x, y }] };
+  const m = buildHouse('check', 'check', next);
+  const reach = reachableSet(m, m.spawn.x, m.spawn.y);
+  for (const it of m.interactables) {
+    if (it.deco) continue;
+    const tx = Math.floor(it.x / TILE), ty = Math.floor(it.y / TILE);
+    if (![[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => reach.has((ty + dy!) * m.w + tx + dx!))) return 'That would block access to something';
+  }
+  return null;
 }
 
 export function validateDungeon(m: GameMap): { ok: boolean; reason?: string } {

@@ -61,7 +61,7 @@ export function normalizeCharacter(raw: CharacterData): CharacterData {
   ch.loadout = { active: padTo(ch.loadout?.active ?? [], ACTIVE_SLOTS), ultimate: padTo(ch.loadout?.ultimate ?? [], ULTIMATE_SLOTS) };
   ch.presets ??= []; ch.quests ??= {}; ch.mastery ??= { level: 1, xp: 0 };
   ch.stats ??= { kills: 0, deaths: 0, bossKills: 0, runsCleared: 0, highestTier: 0 };
-  ch.mats ??= {}; ch.prof ??= {}; ch.elixir ??= null;
+  ch.mats ??= {}; ch.prof ??= {}; ch.elixir ??= null; ch.treasure ??= null;
   ch.version = CHARACTER_VERSION;
   return ch;
 }

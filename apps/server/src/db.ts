@@ -60,13 +60,15 @@ export function transact(tx: PersistTx): Promise<void> {
   const chars = (tx.characters ?? []).map(charArgs);
   const listings = (tx.listings ?? []).map((l) => [l.id, l.sellerChar, l.sellerAccount, l.item.uid, l.price, l.hardcore, l.status, JSON.stringify(l), new Date(l.createdAt), new Date(l.expiresAt)]);
   const guilds = (tx.guilds ?? []).map((g) => [g.id, g.name, g.tag, g.hardcore, JSON.stringify(g)]);
+  const accounts = (tx.accounts ?? []).map((a) => [JSON.stringify(a.progress), a.id]);
   const records = (tx.records ?? []).map((r) => [r.board, r.charId, r.name, r.cls, r.hardcore, r.value, new Date(r.at)]);
-  const keys = [...(tx.records ?? []).map((r) => `r:${r.board}:${r.charId}`), ...(tx.characters ?? []).map((c) => 'c:' + c.id), ...(tx.listings ?? []).map((l) => 'l:' + l.id), ...(tx.guilds ?? []).map((g) => 'g:' + g.id), ...(tx.deleteGuilds ?? []).map((g) => 'g:' + g)];
+  const keys = [...(tx.accounts ?? []).map((a) => 'a:' + a.id), ...(tx.records ?? []).map((r) => `r:${r.board}:${r.charId}`), ...(tx.characters ?? []).map((c) => 'c:' + c.id), ...(tx.listings ?? []).map((l) => 'l:' + l.id), ...(tx.guilds ?? []).map((g) => 'g:' + g.id), ...(tx.deleteGuilds ?? []).map((g) => 'g:' + g)];
   return serialized(keys, async () => {
     const c = await pool.connect();
     try {
       await c.query('BEGIN');
       for (const a of chars) await c.query(SAVE_CHAR, a);
+      for (const a of accounts) await c.query('UPDATE accounts SET progress = $1 WHERE id = $2', a);
       for (const a of listings) await c.query(`INSERT INTO auction_listings (id, seller_char, seller_account, item_uid, price, hardcore, status, data, created_at, expires_at)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, data = EXCLUDED.data, updated_at = now()`, a);
       for (const a of guilds) await c.query(`INSERT INTO guilds (id, name, tag, hardcore, data) VALUES ($1,$2,$3,$4,$5)

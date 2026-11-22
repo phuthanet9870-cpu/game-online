@@ -1,4 +1,4 @@
-import { applyContentPatch, ACTIVITIES, MATERIALS, CLASSES, DIFFICULTIES, DUNGEON_MODIFIERS, BLESSING_MAP, SKILL_MAP, ENEMIES, computeStats, xpToNext, type CharacterData } from '@astra/shared';
+import { FURNITURE, validatePlacement, applyContentPatch, ACTIVITIES, MATERIALS, CLASSES, DIFFICULTIES, DUNGEON_MODIFIERS, BLESSING_MAP, SKILL_MAP, ENEMIES, computeStats, xpToNext, type CharacterData } from '@astra/shared';
 import { ClientGame } from '../game.js';
 import { Renderer } from '../render.js';
 import { Input, keyLabel } from '../input.js';
@@ -13,7 +13,7 @@ import * as S from './social.js';
 import { sound } from '../audio.js';
 import { itemName, translateDom, trText } from '../l10n.js';
 
-type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 'codex' | 'social' | 'guild' | 'auction' | 'ladder' | 'alchemist' | 'season' | 'settings' | 'dungeon' | 'smith' | 'quartermaster' | 'trainer' | 'stash' | 'map';
+type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 'codex' | 'social' | 'guild' | 'auction' | 'ladder' | 'alchemist' | 'season' | 'hearth' | 'carpenter' | 'settings' | 'dungeon' | 'smith' | 'quartermaster' | 'trainer' | 'stash' | 'map';
 
 export class GameUI {
   game = new ClientGame();
@@ -118,7 +118,7 @@ export class GameUI {
     const g = this.game;
     switch (m.t) {
       case 'content': applyContentPatch(m.patch); this.buildBar(); if (this.panel) this.renderPanel(); break;
-      case 'welcome': applyContentPatch(m.content ?? null); sound.ambience(m.room.kind === 'town' ? 'town' : m.room.id === 'highlands' ? 'ash' : m.room.kind === 'field' ? 'field' : m.room.mode === 'raid' ? 'raid' : 'dungeon'); g.welcome(m); this.status(null); this.buildBar(); this.updateZone(); this.closePanel(); this.renderWorldEvent(); if (m.mode === 'offline' && !this.offlineNoted) { this.offlineNoted = true; this.chatLine('system', 'Offline mode: this session is simulated locally in your browser.'); } this.chatLine('system', `Entered ${m.room.kind === 'town' ? 'Lumenhold' : m.room.id === 'highlands' ? 'the Ashen Highlands (open world, levels 10-20)' : m.room.kind === 'field' ? 'Duskmeadow (open world, levels 2-9)' : 'an instance'}.`); break;
+      case 'welcome': applyContentPatch(m.content ?? null); sound.ambience(m.room.kind === 'town' ? 'town' : m.room.id === 'highlands' ? 'ash' : m.room.kind === 'field' ? 'field' : m.room.mode === 'raid' ? 'raid' : 'dungeon'); g.welcome(m); this.status(null); this.buildBar(); this.updateZone(); this.closePanel(); this.renderWorldEvent(); if (m.mode === 'offline' && !this.offlineNoted) { this.offlineNoted = true; this.chatLine('system', 'Offline mode: this session is simulated locally in your browser.'); } this.chatLine('system', `Entered ${m.room.id.startsWith('house:') ? 'a Hearth' : m.room.kind === 'town' ? 'Lumenhold' : m.room.id === 'highlands' ? 'the Ashen Highlands (open world, levels 10-20)' : m.room.id === 'wastes' ? 'the Starfall Wastes (open world, levels 20-30)' : m.room.kind === 'field' ? 'Duskmeadow (open world, levels 2-9)' : 'an instance'}.`); break;
       case 'snap': g.applySnap(m); break;
       case 'ev': g.events(m.list); for (const ev of m.list) if (ev.t === 'msg') this.chatLine('system', ev.text); else if (ev.t === 'pickup' && ev.item) toast(`Picked up ${itemName(ev.item)}`, 'good'); break;
       case 'char': g.char = m.char; g.account = m.account; this.buildBar(); if (this.panel && this.panel !== 'map') this.renderPanel(); if (this.trade) this.showModal(S.tradeModal(g.char!, this.trade, (x) => this.send(x))); break;
@@ -138,6 +138,8 @@ export class GameUI {
       case 'guild_invite': void confirmDialog('Guild invite', `${m.from} invited you to ‹${m.tag}› ${m.name}.`, t('accept'), t('decline')).then((ok) => { if (ok) this.send({ t: 'guild_accept', id: m.id }); }); break;
       case 'season': this.seasonData = m; if (this.panel === 'season') this.renderPanel(); break;
       case 'fish': if (m.state === 'cast') this.status('Fishing… press Interact (E) the moment a fish bites'); else if (m.state === 'bite') { this.status('!!! A fish is biting — press E now !!!'); sound.warn(); } else this.status(null); break;
+      case 'map_update': if (g.map) { g.map = m.map; } this.stopPlacing(); if (this.panel === 'hearth') this.renderPanel(); break;
+      case 'house': this.houseData = m; this.updateZone(); if (m.mine && this.panel !== 'hearth' && m.house && g.room?.id?.startsWith('house:')) this.openPanel('hearth'); else if (this.panel === 'hearth') this.renderPanel(); break;
       case 'mats': toast('+ ' + Object.entries(m.got).map(([k, v]) => `${v} ${MATERIALS[k]?.name ?? k}`).join(', '), 'good'); break;
       case 'world_event': g.worldEvent = m; this.renderWorldEvent(); break;
       case 'ladder': this.ladderData = m.boards; if (this.panel === 'ladder') this.renderPanel(); break;
@@ -159,6 +161,10 @@ export class GameUI {
   private guildData: any = null;
   private ladderData: any = null;
   private seasonData: any = null;
+  private houseData: any = null;
+  private placing: string | null = null;
+  private startPlacing(id: string) { this.placing = id; this.closePanel(); toast('Click a spot to place · right-click or Esc to cancel'); }
+  private stopPlacing() { this.placing = null; this.renderer.ghost = null; }
   private renderWorldEvent() {
     const el = this.el.wevent!;
     const ev = this.game.room?.kind === 'field' ? this.game.worldEvent : null;
@@ -215,6 +221,13 @@ export class GameUI {
     let hover = 0;
     for (const e of g.ents.values()) if (e.kind === 1 && Math.hypot(e.rx - wx, e.ry - 14 - wy) < 26) hover = e.id;
     this.renderer.hoverId = hover;
+    if (this.placing && g.map) {
+      const f = FURNITURE[this.placing]!;
+      const gx = Math.floor(wx / 32 - f.w / 2 + 0.5), gy = Math.floor(wy / 32 - f.h / 2 + 0.5);
+      const house = this.houseData?.house;
+      const ok = !!house && !validatePlacement(house, this.placing, gx, gy);
+      this.renderer.ghost = { x: gx, y: gy, w: f.w, h: f.h, ok };
+    }
     const overUI = this.panel !== null && this.input.mouse.x > innerWidth - (this.el.panel!.offsetWidth || 0);
     const atk = (this.input.mouse.left && !overUI && !this.touch) || this.touchAttack;
     this.sendT -= dt;
@@ -252,7 +265,9 @@ export class GameUI {
       case 'interact': this.send({ t: 'interact' }); break;
       case 'pickup': this.pickupNearest(); break;
       case 'target': { const cur = g.self?.target ?? 0; const n = this.nearestEnemy(700, cur) ?? this.nearestEnemy(700); if (n) this.send({ t: 'target', id: n.id }); break; }
-      case 'click': case 'rclick': {
+      case 'rclick': case 'click': {
+        if (this.placing && a === 'rclick') { this.stopPlacing(); break; }
+        if (this.placing && a === 'click') { const gh = this.renderer.ghost; if (gh) this.send({ t: 'house_place', id: this.placing, x: gh.x, y: gh.y }); break; }
         if (this.renderer.hoverId) this.send({ t: 'target', id: this.renderer.hoverId });
         // click on a drop picks it up
         const [wx, wy] = this.renderer.screenToWorld(this.input.mouse.x, this.input.mouse.y);
@@ -261,8 +276,8 @@ export class GameUI {
         break;
       }
       case 'chat': (this.el.chatIn as HTMLInputElement).focus(); break;
-      case 'escape': if (this.trade) this.send({ t: 'trade_cancel' }); else if (this.el.modal!.firstChild) this.closeModal(); else if (this.panel) this.closePanel(); else this.openPanel('settings'); break;
-      case 'inventory': case 'skills': case 'passives': case 'character': case 'quests': case 'codex': case 'social': case 'guild': case 'ladder': case 'season': case 'map': this.toggle(a as PanelName); break;
+      case 'escape': if (this.placing) this.stopPlacing(); else if (this.trade) this.send({ t: 'trade_cancel' }); else if (this.el.modal!.firstChild) this.closeModal(); else if (this.panel) this.closePanel(); else this.openPanel('settings'); break;
+      case 'inventory': case 'skills': case 'passives': case 'character': case 'quests': case 'codex': case 'social': case 'guild': case 'ladder': case 'season': case 'hearth': case 'map': this.toggle(a as PanelName); break;
       default: break;
     }
   }
@@ -359,7 +374,8 @@ export class GameUI {
     } else E.boss!.hidden = true;
     // interaction prompt
     const it = g.map?.interactables.filter((i) => !(i.used || g.usedIts.has(i.id)) || i.type === 'exit').map((i) => ({ i, d: Math.hypot(i.x - me.rx, i.y - me.ry) })).sort((a, b) => a.d - b.d)[0];
-    if (it && it.d < 110) { E.prompt!.hidden = false; E.prompt!.textContent = `[${keyLabel(this.input.binds.interact!)}] ${it.i.name}`; } else E.prompt!.hidden = true;
+    const trz = ch.treasure && ch.treasure.zone === g.room?.id && Math.hypot(ch.treasure.hx - me.rx, ch.treasure.hy - me.ry) < ch.treasure.hr;
+    if (it && it.d < 110 && !it.i.deco) { E.prompt!.hidden = false; E.prompt!.textContent = `[${keyLabel(this.input.binds.interact!)}] ${it.i.name}`; } else if (trz) { E.prompt!.hidden = false; E.prompt!.textContent = `[${keyLabel(this.input.binds.interact!)}] Dig for treasure`; } else E.prompt!.hidden = true;
     // death / respawn
     if (s.deadT === -2) this.status(ch.hardcore ? '☠' : 'You are down — an ally can revive you');
     else if (s.deadT >= 0) this.status(ch.hardcore ? '☠' : `${t('respawn')} ${Math.ceil(s.deadT)}s…`); else if (E.status!.textContent?.startsWith(t('respawn')) || E.status!.textContent === '☠' || E.status!.textContent?.startsWith('You are down')) this.status(null);
@@ -376,8 +392,9 @@ export class GameUI {
     const g = this.game; const r = g.room;
     if (!r) return;
     const z = clear(this.el.zone!);
-    if (r.kind === 'town') z.append(h('b', null, t('townSafe')), h('small', null, `${t('trainingGround')}: west side`));
-    else if (r.kind === 'field') z.append(h('b', null, r.id === 'highlands' ? 'Ashen Highlands' : 'Duskmeadow'), h('small', null, `Open world · levels ${r.id === 'highlands' ? '10-20' : '2-9'} · shared with other players`));
+    if (r.id.startsWith('house:')) z.append(h('b', null, this.houseData?.mine ? 'Your Hearth' : `${this.houseData?.owner ?? ''}'s Hearth`), h('button', { class: 'btn tiny ghost', onclick: () => this.openPanel('hearth') }, 'Furniture (U)'));
+    else if (r.kind === 'town') z.append(h('b', null, t('townSafe')), h('small', null, `${t('trainingGround')}: west side`));
+    else if (r.kind === 'field') z.append(h('b', null, r.id === 'highlands' ? 'Ashen Highlands' : r.id === 'wastes' ? 'Starfall Wastes' : 'Duskmeadow'), h('small', null, `Open world · levels ${r.id === 'highlands' ? '10-20' : r.id === 'wastes' ? '20-30' : '2-9'} · shared with other players`));
     else {
       const rr = r as any; const act = ACTIVITIES[(rr.mode ?? 'rift') as keyof typeof ACTIVITIES];
       z.append(h('b', null, `${act?.name ?? 'Rift'}${rr.mode === 'tower' ? ` · Floor ${rr.floor}` : ''}${rr.mode === 'arena' ? ` · Wave ${rr.wave ?? 0}` : ''}${act?.chooseDifficulty ? ` · ${DIFFICULTIES[r.difficulty as keyof typeof DIFFICULTIES]?.name}` : ''}`), h('small', null, `Monster level ${r.level} · seed ${r.seed}`));
@@ -411,12 +428,13 @@ export class GameUI {
       case 'p': this.send({ t: 'chat', ch: 'party', text: rest }); break;
       case 'g': this.send({ t: 'chat', ch: 'guild', text: rest }); break;
       case 'trade': this.send({ t: 'trade_request', name: arg }); break;
+      case 'visit': this.send({ t: 'house_visit', name: arg }); break;
       case 'w': this.send({ t: 'chat', ch: 'whisper', to: arg, text: more.join(' ') }); break;
       case 'invite': this.send({ t: 'party_invite', name: arg }); break;
       case 'leave': this.send({ t: 'party_leave' }); break;
       case 'block': this.send({ t: 'block', name: arg }); break;
       case 'report': this.send({ t: 'report', name: arg, reason: more.join(' ') }); break;
-      default: this.chatLine('system', 'Commands: /p, /g, /w name, /trade name, /invite name, /leave, /block name, /report name reason');
+      default: this.chatLine('system', 'Commands: /p, /g, /w name, /trade name, /visit name, /invite name, /leave, /block name, /report name reason');
     }
   }
 
@@ -433,11 +451,13 @@ export class GameUI {
     if (!p || !this.game.char) return;
     const ctx = this.ctx();
     const inTown = this.game.room?.kind === 'town';
-    const titles: Record<PanelName, string> = { inventory: t('inventory'), skills: t('skills'), passives: t('passives'), character: t('character'), quests: t('quests'), codex: t('codex'), social: t('social'), guild: 'Guild', ladder: 'Leaderboards', alchemist: 'Sister Maelis — alchemy & cooking', season: 'Season & weekly', auction: 'Auctioneer Vell — auction house', settings: t('settings'), dungeon: 'Rift Gate', smith: 'Brenna the Smith — forge, salvage & enchant', quartermaster: 'Quartermaster Sol — potions & selling', trainer: 'Master Ilrin — trainer', stash: 'Astral Vault', map: t('map') };
+    const titles: Record<PanelName, string> = { inventory: t('inventory'), skills: t('skills'), passives: t('passives'), character: t('character'), quests: t('quests'), codex: t('codex'), social: t('social'), guild: 'Guild', ladder: 'Leaderboards', alchemist: 'Sister Maelis — alchemy & cooking', season: 'Season & weekly', hearth: 'Your Hearth', carpenter: 'Carpenter Odo — furniture', auction: 'Auctioneer Vell — auction house', settings: t('settings'), dungeon: 'Rift Gate', smith: 'Brenna the Smith — forge, salvage & enchant', quartermaster: 'Quartermaster Sol — potions & selling', trainer: 'Master Ilrin — trainer', stash: 'Astral Vault', map: t('map') };
     let body: HTMLElement;
     switch (p) {
       case 'inventory': body = P.inventoryPanel(ctx); break;
       case 'smith': body = h('div', null, S.craftingSection(ctx.ch, ['smithing'], (m) => this.send(m)), P.inventoryPanel(ctx, 'smith')); break;
+      case 'hearth': body = S.hearthPanel(this.houseData, (m) => this.send(m), (id) => this.startPlacing(id)); break;
+      case 'carpenter': body = S.carpenterPanel(ctx.ch, ctx.account, (m) => this.send(m)); break;
       case 'season': body = S.seasonPanel(this.seasonData, ctx.ch, ctx.account, (m) => this.send(m)); break;
       case 'alchemist': body = S.craftingSection(ctx.ch, ['alchemy', 'cooking'], (m) => this.send(m)); break;
       case 'quartermaster': body = P.inventoryPanel(ctx, 'quartermaster'); break;

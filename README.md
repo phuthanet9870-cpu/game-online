@@ -2,7 +2,7 @@
 
 A browser-playable online action roguelike RPG: six standalone launch classes plus the Chronomancer, an 8 Active + 4 Ultimate skill loadout, a 135-node passive tree with Keystones, seeded procedural Rifts with a three-phase boss, Normal and Hardcore modes, and a server-authoritative Node + PostgreSQL backend.
 
-**Status: v0.8.0 — vertical slice, MMO systems, endgame, two open-world regions, 7 classes, professions incl. fishing, companions, seasons, staff live-ops console with live content tuning.** Not yet deployed to a public HTTPS host. See [docs/FEATURES.md](docs/FEATURES.md) for exactly what is implemented, tested, and still missing. Nothing is publicly deployed yet.
+**Status: v0.9.0 — vertical slice, MMO systems, endgame, three open-world regions, 7 classes, professions incl. fishing, treasure hunting, housing, companions, seasons, staff live-ops console with live content tuning.** Not yet deployed to a public HTTPS host. See [docs/FEATURES.md](docs/FEATURES.md) for exactly what is implemented, tested, and still missing. Nothing is publicly deployed yet.
 
 ## Play it locally
 Requirements: Node 22+, PostgreSQL 16.
@@ -27,7 +27,7 @@ npm run build:offline   # → apps/client/dist-offline/astra-offline.html
 | Dodge / Potion / Interact | Space / Q / E |
 | Cycle target (Tab Target) | Tab · or click an enemy |
 | Pick up item | Z · or click the drop |
-| Inventory / Skills / Passives / Character / Quests / Codex / Party / Guild / Leaderboards / Season / Map | I / K / P / C / J / O / L / H / N / Y / M |
+| Inventory / Skills / Passives / Character / Quests / Codex / Party / Guild / Leaderboards / Season / Hearth / Map | I / K / P / C / J / O / L / H / N / Y / U / M |
 | Chat | Enter (`/p`, `/g`, `/w name`, `/trade name`, `/invite name`, `/block`, `/report`) |
 
 ## Repository layout

@@ -139,6 +139,7 @@ export class OfflineBackend implements Backend {
       audit() { /* local mode keeps no audit log */ },
       async transact(tx) {
         // localStorage writes are synchronous, so this block cannot interleave with other game code.
+        if (tx.accounts?.length) { const all = self.accounts(); for (const a of tx.accounts) { const k = Object.keys(all).find((x) => all[x]!.id === a.id); if (k) all[k]!.progress = JSON.parse(JSON.stringify(a.progress)); } self.saveAccounts(all); }
         if (tx.characters?.length) { const all = self.chars(); for (const c of tx.characters) if (all[c.id]) all[c.id] = JSON.parse(JSON.stringify(c)); self.saveChars(all); }
         if (tx.listings?.length || tx.guilds?.length || tx.deleteGuilds?.length || tx.records?.length) {
           const sh = self.shared();
