@@ -13,6 +13,7 @@ export * from './data/skills.js';
 export * from './data/passives.js';
 export * from './data/items.js';
 export * from './data/enemies.js';
+export * from './data/bestiary.js';
 export * from './data/dungeon.js';
 export * from './data/quests.js';
 export * from './economy.js';

@@ -205,6 +205,10 @@ export interface EnemyDef {
   /** Seconds after engaging before the boss enrages (damage ×1.8). */
   enrage?: number;
   lootBonus?: number;
+  /** Body archetype for procedural monsters (client sprite builder). */
+  look?: 'beast' | 'golem' | 'orb' | 'caster' | 'hollow' | 'tree';
+  /** Home zone of procedural monsters. */
+  zone?: string;
 }
 
 export type DifficultyId = 'story' | 'normal' | 'hard' | 'expert' | 'nightmare' | 'abyssal';

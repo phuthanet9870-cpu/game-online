@@ -2,6 +2,7 @@
 // money anywhere), level benefits, Renown (the VIP-style badge, earned by playing), Awakening, Emblems, mounts,
 // costumes & portrait frames, and the Astral Wish (a cosmetic/material draw with published odds and a pity counter).
 // Everything here is pure and server-authoritative: GameCore calls these and persists the results.
+import { ZONES } from './data/bestiary.js';
 import { ACHIEVEMENTS } from './data/quests.js';
 import { MATERIALS } from './data/crafting.js';
 import { POTION } from './data/items.js';
@@ -263,7 +264,8 @@ export { ACHIEVEMENTS };
 // Logging out in an open-world zone "makes camp". On the next login the server pays a modest, capped reward for
 // the time away (10 minutes minimum, 12 hours maximum): far below active play, so it never replaces playing.
 export const AFK_MIN = 10, AFK_MAX = 720;
-const AFK_MATS: Record<string, string[]> = { field: ['moonpetal', 'beast_meat'], highlands: ['iron_ore', 'emberbloom'], wastes: ['starbloom', 'starsteel'] };
+const AFK_MATS: Record<string, string[]> = { field: ['moonpetal', 'beast_meat'], highlands: ['iron_ore', 'emberbloom'], wastes: ['starbloom', 'starsteel'],
+  ...Object.fromEntries(ZONES.slice(3).map((z) => [z.id, [...new Set(z.nodes.map((n) => n.res))].slice(0, 2)])) };
 export function afkStart(ch: CharacterData, zone: string, now: number) { if (AFK_MATS[zone]) ch.afk = { from: now, zone }; }
 export function afkSettle(ch: CharacterData, now: number) {
   const a = ch.afk;

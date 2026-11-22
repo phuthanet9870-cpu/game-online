@@ -76,3 +76,37 @@ describe('crafting', () => {
     expect(inbox.some((m) => m.t === 'toast' && /Mining level 4/.test(m.msg))).toBe(true);
   });
 });
+
+describe('world: 10 farm zones and the bestiary', async () => {
+  const S = await import('../src/index.js');
+  it('has 500+ monster types including bosses, each with a Thai name and a valid look', () => {
+    const gen = Object.values(S.BESTIARY);
+    expect(gen.length).toBeGreaterThanOrEqual(500);
+    expect(gen.filter((e) => e.role === 'boss').length).toBe(40);
+    for (const e of gen) { expect(S.ENEMIES[e.id]).toBe(e); expect(S.CONTENT_TH[`enemy.${e.id}`]).toBeTruthy(); }
+    for (const e of gen) for (const a of e.attacks) if (a.kind === 'summon') expect(S.ENEMIES[a.summon!], `${e.id} summons ${a.summon}`).toBeTruthy();
+  });
+  it('builds 10 wide, connected zones whose level bands cover 1-100 and whose gates chain together', () => {
+    expect(S.ZONES.length).toBe(10);
+    expect(S.ZONES[0]!.levelMin).toBe(1); expect(S.ZONES.at(-1)!.levelMax).toBe(100);
+    for (const [i, z] of S.ZONES.entries()) {
+      const m = S.buildZone(z.id);
+      expect(m.w * m.h).toBeGreaterThanOrEqual(220 * 150);
+      const reach = S.reachableSet(m, m.spawn.x, m.spawn.y);
+      for (const it of m.interactables) { const tx = Math.floor(it.x / 32), ty = Math.floor(it.y / 32); expect([[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => reach.has((ty + dy!) * m.w + tx + dx!)), `${z.id}:${it.id}`).toBe(true); }
+      expect(m.spawns.every((s) => s.level! >= z.levelMin && s.level! <= z.levelMax), z.id).toBe(true);
+      expect(m.spawns.filter((s) => S.ENEMIES[s.enemy]!.boss).length).toBe(4);
+      const gates = m.interactables.filter((g) => g.type === 'zone_gate').map((g) => g.to);
+      expect(gates).toContain(i === 0 ? 'town' : S.ZONES[i - 1]!.id);
+      if (i < 9) expect(gates).toContain(S.ZONES[i + 1]!.id);
+    }
+  });
+  it('gives every town service its own reachable NPC', () => {
+    const t = S.buildTown();
+    const reach = S.reachableSet(t, t.spawn.x, t.spawn.y);
+    const types = t.interactables.map((i) => i.type);
+    expect(new Set(types).size).toBe(types.length);
+    for (const [type] of S.TOWN_NPCS) expect(types).toContain(type);
+    for (const it of t.interactables) { const tx = Math.floor(it.x / 32), ty = Math.floor(it.y / 32); expect([[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => reach.has((ty + dy!) * t.w + tx + dx!)), it.id).toBe(true); }
+  });
+});

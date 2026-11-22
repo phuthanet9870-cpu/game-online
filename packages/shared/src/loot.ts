@@ -33,13 +33,21 @@ export function rollAffix(slot: string, ilvl: number, rng: Rng, tierBonus: numbe
   return { id: a.id, stat: a.stat, value: affixValue(a, ilvl, tier, rng), tier };
 }
 
-export function generateItem(opts: { rng: Rng; ilvl: number; rarity: Rarity; baseId?: string; cls?: ClassId; hardcore?: boolean }): Item {
+const SLOT_WEIGHTS: Array<[string, number]> = [['weapon', 22], ['helmet', 10], ['chest', 10], ['gloves', 10], ['boots', 10], ['ring', 12], ['necklace', 8], ['relic', 8], ['rune', 10]];
+export function generateItem(opts: { rng: Rng; ilvl: number; rarity: Rarity; baseId?: string; cls?: ClassId; hardcore?: boolean; prefer?: string[] }): Item {
   const { rng, ilvl, rarity } = opts;
   let base = opts.baseId ? ITEM_BASE_MAP[opts.baseId]! : undefined;
   if (!base) {
     // 35% chance to roll a weapon for the looting class (smart loot), otherwise any base.
-    const pool = opts.cls && rng.chance(0.35) ? ITEM_BASES.filter((b) => b.slot === 'weapon' && b.classes?.includes(opts.cls!)) : ITEM_BASES;
-    base = rng.pick(pool.length ? pool : ITEM_BASES);
+    // Zone-themed loot first (e.g. frost runes in the tundra), then smart loot, then slot-weighted so the large
+    // rune/relic catalogue does not crowd out weapons and armour.
+    const pref = opts.prefer?.filter((id) => ITEM_BASE_MAP[id]) ?? [];
+    if (pref.length && rng.chance(0.12)) base = ITEM_BASE_MAP[rng.pick(pref)]!;
+    else {
+      const pool = opts.cls && rng.chance(0.35) ? ITEM_BASES.filter((b) => b.slot === 'weapon' && b.classes?.includes(opts.cls!)) : [];
+      if (pool.length) base = rng.pick(pool);
+      else { const slot = rng.weighted(SLOT_WEIGHTS, (w) => w[1])[0]; const bySlot = ITEM_BASES.filter((b) => b.slot === slot); base = rng.pick(bySlot.length ? bySlot : ITEM_BASES); }
+    }
   }
   const rd = RARITY_DEFS[rarity];
   const scale = 1 + ilvl * 0.06;

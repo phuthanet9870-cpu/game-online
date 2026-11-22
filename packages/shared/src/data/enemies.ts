@@ -1,10 +1,12 @@
 import type { DifficultyDef, DifficultyId, EnemyDef } from '../types.js';
+import { BESTIARY } from './bestiary.js';
 
 // Enemy family 1: The Hollowborn — eclipse-corrupted husks of the old kingdom.
 // Enemy family 2: Duskmeadow Wildlife — open-world beasts twisted by the last eclipse.
 // hp/power are base values at level 1; scaled by level and difficulty in world.ts.
 
 export const ENEMIES: Record<string, EnemyDef> = {
+  ...BESTIARY,
   hollow_grunt: {
     id: 'hollow_grunt', name: 'Hollow Husk', family: 'hollowborn', role: 'melee', hp: 70, power: 9, armor: 20, res: { shadow: 30, holy: -20 }, speed: 120, radius: 15, xp: 14, aggroRange: 300,
     attacks: [{ id: 'swipe', kind: 'melee', range: 52, cooldown: 1.6, windup: 0.45, dmg: 1, type: 'physical' }], color: '#5b4a7a',

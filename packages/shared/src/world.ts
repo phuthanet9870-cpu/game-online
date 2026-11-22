@@ -139,6 +139,8 @@ export type WorldEvent =
   | { t: 'it_add'; it: import('./maps.js').Interactable };
 
 export interface WorldOptions {
+  /** Item bases that drop more often in this zone (zone-themed runes/relics). */
+  zoneLoot?: string[];
   difficulty: DifficultyId; partySize: number; seed: number; kind: 'town' | 'field' | 'dungeon';
   /** Enemy whose death completes the instance and opens the exit (default: veyra in dungeons). */
   finalBoss?: string;
@@ -822,7 +824,7 @@ export class World {
     }
     if (es.respawn) {
       const r = es.respawn;
-      this.delayed.push({ t: this.time + 25, fn: () => this.spawnEnemy(es.def.id, r.x, r.y, r.level, r.elite, undefined, r) });
+      this.delayed.push({ t: this.time + (es.def.boss ? (es.def.id.endsWith('_overlord') ? 600 : 240) : 25), fn: () => this.spawnEnemy(es.def.id, r.x, r.y, r.level, r.elite, undefined, r) }); // field bosses respawn slowly
     }
     this.ents.delete(target.id);
   }
@@ -841,7 +843,7 @@ export class World {
       if (!this.rng.chance(dropChance)) continue;
       const min = (es.def.id === 'veyra' || es.def.id === 'gloomheart') && i === 0 ? 'rare' : es.def.boss && i === 0 ? 'uncommon' : 'common';
       const rarity = rollRarity(this.rng, bonus, min);
-      const item = generateItem({ rng: this.rng, ilvl: Math.min(100, es.level + (this.opts.ilvlBonus ?? 0)), rarity, cls: ch.cls, hardcore: ch.hardcore });
+      const item = generateItem({ rng: this.rng, ilvl: Math.min(100, es.level + (this.opts.ilvlBonus ?? 0)), rarity, cls: ch.cls, hardcore: ch.hardcore, prefer: this.opts.zoneLoot });
       this.addDrop(p, enemy.x + this.rng.range(-30, 30), enemy.y + this.rng.range(-30, 30), item);
     }
     // potion recharge on kills
@@ -877,6 +879,13 @@ export class World {
   }
 
   // ───────────── Tick ─────────────
+  /** Nobody is here: advance the clock and run due timers (respawns) without simulating movement or AI. */
+  idle(dt: number) {
+    this.time += dt;
+    const due = this.delayed.filter((d) => d.t <= this.time);
+    if (due.length) { this.delayed = this.delayed.filter((d) => d.t > this.time); for (const d of due) d.fn(); }
+    this.events = [];
+  }
   tick(dt: number) {
     this.time += dt;
     if (this.opts.pressureEvery && [...this.ents.values()].some((e) => e.kind === 'player')) {

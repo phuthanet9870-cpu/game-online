@@ -17,7 +17,8 @@ import { ACHIEVEMENTS, QUESTS, QUEST_MAP } from './data/quests.js';
 import { generateItem, rollRarity } from './loot.js';
 import type { Item } from './types.js';
 import { Rng, dist } from './math.js';
-import { buildArena, buildField, buildHighlands, buildHouse, buildTown, buildWastes, validatePlacement, generateDungeon, generateLabyrinth, type GameMap } from './maps.js';
+import { buildArena, buildHouse, buildTown, buildZone, validatePlacement, generateDungeon, generateLabyrinth, type GameMap } from './maps.js';
+import { ZONES, ZONE_MAP, waypointCost } from './data/bestiary.js';
 import { ACTIVITIES, ACTIVITY_ORDER, ECLIPSE_POOL, NIGHTMARE_MODS, towerScale, type Activity } from './data/activities.js';
 import { MATERIALS, PROFESSIONS, RECIPE_MAP } from './data/crafting.js';
 import { PETS } from './data/pets.js';
@@ -85,7 +86,7 @@ export interface LeaderRecord { board: string; charId: string; name: string; cls
 interface Party { id: string; leader: string; members: string[] }
 
 export const FRIEND_MAX = 50;
-const MUTATIONS = new Set(['house_buy', 'house_place', 'house_remove', 'use_map', 'guild_vault_put', 'guild_vault_take', 'pet_buy', 'season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose', 'login_claim', 'shop_buy', 'benefit_claim', 'awaken', 'wish', 'emblem_set', 'cosmetic_set', 'afk_claim', 'bag_expand', 'sell_many', 'stash_put_many', 'guild_apply', 'guild_req', 'guild_settings', 'discard']);
+const MUTATIONS = new Set(['house_buy', 'house_place', 'house_remove', 'use_map', 'guild_vault_put', 'guild_vault_take', 'pet_buy', 'season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose', 'login_claim', 'shop_buy', 'benefit_claim', 'awaken', 'wish', 'emblem_set', 'cosmetic_set', 'afk_claim', 'bag_expand', 'sell_many', 'stash_put_many', 'guild_apply', 'guild_req', 'guild_settings', 'discard', 'waypoint']);
 
 /** Character as sent to its owner: hidden server knowledge (exact treasure spot) is removed. */
 export function publicChar(ch: CharacterData): CharacterData {
@@ -142,9 +143,7 @@ export class GameCore {
 
   constructor(private persist: Persistence, private opts: { label: string } = { label: 'server' }) {
     this.createRoom('town', buildTown(), 'normal', 0);
-    this.createRoom('field', buildField(1337), 'normal', 1337);
-    this.createRoom('highlands', buildHighlands(4242), 'normal', 4242);
-    this.createRoom('wastes', buildWastes(9090), 'normal', 9090);
+    for (const z of ZONES) this.createRoom(z.id, buildZone(z.id), 'normal', z.seed, 1, null, { zoneLoot: z.loot });
   }
 
   private createRoom(id: string, map: GameMap, difficulty: DifficultyId, seed: number, partySize = 1, partyId: string | null = null, extra: Partial<WorldOptions> = {}): Room {
@@ -229,6 +228,16 @@ export class GameCore {
     s.entId = 0;
   }
 
+  /** Walk through a zone gate: arrive just inside the matching gate on the other side. */
+  private travelGate(s: Session, room: Room, to: string) {
+    const dest = this.rooms.get(to);
+    if (!dest) return;
+    const z = ZONE_MAP[to];
+    if (z && s.char.level < z.levelMin - 2) { this.toast(s, `${z.name} is dangerous — enemies are level ${z.levelMin}-${z.levelMax}.`); if (s.char.level < z.levelMin - 5 && to !== 'field') return; }
+    const back = dest.world.map.interactables.find((i) => i.type === 'zone_gate' && i.to === room.id);
+    const pos = back ? { x: back.x + (back.x < dest.world.map.w * 16 ? 96 : -96), y: back.y } : undefined;
+    this.moveTo(s, to, pos);
+  }
   private moveTo(s: Session, roomId: string, pos?: { x: number; y: number }) {
     this.cancelTrade(s, 'Trade cancelled: player changed zone');
     this.leaveRoom(s);
@@ -275,11 +284,24 @@ export class GameCore {
         case 'equip': { const r = C.equipFromInventory(s.char, clampInt(msg.inv, 0, s.char.inventory.length - 1), EQUIP_SLOTS.includes(msg.slot) ? msg.slot : undefined); this.mutate(s, r, 'equip'); if (r.ok) this.tutorial(s, 'equip'); break; }
         case 'unequip': this.mutate(s, EQUIP_SLOTS.includes(msg.slot) ? C.unequip(s.char, msg.slot as EquipSlot) : { ok: false, reason: 'Bad slot' }, 'unequip'); break;
         case 'move_inv': this.mutate(s, C.moveInventory(s.char, clampInt(msg.from, 0, s.char.inventory.length - 1), clampInt(msg.to, 0, s.char.inventory.length - 1)), null); break;
-        case 'salvage': { if (!this.nearNpc(s, room, 'npc_smith')) return err('Visit the Blacksmith to salvage'); const it = s.char.inventory[clampInt(msg.inv, 0, s.char.inventory.length - 1)]; const r = C.salvageItem(s.char, clampInt(msg.inv, 0, s.char.inventory.length - 1)); this.mutate(s, r, 'salvage', { item: it?.uid, dust: r.ok ? r.value : 0 }); break; }
-        case 'sell': { if (!this.nearNpc(s, room, 'npc_quartermaster')) return err('Visit the Quartermaster to sell'); const it = s.char.inventory[clampInt(msg.inv, 0, s.char.inventory.length - 1)]; const r = C.sellItem(s.char, clampInt(msg.inv, 0, s.char.inventory.length - 1)); this.mutate(s, r, 'sell', { item: it?.uid, gold: r.ok ? r.value : 0 }); break; }
-        case 'enchant': { if (!this.nearNpc(s, room, 'npc_smith')) return err('Visit the Blacksmith to enchant'); const loc = msg.slot && EQUIP_SLOTS.includes(msg.slot) ? { slot: msg.slot as EquipSlot } : { inv: clampInt(msg.inv, 0, s.char.inventory.length - 1) }; this.mutate(s, C.enchantItem(s.char, loc, clampInt(msg.affix, 0, 9), this.rng), 'enchant', loc); break; }
+        case 'salvage': { if (!this.nearNpc(s, room, 'npc_salvager')) return err('Visit Salvager Grimm to salvage'); const it = s.char.inventory[clampInt(msg.inv, 0, s.char.inventory.length - 1)]; const r = C.salvageItem(s.char, clampInt(msg.inv, 0, s.char.inventory.length - 1)); this.mutate(s, r, 'salvage', { item: it?.uid, dust: r.ok ? r.value : 0 }); break; }
+        case 'sell': { if (!this.nearNpc(s, room, 'npc_merchant')) return err('Visit Merchant Tobin to sell'); const it = s.char.inventory[clampInt(msg.inv, 0, s.char.inventory.length - 1)]; const r = C.sellItem(s.char, clampInt(msg.inv, 0, s.char.inventory.length - 1)); this.mutate(s, r, 'sell', { item: it?.uid, gold: r.ok ? r.value : 0 }); break; }
+        case 'enchant': { if (!this.nearNpc(s, room, 'npc_enchanter')) return err('Visit Enchantress Lyra to enchant'); const loc = msg.slot && EQUIP_SLOTS.includes(msg.slot) ? { slot: msg.slot as EquipSlot } : { inv: clampInt(msg.inv, 0, s.char.inventory.length - 1) }; this.mutate(s, C.enchantItem(s.char, loc, clampInt(msg.affix, 0, 9), this.rng), 'enchant', loc); break; }
+        case 'waypoint': {
+          if (!this.nearNpc(s, room, 'npc_waymaster')) return err('Visit Waymaster Juno to travel');
+          const z = ZONE_MAP[String(msg.zone)];
+          if (!z) return err('Unknown destination');
+          if (s.char.level < z.levelMin - 5 && z.id !== 'field') return err(`Reach level ${z.levelMin - 5} to travel to ${z.name}`);
+          const cost = waypointCost(z.id);
+          if (s.char.gold < cost) return err(`Need ${cost} gold`);
+          s.char.gold -= cost;
+          this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'waypoint', data: { zone: z.id, cost } });
+          const g = this.rooms.get(z.id)!.world.map.interactables.find((i) => i.id === 'gate_w')!;
+          this.moveTo(s, z.id, { x: g.x + 96, y: g.y });
+          break;
+        }
         case 'buy_potion': {
-          if (!this.nearNpc(s, room, 'npc_quartermaster')) return err('Visit the Quartermaster');
+          if (!this.nearNpc(s, room, 'npc_apothecary')) return err('Visit Apothecary Fenna for potions');
           if (s.char.potions >= POTION.maxCharges) return err('Potion belt is full');
           if (s.char.gold < POTION.buyPrice) return err(`Need ${POTION.buyPrice} gold`);
           s.char.gold -= POTION.buyPrice; s.char.potions++;
@@ -332,8 +354,8 @@ export class GameCore {
         case 'craft': {
           const r = RECIPE_MAP[String(msg.recipe)];
           if (!r) return err('Unknown recipe');
-          const npc = r.prof === 'smithing' ? 'npc_smith' : 'npc_alchemist';
-          if (!this.nearNpc(s, room, npc)) return err(r.prof === 'smithing' ? 'Visit Brenna the Smith to forge' : 'Visit Sister Maelis to brew or cook');
+          const npc = r.prof === 'smithing' ? 'npc_smith' : r.prof === 'cooking' ? 'npc_cook' : 'npc_alchemist';
+          if (!this.nearNpc(s, room, npc)) return err(r.prof === 'smithing' ? 'Visit Brenna the Smith to forge' : r.prof === 'cooking' ? 'Visit Chef Bramble to cook' : 'Visit Sister Maelis to brew');
           const res = C.craft(s.char, r.id, typeof msg.slot === 'string' ? msg.slot : undefined, this.rng);
           if (!res.ok) return err(res.reason);
           this.toast(s, res.value.text);
@@ -423,16 +445,24 @@ export class GameCore {
     if (!ent || ent.dead) return;
     switch (it.type) {
       case 'portal_dungeon': s.send({ t: 'open', what: 'dungeon', unlocked: this.unlockedTiers(s), locks: Object.fromEntries(ACTIVITY_ORDER.map((a) => [a, this.activityLock(s, a)])) }); break;
-      case 'gate_field': this.moveTo(s, 'field'); break;
-      case 'gate_town': this.moveTo(s, 'town', { x: 52 * 32, y: 22 * 32 + 16 }); break;
-      case 'gate_highlands': if (s.char.level < 8) { this.toast(s, 'The Highlands are dangerous — come back at level 8 or higher (enemies are level 10-20).'); if (s.char.level < 5) break; } this.moveTo(s, 'highlands'); break;
-      case 'gate_meadow': { const f = this.rooms.get('field')!.world.map; this.moveTo(s, 'field', { x: (f.w - 6) * 32, y: 40 * 32 + 16 }); break; }
+      case 'zone_gate': this.travelGate(s, room, it.to ?? 'town'); break;
       case 'npc_alchemist': s.send({ t: 'open', what: 'alchemist' }); break;
+      case 'npc_cook': s.send({ t: 'open', what: 'cook' }); break;
+      case 'npc_enchanter': s.send({ t: 'open', what: 'enchanter' }); break;
+      case 'npc_salvager': s.send({ t: 'open', what: 'salvager' }); break;
+      case 'npc_merchant': s.send({ t: 'open', what: 'merchant' }); break;
+      case 'npc_apothecary': s.send({ t: 'open', what: 'apothecary' }); break;
+      case 'npc_stable': s.send({ t: 'open', what: 'stable' }); break;
+      case 'npc_guild': s.send({ t: 'open', what: 'guild' }); this.sendGuild(s); break;
+      case 'npc_stylist': s.send({ t: 'open', what: 'wardrobe' }); break;
+      case 'npc_tailor': s.send({ t: 'open', what: 'tailor' }); break;
+      case 'npc_wish': s.send({ t: 'open', what: 'wish' }); break;
+      case 'npc_awaken': s.send({ t: 'open', what: 'awaken' }); break;
+      case 'npc_shop': s.send({ t: 'open', what: 'shop' }); break;
+      case 'npc_waymaster': s.send({ t: 'open', what: 'waymaster' }); break;
       case 'npc_carpenter': s.send({ t: 'open', what: 'carpenter' }); break;
       case 'house_door': this.enterHouse(s, s); break;
       case 'house_exit': { const d = this.rooms.get('town')!.world.map.interactables.find((i) => i.type === 'house_door')!; this.moveTo(s, 'town', { x: d.x, y: d.y + 40 }); break; }
-      case 'gate_wastes': if (s.char.level < 18) { this.toast(s, 'The Starfall Wastes are deadly — come back at level 18 or higher (enemies are level 20-30).'); if (s.char.level < 15) break; } this.moveTo(s, 'wastes'); break;
-      case 'gate_ash': { const hl = this.rooms.get('highlands')!.world.map; this.moveTo(s, 'highlands', { x: (hl.w - 6) * 32, y: 40 * 32 + 16 }); break; }
       case 'npc_smith': s.send({ t: 'open', what: 'smith' }); break;
       case 'npc_trainer': s.send({ t: 'open', what: 'trainer' }); break;
       case 'npc_quartermaster': s.send({ t: 'open', what: 'quartermaster' }); break;
@@ -834,7 +864,7 @@ export class GameCore {
       return this.mutate(s, { ok: true, value: undefined }, null);
     }
     if (msg.t === 'sell_many') {
-      if (!this.nearNpc(s, room, 'npc_quartermaster')) return s.send({ t: 'err', msg: 'Visit the Quartermaster to sell' });
+      if (!this.nearNpc(s, room, 'npc_merchant')) return s.send({ t: 'err', msg: 'Visit Merchant Tobin to sell' });
       for (const i of idx) { const r = C.sellItem(s.char, i); if (r.ok) { n++; gold += r.value; } else skipped++; }
       this.tx({ characters: [s.char] });
       this.toast(s, `Sold ${n} item${n === 1 ? '' : 's'} for ${gold} gold${skipped ? ` (${skipped} skipped)` : ''}`);
@@ -952,7 +982,7 @@ export class GameCore {
       }
       case 'killall': { let k = 0; for (const e of [...w.ents.values()]) if (e.kind === 'enemy' && !e.dead && e.e?.def.id !== 'dummy') { e.invuln = 0; w.applyHit(e, { amount: 1e12, type: 'holy', critChance: 0, critMult: 1, src: me?.id ?? 0, tags: [] }); k++; } note = `Defeated ${k} enemies`; break; }
       case 'cleardrops': { w.drops = []; note = 'Drops cleared'; break; }
-      case 'teleport': { const z = String(msg.zone); if (!['town', 'field', 'highlands', 'wastes'].includes(z)) return s.send({ t: 'err', msg: 'Unknown zone' }); this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'gm_teleport', data: { zone: z } }); this.moveTo(s, z); return; }
+      case 'teleport': { const z = String(msg.zone); if (z !== 'town' && !ZONE_MAP[z]) return s.send({ t: 'err', msg: 'Unknown zone' }); this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'gm_teleport', data: { zone: z } }); this.moveTo(s, z); return; }
       case 'announce': { const text = String(msg.text ?? '').slice(0, 200); if (!text) return; for (const o of this.sessions.values()) this.toast(o, `[GM] ${text}`); note = 'Announced'; break; }
       case 'kick': case 'mute': {
         const target = [...this.sessions.values()].find((o) => o.char.name.toLowerCase() === String(msg.name ?? '').toLowerCase());
@@ -1456,7 +1486,7 @@ export class GameCore {
       if (id && !s.account.pets.includes(id)) return s.send({ t: 'err', msg: 'You do not own that companion' });
       s.account.pet = id;
     } else {
-      if (!this.nearNpc(s, room, 'npc_quartermaster')) return s.send({ t: 'err', msg: 'Companions are adopted from Quartermaster Sol' });
+      if (!this.nearNpc(s, room, 'npc_stable')) return s.send({ t: 'err', msg: 'Companions are adopted from Stablemaster Rook' });
       const pet = id ? PETS[id] : undefined;
       if (!pet) return s.send({ t: 'err', msg: 'Unknown companion' });
       if (s.account.pets.includes(id!)) return s.send({ t: 'err', msg: 'Already adopted' });
@@ -1666,6 +1696,8 @@ export class GameCore {
     for (const room of [...this.rooms.values()]) {
       if (room.sessions.size === 0 && room.id.startsWith('house:')) { room.emptyT += dt; if (room.emptyT > 60) this.rooms.delete(room.id); continue; }
       if (room.sessions.size === 0 && room.kind !== 'dungeon' && room.kind !== 'field') continue;
+      // Empty open-world zones only advance timers (respawns) twice a second instead of simulating at 30 Hz.
+      if (room.sessions.size === 0 && room.kind === 'field') { room.emptyT += dt; if (room.emptyT < 0.5) continue; const step = room.emptyT; room.emptyT = 0; room.world.idle(step); continue; }
       room.world.tick(dt);
       this.processEvents(room, room.world.events);
       room.world.events = [];

@@ -177,7 +177,7 @@ describe('party, reconnect, world event, chat spam', () => {
   it('spawns the world boss in Duskmeadow when players are present', () => {
     const t = setup();
     const a = t.join('a', 'Alpha');
-    t.place('a', 'gate_field', 0);
+    t.place('a', 'zone_gate', 0);
     t.core.handle('a', { t: 'interact' });
     expect(a.roomId).toBe('field');
     for (let i = 0; i < 30 * 95; i++) t.core.tick(1 / 30);
@@ -252,7 +252,7 @@ describe('batch sell / store', () => {
     const a = t.join('a', 'Seller');
     t.giveItem(a.char, 1); t.giveItem(a.char, 2); t.giveItem(a.char, 3);
     a.char.inventory[3]!.bound = true;
-    t.place('a', 'npc_quartermaster');
+    t.place('a', 'npc_merchant');
     const g = a.char.gold;
     t.core.handle('a', { t: 'sell_many', inv: [1, 2] });
     expect(a.char.inventory[1]).toBeNull(); expect(a.char.inventory[2]).toBeNull();

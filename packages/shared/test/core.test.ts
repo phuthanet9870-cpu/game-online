@@ -158,7 +158,7 @@ describe('GameCore', () => {
     const sess = core.sessions.get('s1')!;
     const ch = sess.char;
     const ent = core.rooms.get('town')!.world.ents.get(sess.entId)!;
-    const qm = core.rooms.get('town')!.world.map.interactables.find((i) => i.type === 'npc_quartermaster')!;
+    const qm = core.rooms.get('town')!.world.map.interactables.find((i) => i.type === 'npc_apothecary')!;
     ent.x = qm.x; ent.y = qm.y + 40;
     ch.potions = 0; ch.gold = 100;
     core.handle('s1', { t: 'buy_potion', rid: 'abc' });

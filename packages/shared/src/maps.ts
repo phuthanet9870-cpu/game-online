@@ -1,5 +1,6 @@
 import { DUNGEON_MODIFIERS, type RoomType } from './data/dungeon.js';
 import { Rng } from './math.js';
+import { ZONES, zonePool } from './data/bestiary.js';
 import { FURNITURE, HOUSE, type HouseState } from './data/housing.js';
 
 export const TILE = 32;
@@ -10,7 +11,7 @@ export type MapTheme = 'town' | 'field' | 'dungeon';
 
 export interface Interactable {
   id: string;
-  type: 'portal_dungeon' | 'npc_auction' | 'npc_alchemist' | 'npc_carpenter' | 'house_door' | 'house_exit' | 'furniture' | 'gate_highlands' | 'gate_meadow' | 'gate_wastes' | 'gate_ash' | 'ore' | 'fishing' | 'dig' | 'gate_field' | 'gate_town' | 'npc_smith' | 'npc_trainer' | 'npc_quartermaster' | 'npc_quests' | 'chest' | 'shrine' | 'fountain' | 'altar' | 'exit' | 'herb' | 'stash';
+  type: 'portal_dungeon' | 'zone_gate' | 'npc_enchanter' | 'npc_salvager' | 'npc_merchant' | 'npc_apothecary' | 'npc_cook' | 'npc_stable' | 'npc_guild' | 'npc_stylist' | 'npc_tailor' | 'npc_wish' | 'npc_awaken' | 'npc_shop' | 'npc_waymaster' | 'npc_auction' | 'npc_alchemist' | 'npc_carpenter' | 'house_door' | 'house_exit' | 'furniture' | 'gate_highlands' | 'gate_meadow' | 'gate_wastes' | 'gate_ash' | 'ore' | 'fishing' | 'dig' | 'gate_field' | 'gate_town' | 'npc_smith' | 'npc_trainer' | 'npc_quartermaster' | 'npc_quests' | 'chest' | 'shrine' | 'fountain' | 'altar' | 'exit' | 'herb' | 'stash';
   x: number;
   y: number;
   name: string;
@@ -20,6 +21,8 @@ export interface Interactable {
   req?: number;
   /** Housing: furniture id, footprint and whether it is decoration only (not interactable). */
   furn?: string; fw?: number; fh?: number; deco?: boolean;
+  /** zone_gate: destination room id. */
+  to?: string;
 }
 
 export interface SpawnPoint { enemy: string; x: number; y: number; room?: number; elite?: boolean; level?: number; group?: number }
@@ -29,7 +32,7 @@ export interface RoomInfo { id: number; type: RoomType; x: number; y: number; w:
 export interface GameMap {
   id: string;
   theme: MapTheme;
-  palette?: 'ash' | 'star' | 'house';
+  palette?: string;
   w: number;
   h: number;
   tiles: number[];
@@ -164,65 +167,63 @@ export function reachableSet(m: GameMap, px: number, py: number): Set<number> {
 }
 
 // ───────────────────────── TOWN ─────────────────────────
+/** Every town service has its own NPC (no combined vendors). [type, name, title] in placement order. */
+export const TOWN_NPCS: Array<[Interactable['type'], string]> = [
+  ['npc_smith', 'Brenna the Smith'], ['npc_enchanter', 'Enchantress Lyra'], ['npc_salvager', 'Salvager Grimm'], ['npc_merchant', 'Merchant Tobin'],
+  ['npc_apothecary', 'Apothecary Fenna'], ['npc_alchemist', 'Sister Maelis'], ['npc_cook', 'Chef Bramble'], ['npc_stable', 'Stablemaster Rook'],
+  ['npc_trainer', 'Master Ilrin'], ['npc_auction', 'Auctioneer Vell'], ['npc_carpenter', 'Carpenter Odo'], ['npc_guild', 'Registrar Hale'],
+  ['npc_quests', 'Commander Aveline'], ['stash', 'Astral Vault'], ['npc_stylist', 'Stylist Mirelle'], ['npc_tailor', 'Tailor Pim'],
+  ['npc_wish', 'Astral Wishing Shrine'], ['npc_awaken', 'Sage Orin'], ['npc_shop', 'Shopkeeper Vala'], ['npc_waymaster', 'Waymaster Juno'],
+];
 export function buildTown(): GameMap {
-  const w = 56, h = 44;
+  const w = 100, h = 72, cx = 50, cy = 36;
   const tiles = new Array(w * h).fill(1);
   const set = (x: number, y: number, v: number) => { if (x >= 0 && y >= 0 && x < w && y < h) tiles[y * w + x] = v; };
   for (let x = 0; x < w; x++) { set(x, 0, 0); set(x, h - 1, 0); }
   for (let y = 0; y < h; y++) { set(0, y, 0); set(w - 1, y, 0); }
-  // plaza
-  for (let y = 12; y < 32; y++) for (let x = 16; x < 40; x++) set(x, y, 2);
-  // fountain
-  for (let y = 20; y < 24; y++) for (let x = 26; x < 30; x++) set(x, y, 3);
-  // roads
-  for (let x = 1; x < w - 1; x++) for (let y = 21; y < 23; y++) if (tiles[y * w + x] === 1) set(x, y, 2);
-  for (let y = 1; y < h - 1; y++) for (let x = 27; x < 29; x++) if (tiles[y * w + x] === 1) set(x, y, 2);
-  // buildings (solid blocks)
+  // grand plaza + fountain
+  for (let y = cy - 13; y < cy + 13; y++) for (let x = cx - 18; x < cx + 18; x++) set(x, y, 2);
+  for (let y = cy - 2; y < cy + 2; y++) for (let x = cx - 2; x < cx + 2; x++) set(x, y, 3);
+  // avenues: east-west, north-south, and the two market streets in front of the house rows
+  for (let x = 1; x < w - 1; x++) for (const y of [cy - 1, cy, cy + 1, 14, 15, 56, 57]) if (tiles[y * w + x] === 1) set(x, y, 2);
+  for (let y = 1; y < h - 1; y++) for (let x = cx - 1; x < cx + 1; x++) if (tiles[y * w + x] === 1) set(x, y, 2);
   const block = (x0: number, y0: number, bw: number, bh: number) => { for (let y = y0; y < y0 + bh; y++) for (let x = x0; x < x0 + bw; x++) set(x, y, 0); };
-  block(6, 4, 8, 6); block(42, 4, 8, 6); block(6, 34, 8, 6); block(42, 34, 8, 6); block(18, 4, 6, 4); block(32, 4, 6, 4);
-  // trees
+  // two rows of shop buildings (north / south) with gaps for the avenue
+  const cols = [5, 17, 29, 63, 75, 87];
+  for (const x of cols) { block(x, 5, 8, 7); block(x, 60, 8, 7); }
   const rng = new Rng(77);
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 90; i++) {
     const x = rng.int(2, w - 3), y = rng.int(2, h - 3);
-    if (tiles[y * w + x] === 1 && Math.abs(x - 28) > 3 && Math.abs(y - 22) > 3) set(x, y, 4);
+    if (tiles[y * w + x] === 1 && (Math.abs(x - cx) > 20 || Math.abs(y - cy) > 15) && ![14, 15, 16, 13, 55, 56, 57, 58].includes(y)) set(x, y, 4);
   }
   const T = (tx: number, ty: number) => ({ x: tx * TILE + TILE / 2, y: ty * TILE + TILE / 2 });
+  const spots: Array<[number, number]> = [...cols.map((x) => [x + 4, 13] as [number, number]), ...cols.map((x) => [x + 4, 58] as [number, number]),
+    [cx - 12, cy - 9], [cx + 12, cy - 9], [cx - 12, cy + 9], [cx + 12, cy + 9], [cx - 15, cy], [cx + 15, cy - 4], [cx - 6, cy - 11], [cx + 6, cy + 11]];
   const interactables: Interactable[] = [
-    { id: 'portal', type: 'portal_dungeon', name: 'Rift Gate', ...T(28, 3) },
-    { id: 'gate_field', type: 'gate_field', name: 'Duskmeadow Road', ...T(54, 22) },
-    { id: 'smith', type: 'npc_smith', name: 'Brenna the Smith', ...T(10, 11) },
-    { id: 'trainer', type: 'npc_trainer', name: 'Master Ilrin', ...T(46, 11) },
-    { id: 'quartermaster', type: 'npc_quartermaster', name: 'Quartermaster Sol', ...T(10, 33) },
-    { id: 'quests', type: 'npc_quests', name: 'Commander Aveline', ...T(34, 16) },
-    { id: 'stash', type: 'stash', name: 'Astral Vault', ...T(46, 33) },
-    { id: 'auction', type: 'npc_auction', name: 'Auctioneer Vell', ...T(20, 16) },
-    { id: 'alchemist', type: 'npc_alchemist', name: 'Sister Maelis', ...T(36, 27) },
-    { id: 'carpenter', type: 'npc_carpenter', name: 'Carpenter Odo', ...T(40, 18) },
-    { id: 'house_door', type: 'house_door', name: 'Hearthstone Lane (your Hearth)', ...T(48, 22) },
+    { id: 'portal', type: 'portal_dungeon', name: 'Rift Gate', ...T(cx, 3) },
+    { id: 'gate_field', type: 'zone_gate', to: 'field', name: 'Duskmeadow Road', ...T(w - 2, cy) },
+    { id: 'house_door', type: 'house_door', name: 'Hearthstone Lane (your Hearth)', ...T(cx + 15, cy + 4) },
+    ...TOWN_NPCS.map(([type, name], i) => ({ id: type.replace('npc_', ''), type, name, ...T(...spots[i]!) })),
   ];
   const spawns: SpawnPoint[] = [
-    { enemy: 'dummy', ...T(4, 18), level: 1 }, { enemy: 'dummy', ...T(4, 22), level: 1 }, { enemy: 'dummy', ...T(4, 26), level: 1 },
+    { enemy: 'dummy', ...T(4, 30), level: 1 }, { enemy: 'dummy', ...T(4, 36), level: 1 }, { enemy: 'dummy', ...T(4, 42), level: 1 },
   ];
-  return { id: 'town', theme: 'town', w, h, tiles, spawn: T(28, 27), interactables, spawns, rooms: [], edges: [], seed: 0, modifiers: [], level: 1 };
+  return { id: 'town', theme: 'town', w, h, tiles, spawn: T(cx, cy + 6), interactables, spawns, rooms: [], edges: [], seed: 0, modifiers: [], level: 1 };
 }
 
-// ───────────────────────── OPEN WORLD: DUSKMEADOW ─────────────────────────
-interface OpenWorldCfg {
-  id: string; seed: number; palette?: 'ash' | 'star'; levelMin: number; levelMax: number;
-  pool: Array<[string, number, [number, number]]>; // enemy, weight, pack size
-  nodes: Array<{ type: 'herb' | 'ore'; res: string; name: string; count: number; req?: number }>;
-  fishing?: { res: string; name: string; count: number; req?: number };
-  westGate: Interactable['type']; westName: string; eastGate?: Interactable['type']; eastName?: string; level: number;
-}
-
-function buildOpenWorld(cfg: OpenWorldCfg): GameMap {
-  const w = 110, h = 80;
-  const seed = cfg.seed;
+// ───────────────────────── OPEN WORLD: 10 FARM ZONES ─────────────────────────
+/** Open-world zones are 220×150 tiles (7040×4800 world units) — ~4× the original area. */
+export const ZONE_W = 220, ZONE_H = 150;
+export function buildZone(zoneId: string): GameMap {
+  const zi = ZONES.findIndex((z) => z.id === zoneId);
+  const z = ZONES[zi]!;
+  const w = ZONE_W, h = ZONE_H, mid = Math.floor(h / 2);
+  const seed = z.seed;
   const rng = new Rng(seed);
   const tiles = new Array(w * h).fill(1);
   const set = (x: number, y: number, v: number) => { if (x >= 0 && y >= 0 && x < w && y < h) tiles[y * w + x] = v; };
-  // value noise for forests/lakes (lava fields in the Highlands)
-  const grid = 10;
+  // value noise for forests / lakes (lava, ice, tar … depending on the palette)
+  const grid = 12;
   const gw = Math.ceil(w / grid) + 2, gh = Math.ceil(h / grid) + 2;
   const nv = Array.from({ length: gw * gh }, () => rng.next());
   const noise = (x: number, y: number) => {
@@ -233,54 +234,67 @@ function buildOpenWorld(cfg: OpenWorldCfg): GameMap {
     const b = v(ix, iy + 1) + (v(ix + 1, iy + 1) - v(ix, iy + 1)) * sm(fx);
     return a + (b - a) * sm(fy);
   };
+  const waterCut = z.palette === 'sand' ? 0.08 : z.palette === 'mire' ? 0.2 : 0.14;
   for (let y = 0; y < h; y++)
     for (let x = 0; x < w; x++) {
       const n = noise(x, y);
-      if (n > 0.74) set(x, y, 4);
-      else if (n < 0.14) set(x, y, 3);
-      else if (n > 0.66 && rng.chance(0.35)) set(x, y, 4);
+      if (n > 0.76) set(x, y, 4);
+      else if (n < waterCut) set(x, y, 3);
+      else if (n > 0.68 && rng.chance(0.3)) set(x, y, 4);
     }
-  // winding road from west gate to east
-  let ry = 40;
+  // main road west → east, plus north–south trails every 24 tiles and two side roads
+  let ry = mid;
   for (let x = 0; x < w; x++) {
     ry += rng.int(-1, 1);
-    ry = Math.max(10, Math.min(h - 10, ry));
-    if (x > w - 10) ry += Math.sign(40 - ry); // arrive at the east gate
+    ry = Math.max(14, Math.min(h - 14, ry));
+    if (x > w - 14) ry += Math.sign(mid - ry);
+    if (x < 12) ry = mid;
     for (let dy = -2; dy <= 2; dy++) set(x, ry + dy, 2);
-    if (x % 22 === 11) for (let yy = 4; yy < h - 4; yy++) { set(x, yy, tiles[yy * w + x] === 3 ? 2 : tiles[yy * w + x] === 4 ? 1 : tiles[yy * w + x]!); }
+    if (x % 24 === 12) for (let yy = 4; yy < h - 4; yy++) { const t = tiles[yy * w + x]; set(x, yy, t === 3 ? 2 : t === 4 ? 1 : t!); set(x + 1, yy, tiles[yy * w + x + 1] === 4 ? 1 : tiles[yy * w + x + 1]!); }
   }
+  for (const yy of [Math.floor(h * 0.22), Math.floor(h * 0.78)]) for (let x = 10; x < w - 10; x++) { const t = tiles[yy * w + x]; set(x, yy, t === 4 ? 1 : t === 3 ? 2 : t!); }
   for (let x = 0; x < w; x++) { set(x, 0, 0); set(x, h - 1, 0); }
   for (let y = 0; y < h; y++) { set(0, y, 0); set(w - 1, y, 0); }
-  for (let y = 36; y < 45; y++) for (let x = 1; x < 8; x++) set(x, y, 2);
-  if (cfg.eastGate) for (let y = 36; y < 45; y++) for (let x = w - 8; x < w - 1; x++) set(x, y, 2);
+  const east = ZONES[zi + 1];
+  for (let y = mid - 4; y < mid + 5; y++) for (let x = 1; x < 9; x++) set(x, y, 2);
+  if (east) for (let y = mid - 4; y < mid + 5; y++) for (let x = w - 9; x < w - 1; x++) set(x, y, 2);
   const T = (tx: number, ty: number) => ({ x: tx * TILE + TILE / 2, y: ty * TILE + TILE / 2 });
-  const map: GameMap = { id: cfg.id, theme: 'field', palette: cfg.palette, w, h, tiles, spawn: T(4, 40), interactables: [{ id: 'gate_w', type: cfg.westGate, name: cfg.westName, ...T(2, 40) }], spawns: [], rooms: [], edges: [], seed, modifiers: [], level: cfg.level };
-  if (cfg.eastGate) map.interactables.push({ id: 'gate_e', type: cfg.eastGate, name: cfg.eastName ?? 'Road', ...T(w - 3, 40) });
+  const west = zi === 0 ? { id: 'town', name: 'Lumenhold' } : ZONES[zi - 1]!;
+  const map: GameMap = { id: z.id, theme: 'field', palette: z.palette === 'field' ? undefined : z.palette, w, h, tiles, spawn: T(5, mid), interactables: [{ id: 'gate_w', type: 'zone_gate', to: west.id, name: `Road to ${west.name}`, ...T(2, mid) }], spawns: [], rooms: [], edges: [], seed, modifiers: [], level: z.levelMin + 2 };
+  if (east) map.interactables.push({ id: 'gate_e', type: 'zone_gate', to: east.id, name: `Road to ${east.name} (Lv ${east.levelMin}-${east.levelMax})`, ...T(w - 3, mid) });
   const reach = reachableSet(map, map.spawn.x, map.spawn.y);
-  const freeTile = (minX: number, maxX: number): [number, number] => {
-    for (let i = 0; i < 400; i++) {
-      const tx = rng.int(minX, maxX), ty = rng.int(3, h - 4);
+  const freeTile = (minX: number, maxX: number, minY = 3, maxY = h - 4): [number, number] => {
+    for (let i = 0; i < 600; i++) {
+      const tx = rng.int(minX, maxX), ty = rng.int(minY, maxY);
       if (reach.has(ty * w + tx) && !SOLID.has(tiles[ty * w + tx]!)) return [tx, ty];
     }
-    return [10, 40];
+    return [12, mid];
   };
-  // spawn groups: level band rises to the east
+  // monster packs: the level band and the monster variants both rise to the east
+  const pool = zonePool(z.id);
   let group = 0;
-  for (let i = 0; i < 26; i++) {
-    const [tx, ty] = freeTile(14, w - 10);
-    const lvl = cfg.levelMin + Math.floor((tx / w) * (cfg.levelMax - cfg.levelMin + 1));
-    const [kind, , [a, b]] = rng.weighted(cfg.pool, (p) => p[1]);
-    const n = rng.int(a, b);
+  const lvlAt = (tx: number) => z.levelMin + Math.floor(Math.min(0.999, tx / w) * (z.levelMax - z.levelMin + 1));
+  for (let i = 0; i < 110; i++) {
+    const [tx, ty] = freeTile(16, w - 12);
+    const prog = tx / w;
+    let kind: string, pack: [number, number];
+    if (z.legacy && rng.chance(0.3)) { const l = rng.weighted(z.legacy, (p) => p[1]); kind = l[0]; pack = l[2]; }
+    else { const near = pool.filter((p) => Math.abs(p.at + 0.1 - prog) < 0.3); const pk = rng.pick(near.length ? near : pool); kind = pk.id; pack = pk.pack; }
+    const n = rng.int(pack[0], pack[1]);
     group++;
-    for (let j = 0; j < n; j++) map.spawns.push({ enemy: kind, x: tx * TILE + rng.range(-40, 40), y: ty * TILE + rng.range(-40, 40), level: lvl, group, elite: i % 9 === 8 && j === 0 });
+    for (let j = 0; j < n; j++) map.spawns.push({ enemy: kind, x: tx * TILE + rng.range(-48, 48), y: ty * TILE + rng.range(-48, 48), level: lvlAt(tx), group, elite: i % 9 === 8 && j === 0 });
+  }
+  // three field bosses spread across the zone and the overlord in the far east
+  for (let b = 0; b < 4; b++) {
+    const [tx, ty] = b === 3 ? freeTile(w - 40, w - 16, mid - 25, mid + 25) : freeTile(Math.floor(w * (0.2 + b * 0.22)), Math.floor(w * (0.3 + b * 0.22)));
+    map.spawns.push({ enemy: b === 3 ? `${z.id}_overlord` : `${z.id}_boss_${b}`, x: tx * TILE, y: ty * TILE, level: Math.min(z.levelMax, lvlAt(tx) + (b === 3 ? 2 : 1)), group: ++group });
   }
   let ni = 0;
-  for (const nd of cfg.nodes) for (let i = 0; i < nd.count; i++) {
+  for (const nd of z.nodes) for (let i = 0; i < nd.count; i++) {
     const [tx, ty] = freeTile(8, w - 4);
     map.interactables.push({ id: `${nd.type}${ni++}`, type: nd.type, name: nd.name, res: nd.res, req: nd.req, ...T(tx, ty) });
   }
-  if (cfg.fishing) {
-    // fishing spots: reachable floor tiles next to water/lava
+  if (z.fishing) {
     const shore: Array<[number, number]> = [];
     for (let y = 2; y < h - 2; y++) for (let x = 2; x < w - 2; x++) {
       if (!reach.has(y * w + x)) continue;
@@ -288,28 +302,15 @@ function buildOpenWorld(cfg: OpenWorldCfg): GameMap {
     }
     rng.shuffle(shore);
     const picked: Array<[number, number]> = [];
-    for (const p of shore) { if (picked.length >= cfg.fishing.count) break; if (picked.every((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) > 12)) picked.push(p); }
-    picked.forEach(([tx, ty], i) => map.interactables.push({ id: `fish${i}`, type: 'fishing', name: cfg.fishing!.name, res: cfg.fishing!.res, req: cfg.fishing!.req, ...T(tx, ty) }));
+    for (const p of shore) { if (picked.length >= z.fishing.count) break; if (picked.every((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) > 14)) picked.push(p); }
+    picked.forEach(([tx, ty], i) => map.interactables.push({ id: `fish${i}`, type: 'fishing', name: z.fishing!.name, res: z.fishing!.res, req: z.fishing!.req, ...T(tx, ty) }));
   }
   return map;
 }
-
-export function buildField(seed = 1337): GameMap {
-  return buildOpenWorld({ id: 'field', seed, levelMin: 2, levelMax: 9, level: 3, westGate: 'gate_town', westName: 'Road to Lumenhold', eastGate: 'gate_highlands', eastName: 'Pass to the Ashen Highlands',
-    pool: [['gloomfang', 2, [2, 4]], ['thornback', 1, [1, 2]], ['wisp', 2, [2, 4]]], nodes: [{ type: 'herb', res: 'moonpetal', name: 'Moonpetal Bloom', count: 14 }], fishing: { res: 'fish', name: 'Moonlake Shore', count: 6 } });
-}
-
-export function buildWastes(seed = 9090): GameMap {
-  return buildOpenWorld({ id: 'wastes', seed, palette: 'star', levelMin: 20, levelMax: 30, level: 22, westGate: 'gate_ash', westName: 'Back to the Ashen Highlands',
-    pool: [['shard_stalker', 3, [2, 4]], ['prism_seer', 2, [1, 2]], ['glass_colossus', 1, [1, 1]], ['starling', 2, [3, 5]]],
-    nodes: [{ type: 'ore', res: 'starglass', name: 'Starglass Cluster', count: 10, req: 6 }, { type: 'ore', res: 'starsteel', name: 'Starsteel Vein', count: 6, req: 4 }, { type: 'herb', res: 'starbloom', name: 'Starbloom', count: 10 }] });
-}
-
-export function buildHighlands(seed = 4242): GameMap {
-  return buildOpenWorld({ id: 'highlands', seed, palette: 'ash', levelMin: 10, levelMax: 20, level: 12, westGate: 'gate_meadow', westName: 'Back to Duskmeadow', eastGate: 'gate_wastes', eastName: 'Trail to the Starfall Wastes',
-    pool: [['ember_imp', 3, [2, 4]], ['flamecaller', 2, [1, 3]], ['magma_golem', 1, [1, 1]], ['cinder_drake', 2, [1, 2]]],
-    nodes: [{ type: 'ore', res: 'iron_ore', name: 'Iron Vein', count: 14 }, { type: 'ore', res: 'starsteel', name: 'Starsteel Vein', count: 5, req: 4 }, { type: 'herb', res: 'emberbloom', name: 'Emberbloom', count: 10 }], fishing: { res: 'ember_eel', name: 'Lava Pool', count: 5, req: 3 } });
-}
+/** Back-compat helpers (tests and tools). */
+export const buildField = (_seed?: number) => buildZone('field');
+export const buildHighlands = (_seed?: number) => buildZone('highlands');
+export const buildWastes = (_seed?: number) => buildZone('wastes');
 
 // ───────────────────────── PROCEDURAL DUNGEON ─────────────────────────
 export interface DungeonOptions { seed: number; level: number; floor?: number; difficulty: string; layout?: 'rift' | 'tower'; boss?: string; modifiers?: string[]; eliteChance?: number; pool?: string[] }
