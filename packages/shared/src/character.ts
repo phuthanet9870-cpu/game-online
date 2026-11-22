@@ -7,7 +7,7 @@ import { CRAFT_SLOTS, ELIXIRS, MATERIALS, PROFESSIONS, PROF_MAX, RECIPE_MAP, pro
 import { generateItem, makeUid, salvageValue, sellValue, enchantCost, rerollAffix, STARTER_WEAPON } from './loot.js';
 import { Rng } from './math.js';
 import type { CharacterData, ClassId, EquipSlot, Item } from './types.js';
-import { ACTIVE_SLOTS, CLASS_IDS, EQUIP_SLOTS, INVENTORY_SIZE, LEVEL_CAP, ULTIMATE_SLOTS } from './types.js';
+import { ACTIVE_SLOTS, CLASS_IDS, EQUIP_SLOTS, INVENTORY_SIZE, LEVEL_CAP, ULTIMATE_SLOTS, invSize } from './types.js';
 
 export const CHARACTER_VERSION = 1;
 export const MAX_CHARACTERS = 8;
@@ -58,7 +58,7 @@ function padTo<T>(arr: T[], n: number): (T | null)[] {
 /** Migrate/repair persisted data so older saves keep working when the schema grows. */
 export function normalizeCharacter(raw: CharacterData): CharacterData {
   const ch = { ...raw };
-  ch.inventory = padTo((ch.inventory ?? []).slice(0, INVENTORY_SIZE), INVENTORY_SIZE);
+  ch.inventory = padTo((ch.inventory ?? []).slice(0, invSize(ch)), invSize(ch));
   ch.loadout = { active: padTo(ch.loadout?.active ?? [], ACTIVE_SLOTS), ultimate: padTo(ch.loadout?.ultimate ?? [], ULTIMATE_SLOTS) };
   ch.presets ??= []; ch.quests ??= {}; ch.mastery ??= { level: 1, xp: 0 };
   ch.stats ??= { kills: 0, deaths: 0, bossKills: 0, runsCleared: 0, highestTier: 0 };
@@ -248,7 +248,7 @@ export function enchantItem(ch: CharacterData, loc: { inv?: number; slot?: Equip
 }
 
 export function moveInventory(ch: CharacterData, from: number, to: number): Result<void> {
-  if (from < 0 || to < 0 || from >= INVENTORY_SIZE || to >= INVENTORY_SIZE) return fail('Bad index');
+  if (from < 0 || to < 0 || from >= ch.inventory.length || to >= ch.inventory.length) return fail('Bad index');
   const a = ch.inventory[from] ?? null;
   ch.inventory[from] = ch.inventory[to] ?? null;
   ch.inventory[to] = a;

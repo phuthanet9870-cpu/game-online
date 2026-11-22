@@ -71,3 +71,18 @@ describe('AFK camp', () => {
     expect(claimAfk(acc, ch).ok).toBe(false);
   });
 });
+
+import { expandBag, normalizeCharacter, BAG_MAX_EXTRA, INVENTORY_SIZE } from '../src/index.js';
+describe('bag expansion', () => {
+  it('adds 8 slots per step for rising cost, survives normalisation, and stops at the cap', () => {
+    const { ch } = mk();
+    ch.gold = 1e7; ch.dust = 1e6;
+    expect(expandBag(ch).ok).toBe(true);
+    expect(ch.inventory.length).toBe(INVENTORY_SIZE + 8);
+    const g = ch.gold; expandBag(ch); const step2 = g - ch.gold;
+    expect(step2).toBeGreaterThan(1000);
+    expect(normalizeCharacter(JSON.parse(JSON.stringify(ch))).inventory.length).toBe(INVENTORY_SIZE + 16);
+    while (expandBag(ch).ok) { /* fill up */ }
+    expect(ch.inventory.length).toBe(INVENTORY_SIZE + BAG_MAX_EXTRA);
+  });
+});

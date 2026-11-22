@@ -6,6 +6,7 @@ import { ACHIEVEMENTS } from './data/quests.js';
 import { MATERIALS } from './data/crafting.js';
 import { POTION } from './data/items.js';
 import type { AccountProgress, CharacterData, Mod } from './types.js';
+import { BAG_MAX_EXTRA, BAG_STEP } from './types.js';
 import type { Rng } from './math.js';
 import { grantXp, xpToNext } from './character.js';
 
@@ -282,4 +283,18 @@ export function claimAfk(acc: AccountProgress, ch: CharacterData): Result<{ minu
   grantReward(acc, ch, { gold: p.gold, mats: p.mats });
   const lv = grantXp(ch, p.xp);
   return ok({ minutes: p.minutes, xp: p.xp, gold: p.gold, levels: lv.levels });
+}
+
+// ── bag expansion (per character) ──────────────────────────
+export const bagExpandCost = (extra: number) => { const k = Math.floor(extra / BAG_STEP); return { gold: 1000 * (k + 1) * (k + 1), dust: 20 * (k + 1) }; };
+export function expandBag(ch: CharacterData): Result<{ size: number }> {
+  const extra = ch.bagSlots ?? 0;
+  if (extra >= BAG_MAX_EXTRA) return fail('Bags are at maximum size');
+  const c = bagExpandCost(extra);
+  if (ch.gold < c.gold) return fail(`Needs ${c.gold} gold`);
+  if (ch.dust < c.dust) return fail(`Needs ${c.dust} Astral Dust`);
+  ch.gold -= c.gold; ch.dust -= c.dust;
+  ch.bagSlots = extra + BAG_STEP;
+  for (let i = 0; i < BAG_STEP; i++) ch.inventory.push(null);
+  return ok({ size: ch.inventory.length });
 }

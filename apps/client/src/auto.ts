@@ -5,8 +5,8 @@ import { CLASSES, ENEMIES, QUESTS, RARITIES, SKILL_MAP, findPath, clearPath, typ
 import type { ClientGame, CEnt } from './game.js';
 import { store } from './net.js';
 
-export interface AutoSettings { combat: boolean; potion: boolean; loot: boolean; potionPct: number; lootMin: string; useUlts: boolean; leash: number }
-const DEFAULTS: AutoSettings = { combat: false, potion: true, loot: true, potionPct: 40, lootMin: 'uncommon', useUlts: true, leash: 700 };
+export interface AutoSettings { combat: boolean; potion: boolean; loot: boolean; potionPct: number; lootMin: string; useUlts: boolean; leash: number; skillsOff: string[]; autoMount: boolean; stopBagFull: boolean; dodge: boolean; townIdle: boolean }
+const DEFAULTS: AutoSettings = { combat: false, potion: true, loot: true, potionPct: 40, lootMin: 'uncommon', useUlts: true, leash: 700, skillsOff: [], autoMount: true, stopBagFull: true, dodge: true, townIdle: true };
 type Zone = 'town' | 'field' | 'highlands' | 'wastes';
 /** Which gate in each zone leads where. */
 const GATES: Record<Zone, Partial<Record<Zone, string>>> = { town: { field: 'gate_field' }, field: { town: 'gate_town', highlands: 'gate_highlands' }, highlands: { field: 'gate_meadow', wastes: 'gate_wastes' }, wastes: { highlands: 'gate_ash' } };
@@ -40,6 +40,10 @@ export class AutoPilot {
   private pathGoal = '';
   private pathT = 0;
   private anchor: { x: number; y: number; room: string } | null = null;
+  private potT = 0;
+  private targetSent = { id: 0, t: 0 };
+  private mountT = 0;
+  private dodgeT = 0;
   constructor(private g: ClientGame, private send: (m: any) => void) {
     let saved: Partial<AutoSettings> = {};
     try { saved = JSON.parse(store.get('astra.auto') ?? '{}'); } catch { /* defaults */ }
@@ -55,18 +59,20 @@ export class AutoPilot {
   /** Per frame: returns an input override, or null to leave the player's input alone. */
   update(dt: number): { mx: number; my: number; ax: number; ay: number; atk: boolean } | null {
     const g = this.g, me = g.me(), ch = g.char, self = g.self, map = g.map;
-    this.castT -= dt; this.interactT -= dt; this.pathT -= dt;
+    this.castT -= dt; this.interactT -= dt; this.pathT -= dt; this.potT -= dt; this.mountT -= dt; this.dodgeT -= dt; this.dt = dt;
     if (!me || !ch || !self || !map || me.dead) { this.status = ''; return null; }
     // auto-potion and auto-loot work even while the player drives
-    if (this.s.potion && me.hp / me.mhp * 100 < this.s.potionPct && self.potCd <= 0 && self.potions > 0) this.send({ t: 'potion' });
+    if (this.s.potion && this.potT <= 0 && me.hp / me.mhp * 100 < this.s.potionPct && self.potCd <= 0 && self.potions > 0) { this.potT = 1.2; this.send({ t: 'potion' }); }
     if (this.pauseT > 0) { this.pauseT -= dt; this.status = 'paused'; return null; }
     if (!this.active) { this.status = ''; return null; }
+    if (this.s.stopBagFull && this.s.loot && ch.inventory.every(Boolean) && !this.quest) { this.status = 'bags full'; }
     const roomId = g.room?.id ?? '';
     if (!this.anchor || this.anchor.room !== roomId) this.anchor = { x: me.rx, y: me.ry, room: roomId };
     // 1) fight whatever is near
     const tgt = this.pickTarget(me);
     if (tgt) {
       this.status = 'combat';
+      if (this.s.dodge && this.dodgeT <= 0 && self.dodge <= 0) { const danger = g.areas.find((a) => a.team === 1 && a.delay > 0 && a.delay < 0.45 && Math.hypot(a.x - me.rx, a.y - me.ry) < a.r + 10); if (danger) { this.dodgeT = 1; const dx = me.rx - danger.x, dy = me.ry - danger.y, d = Math.hypot(dx, dy) || 1; this.send({ t: 'dodge', dx: dx / d, dy: dy / d }); } }
       this.rotation(ch, me, tgt);
       const reach = this.reach(ch);
       const d = Math.hypot(tgt.rx - me.rx, tgt.ry - me.ry);
@@ -74,7 +80,7 @@ export class AutoPilot {
       return { mx: 0, my: 0, ax: tgt.rx, ay: tgt.ry - 10, atk: true };
     }
     // 2) loot
-    if (this.s.loot) {
+    if (this.s.loot && !(this.s.stopBagFull && ch.inventory.every(Boolean))) {
       const minI = RARITIES.indexOf(this.s.lootMin as never);
       const drop = g.drops.filter((d) => d.rarity === 'gold' || RARITIES.indexOf(d.rarity as never) >= minI).map((d) => ({ d, dist: Math.hypot(d.x - me.rx, d.y - me.ry) })).filter((x) => x.dist < 360).sort((a, b) => a.dist - b.dist)[0];
       if (drop) {
@@ -93,13 +99,15 @@ export class AutoPilot {
         const next = this.nextZone(here, goal.zone);
         const gate = next ? GATES[here]?.[next] : undefined;
         this.status = `quest → ${goal.zone}`;
+        if (this.s.autoMount && !self.mount && this.mountT <= 0 && g.account?.meta?.mount) { this.mountT = 4; this.send({ t: 'mount_toggle' }); }
         if (gate) return this.goInteract(map, me, gate);
         return null;
       }
       if (goal.target) { this.status = `quest → ${goal.label}`; const r = this.goInteract(map, me, goal.target); if (r) return r; this.quest = goal.target === 'npc_quests' ? this.quest : null; return null; }
       if (goal.farm) { this.status = `quest: hunting in ${goal.label}`; return this.wander(map, me); }
     }
-    // 4) nothing to do: drift back towards where auto-combat started
+    // 4) nothing to do: drift back towards where auto-combat started (towns are safe: stand still)
+    if (this.s.combat && this.s.townIdle && g.room?.kind === 'town') { this.status = 'town'; return null; }
     if (this.s.combat && this.anchor) {
       const d = Math.hypot(this.anchor.x - me.rx, this.anchor.y - me.ry);
       this.status = 'searching';
@@ -121,7 +129,7 @@ export class AutoPilot {
       const d = Math.hypot(e.rx - me.rx, e.ry - me.ry) - (e.windup > 0 ? 120 : 0); // whoever is swinging at us first
       if (d < bd) { bd = d; best = e; }
     }
-    if (best && best.id !== g.self?.target) this.send({ t: 'target', id: best.id });
+    if (best && best.id !== g.self?.target && (this.targetSent.id !== best.id || performance.now() - this.targetSent.t > 1000)) { this.targetSent = { id: best.id, t: performance.now() }; this.send({ t: 'target', id: best.id }); }
     return best;
   }
   private reach(ch: CharacterData) { const b = CLASSES[ch.cls].basic; return Math.max(60, (b.chain[0]?.range ?? 80) * (b.kind === 'projectile' ? 0.8 : 0.85)); }
@@ -135,7 +143,7 @@ export class AutoPilot {
     const d = Math.hypot(tgt.rx - me.rx, tgt.ry - me.ry);
     const ok = (id: string | null, cd: number) => {
       const sk = id ? SKILL_MAP[id] : null;
-      if (!sk || cd > 0) return false;
+      if (!sk || cd > 0 || this.s.skillsOff.includes(sk.id)) return false;
       if (self.res < sk.cost) return false;
       if (sk.requireSecondary && self.sec < sk.requireSecondary) return false;
       if (sk.consumeSecondary && self.sec < Math.max(2, (self.secMax ?? 3) - 1)) return false; // finishers at (near) full points
@@ -171,9 +179,9 @@ export class AutoPilot {
     const [mx, my] = this.steer(map, me, it.x, it.y, `i${type}`);
     return { mx, my, ax: it.x, ay: it.y, atk: false };
   }
-  private wanderT = 0; private wanderDir = 0;
+  private wanderT = 0; private wanderDir = 0; private dt = 0.016;
   private wander(map: GameMap, me: CEnt) {
-    this.wanderT -= 0.016;
+    this.wanderT -= this.dt;
     if (this.wanderT <= 0) { this.wanderT = 2 + Math.random() * 2; this.wanderDir = Math.random() * Math.PI * 2; }
     const tx = me.rx + Math.cos(this.wanderDir) * 200, ty = me.ry + Math.sin(this.wanderDir) * 200;
     if (!clearPath(map, me.rx, me.ry, tx, ty, 14)) { this.wanderT = 0; return { mx: 0, my: 0, ax: tx, ay: ty, atk: false }; }

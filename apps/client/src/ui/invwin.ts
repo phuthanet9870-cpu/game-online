@@ -1,6 +1,6 @@
 // Inventory & equipment window (concept 07): character card + paper doll, filtered item grid, Equipped vs Selected
 // comparison cards and context actions. All numbers come from the real item data; actions are the server's.
-import { AFFIX_MAP, CLASSES, EQUIP_SLOTS, ITEM_BASE_MAP, MATERIALS, PETS, POTION, RARITIES, RARITY_DEFS, AURAS, ACHIEVEMENTS, ENEMIES, combatPower, computeStats, enchantCost, itemMods, salvageValue, sellValue, type EquipSlot, type Item } from '@astra/shared';
+import { BAG_MAX_EXTRA, BAG_STEP, INVENTORY_SIZE, bagExpandCost, AFFIX_MAP, CLASSES, EQUIP_SLOTS, ITEM_BASE_MAP, MATERIALS, PETS, POTION, RARITIES, RARITY_DEFS, AURAS, ACHIEVEMENTS, ENEMIES, combatPower, computeStats, enchantCost, itemMods, salvageValue, sellValue, type EquipSlot, type Item } from '@astra/shared';
 import { getLang, t } from '../i18n.js';
 import { itemName, powerDesc, rarityName, slotName, statText } from '../l10n.js';
 import { clear, h } from './dom.js';
@@ -86,10 +86,12 @@ export function inventoryWindow(ctx: PanelCtx, mode: Mode, rerender: () => void)
     c.oncontextmenu = (e) => { e.preventDefault(); hideTip(); send({ t: 'equip', inv: i }); };
     grid.append(c);
   }
-  for (let k = order.length; k < Math.max(24, Math.ceil(order.length / 6) * 6); k++) grid.append(h('div', { class: 'icell empty' }));
+  const cap = ui.filter === 'all' ? ch.inventory.length : Math.max(24, Math.ceil(order.length / 6) * 6);
+  for (let k = order.length; k < cap; k++) grid.append(h('div', { class: 'icell empty' }));
   const mid = h('div', { class: 'inv-mid' },
     h('div', { class: 'filters' }, ...FILTERS.map(([f, ic, label]) => { const b = h('button', { class: 'flt' + (ui.filter === f ? ' on' : ''), title: label, onclick: () => { ui.filter = f; rerender(); } }, uiIcon(ic, 26)); return b; })),
     h('div', { class: 'row between inv-sub' }, h('b', null, uiIcon('bag', 20), ` ${th ? 'กระเป๋า' : 'Inventory'} (${used} / ${ch.inventory.length})`),
+      (ch.bagSlots ?? 0) < BAG_MAX_EXTRA ? (() => { const c = bagExpandCost(ch.bagSlots ?? 0); const b = h('button', { class: 'btn tiny gold', disabled: ch.gold < c.gold || ch.dust < c.dust, onclick: () => send({ t: 'bag_expand' }) }, `+${BAG_STEP} ${th ? 'ช่อง' : 'slots'} · ${c.gold.toLocaleString()}g ${c.dust}✦`); b.title = th ? `ขยายกระเป๋า (สูงสุด ${INVENTORY_SIZE + BAG_MAX_EXTRA} ช่อง)` : `Expand bags (max ${INVENTORY_SIZE + BAG_MAX_EXTRA} slots)`; return b; })() : h('small', { class: 'muted' }, th ? 'กระเป๋าเต็มขนาดแล้ว' : 'Max size'),
       h('select', { class: 'sortsel', 'aria-label': 'Sort', onchange: (e: Event) => { ui.sort = (e.target as HTMLSelectElement).value as typeof ui.sort; rerender(); } }, ...([['rarity', th ? 'ความหายาก' : 'Rarity'], ['level', th ? 'เลเวลไอเทม' : 'Item level'], ['slot', th ? 'ช่องสวมใส่' : 'Slot']] as const).map(([v, l]) => h('option', { value: v, selected: ui.sort === v }, l)))),
     grid,
     h('div', { class: 'inv-foot' }, h('span', null, uiIcon('potion', 20, '#ff4a5a'), ` ${t('potion')} ${ch.potions}/${POTION.maxCharges}`), (ch.mats?.treasure_map ?? 0) > 0 || ch.treasure ? h('span', null, matIcon('treasure_map', 20), ` ${ch.mats?.treasure_map ?? 0}`, ch.treasure ? h('small', { class: 'muted' }, th ? ' กำลังล่าสมบัติ' : ' hunt active') : h('button', { class: 'btn tiny', onclick: () => send({ t: 'use_map' }) }, th ? 'อ่านแผนที่' : 'Read map')) : null,

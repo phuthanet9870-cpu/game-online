@@ -258,6 +258,8 @@ export interface CharacterData {
   benefits?: string[];
   awaken?: number;
   emblems?: string[];
+  /** Extra inventory slots bought with bag expansions. */
+  bagSlots?: number;
   /** AFK camp: set when logging out in the open world; settled into `afkPending` on the next login. */
   afk?: { from: number; zone: string } | null;
   afkPending?: { minutes: number; zone: string; xp: number; gold: number; mats: Record<string, number> } | null;
@@ -284,6 +286,10 @@ export interface SeasonProgress { id: string; xp: number; shards: number; claime
 export const STASH_SIZE = 20;
 
 export const INVENTORY_SIZE = 40;
+/** Bag expansion: +8 slots per step, up to +40 (80 slots). */
+export const BAG_STEP = 8;
+export const BAG_MAX_EXTRA = 40;
+export const invSize = (ch: { bagSlots?: number }) => INVENTORY_SIZE + Math.max(0, Math.min(BAG_MAX_EXTRA, ch.bagSlots ?? 0));
 export const ACTIVE_SLOTS = 8;
 export const ULTIMATE_SLOTS = 4;
 export const LEVEL_CAP = 100;

@@ -15,13 +15,13 @@ import { craftingWindow } from './craftwin.js';
 import * as MW from './metawin.js';
 import { AutoPilot } from '../auto.js';
 import { gmWindow } from './gmwin.js';
-import { BENEFITS, benefitReady, dayIndex, normalizeMeta, COSMETICS } from '@astra/shared';
+import { SKILL_MAP as SKM, BENEFITS, benefitReady, dayIndex, normalizeMeta, COSMETICS } from '@astra/shared';
 import { modeBanner } from './screens.js';
 import * as S from './social.js';
 import { sound } from '../audio.js';
 import { itemName, translateDom, trText } from '../l10n.js';
 
-type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 'codex' | 'social' | 'guild' | 'auction' | 'ladder' | 'alchemist' | 'season' | 'hearth' | 'carpenter' | 'settings' | 'dungeon' | 'smith' | 'quartermaster' | 'trainer' | 'stash' | 'map' | 'crafting' | 'login' | 'shop' | 'benefits' | 'wish' | 'awaken' | 'wardrobe' | 'friends' | 'gm';
+type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 'codex' | 'social' | 'guild' | 'auction' | 'ladder' | 'alchemist' | 'season' | 'hearth' | 'carpenter' | 'settings' | 'dungeon' | 'smith' | 'quartermaster' | 'trainer' | 'stash' | 'map' | 'crafting' | 'login' | 'shop' | 'benefits' | 'wish' | 'awaken' | 'wardrobe' | 'friends' | 'gm' | 'auto';
 
 export class GameUI {
   game = new ClientGame();
@@ -89,7 +89,7 @@ export class GameUI {
           E.chatIn = h('input', { class: 'chat-in', maxLength: 200, placeholder: th ? 'พิมพ์ข้อความ…' : 'Type a message…', 'aria-label': 'Chat' }),
           h('button', { class: 'chat-send', 'aria-label': 'Send', onclick: () => this.sendChat() }, '➤'))),
       E.bar = h('div', { class: 'hotbar' }),
-      E.autoBox = h('div', { class: 'auto-box' }, E.autoBtn = h('button', { class: 'auto-btn', onclick: () => { this.auto.setCombat(!this.auto.s.combat); this.renderAuto(); } }, 'AUTO'), E.autoSt = h('small', { class: 'auto-st' })),
+      E.autoBox = h('div', { class: 'auto-box' }, E.autoBtn = h('button', { class: 'auto-btn', onclick: () => { this.auto.setCombat(!this.auto.s.combat); this.renderAuto(); } }, 'AUTO'), h('button', { class: 'auto-gear', title: getLang() === 'th' ? 'ตั้งค่าออโต้' : 'Auto settings', onclick: () => this.toggle('auto') }, uiIcon('gear', 18)), E.autoSt = h('small', { class: 'auto-st' })),
       E.menu = h('nav', { class: 'rmenu', 'aria-label': 'Game menu' }),
       h('div', { class: 'xpline' }, E.xp = h('div', { class: 'xpbar' }, h('i'), h('span')), E.cur = h('div', { class: 'currencies' })),
       E.panel = h('aside', { class: 'panel', hidden: true, role: 'dialog' }),
@@ -99,6 +99,16 @@ export class GameUI {
     );
     E.goal = h('div', { class: 'goal', hidden: true });
     this.root.append(E.wrap);
+    // every HUD block that can cover the view can be collapsed to a small tab (remembered per browser)
+    const th0 = getLang() === 'th';
+    this.collapsible(E.tracker!, 'tracker', 'scroll', th0 ? 'เควสต์' : 'Quests');
+    this.collapsible(E.party!, 'party', 'people', th0 ? 'ปาร์ตี้' : 'Party');
+    this.collapsible(E.chat!, 'chat', 'chat', th0 ? 'แชท' : 'Chat');
+    this.collapsible(E.mini!.parentElement!.parentElement!, 'map', 'mapicon', th0 ? 'แผนที่' : 'Map');
+    this.collapsible(E.topmenu!, 'features', 'grid', th0 ? 'ฟีเจอร์' : 'Features');
+    this.collapsible(E.zone!, 'zone', 'sigil', th0 ? 'ข้อมูลพื้นที่' : 'Zone');
+    E.wrap.append(h('button', { class: 'hud-eye', title: th0 ? 'ซ่อน/แสดง HUD ทั้งหมด (F9)' : 'Hide / show the whole HUD (F9)', onclick: () => this.toggleHud() }, uiIcon('eye', 22, '#e8e0ff')));
+    addEventListener('keydown', this.onHudKey);
     this.renderer = new Renderer(canvas, this.game);
     this.auto = new AutoPilot(this.game, (m) => this.send(m));
     this.input = new Input(canvas);
@@ -118,11 +128,26 @@ export class GameUI {
   }
 
   private onResize = () => { this.renderer.resize(); };
+  private onHudKey = (e: KeyboardEvent) => { if (e.code === 'F9') { e.preventDefault(); this.toggleHud(); } };
+  private hudState: Record<string, boolean> = (() => { try { return JSON.parse(store.get('astra.hud') ?? '{}'); } catch { return {}; } })();
+  private toggleHud() { this.el.wrap!.classList.toggle('hud-hidden'); }
+  /** Adds a collapse button to a HUD block; collapsed blocks show a small tab with an icon and a label. */
+  private collapsible(el: HTMLElement, key: string, icon: string, label: string) {
+    el.classList.add('collapsible');
+    const tab = h('button', { class: 'cl-tab', title: label, onclick: () => set(false) }, uiIcon(icon, 18, '#e8e0ff'), h('span', null, label));
+    const btn = h('button', { class: 'cl-btn', title: getLang() === 'th' ? 'ย่อ' : 'Collapse', onclick: (e: Event) => { e.stopPropagation(); set(true); } }, '–');
+    const set = (v: boolean) => { this.hudState[key] = v; store.set('astra.hud', JSON.stringify(this.hudState)); el.classList.toggle('collapsed', v); };
+    el.append(btn, tab);
+    el.classList.toggle('collapsed', !!this.hudState[key]);
+    // keep the controls when the block re-renders its content
+    new MutationObserver(() => { if (!el.contains(btn)) el.append(btn); if (!el.contains(tab)) el.append(tab); }).observe(el, { childList: true });
+  }
 
   destroy() {
     this.alive = false;
     cancelAnimationFrame(this.raf);
     removeEventListener('resize', this.onResize);
+    removeEventListener('keydown', this.onHudKey);
     this.input.enabled = false;
     this.conn?.close();
     sound.ambience(null);
@@ -553,15 +578,27 @@ export class GameUI {
       h('button', { class: 'btn gold big', onclick: () => { this.send({ t: 'afk_claim' }); close(); } }, th ? 'รับรางวัล' : 'Collect'),
       h('small', { class: 'muted' }, th ? 'ออกจากเกมในโลกเปิด (ไม่ใช่ในเมือง) เพื่อตั้งแคมป์ฟาร์ม · อัตราต่ำกว่าการเล่นจริง' : 'Log out in the open world (not in town) to make camp. Camp rewards are lower than active play.'))));
   }
-  private autoSettings() {
-    const a = this.auto, th = getLang() === 'th';
-    const sel = (label: string, value: string, opts: Array<[string, string]>, on: (v: string) => void) => h('label', { class: 'set' }, label, h('select', { onchange: (e: Event) => { on((e.target as HTMLSelectElement).value); a.save(); } }, ...opts.map(([v, l]) => h('option', { value: v, selected: v === value }, l))));
-    return h('div', { class: 'settings' }, h('h3', null, th ? 'ระบบออโต้' : 'Auto system'),
-      sel(th ? 'ดื่มยาอัตโนมัติเมื่อ HP ต่ำกว่า' : 'Auto-potion below HP', a.s.potion ? String(a.s.potionPct) : '0', [['0', th ? 'ปิด' : 'Off'], ['30', '30%'], ['40', '40%'], ['50', '50%'], ['60', '60%']], (v) => { a.s.potion = v !== '0'; if (v !== '0') a.s.potionPct = Number(v); }),
-      sel(th ? 'เก็บของอัตโนมัติ (ความหายากขั้นต่ำ)' : 'Auto-loot (minimum rarity)', a.s.loot ? a.s.lootMin : 'off', [['off', th ? 'ปิด' : 'Off'], ['common', 'Common+'], ['uncommon', 'Uncommon+'], ['rare', 'Rare+'], ['epic', 'Epic+']], (v) => { a.s.loot = v !== 'off'; if (v !== 'off') a.s.lootMin = v; }),
-      sel(th ? 'ใช้อัลติเมตอัตโนมัติ (บอส/อีลิต/ฝูง)' : 'Auto-use ultimates (bosses, elites, packs)', a.s.useUlts ? '1' : '0', [['1', th ? 'เปิด' : 'On'], ['0', th ? 'ปิด' : 'Off']], (v) => { a.s.useUlts = v === '1'; }),
-      sel(th ? 'ระยะไล่ล่าจากจุดเริ่ม' : 'Hunt radius from start point', String(a.s.leash), [['400', '400'], ['700', '700'], ['1000', '1000']], (v) => { a.s.leash = Number(v); }),
-      h('p', { class: 'hint' }, th ? 'ออโต้ใช้ข้อความเดียวกับผู้เล่นและเซิร์ฟเวอร์ตรวจทุกอย่าง · กดเดินหรือใช้สกิลเองจะหยุดชั่วคราว 2.5 วินาที · ปุ่ม ▶ ข้างเควสต์จะเดินไปทำเควสต์ให้' : 'Auto sends the same messages a player does and the server checks everything. Moving or casting yourself pauses it for 2.5s. The ▶ next to a quest travels to it and does it.'));
+  private autoWindow() {
+    const a = this.auto, th = getLang() === 'th', ch = this.game.char!;
+    const save = () => { a.save(); this.renderPanel(); };
+    const toggle = (label: string, desc: string, on: boolean, set: (v: boolean) => void) => h('div', { class: 'aset' }, h('div', { class: 'grow' }, h('b', null, label), h('small', { class: 'muted' }, desc)), h('button', { class: 'switch' + (on ? ' on' : ''), role: 'switch', 'aria-checked': String(on), onclick: () => { set(!on); save(); } }, h('i')));
+    const choice = (label: string, desc: string, value: string, opts: Array<[string, string]>, set: (v: string) => void) => h('div', { class: 'aset' }, h('div', { class: 'grow' }, h('b', null, label), h('small', { class: 'muted' }, desc)), h('div', { class: 'seg' }, ...opts.map(([v, l]) => h('button', { class: v === value ? 'on' : '', onclick: () => { set(v); save(); } }, l))));
+    const skillRow = (ids: Array<string | null>, ult: boolean) => h('div', { class: 'aset-skills' }, ...ids.map((id, i) => { if (!id) return h('div', { class: 'lo-empty' }); const off = a.s.skillsOff.includes(id); const b = h('button', { class: 'askill' + (off ? ' off' : ''), onclick: () => { a.s.skillsOff = off ? a.s.skillsOff.filter((x) => x !== id) : [...a.s.skillsOff, id]; save(); } }, skillIcon(id, 46), h('em', null, String(ult ? i + 9 : i + 1)), h('small', null, off ? (th ? 'ปิด' : 'Off') : (th ? 'ใช้' : 'On'))); bindTip(b, () => h('div', { class: 'tip' }, SKM[id]?.name ?? id)); return b; }));
+    return h('div', { class: 'autowin' },
+      h('div', { class: 'aset-head' }, h('button', { class: 'auto-btn big' + (a.s.combat ? ' on' : ''), onclick: () => { a.setCombat(!a.s.combat); this.renderAuto(); this.renderPanel(); } }, 'AUTO'), h('div', null, h('b', null, a.s.combat ? (th ? 'ออโต้กำลังทำงาน' : 'Auto is running') : (th ? 'ออโต้ปิดอยู่' : 'Auto is off')), h('p', { class: 'muted' }, th ? 'ออโต้ใช้คำสั่งเดียวกับผู้เล่นและเซิร์ฟเวอร์ตรวจทุกอย่าง · เดินหรือใช้สกิลเองจะหยุดชั่วคราว 2.5 วินาที' : 'Auto sends the same commands as a player and the server checks everything. Moving or casting yourself pauses it for 2.5 s.'))),
+      h('div', { class: 'sec-title' }, uiIcon('crossed', 20), th ? 'การต่อสู้' : 'Combat'),
+      toggle(th ? 'ใช้อัลติเมตอัตโนมัติ' : 'Use ultimates', th ? 'ใช้กับบอส อีลิต หรือฝูง 3 ตัวขึ้นไป' : 'On bosses, elites or packs of 3+', a.s.useUlts, (v) => { a.s.useUlts = v; }),
+      toggle(th ? 'หลบการโจมตีอัตโนมัติ' : 'Auto-dodge telegraphs', th ? 'กลิ้งออกจากวงแดงก่อนโดนโจมตี' : 'Roll out of red danger zones before they land', a.s.dodge, (v) => { a.s.dodge = v; }),
+      choice(th ? 'ระยะไล่ล่า' : 'Hunt radius', th ? 'ระยะห่างสูงสุดจากจุดที่เปิดออโต้' : 'How far from where you switched auto on', String(a.s.leash), [['400', th ? 'ใกล้' : 'Near'], ['700', th ? 'กลาง' : 'Medium'], ['1000', th ? 'ไกล' : 'Far']], (v) => { a.s.leash = Number(v); }),
+      h('div', { class: 'sec-title' }, uiIcon('book', 20), th ? 'สกิลที่ให้ออโต้ใช้ (คลิกเพื่อเปิด/ปิด)' : 'Skills auto may use (click to toggle)'), skillRow(ch.loadout.active, false), skillRow(ch.loadout.ultimate, true),
+      h('div', { class: 'sec-title' }, uiIcon('potion', 20, '#ff4a5a'), th ? 'ยาและการเก็บของ' : 'Potions & loot'),
+      choice(th ? 'ดื่มยาเมื่อ HP ต่ำกว่า' : 'Drink a potion below HP', th ? 'ทำงานแม้ไม่ได้เปิดออโต้ต่อสู้' : 'Works even when auto-combat is off', a.s.potion ? String(a.s.potionPct) : '0', [['0', th ? 'ปิด' : 'Off'], ['30', '30%'], ['40', '40%'], ['50', '50%'], ['60', '60%'], ['70', '70%']], (v) => { a.s.potion = v !== '0'; if (v !== '0') a.s.potionPct = Number(v); }),
+      choice(th ? 'เก็บไอเทมตั้งแต่ระดับ' : 'Pick up items from', th ? 'ทองเก็บเสมอ' : 'Gold is always picked up', a.s.loot ? a.s.lootMin : 'off', [['off', th ? 'ปิด' : 'Off'], ['common', 'Common'], ['uncommon', 'Uncommon'], ['rare', 'Rare'], ['epic', 'Epic'], ['legendary', 'Legendary']], (v) => { a.s.loot = v !== 'off'; if (v !== 'off') a.s.lootMin = v; }),
+      toggle(th ? 'หยุดเก็บเมื่อกระเป๋าเต็ม' : 'Stop looting when bags are full', th ? 'ไม่เดินไปหาของที่เก็บไม่ได้' : 'Do not walk to items that cannot fit', a.s.stopBagFull, (v) => { a.s.stopBagFull = v; }),
+      h('div', { class: 'sec-title' }, uiIcon('mount', 20), th ? 'การเดินทาง' : 'Travel'),
+      toggle(th ? 'ขึ้นพาหนะอัตโนมัติเมื่อเดินทาง' : 'Mount up when travelling', th ? 'ระหว่างเดินไปทำเควสต์ (ต้องมีพาหนะ)' : 'While travelling to a quest (needs a mount)', a.s.autoMount, (v) => { a.s.autoMount = v; }),
+      toggle(th ? 'ยืนรอในเมือง' : 'Stay put in town', th ? 'ไม่เดินวนในเมืองที่ไม่มีศัตรู' : 'Do not wander around in safe towns', a.s.townIdle, (v) => { a.s.townIdle = v; }),
+      h('p', { class: 'hint' }, th ? 'ปุ่ม ▶ ข้างเควสต์ในแถบด้านขวาจะเดินไปทำเควสต์ให้ · ออกจากเกมในโลกเปิดเพื่อฟาร์ม AFK' : 'The ▶ next to a quest travels there and does it · log out in the open world to make an AFK camp.'));
   }
   renderAuto() {
     const a = this.auto, th = getLang() === 'th';
@@ -676,7 +713,7 @@ export class GameUI {
     if (!p || !this.game.char) return;
     const ctx = this.ctx();
     const inTown = this.game.room?.kind === 'town';
-    const titles: Record<PanelName, string> = { inventory: t('inventory'), skills: t('skills'), passives: t('passives'), character: t('character'), quests: t('quests'), codex: t('codex'), social: t('social'), guild: 'Guild', ladder: 'Leaderboards', alchemist: 'Sister Maelis — alchemy & cooking', season: 'Season & weekly', hearth: 'Your Hearth', carpenter: 'Carpenter Odo — furniture', auction: 'Auctioneer Vell — auction house', settings: t('settings'), dungeon: 'Rift Gate', smith: 'Brenna the Smith — forge, salvage & enchant', quartermaster: 'Quartermaster Sol — potions & selling', trainer: 'Master Ilrin — trainer', stash: 'Astral Vault', map: t('map'), crafting: getLang() === 'th' ? 'คราฟต์และทักษะชีวิต' : 'Crafting & Life Skills', login: getLang() === 'th' ? 'รางวัลล็อกอิน' : 'Login Rewards', shop: getLang() === 'th' ? 'ร้านค้า' : 'Shop', benefits: getLang() === 'th' ? 'สิทธิประโยชน์' : 'Benefits', wish: getLang() === 'th' ? 'ขอพรแห่งดวงดาว' : 'Astral Wish', awaken: getLang() === 'th' ? 'ตื่นรู้และตราสัญลักษณ์' : 'Awakening & Emblems', wardrobe: getLang() === 'th' ? 'ตู้เสื้อผ้า' : 'Wardrobe', friends: getLang() === 'th' ? 'สังคมและชุมชน' : 'Social & Community', gm: 'GM Console' };
+    const titles: Record<PanelName, string> = { inventory: t('inventory'), skills: t('skills'), passives: t('passives'), character: t('character'), quests: t('quests'), codex: t('codex'), social: t('social'), guild: 'Guild', ladder: 'Leaderboards', alchemist: 'Sister Maelis — alchemy & cooking', season: 'Season & weekly', hearth: 'Your Hearth', carpenter: 'Carpenter Odo — furniture', auction: 'Auctioneer Vell — auction house', settings: t('settings'), dungeon: 'Rift Gate', smith: 'Brenna the Smith — forge, salvage & enchant', quartermaster: 'Quartermaster Sol — potions & selling', trainer: 'Master Ilrin — trainer', stash: 'Astral Vault', map: t('map'), crafting: getLang() === 'th' ? 'คราฟต์และทักษะชีวิต' : 'Crafting & Life Skills', login: getLang() === 'th' ? 'รางวัลล็อกอิน' : 'Login Rewards', shop: getLang() === 'th' ? 'ร้านค้า' : 'Shop', benefits: getLang() === 'th' ? 'สิทธิประโยชน์' : 'Benefits', wish: getLang() === 'th' ? 'ขอพรแห่งดวงดาว' : 'Astral Wish', awaken: getLang() === 'th' ? 'ตื่นรู้และตราสัญลักษณ์' : 'Awakening & Emblems', wardrobe: getLang() === 'th' ? 'ตู้เสื้อผ้า' : 'Wardrobe', friends: getLang() === 'th' ? 'สังคมและชุมชน' : 'Social & Community', gm: 'GM Console', auto: getLang() === 'th' ? 'ตั้งค่าระบบออโต้' : 'Auto Settings' };
     let body: HTMLElement;
     switch (p) {
       case 'inventory': body = inventoryWindow(ctx, 'normal', () => this.renderPanel()); break;
@@ -692,6 +729,7 @@ export class GameUI {
       case 'wish': body = MW.wishWindow(ctx.ch, ctx.account, (m) => this.send(m), this.lastWish); break;
       case 'awaken': body = MW.awakenWindow(ctx.ch, ctx.account, (m) => this.send(m)); break;
       case 'wardrobe': body = MW.wardrobeWindow(ctx.account, (m) => this.send(m)); break;
+      case 'auto': body = this.autoWindow(); break;
       case 'gm': body = gmWindow(ctx.ch.level, (m) => this.send(m), () => this.renderPanel()); break;
       case 'friends': body = S.friendsPanel(this.friendsData, (m) => this.send(m), (n) => { const i = this.el.chatIn as HTMLInputElement; i.value = `/w ${n} `; i.focus(); }); break;
       case 'quartermaster': body = inventoryWindow(ctx, 'quartermaster', () => this.renderPanel()); break;
@@ -704,7 +742,7 @@ export class GameUI {
       case 'social': body = h('div', null, P.socialPanel(ctx), S.finderSection(ctx.ch, this.pfEntries, this.nearbyPlayers(), (m) => this.send(m))); break;
       case 'guild': body = S.guildPanel(ctx.ch, this.guildData, (m) => this.send(m), inTown); break;
       case 'auction': body = S.auctionPanel(ctx.ch, this.ah, (m) => this.send(m), () => this.renderPanel()); break;
-      case 'settings': body = h('div', null, this.autoSettings(), P.settingsPanel(ctx)); break;
+      case 'settings': body = h('div', null, h('button', { class: 'btn gold', onclick: () => this.openPanel('auto') }, getLang() === 'th' ? '⚙ ตั้งค่าระบบออโต้' : '⚙ Auto settings'), P.settingsPanel(ctx)); break;
       case 'dungeon': body = P.dungeonPanel(ctx, this.panelExtra?.unlocked ?? ['story', 'normal'], this.panelExtra?.locks ?? {}); break;
       case 'ladder': body = P.ladderPanel(this.ladderData, ctx.ch, (m) => this.send(m)); break;
       case 'trainer': body = P.trainerPanel(ctx); break;
@@ -714,7 +752,7 @@ export class GameUI {
     const panel = clear(this.el.panel!);
     panel.hidden = false;
     panel.classList.toggle('wide', p === 'passives' || p === 'map');
-    panel.classList.toggle('win', ['inventory', 'smith', 'quartermaster', 'stash', 'crafting', 'alchemist', 'auction', 'social', 'guild', 'skills', 'passives', 'character', 'season', 'dungeon', 'friends', 'gm', 'login', 'shop', 'benefits', 'wish', 'awaken', 'wardrobe'].includes(p));
+    panel.classList.toggle('win', ['inventory', 'smith', 'quartermaster', 'stash', 'crafting', 'alchemist', 'auction', 'social', 'guild', 'skills', 'passives', 'character', 'season', 'dungeon', 'friends', 'gm', 'auto', 'login', 'shop', 'benefits', 'wish', 'awaken', 'wardrobe'].includes(p));
     const th = getLang() === 'th';
     const socialTabs = ['social', 'guild', 'auction', 'friends'].includes(p) ? h('div', { class: 'win-tabs' }, ...([['auction', 'gavel', th ? 'ห้องประมูล' : 'Auction House'], ['guild', 'crest', th ? 'กิลด์' : 'Guild'], ['social', 'people', th ? 'ปาร์ตี้และเทรด' : 'Party & Trade'], ['friends', 'person', th ? 'เพื่อน' : 'Friends']] as const).map(([id, ic, label]) => h('button', { class: 'wt icon' + (p === id ? ' on' : ''), onclick: () => { this.openPanel(id); if (id === 'friends') this.send({ t: 'friend_list' }); if (id === 'auction') { this.send({ t: 'ah_search', q: this.ah.q }); this.send({ t: 'ah_mine' }); } } }, uiIcon(ic, 22), label))) : null;
     if (socialTabs) titles[p] = th ? 'สังคมและชุมชน' : 'Social & Community';
