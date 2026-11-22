@@ -15,6 +15,7 @@ import { Rng, dist } from './math.js';
 import { buildArena, buildField, buildHighlands, buildTown, generateDungeon, generateLabyrinth, type GameMap } from './maps.js';
 import { ACTIVITIES, ACTIVITY_ORDER, NIGHTMARE_MODS, towerScale, type Activity } from './data/activities.js';
 import { MATERIALS, PROFESSIONS, RECIPE_MAP } from './data/crafting.js';
+import { AURAS, DEFAULT_LIVE, SEASON_XP_PER_TIER, SHARD_SOURCES, currentSeason, weekIndex, weeklyEvent, weeklyObjectives, type LiveConfig, type SeasonDef } from './data/seasons.js';
 import type { AccountProgress, CharacterData, DifficultyId, EquipSlot } from './types.js';
 import { EQUIP_SLOTS, PROTOCOL_VERSION, STASH_SIZE } from './types.js';
 import { TICK_RATE, World, type WorldEvent, type WorldOptions } from './world.js';
@@ -69,15 +70,15 @@ interface Room { id: string; kind: 'town' | 'field' | 'dungeon'; world: World; s
 export interface LeaderRecord { board: string; charId: string; name: string; cls: string; hardcore: boolean; value: number; at: number }
 interface Party { id: string; leader: string; members: string[] }
 
-const MUTATIONS = new Set(['craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose']);
+const MUTATIONS = new Set(['season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose']);
 
 export function emptyAccount(): AccountProgress {
-  return { codex: {}, achievements: [], titles: [], stash: { normal: Array(STASH_SIZE).fill(null), hardcore: Array(STASH_SIZE).fill(null) } };
+  return { codex: {}, achievements: [], titles: [], stash: { normal: Array(STASH_SIZE).fill(null), hardcore: Array(STASH_SIZE).fill(null) }, season: null, auras: [], aura: null };
 }
 export function normalizeAccount(a: Partial<AccountProgress> | null | undefined): AccountProgress {
   const e = emptyAccount();
   if (!a) return e;
-  return { codex: a.codex ?? {}, achievements: a.achievements ?? [], titles: a.titles ?? [], stash: { normal: pad(a.stash?.normal, STASH_SIZE), hardcore: pad(a.stash?.hardcore, STASH_SIZE) } };
+  return { codex: a.codex ?? {}, achievements: a.achievements ?? [], titles: a.titles ?? [], stash: { normal: pad(a.stash?.normal, STASH_SIZE), hardcore: pad(a.stash?.hardcore, STASH_SIZE) }, season: a.season ?? null, auras: a.auras ?? [], aura: a.aura ?? null };
 }
 const pad = <T>(arr: (T | null)[] | undefined, n: number) => { const o = (arr ?? []).slice(0, n); while (o.length < n) o.push(null); return o; };
 
@@ -97,6 +98,7 @@ export class GameCore {
   private trades = new Map<string, TradeState>();
   private pf = new Map<string, PfEntry>();
   private worldEvent = { active: false, nextAt: 90, bossId: 0, startedAt: 0, x: 0, y: 0, statusT: 0 };
+  live: LiveConfig = structuredClone(DEFAULT_LIVE);
   /** Wall-clock source (ms). Injectable for tests. */
   clock: () => number = () => Date.now();
 
@@ -122,6 +124,7 @@ export class GameCore {
   private createRoom(id: string, map: GameMap, difficulty: DifficultyId, seed: number, partySize = 1, partyId: string | null = null, extra: Partial<WorldOptions> = {}): Room {
     const kind = map.theme;
     const world = new World(map, { difficulty, partySize, seed, kind, ...extra });
+    world.live = this.liveLoot();
     const room: Room = { id, kind, world, sessions: new Set(), emptyT: 0, difficulty, seed, partyId };
     this.rooms.set(id, room);
     return room;
@@ -174,6 +177,7 @@ export class GameCore {
     room.emptyT = 0;
     const ent = room.world.addPlayer(s.char, s.id, pos);
     ent.p!.partyId = s.partyId;
+    ent.p!.aura = s.account.aura;
     const guild = this.guildOf(s.char.id);
     if (guild) ent.name = `${s.char.name} ‹${guild.tag}›`;
     s.entId = ent.id;
@@ -231,6 +235,9 @@ export class GameCore {
         case 'choose': this.choose(s, room, String(msg.choice ?? '')); break;
         case 'enter_dungeon': this.enterDungeon(s, room, msg.diff, msg.mode); break;
         case 'ladder': s.send({ t: 'ladder', boards: this.ladder() }); break;
+        case 'season_info': this.sendSeason(s); break;
+        case 'season_claim': this.seasonClaim(s, clampInt(msg.tier, 1, 100)); break;
+        case 'set_aura': { const id = msg.id === null ? null : String(msg.id); if (id && !s.account.auras.includes(id)) return err('You have not unlocked that aura'); s.account.aura = id; const en = room.world.ents.get(s.entId); if (en?.p) en.p.aura = id; this.saveAcct(s.accountId, s.account); this.sendChar(s); break; }
         case 'leave': if (room.kind !== 'town') this.returnToTown(s, room, false); break;
         case 'equip': this.mutate(s, C.equipFromInventory(s.char, clampInt(msg.inv, 0, 39), EQUIP_SLOTS.includes(msg.slot) ? msg.slot : undefined), 'equip'); break;
         case 'unequip': this.mutate(s, EQUIP_SLOTS.includes(msg.slot) ? C.unequip(s.char, msg.slot as EquipSlot) : { ok: false, reason: 'Bad slot' }, 'unequip'); break;
@@ -282,6 +289,7 @@ export class GameCore {
           if (!res.ok) return err(res.reason);
           this.toast(s, res.value.text);
           this.progressQuest(s, 'craft', r.prof, 1);
+          this.weekly(s, 'craft', 1);
           this.mutate(s, { ok: true, value: undefined }, 'craft', { recipe: r.id, item: res.value.item?.uid });
           break;
         }
@@ -302,7 +310,7 @@ export class GameCore {
         case 'pf_remove': this.pf.delete(s.id); this.pfList(s); break;
         case 'pf_join': this.pfJoin(s, String(msg.sid)); break;
         // direct trade
-        case 'trade_request': this.tradeRequest(s, room, String(msg.name)); break;
+        case 'trade_request': if (!this.live.flags.trade) return err('Trading is temporarily disabled'); this.tradeRequest(s, room, String(msg.name)); break;
         case 'trade_respond': this.tradeRespond(s, room, String(msg.id), !!msg.accept); break;
         case 'trade_offer': this.tradeOffer(s, msg); break;
         case 'trade_lock': this.tradeLock(s); break;
@@ -380,13 +388,14 @@ export class GameCore {
         s.char.dust += 1;
         const ups = C.grantProfXp(s.char, prof, it.req ? 25 : 12);
         this.progressQuest(s, 'gather', it.type, 1);
+        this.weekly(s, 'gather', 1);
         this.toast(s, `Gathered ${n} ${MATERIALS[res]?.name ?? res} (+1 Astral Dust)${ups ? ` · ${PROFESSIONS[prof].name} level ${C.profLevel(s.char, prof)}!` : ''}`);
         this.mutate(s, { ok: true, value: undefined }, 'gather', { node: it.id, res, n });
         break;
       }
       case 'chest': {
         it.used = true;
-        const gold = Math.round((20 + room.world.map.level * 8) * (room.world.modifierFlags.has('extra_gold') ? 2.5 : 1));
+        const gold = Math.round((20 + room.world.map.level * 8) * (room.world.modifierFlags.has('extra_gold') ? 2.5 : 1) * this.effects().goldMul);
         w.addDrop(ent, it.x, it.y + 20, undefined, gold);
         for (let i = 0; i < 2; i++) w.addDrop(ent, it.x + (i ? 24 : -24), it.y + 30, generateItem({ rng: this.rng, ilvl: room.world.map.level, rarity: rollRarity(this.rng, 0.5 + DIFFICULTIES[room.difficulty].loot, 'uncommon'), cls: s.char.cls, hardcore: s.char.hardcore }));
         this.broadcast(room, { t: 'it_used', id: it.id });
@@ -457,6 +466,7 @@ export class GameCore {
     if (room.kind !== 'town') return;
     const mode: Activity = (ACTIVITY_ORDER as string[]).includes(String(modeRaw)) ? (modeRaw as Activity) : 'rift';
     const act = ACTIVITIES[mode];
+    if ((mode === 'tower' && !this.live.flags.tower) || (mode === 'raid' && !this.live.flags.raid)) return s.send({ t: 'err', msg: `${act.name} is temporarily closed` });
     let diff = (DIFFICULTY_ORDER as string[]).includes(String(diffRaw)) ? (diffRaw as DifficultyId) : 'normal';
     if (!act.chooseDifficulty) diff = 'normal';
     if (mode === 'nightmare' && DIFFICULTY_ORDER.indexOf(diff) < 2) diff = 'hard';
@@ -506,7 +516,7 @@ export class GameCore {
       case 'arena': map = buildArena('arena', seed, level); Object.assign(extra, { finalBoss: '__none__', noRespawn: true }); break;
       case 'raid': map = buildArena('raid', seed, level + 2); Object.assign(extra, { finalBoss: 'sovereign', noRespawn: true, ilvlBonus: 5, exitText: 'The Eclipse Sovereign is defeated! Light returns to the Throne.' }); partySize = Math.max(2, partySize); break;
       case 'nightmare': map = generateDungeon({ seed, level: level + 2, difficulty: diff, modifiers: NIGHTMARE_MODS }); Object.assign(extra, { ilvlBonus: 2 }); break;
-      default: map = generateDungeon({ seed, level, difficulty: diff });
+      default: map = generateDungeon({ seed, level, difficulty: diff, eliteChance: this.effects().eliteBonus });
     }
     const id = `${mode}_${seed.toString(36)}_${floor}`;
     const r = this.createRoom(id, map, diff, seed, partySize, partyId, extra);
@@ -519,7 +529,7 @@ export class GameCore {
   private towerNext(room: Room) {
     const floor = room.floor ?? 1;
     const members = [...room.sessions].map((id) => this.sessions.get(id)!).filter(Boolean);
-    for (const m of members) { this.record(m, 'tower', floor); if (floor >= 10) this.achieve(m, 'tower10'); this.progressQuest(m, 'tower_floor', undefined, floor, true); this.guildXp(m, 20 * floor, `reached tower floor ${floor + 1}`); }
+    for (const m of members) { this.record(m, 'tower', floor); if (floor >= 10) this.achieve(m, 'tower10'); this.progressQuest(m, 'tower_floor', undefined, floor, true); this.weekly(m, 'tower_floor', floor + 1, true); this.seasonGain(m, SHARD_SOURCES.towerFloor); this.guildXp(m, 20 * floor, `reached tower floor ${floor + 1}`); }
     const level = Math.max(...members.map((m) => m.char.level));
     const id = this.openInstance('tower', 'normal', Math.floor(this.rng.next() * 0xffffffff) >>> 0, level, floor + 1, members.length, room.partyId);
     for (const m of members) { this.moveTo(m, id); this.toast(m, `Endless Tower — floor ${floor + 1} (enemies ×${towerScale(floor + 1).toFixed(2)})`); }
@@ -550,12 +560,16 @@ export class GameCore {
           }
         }
         this.guildXp(s, 100 + 100 * ti + (mode === 'raid' ? 500 : mode === 'labyrinth' ? 200 : 0), `cleared ${ACTIVITIES[mode].name}`);
+        this.seasonGain(s, SHARD_SOURCES.riftClear + SHARD_SOURCES.perTierBonus * ti + (mode === 'raid' ? SHARD_SOURCES.raid : 0));
+        this.weekly(s, 'rift_clear', 1);
       }
       if (mode === 'arena') {
         const wave = Math.max(0, (room.arena?.wave ?? 1) - 1);
         this.record(s, 'arena', wave);
         if (wave >= 10) this.achieve(s, 'arena10');
         this.progressQuest(s, 'arena_wave', undefined, wave, true);
+        this.weekly(s, 'arena_wave', wave, true);
+        this.seasonGain(s, wave * SHARD_SOURCES.arenaWave);
         const gold = wave * 15;
         s.char.gold += gold;
         this.toast(s, `Arena: survived ${wave} waves (+${gold} gold)`);
@@ -915,6 +929,7 @@ export class GameCore {
 
   // ─────────── Auction house ───────────
   private auction(s: Session, room: Room, msg: any): void {
+    if (!this.live.flags.auction) return s.send({ t: 'err', msg: 'The auction house is temporarily closed' });
     if (!this.nearNpc(s, room, 'npc_auction')) return s.send({ t: 'err', msg: 'Visit the Auctioneer in Lumenhold' });
     const now = this.clock();
     const mine = () => [...this.listings.values()].filter((l) => l.sellerChar === s.char.id && l.status !== 'closed');
@@ -978,6 +993,7 @@ export class GameCore {
     switch (msg.t) {
       case 'guild_info': return this.sendGuild(s);
       case 'guild_create': {
+        if (!this.live.flags.guilds) return fail('Guild creation is temporarily disabled');
         if (room.kind !== 'town') return fail('Guilds are founded in Lumenhold');
         const r = EC.createGuild(s.char, String(msg.name ?? ''), String(msg.tag ?? ''), this.guilds.values(), now, this.uid('g'));
         if (!r.ok) return fail(r.reason);
@@ -1042,6 +1058,86 @@ export class GameCore {
     }
   }
 
+  // ─────────── Live ops: weekly events, seasons, staff hooks ───────────
+  effects() {
+    const ev = weeklyEvent(this.clock(), this.live.weeklyOverride).effects;
+    return { xpMul: this.live.xpMul * (ev.xpMul ?? 1), goldMul: this.live.goldMul * (ev.goldMul ?? 1), shardMul: ev.shardMul ?? 1, lootBonus: this.live.lootBonus + (ev.lootBonus ?? 0), eliteBonus: ev.eliteBonus ?? 0 };
+  }
+  private liveLoot() { const e = this.effects(); return { lootBonus: e.lootBonus, goldMul: e.goldMul }; }
+  /** Apply a validated live config (staff panel). */
+  setLive(cfg: LiveConfig) {
+    const wasMaint = this.live.maintenance;
+    this.live = cfg;
+    const l = this.liveLoot();
+    for (const r of this.rooms.values()) r.world.live = l;
+    if (cfg.maintenance && !wasMaint) this.announce('Maintenance is starting soon. Please finish your activity and log out safely.');
+    this.announcement = cfg.motd || null;
+  }
+  announce(text: string) { for (const o of this.sessions.values()) { o.send({ t: 'toast', msg: `📢 ${text}` }); o.send({ t: 'chat', from: 'Lumenhold', ch: 'system', text }); } }
+  kickAccount(accountId: string, reason: string) { for (const o of [...this.sessions.values()]) if (o.accountId === accountId) this.disconnect(o.id, reason); }
+  muteAccount(accountId: string, untilMs: number) { for (const o of this.sessions.values()) if (o.accountId === accountId) { o.mutedUntil = this.now + Math.max(0, (untilMs - this.clock()) / 1000); this.toast(o, untilMs > this.clock() ? `You have been muted by a moderator until ${new Date(untilMs).toUTCString()}` : 'Your chat mute was lifted.'); } }
+
+  private seasonState(s: Session): { def: SeasonDef; st: NonNullable<AccountProgress['season']> } | null {
+    const def = currentSeason(this.clock());
+    if (!def) return null;
+    let st = s.account.season;
+    if (!st || st.id !== def.id) {
+      const archive = st ? [...(st.archive ?? []), { id: st.id, xp: st.xp, tier: Math.floor(st.xp / SEASON_XP_PER_TIER) }] : [];
+      st = { id: def.id, xp: 0, shards: 0, claimed: [], week: weekIndex(this.clock()), weekly: {}, weeklyDone: [], archive };
+      s.account.season = st;
+    }
+    const w = weekIndex(this.clock());
+    if (st.week !== w) { st.week = w; st.weekly = {}; st.weeklyDone = []; }
+    return { def, st };
+  }
+  private seasonGain(s: Session, shards: number, xp = shards * 40) {
+    const ss = this.seasonState(s);
+    if (!ss || shards <= 0) return;
+    const before = Math.floor(ss.st.xp / SEASON_XP_PER_TIER);
+    ss.st.shards += Math.round(shards * this.effects().shardMul);
+    ss.st.xp += Math.round(xp * this.effects().shardMul);
+    const after = Math.floor(ss.st.xp / SEASON_XP_PER_TIER);
+    if (after > before) this.toast(s, `Season tier ${after} reached — claim rewards in the Season panel (Y)`);
+    this.saveAcct(s.accountId, s.account);
+  }
+  private weekly(s: Session, kind: string, n: number, absolute = false) {
+    const ss = this.seasonState(s);
+    if (!ss) return;
+    for (const o of weeklyObjectives(this.clock())) {
+      if (o.kind !== kind || ss.st.weeklyDone.includes(o.id)) continue;
+      const cur = ss.st.weekly[o.id] ?? 0;
+      ss.st.weekly[o.id] = Math.min(o.count, absolute ? Math.max(cur, n) : cur + n);
+      if (ss.st.weekly[o.id]! >= o.count) { ss.st.weeklyDone.push(o.id); this.toast(s, `Weekly objective complete: ${o.name} (+${o.xp} Season XP)`); this.seasonGain(s, o.shards, o.xp); }
+    }
+  }
+  sendSeason(s: Session) {
+    const ss = this.seasonState(s);
+    const now = this.clock();
+    s.send({ t: 'season', season: ss?.def ?? null, progress: ss?.st ?? null, tierXp: SEASON_XP_PER_TIER, event: weeklyEvent(now, this.live.weeklyOverride), objectives: weeklyObjectives(now), weekEndsIn: Math.round(((weekIndex(now) + 1) * 7 * 86400_000 + Date.parse('2026-01-05T00:00:00Z') - now) / 1000), auras: AURAS });
+  }
+  private seasonClaim(s: Session, tier: number) {
+    const ss = this.seasonState(s);
+    if (!ss) return s.send({ t: 'err', msg: 'No season is running' });
+    const rw = ss.def.rewards.find((r) => r.tier === tier);
+    if (!rw) return s.send({ t: 'err', msg: 'No reward at that tier' });
+    if (Math.floor(ss.st.xp / SEASON_XP_PER_TIER) < tier) return s.send({ t: 'err', msg: 'Tier not reached yet' });
+    if (ss.st.claimed.includes(tier)) return s.send({ t: 'err', msg: 'Already claimed' });
+    ss.st.claimed.push(tier);
+    switch (rw.kind) {
+      case 'gold': s.char.gold += Number(rw.value); break;
+      case 'dust': s.char.dust += Number(rw.value); break;
+      case 'respec': s.char.respecTokens += Number(rw.value); break;
+      case 'title': if (!s.account.titles.includes(String(rw.value))) s.account.titles.push(String(rw.value)); break;
+      case 'aura': if (!s.account.auras.includes(String(rw.value))) s.account.auras.push(String(rw.value)); break;
+      default: break;
+    }
+    this.tx({ characters: [s.char] });
+    this.saveAcct(s.accountId, s.account);
+    this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'season_claim', data: { season: ss.def.id, tier, reward: rw } });
+    this.toast(s, `Season reward: ${rw.label}`);
+    this.markDirty(s); this.sendChar(s); this.sendSeason(s);
+  }
+
   // ─────────── Open-world public event: world boss ───────────
   private tickWorldEvent() {
     const field = this.rooms.get('field');
@@ -1049,7 +1145,7 @@ export class GameCore {
     const ev = this.worldEvent;
     ev.statusT -= 1 / TICK_RATE;
     if (!ev.active) {
-      if (this.now >= ev.nextAt && field.sessions.size > 0) {
+      if (this.now >= ev.nextAt && field.sessions.size > 0 && this.live.flags.worldBoss) {
         const m = field.world.map;
         const reach = reachableSet(m, m.spawn.x, m.spawn.y);
         let x = m.w * TILE * 0.55, y = m.h * TILE * 0.5;
@@ -1111,6 +1207,8 @@ export class GameCore {
     for (const [k, v] of this.reconnect) if (v.until < this.now) this.reconnect.delete(k);
     this.tickWorldEvent();
     if (this.tickN % (TICK_RATE * 5) === 0) {
+      const l = this.liveLoot();
+      for (const r of this.rooms.values()) r.world.live = l;
       const t = this.clock();
       for (const s of this.sessions.values()) if (s.char.elixir && s.char.elixir.until <= t) { s.char.elixir = null; this.markDirty(s); this.sendChar(s); this.toast(s, 'Your elixir has worn off.'); }
     }
@@ -1135,7 +1233,8 @@ export class GameCore {
             const lvlGap = s.char.level - ev.level;
             const penalty = lvlGap > 5 ? Math.max(0.1, 1 - (lvlGap - 5) * 0.15) : 1; // anti low-level farming
             const share = ev.players.length > 1 ? 1.1 / ev.players.length + 0.3 : 1; // group bonus
-            this.giveXp(s, ev.xp * penalty * Math.min(1, share));
+            this.giveXp(s, ev.xp * penalty * Math.min(1, share) * this.effects().xpMul);
+            this.weekly(s, 'kills', 1);
             s.char.stats.kills++;
             if (ev.boss) s.char.stats.bossKills++;
             if (s.run) s.run.kills++;
@@ -1164,7 +1263,7 @@ export class GameCore {
               this.achieve(s, 'rift_walker');
               if (s.char.hardcore) this.achieve(s, 'hardcore_warden');
             }
-            if (ev.enemy === 'gloomheart') { this.achieve(s, 'world_boss'); this.guildXp(s, 300, 'helped defeat Gloomheart'); }
+            if (ev.enemy === 'gloomheart') { this.achieve(s, 'world_boss'); this.guildXp(s, 300, 'helped defeat Gloomheart'); this.weekly(s, 'world_boss', 1); this.seasonGain(s, SHARD_SOURCES.worldBoss); }
             this.save(s);
           }
           pub.push(ev);

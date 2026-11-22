@@ -17,6 +17,13 @@ Without a server the client falls back to **Offline mode** (clearly bannered).
 - `... --bots N` — concurrent load test (each bot runs its own Rift instance).
 - `npx tsx apps/server/test/social-e2e.ts` — two live clients: trade, auction sale, bound-item refusal, reconnect; verifies rows in Postgres.
 
+## Staff accounts & live ops
+- Grant a role from the server shell (never from the game): `npx tsx apps/server/src/grant-role.ts <username> admin|moderator`.
+- The staff member logs into the game once, then opens `/admin.html`, sets up TOTP and enters a code. MFA is required per login session.
+- Moderators: lookup, inspect (logged), mute, kick, announce, view config. Admins additionally: ban/unban, publish config, rollback.
+- Config changes: edit → Preview changes (diff) → Publish with a note → History → Roll back. Maintenance mode blocks player logins (staff can still enter).
+- `npx tsx apps/server/test/admin-e2e.ts` exercises the whole flow against a live server.
+
 ## Production deployment (not yet done)
 1. Provision PostgreSQL 16 with automated daily backups + point-in-time recovery.
 2. `docker build -t astra .` and run with `DATABASE_URL`, `PORT`.
@@ -41,7 +48,7 @@ Images are immutable: redeploy the previous tag. Migrations are additive only; a
 - [x] Text rendered via text nodes only (no innerHTML of user content)
 - [x] Audit log for economy and moderation events
 - [ ] HTTPS/WSS in production (needs host)
-- [ ] Admin MFA + RBAC tooling (no admin panel yet)
+- [x] Staff RBAC (player/moderator/admin) + TOTP MFA per session; every staff action audited
 - [ ] Account recovery via email (needs mail provider)
 - [ ] Automated anti-cheat heuristics + appeal workflow
 - [ ] Backup restore drill

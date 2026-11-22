@@ -8,6 +8,7 @@ const THEMES: Record<string, { floor: string[]; path: string[]; wall: string; wa
   dungeon: { floor: ['#2d2a3d', '#322e44', '#2a2739'], path: ['#3a3450', '#3f3857', '#363049'], wall: '#17141f', wallTop: '#3b3352', water: '#2a2460', tree: '#4a3f66', bg: '#0b0910' },
 };
 
+const AURA_COLORS: Record<string, string> = { ember: '#ff7a2e', starlight: '#9fd8ff', eclipse: '#f2c46b' };
 const hash = (x: number, y: number) => { let h = (x * 374761393 + y * 668265263) >>> 0; h = ((h ^ (h >>> 13)) * 1274126177) >>> 0; return (h ^ (h >>> 16)) >>> 0; };
 
 export class Renderer {
@@ -295,6 +296,8 @@ export class Renderer {
     if (isTarget || this.hoverId === e.id) { ctx.strokeStyle = isTarget ? '#ff5f5f' : 'rgba(255,255,255,0.6)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(0, 8, 22 * scale, 9 * scale, 0, 0, Math.PI * 2); ctx.stroke(); }
     if (e.kind === 0) {
       const cd = CLASSES[e.def as keyof typeof CLASSES];
+      const au = AURA_COLORS[e.aura];
+      if (au && !e.dead) { ctx.globalCompositeOperation = 'lighter'; const grd = ctx.createRadialGradient(0, -14, 6, 0, -14, 34); grd.addColorStop(0, au + '00'); grd.addColorStop(0.6, au + '55'); grd.addColorStop(1, au + '00'); ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(0, -14, 34, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = au + 'aa'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(0, 6, 18 + Math.sin(this.time * 3) * 2, 7, 0, 0, Math.PI * 2); ctx.stroke(); ctx.globalCompositeOperation = 'source-over'; }
       ctx.globalAlpha = e.dead ? 0.35 : e.invuln && e.id === g.pid ? 0.75 : 1;
       drawChibi(ctx, 0, 0, scale, e.f, cd?.colors.body ?? '#888', cd?.colors.hair ?? '#333', cd?.colors.accent ?? '#ccc', e.swingT, bob, e.def);
       ctx.globalAlpha = 1;

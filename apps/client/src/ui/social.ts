@@ -162,3 +162,39 @@ export function craftingSection(ch: CharacterData, profs: ProfId[], send: Send):
       })))),
     h('p', { class: 'hint' }, 'Gather Moonpetal in Duskmeadow; Iron, Starsteel and Emberbloom in the Ashen Highlands (east of Duskmeadow). Beasts drop meat; Cinderkin drop Cinder Cores.'));
 }
+
+// ───────────────────────── Season & weekly ─────────────────────────
+export function seasonPanel(data: any, ch: CharacterData, account: any, send: Send): HTMLElement {
+  if (!data) return h('p', { class: 'muted' }, t('loading'));
+  const ev = data.event;
+  const objectives = h('div', { class: 'list' }, (data.objectives ?? []).map((o: any) => {
+    const p = data.progress?.weekly?.[o.id] ?? 0, done = data.progress?.weeklyDone?.includes(o.id);
+    return h('div', { class: 'list-row' }, h('span', { class: 'grow' }, `${done ? '✔ ' : ''}${o.name}`), h('small', { class: 'muted' }, `${Math.min(p, o.count)}/${o.count}`), h('small', null, `+${o.xp} XP · ${o.shards} shards`));
+  }));
+  const d = Math.floor(data.weekEndsIn / 86400), hh = Math.floor((data.weekEndsIn % 86400) / 3600);
+  const s = data.season;
+  const auraPicker = h('div', { class: 'row wrap' }, h('span', { class: 'muted' }, 'Aura (cosmetic):'),
+    h('button', { class: 'btn tiny' + (!account?.aura ? ' on' : ''), onclick: () => send({ t: 'set_aura', id: null }) }, 'None'),
+    (account?.auras ?? []).map((id: string) => h('button', { class: 'btn tiny' + (account.aura === id ? ' on' : ''), style: `border-color:${data.auras?.[id]?.color ?? '#fff'}`, onclick: () => send({ t: 'set_aura', id }) }, data.auras?.[id]?.name ?? id)));
+  if (!s) return h('div', null, h('p', null, 'No season is running right now.'), h('h3', null, `Weekly event: ${ev.name}`), h('p', null, ev.desc), objectives, auraPicker);
+  const pr = data.progress;
+  const tier = Math.floor(pr.xp / data.tierXp);
+  const left = Math.max(0, Math.round((Date.parse(s.end) - Date.now()) / 86400000));
+  return h('div', { class: 'season' },
+    h('h3', null, s.name), h('p', null, s.theme), h('p', { class: 'muted' }, s.mechanic),
+    h('p', null, `Tier ${tier} · ${pr.xp % data.tierXp}/${data.tierXp} XP to next · Ember Shards ${pr.shards} · ends in ${left} days (${s.end})`),
+    h('div', { class: 'bar small' }, h('i', { style: `width:${((pr.xp % data.tierXp) / data.tierXp) * 100}%;background:var(--corona)` }), h('span', null, `Season tier ${tier}`)),
+    h('h3', null, `This week: ${ev.name}`), h('p', null, ev.desc),
+    h('h3', null, 'Weekly objectives', h('small', { class: 'muted' }, `  reset in ${d}d ${hh}h`)), objectives,
+    h('h3', null, 'Reward track'), h('p', { class: 'hint' }, 'Rewards are cosmetic or convenience only — no season reward adds combat power.'),
+    h('div', { class: 'list' }, s.rewards.map((r: any) => {
+      const claimed = pr.claimed.includes(r.tier), reached = tier >= r.tier;
+      return h('div', { class: 'list-row' + (claimed ? ' dim' : '') }, h('b', { class: 'price' }, `T${r.tier}`), h('span', { class: 'grow' }, r.label),
+        claimed ? h('small', { class: 'muted' }, 'claimed') : h('button', { class: 'btn tiny' + (reached ? ' primary' : ''), disabled: !reached, onclick: () => send({ t: 'season_claim', tier: r.tier }) }, reached ? 'Claim' : 'Locked'));
+    })),
+    auraPicker,
+    h('h3', null, 'What stays and what resets'),
+    h('div', { class: 'trade-grid' }, h('div', null, h('b', null, 'Permanent'), h('ul', null, s.permanent.map((x: string) => h('li', null, x)))), h('div', null, h('b', null, 'Resets at season end'), h('ul', null, s.resets.map((x: string) => h('li', null, x))))),
+    pr.archive?.length ? h('p', { class: 'muted' }, 'Past seasons: ' + pr.archive.map((a: any) => `${a.id} tier ${a.tier}`).join(', ')) : null,
+    void ch);
+}

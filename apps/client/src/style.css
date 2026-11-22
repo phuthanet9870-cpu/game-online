@@ -260,3 +260,8 @@ input[type=text], input[type=password], input[type=search], select { background:
 .inv-grid.small { grid-template-columns: repeat(10, minmax(0, 1fr)); }
 @media (max-width: 560px) { .trade-grid { grid-template-columns: 1fr; } .inv-grid.small { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
 .stats tr.me th, .stats tr.me td { color: var(--corona); }
+.list-row.dim { opacity: .55; }
+.good { color: var(--good); }
+.admin { max-width: 1100px; margin: 0 auto; padding-block: 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 12px; height: 100%; overflow-y: auto; box-sizing: border-box; }
+.pre { background: #0d0916; border: 1px solid var(--line); border-radius: 6px; padding: 8px; overflow-x: auto; font-size: 12px; max-height: 320px; }
+#admin { height: 100%; }

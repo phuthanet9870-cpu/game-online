@@ -40,6 +40,7 @@ export interface PlayerState {
   partyId: string | null;
   lootBonus: number;
   softLock: boolean;
+  aura: string | null;
 }
 export interface EnemyState {
   def: EnemyDef;
@@ -163,6 +164,8 @@ export class World {
   enemyHpMul = 1;
   enemyDmgMul = 1;
   lootBonus = 0;
+  /** Live-ops multipliers set by the GameCore (weekly event + staff config). */
+  live = { lootBonus: 0, goldMul: 1 };
   modifierFlags = new Set<string>();
 
   constructor(map: GameMap, opts: WorldOptions) {
@@ -193,7 +196,7 @@ export class World {
       armor: 0, res: {}, speed: def.base.moveSpeed, level: char.level,
       p: {
         char, sessionId, input: { mx: 0, my: 0, ax: 0, ay: 0, attack: false }, targetId: 0, res: 0, sec: 0, cds: {}, basicT: 0, comboIdx: 0, dodgeCd: 0, potionCd: 0,
-        stillT: 0, combatT: 99, lastElem: null, weaveT: 0, runMods: [], blessings: [], deadT: 0, partyId: null, lootBonus: 0, softLock: false,
+        stillT: 0, combatT: 99, lastElem: null, weaveT: 0, runMods: [], blessings: [], deadT: 0, partyId: null, lootBonus: 0, softLock: false, aura: null,
       },
     };
     if (circleBlocked(this.map, e.x, e.y, e.r)) { e.x = this.map.spawn.x; e.y = this.map.spawn.y; }
@@ -792,10 +795,10 @@ export class World {
     const es = enemy.e!;
     const ch = p.p!.char;
     const mf = (p.stats?.m.magicFindPct ?? 0) / 100;
-    const bonus = this.diff.loot + this.lootBonus + mf + p.p!.lootBonus + (es.def.lootBonus ?? 0) * 0.15 + (es.elite ? 0.3 : 0);
+    const bonus = this.diff.loot + this.lootBonus + this.live.lootBonus + mf + p.p!.lootBonus + (es.def.lootBonus ?? 0) * 0.15 + (es.elite ? 0.3 : 0);
     const rolls = es.def.boss ? (es.def.id === 'veyra' || es.def.id === 'gloomheart' ? 3 : 2) : es.elite ? 2 : 1;
     const dropChance = es.def.boss || es.elite ? 1 : 0.22;
-    const gf = 1 + (p.stats?.m.goldFindPct ?? 0) / 100;
+    const gf = (1 + (p.stats?.m.goldFindPct ?? 0) / 100) * this.live.goldMul;
     // gold
     if (this.rng.chance(0.6) || es.def.boss) this.addDrop(p, enemy.x + this.rng.range(-20, 20), enemy.y + this.rng.range(-20, 20), undefined, Math.round((3 + es.level * 2) * (es.def.boss ? 15 : es.elite ? 4 : 1) * gf * this.rng.range(0.7, 1.3)));
     for (let i = 0; i < rolls; i++) {
@@ -1338,7 +1341,7 @@ export class World {
         e.p ? e.p.char.cls : e.e ? e.e.def.id : e.mi!.type, e.name, e.level, e.statuses.map((s) => s.id).filter((v, i, a) => a.indexOf(v) === i).join(','),
         e.e ? (e.e.elite ? 1 : 0) | (e.e.def.boss ? 2 : 0) : 0, pend ? Math.round((1 - pend.t / pend.total) * 100) / 100 : 0, e.dead ? 1 : 0,
         Math.round((e.buffs.reduce((s, b) => s + (b.mods.find((m) => m.stat === 'sizePct')?.value ?? 0), 0))) || 0,
-        e.e?.affixes.join(',') ?? '', e.e ? Math.round((e.e.breakG / (e.e.breakMax || 1)) * 100) / 100 : 0, e.e?.phase ?? 0, e.invuln > 0 || !!e.dash ? 1 : 0,
+        e.e?.affixes.join(',') ?? '', e.e ? Math.round((e.e.breakG / (e.e.breakMax || 1)) * 100) / 100 : 0, e.e?.phase ?? 0, e.invuln > 0 || !!e.dash ? 1 : 0, e.p?.aura ?? '',
       ]);
     }
     const projs = this.projs.filter((p) => dist2(p.x, p.y, cx, cy) < r2).map((p) => [p.id, Math.round(p.x), Math.round(p.y), Math.round(p.vx), Math.round(p.vy), p.r, p.visual, p.team]);

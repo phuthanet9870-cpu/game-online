@@ -288,7 +288,7 @@ export function buildHighlands(seed = 4242): GameMap {
 }
 
 // ───────────────────────── PROCEDURAL DUNGEON ─────────────────────────
-export interface DungeonOptions { seed: number; level: number; floor?: number; difficulty: string; layout?: 'rift' | 'tower'; boss?: string; modifiers?: string[] }
+export interface DungeonOptions { seed: number; level: number; floor?: number; difficulty: string; layout?: 'rift' | 'tower'; boss?: string; modifiers?: string[]; eliteChance?: number }
 
 export function generateDungeon(opts: DungeonOptions): GameMap {
   // Retry until a layout passes validation (bounded; generator is deterministic per seed+attempt).
@@ -391,7 +391,7 @@ function tryGenerate(opts: DungeonOptions, attempt: number): GameMap | null {
     for (let i = 0; i < n; i++) {
       const [tx, ty] = roomFloor(r);
       const e = rng.weighted(['hollow_grunt', 'hollow_archer', 'hollow_hexer'], (k) => (k === 'hollow_grunt' ? 3 : k === 'hollow_archer' ? 2 : 1));
-      map.spawns.push({ enemy: e, ...P(tx, ty), room: r.id, elite: moreElites && rng.chance(0.15) });
+      map.spawns.push({ enemy: e, ...P(tx, ty), room: r.id, elite: (moreElites && rng.chance(0.15)) || rng.chance(opts.eliteChance ?? 0) });
     }
   };
   for (const r of rooms) {

@@ -9,6 +9,7 @@ import {
   CLASS_IDS, CONTENT_SCHEMA_VERSION, GameCore, MAX_CHARACTERS, PROTOCOL_VERSION, SIM_DT, createCharacter, normalizeAccount, normalizeCharacter, type CharacterData, type ClassId,
 } from '@astra/shared';
 import { accountForToken, createSession, hashPassword, rateLimited, revokeSession, USERNAME_RE, validatePassword, verifyPassword } from './auth.js';
+import { registerAdmin, loadActiveConfig } from './admin.js';
 import { audit, flushAudit, loadShared, migrate, pool, saveAccount, saveCharacter, transact } from './db.js';
 
 const PORT = Number(process.env.PORT ?? 8080);
@@ -111,6 +112,8 @@ if (process.env.ASTRA_DEBUG === '1') {
   route('GET', /^\/api\/debug\/rooms$/, () => async () => [200, [...core.rooms.values()].filter((r) => r.kind === 'dungeon').map((r) => ({ id: r.id, ents: [...r.world.ents.values()].map((e) => ({ id: e.id, k: e.kind, def: e.e?.def.id ?? e.p?.char.cls, x: Math.round(e.x), y: Math.round(e.y), hp: Math.round(e.hp), lock: e.lock, dash: !!e.dash, st: e.statuses.map((s) => s.id + ':' + s.t.toFixed(1)), awake: e.e?.awake, pending: !!e.e?.pending, input: e.p?.input })) }))]);
 }
 
+registerAdmin(route, core);
+
 function summarize(ch: CharacterData) {
   return { id: ch.id, name: ch.name, cls: ch.cls, level: ch.level, hardcore: ch.hardcore, dead: ch.dead, mastery: ch.mastery?.level ?? 1 };
 }
@@ -180,12 +183,15 @@ wss.on('connection', (ws: WebSocket, req) => {
       if (msg.v !== PROTOCOL_VERSION) { send({ t: 'err', msg: 'Client out of date — please refresh the page.', fatal: true }); ws.close(); return; }
       const acc = await accountForToken(String(msg.token ?? ''));
       if (!acc || acc.banned) { send({ t: 'err', msg: 'Session expired — log in again.', fatal: true }); ws.close(); return; }
+      if (core.live.maintenance && acc.role === 'player') { send({ t: 'err', msg: 'Lumenhold is under maintenance. Please try again shortly.', fatal: true }); ws.close(); return; }
       const r = await pool.query('SELECT data FROM characters WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL', [String(msg.char ?? ''), acc.id]);
       if (!r.rows[0]) { send({ t: 'err', msg: 'Character not found', fatal: true }); ws.close(); return; }
       authed = true;
       clearTimeout(authTimer);
       const ch = normalizeCharacter(r.rows[0].data as CharacterData);
       core.connect(sid, acc.id, ch, normalizeAccount(acc.progress as any), send);
+      const mu = await pool.query('SELECT muted_until FROM accounts WHERE id = $1 AND muted_until > now()', [acc.id]);
+      if (mu.rows[0]) core.muteAccount(acc.id, new Date(mu.rows[0].muted_until).getTime());
       log('info', 'session start', { sid, account: acc.id, char: ch.id, ip });
       return;
     }
@@ -227,5 +233,6 @@ process.on('SIGTERM', () => void shutdown('SIGTERM'));
 const applied = await migrate();
 if (applied.length) log('info', 'migrations applied', { applied });
 await core.init();
+core.setLive(await loadActiveConfig());
 log('info', 'shared state loaded', { guilds: core.guilds.size, listings: core.listings.size });
 server.listen(PORT, () => log('info', 'listening', { port: PORT, static: STATIC_DIR }));

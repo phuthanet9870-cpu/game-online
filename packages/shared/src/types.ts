@@ -254,7 +254,11 @@ export interface AccountProgress {
   achievements: string[];
   titles: string[];
   stash: { normal: (Item | null)[]; hardcore: (Item | null)[] };
+  season: SeasonProgress | null;
+  auras: string[];
+  aura: string | null;
 }
+export interface SeasonProgress { id: string; xp: number; shards: number; claimed: number[]; week: number; weekly: Record<string, number>; weeklyDone: string[]; archive: Array<{ id: string; xp: number; tier: number }> }
 export const STASH_SIZE = 20;
 
 export const INVENTORY_SIZE = 40;

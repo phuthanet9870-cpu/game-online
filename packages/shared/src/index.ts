@@ -17,3 +17,4 @@ export * from './economy.js';
 export * from './data/activities.js';
 export * from './data/crafting.js';
 export * from './data/i18n_th.js';
+export * from './data/seasons.js';

@@ -2,7 +2,7 @@ import { CLASSES, computeStats, moveCircle, type AccountProgress, type Character
 
 export interface CEnt {
   id: number; kind: 0 | 1 | 2; x: number; y: number; f: number; hp: number; mhp: number; barrier: number; def: string; name: string; lv: number; st: string[];
-  flags: number; windup: number; dead: boolean; size: number; affixes: string[]; breakG: number; phase: number; invuln: boolean;
+  flags: number; windup: number; dead: boolean; size: number; affixes: string[]; breakG: number; phase: number; invuln: boolean; aura: string;
   rx: number; ry: number; moving: number; swingT: number; flash: number; seen: number;
 }
 export interface FloatText { x: number; y: number; text: string; color: string; t: number; size: number; vy: number }
@@ -52,7 +52,7 @@ export class ClientGame {
       const id = a[0] as number;
       seen.add(id);
       let e = this.ents.get(id);
-      const next = { id, kind: a[1], x: a[2], y: a[3], f: a[4], hp: a[5], mhp: a[6], barrier: a[7], def: a[8], name: a[9], lv: a[10], st: a[11] ? String(a[11]).split(',') : [], flags: a[12], windup: a[13], dead: !!a[14], size: a[15], affixes: a[16] ? String(a[16]).split(',') : [], breakG: a[17], phase: a[18], invuln: !!a[19] };
+      const next = { id, kind: a[1], x: a[2], y: a[3], f: a[4], hp: a[5], mhp: a[6], barrier: a[7], def: a[8], name: a[9], lv: a[10], st: a[11] ? String(a[11]).split(',') : [], flags: a[12], windup: a[13], dead: !!a[14], size: a[15], affixes: a[16] ? String(a[16]).split(',') : [], breakG: a[17], phase: a[18], invuln: !!a[19], aura: a[20] ?? '' };
       if (!e) { e = { ...next, rx: next.x, ry: next.y, moving: 0, swingT: 0, flash: 0, seen: now }; this.ents.set(id, e); }
       else {
         const moved = Math.hypot(next.x - e.x, next.y - e.y);

@@ -11,7 +11,7 @@ import { passiveTreePanel } from './passive.js';
 import { modeBanner } from './screens.js';
 import * as S from './social.js';
 
-type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 'codex' | 'social' | 'guild' | 'auction' | 'ladder' | 'alchemist' | 'settings' | 'dungeon' | 'smith' | 'quartermaster' | 'trainer' | 'stash' | 'map';
+type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 'codex' | 'social' | 'guild' | 'auction' | 'ladder' | 'alchemist' | 'season' | 'settings' | 'dungeon' | 'smith' | 'quartermaster' | 'trainer' | 'stash' | 'map';
 
 export class GameUI {
   game = new ClientGame();
@@ -132,6 +132,7 @@ export class GameUI {
       case 'ah_mine': this.ah.mine = m.rows; if (this.panel === 'auction') this.renderPanel(); break;
       case 'guild': this.guildData = m; if (this.panel === 'guild') this.renderPanel(); break;
       case 'guild_invite': void confirmDialog('Guild invite', `${m.from} invited you to ‹${m.tag}› ${m.name}.`, t('accept'), t('decline')).then((ok) => { if (ok) this.send({ t: 'guild_accept', id: m.id }); }); break;
+      case 'season': this.seasonData = m; if (this.panel === 'season') this.renderPanel(); break;
       case 'mats': toast('+ ' + Object.entries(m.got).map(([k, v]) => `${v} ${MATERIALS[k]?.name ?? k}`).join(', '), 'good'); break;
       case 'world_event': g.worldEvent = m; this.renderWorldEvent(); break;
       case 'ladder': this.ladderData = m.boards; if (this.panel === 'ladder') this.renderPanel(); break;
@@ -152,6 +153,7 @@ export class GameUI {
   private ah: S.AhState = { results: null, mine: [], q: {}, tab: 'browse' };
   private guildData: any = null;
   private ladderData: any = null;
+  private seasonData: any = null;
   private renderWorldEvent() {
     const el = this.el.wevent!;
     const ev = this.game.room?.kind === 'field' ? this.game.worldEvent : null;
@@ -255,7 +257,7 @@ export class GameUI {
       }
       case 'chat': (this.el.chatIn as HTMLInputElement).focus(); break;
       case 'escape': if (this.trade) this.send({ t: 'trade_cancel' }); else if (this.el.modal!.firstChild) this.closeModal(); else if (this.panel) this.closePanel(); else this.openPanel('settings'); break;
-      case 'inventory': case 'skills': case 'passives': case 'character': case 'quests': case 'codex': case 'social': case 'guild': case 'ladder': case 'map': this.toggle(a as PanelName); break;
+      case 'inventory': case 'skills': case 'passives': case 'character': case 'quests': case 'codex': case 'social': case 'guild': case 'ladder': case 'season': case 'map': this.toggle(a as PanelName); break;
       default: break;
     }
   }
@@ -269,7 +271,7 @@ export class GameUI {
 
   // ─────────── HUD ───────────
   private buildMenu() {
-    const items: Array<[PanelName, string, string]> = [['inventory', t('inventory'), 'inventory'], ['skills', t('skills'), 'skills'], ['passives', t('passives'), 'passives'], ['character', t('character'), 'character'], ['quests', t('quests'), 'quests'], ['codex', t('codex'), 'codex'], ['social', t('social'), 'social'], ['guild', 'Guild', 'guild'], ['ladder', 'Leaderboards', 'ladder'], ['settings', t('settings'), '']];
+    const items: Array<[PanelName, string, string]> = [['inventory', t('inventory'), 'inventory'], ['skills', t('skills'), 'skills'], ['passives', t('passives'), 'passives'], ['character', t('character'), 'character'], ['quests', t('quests'), 'quests'], ['codex', t('codex'), 'codex'], ['social', t('social'), 'social'], ['guild', 'Guild', 'guild'], ['ladder', 'Leaderboards', 'ladder'], ['season', 'Season', 'season'], ['settings', t('settings'), '']];
     clear(this.el.menu!).append(...items.map(([p, label, bind]) => h('button', { class: 'menu-btn', onclick: () => this.toggle(p), title: label }, label, bind ? h('kbd', null, keyLabel(this.input?.binds[bind] ?? '')) : h('kbd', null, 'Esc'))));
   }
 
@@ -416,7 +418,7 @@ export class GameUI {
   // ─────────── Panels ───────────
   private nearbyPlayers(): string[] { return [...this.game.ents.values()].filter((e) => e.kind === 0 && e.id !== this.game.pid).map((e) => e.name.split(' ‹')[0]!); }
   private toggle(p: PanelName) { if (this.panel === p) this.closePanel(); else { this.panelExtra = null; this.openPanel(p); } }
-  openPanel(p: PanelName) { this.panel = p; if (p === 'social') this.send({ t: 'pf_list' }); if (p === 'guild') this.send({ t: 'guild_info' }); if (p === 'ladder') this.send({ t: 'ladder' }); this.renderPanel(); }
+  openPanel(p: PanelName) { this.panel = p; if (p === 'social') this.send({ t: 'pf_list' }); if (p === 'guild') this.send({ t: 'guild_info' }); if (p === 'ladder') this.send({ t: 'ladder' }); if (p === 'season') this.send({ t: 'season_info' }); this.renderPanel(); }
   closePanel() { this.panel = null; this.el.panel!.hidden = true; hideTip(); }
   private ctx(): P.PanelCtx {
     return { ch: this.game.char!, account: this.game.account!, send: (m) => this.send(m), room: this.game.room, input: this.input, settings: this.settings, applySettings: () => this.applySettings(), logout: () => this.leave(), extra: { open: (p: PanelName) => this.openPanel(p) }, party: this.game.party };
@@ -426,11 +428,12 @@ export class GameUI {
     if (!p || !this.game.char) return;
     const ctx = this.ctx();
     const inTown = this.game.room?.kind === 'town';
-    const titles: Record<PanelName, string> = { inventory: t('inventory'), skills: t('skills'), passives: t('passives'), character: t('character'), quests: t('quests'), codex: t('codex'), social: t('social'), guild: 'Guild', ladder: 'Leaderboards', alchemist: 'Sister Maelis — alchemy & cooking', auction: 'Auctioneer Vell — auction house', settings: t('settings'), dungeon: 'Rift Gate', smith: 'Brenna the Smith — forge, salvage & enchant', quartermaster: 'Quartermaster Sol — potions & selling', trainer: 'Master Ilrin — trainer', stash: 'Astral Vault', map: t('map') };
+    const titles: Record<PanelName, string> = { inventory: t('inventory'), skills: t('skills'), passives: t('passives'), character: t('character'), quests: t('quests'), codex: t('codex'), social: t('social'), guild: 'Guild', ladder: 'Leaderboards', alchemist: 'Sister Maelis — alchemy & cooking', season: 'Season & weekly', auction: 'Auctioneer Vell — auction house', settings: t('settings'), dungeon: 'Rift Gate', smith: 'Brenna the Smith — forge, salvage & enchant', quartermaster: 'Quartermaster Sol — potions & selling', trainer: 'Master Ilrin — trainer', stash: 'Astral Vault', map: t('map') };
     let body: HTMLElement;
     switch (p) {
       case 'inventory': body = P.inventoryPanel(ctx); break;
       case 'smith': body = h('div', null, S.craftingSection(ctx.ch, ['smithing'], (m) => this.send(m)), P.inventoryPanel(ctx, 'smith')); break;
+      case 'season': body = S.seasonPanel(this.seasonData, ctx.ch, ctx.account, (m) => this.send(m)); break;
       case 'alchemist': body = S.craftingSection(ctx.ch, ['alchemy', 'cooking'], (m) => this.send(m)); break;
       case 'quartermaster': body = P.inventoryPanel(ctx, 'quartermaster'); break;
       case 'stash': body = P.inventoryPanel(ctx, 'stash'); break;

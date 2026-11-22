@@ -2,7 +2,7 @@
 
 Statuses: `Not Started` · `In Progress` · `Implemented` (code exists, manually exercised) · `Tested` (covered by automated tests or the e2e bot) · `Released` (deployed to a public HTTPS URL — nothing is Released yet).
 
-Last updated: 2026-11-22 (v0.2.0 — Phase 4 MMO systems added on top of the Phase 1 vertical slice).
+Last updated: 2026-11-22 (v0.5.0 — Phases 0-1, 4, 5, 6 and content expansion).
 
 ## Platform & architecture
 | Feature | Status | Notes |
@@ -17,7 +17,8 @@ Last updated: 2026-11-22 (v0.2.0 — Phase 4 MMO systems added on top of the Pha
 | Docker image / compose | Implemented | Written but **not built in this environment** (no Docker daemon). |
 | CI workflow | Implemented | Not yet run on GitHub. |
 | HTTPS deployment | Not Started | Needs a host + domain; see docs/OPERATIONS.md. |
-| Admin panel / live-ops tools | Not Started | Backlog B-6. |
+| Staff console `/admin.html` (roles via CLI only, TOTP MFA per session, overview, analytics, player lookup with logged inspection, mute/kick/ban with reasons, announcements, audit viewer) | Tested | Live e2e `admin-e2e.ts`. Not in the offline artifact. |
+| Live config: feature flags, XP/gold/loot multipliers, weekly-event override, maintenance mode, MOTD — validate → preview diff → publish → history → rollback | Tested | Live e2e incl. maintenance lockout + rollback. |
 | Observability | In Progress | Structured JSON logs + minute metrics; no Prometheus/Sentry yet. |
 
 ## Classes, skills, builds
@@ -74,7 +75,9 @@ Last updated: 2026-11-22 (v0.2.0 — Phase 4 MMO systems added on top of the Pha
 | Eclipse Dimension | Not Started | Planned as a seasonal activity (Phase 6+). |
 | PvP | Not Started | Optional in the master prompt; not planned yet. |
 | World boss public event (Gloomheart in Duskmeadow, every ~5 min, scales with players) | Tested | Spawn tested; kill reward path shares the normal boss code. |
-| Seasons & weekly events | Not Started | Backlog B-6. |
+| Season framework (Season 1 "The Ember Tithe"): Ember Shards, Season XP, 20-tier cosmetic/convenience reward track, archive, documented permanent vs reset | Tested | |
+| Weekly events (4 rotating) + 3 rotating weekly objectives | Tested | |
+| Cosmetic auras | Implemented | |
 
 ## Social
 | Feature | Status | Notes |
@@ -102,7 +105,7 @@ Last updated: 2026-11-22 (v0.2.0 — Phase 4 MMO systems added on top of the Pha
 - **B-3 Economy telemetry**: gold sources/sinks dashboard, price history.
 - **B-4 Endgame**: Endless Tower (reuse Rift generator with floor scaling), raids (4-8), world boss, arena.
 - **B-5 Life skills**: mining/fishing/cooking/alchemy recipes, housing, pets.
-- **B-6 Live ops**: season framework, weekly events, admin panel with RBAC + MFA, content publishing/rollback.
+- **B-6 Live ops**: data-driven content publishing (skills/items/drop tables edited from the console with schema validation); seasonal Eclipse Dimension activity; patch-notes page.
 - **B-7 Audio & art pass**: sound effects/music, sprite art replacing procedural drawing.
 - **B-8 Netcode**: input sequence numbers for exact reconciliation; delta-compressed snapshots.
 - **B-9 Localization**: Thai for item names, affix/stat labels and NPC dialogue.

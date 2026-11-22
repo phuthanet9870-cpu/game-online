@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0] — 2026-11-22 — Phase 6: Live service
+### Added
+- Season framework with Season 1 "The Ember Tithe": Ember Shards and Season XP from Rifts, tower, arena, raid and the world boss; 20-tier reward track (dust, gold, respec tokens, titles, cosmetic auras — no combat power); season archive; documented permanent vs reset progress.
+- Weekly events (Ember Tide, Golden Rifts, Elite Surge, Scholar's Week) and three rotating weekly objectives; Season panel (Y); cosmetic auras rendered on characters.
+- Staff console at /admin.html: TOTP MFA, overview, analytics (class usage, runs, economy, level distribution), player lookup with audited inspection, mute/kick/ban with mandatory reasons, announcements, audit log viewer.
+- Live config with validation, preview diff, versioned publish, history and rollback: feature flags (world boss, auction, trade, tower, raid, guilds), XP/gold/loot multipliers, weekly-event override, maintenance mode, message of the day.
+- Migration 004; CLI role grant; tests: seasons/weekly/claims/flags, TOTP RFC vector (38 total); live `admin-e2e.ts`.
+
 ## [0.4.0] — 2026-11-22 — Content: second region, professions, story, Thai content
 ### Added
 - Ashen Highlands open world (levels 10-20) east of Duskmeadow: lava fields, charred spires, Cinderkin family (Ember Imp, Flamecaller, Magma Golem, Cinder Drakeling).
