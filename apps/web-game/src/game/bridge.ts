@@ -68,7 +68,7 @@ export interface HudSnapshot {
   invulnerable: boolean;
 }
 
-export type LogChannel = 'combat' | 'system' | 'world';
+export type LogChannel = 'combat' | 'system' | 'world' | 'party';
 export interface LogEntry {
   id: number;
   channel: LogChannel;

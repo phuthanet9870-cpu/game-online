@@ -310,3 +310,193 @@ export function QuestTracker({ hud }: { hud: HudSnapshot }) {
     </div>
   );
 }
+
+/** Party management + Party Finder (all rules enforced by the server). */
+export function PartyPanel({
+  hud,
+  world,
+  onClose,
+}: {
+  hud: HudSnapshot;
+  world: WorldSource;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [note, setNote] = useState('');
+  const o = hud.online;
+  useEffect(() => {
+    world.party?.('finder');
+  }, [world]);
+  if (!o) return null;
+  const pt = o.party;
+  const myName = hud.playerName;
+  const iAmLeader = !!pt && pt.members.some((m) => m.leader && m.name === myName);
+  return (
+    <div className="panel side-panel party-panel" data-testid="party-panel">
+      <div className="panel-title">
+        <span>👥 ปาร์ตี้ {pt ? `(${pt.members.length}/4)` : ''}</span>
+        <button className="x" onClick={onClose} aria-label="ปิด">
+          ×
+        </button>
+      </div>
+      {pt ? (
+        <div className="col">
+          {pt.members.map((m) => (
+            <div key={m.charId} className="row between" data-testid={`party-member-${m.name}`}>
+              <span>
+                {m.leader ? '👑 ' : ''}
+                {m.name} Lv.{m.level} {m.online ? '' : '(หลุด)'}
+              </span>
+              {iAmLeader && m.name !== myName && (
+                <span className="row">
+                  <button
+                    className="btn-secondary small"
+                    onClick={() => world.party?.('promote', { target: m.name })}
+                  >
+                    ตั้งหัวหน้า
+                  </button>
+                  <button
+                    className="btn-secondary small"
+                    onClick={() => world.party?.('kick', { target: m.name })}
+                    data-testid={`party-kick-${m.name}`}
+                  >
+                    เตะ
+                  </button>
+                </span>
+              )}
+            </div>
+          ))}
+          <button
+            className="btn-secondary small"
+            onClick={() => world.party?.('leave')}
+            data-testid="party-leave"
+          >
+            ออกจากปาร์ตี้
+          </button>
+          <span className="hint">
+            แชทปาร์ตี้: พิมพ์ /p ข้อความ · EXP แชร์ให้สมาชิกใกล้ ๆ · ของดรอปเป็นของคนที่ช่วยตี
+          </span>
+        </div>
+      ) : (
+        <p className="hint">ยังไม่มีปาร์ตี้ — เชิญผู้เล่นหรือเข้าร่วมจาก Party Finder</p>
+      )}
+      {(!pt || iAmLeader) && (
+        <form
+          className="row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (name.trim()) world.party?.('invite', { target: name.trim() });
+            setName('');
+          }}
+        >
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="ชื่อตัวละคร"
+            maxLength={16}
+            data-testid="party-invite-name"
+          />
+          <button className="btn-primary small" type="submit" data-testid="party-invite">
+            เชิญ
+          </button>
+        </form>
+      )}
+      <h4>Party Finder</h4>
+      {(!pt || iAmLeader) &&
+        (pt?.listed ? (
+          <button className="btn-secondary small" onClick={() => world.party?.('unlist')}>
+            ปิดประกาศ ({pt.note})
+          </button>
+        ) : (
+          <form
+            className="row"
+            onSubmit={(e) => {
+              e.preventDefault();
+              world.party?.('list', { text: note });
+              setNote('');
+            }}
+          >
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="ข้อความประกาศหาทีม"
+              maxLength={60}
+              data-testid="finder-note"
+            />
+            <button className="btn-primary small" type="submit" data-testid="finder-post">
+              ประกาศ
+            </button>
+          </form>
+        ))}
+      <button className="btn-secondary small" onClick={() => world.party?.('finder')}>
+        รีเฟรชรายการ
+      </button>
+      {o.finder.length === 0 && <p className="hint">ยังไม่มีประกาศ</p>}
+      {o.finder.map((l) => (
+        <div key={l.id} className="row between" data-testid={`finder-${l.leader}`}>
+          <span>
+            {l.leader} Lv.{l.level} · {l.size}/{l.max} · {l.note}
+          </span>
+          {!pt && (
+            <button
+              className="btn-primary small"
+              onClick={() => world.party?.('join', { id: l.id })}
+              data-testid={`finder-join-${l.leader}`}
+            >
+              เข้าร่วม
+            </button>
+          )}
+        </div>
+      ))}
+      <p className="hint">การเข้าดันเจี้ยนยังต้องคุยกับ Dungeon Gatekeeper ในเมือง (ไม่มีวาร์ปอัตโนมัติ)</p>
+    </div>
+  );
+}
+
+/** Always-on party frames + incoming invite prompt. */
+export function PartyFrames({ hud, world }: { hud: HudSnapshot; world: WorldSource }) {
+  const o = hud.online;
+  if (!o) return null;
+  const others = (o.party?.members ?? []).filter((m) => m.name !== hud.playerName);
+  return (
+    <>
+      {o.partyInvite && (
+        <div className="party-invite panel" data-testid="party-invite-prompt">
+          <span>{o.partyInvite.from} ชวนคุณเข้าปาร์ตี้</span>
+          <div className="row">
+            <button
+              className="btn-primary small"
+              onClick={() => world.party?.('accept')}
+              data-testid="party-accept"
+            >
+              ตอบรับ
+            </button>
+            <button className="btn-secondary small" onClick={() => world.party?.('decline')}>
+              ปฏิเสธ
+            </button>
+          </div>
+        </div>
+      )}
+      {others.length > 0 && (
+        <div className="party-frames" data-testid="party-frames">
+          {others.map((m) => (
+            <div key={m.charId} className="pf panel">
+              <span>
+                {m.leader ? '👑' : ''}
+                {m.name} Lv.{m.level}
+                {m.map !== hud.mapId ? ' · ต่างแมพ' : ''}
+                {m.online ? '' : ' · หลุด'}
+              </span>
+              <div className="bar-track">
+                <div
+                  className="bar-fill hp"
+                  style={{ width: `${m.maxHp ? Math.max(0, (100 * (m.hp ?? 0)) / m.maxHp) : 0}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}

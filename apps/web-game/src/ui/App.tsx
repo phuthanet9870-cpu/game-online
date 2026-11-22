@@ -13,7 +13,7 @@ import {
   type HudSnapshot,
   type LogEntry,
 } from '../game/bridge';
-import { NpcDialog, QuestTracker } from './Phase4Panels';
+import { NpcDialog, PartyFrames, PartyPanel, QuestTracker } from './Phase4Panels';
 import { AutoPanel, Bag3, CharPanel, GmHud, Hotbar3, PowerPanel, SevererDialog } from './Phase3Panels';
 
 const useHud = () => useSyncExternalStore(hudStore.subscribe, hudStore.get);
@@ -86,6 +86,8 @@ export function GameHud({
           <SevererDialog hud={hud} world={world} />
           <NpcDialog hud={hud} world={world} onTrial={onTrial} />
           <QuestTracker hud={hud} />
+          <PartyFrames hud={hud} world={world} />
+          {panel === 'party' && <PartyPanel hud={hud} world={world} onClose={() => setPanel(null)} />}
           {(hud.nearNpc || hud.dropsNearby > 0) && (
             <div className="interact-hint">
               [H]{' '}
@@ -360,8 +362,8 @@ function Minimap({ hud }: { hud: HudSnapshot }) {
 
 /* ----------------------------------------------------------------- chat */
 
-type Tab = 'all' | 'combat' | 'system' | 'world';
-const CH_LABEL: Record<string, string> = { combat: 'ต่อสู้', system: 'ระบบ', world: 'โลก' };
+type Tab = 'all' | 'combat' | 'system' | 'world' | 'party';
+const CH_LABEL: Record<string, string> = { combat: 'ต่อสู้', system: 'ระบบ', world: 'โลก', party: 'ปาร์ตี้' };
 
 function ChatPanel({ world }: { world: WorldSource }) {
   const logs = useLogs();
@@ -402,7 +404,7 @@ function ChatPanel({ world }: { world: WorldSource }) {
   return (
     <div className="chat panel">
       <div className="tabs">
-        {(['all', 'world', 'combat', 'system'] as Tab[]).map((t) => (
+        {(['all', 'world', 'party', 'combat', 'system'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)} tabIndex={-1}>
             {t === 'all' ? 'ทั้งหมด' : CH_LABEL[t]}
           </button>
@@ -446,13 +448,14 @@ const MENU: Array<{
   { id: 'bag', label: 'กระเป๋า', icon: '🎒' },
   { id: 'power', label: 'The Power', icon: '🔮' },
   { id: 'auto', label: 'Auto', icon: '🤖' },
+  { id: 'party', label: 'ปาร์ตี้', icon: '👥' },
   { id: 'map', label: 'แผนที่', icon: '🗺️', phase: 4 },
   { id: 'gate', label: 'QA Gate', icon: '✅' },
   { id: 'settings', label: 'ตั้งค่า', icon: '⚙️' },
   { id: 'exit', label: 'ออก', icon: '🚪' },
 ];
 
-type Panel = 'char' | 'bag' | 'power' | 'auto';
+type Panel = 'char' | 'bag' | 'power' | 'auto' | 'party';
 
 function MenuDock(props: {
   online: boolean;
@@ -465,7 +468,7 @@ function MenuDock(props: {
   return (
     <div className="menu-dock">
       {items.map((m) => {
-        const offlineOnly = !props.online && (m.id === 'bag' || m.id === 'auto');
+        const offlineOnly = !props.online && (m.id === 'bag' || m.id === 'auto' || m.id === 'party');
         return (
           <button
             key={m.id}

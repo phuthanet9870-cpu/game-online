@@ -12,7 +12,7 @@ Create → choose weapon → farm/loot → bind/Activate Power → party → tal
 - [x] **S2 NPC talk protocol + บริการเมือง:** (Quest Board → S4, Gatekeeper → S6, Arena Master → S7) `talk` (ตรวจระยะบน server) → เมนู; Merchant (ซื้อ/ขาย + Sell All Trade Loot, ราคา deterministic), Storage (ฝาก/ถอน), Blacksmith (คราฟต์ + ตีบวก +0..+10 ไม่ทำลายของ), The Severer (ย้ายเข้าเมือง), Power Trial NPC, Quest Board, Dungeon Gatekeeper
 - [x] **S3 Content:** มอนสเตอร์ประจำ 3 แมพ, Trade Loot 12 ชนิด × 3 แมพ (TRD-F01..F03), อุปกรณ์พื้นฐาน (อาวุธ tier 2 × 6, ชุด 5 ชิ้น) + equipment slots + stat budget, Map Boss 1 ตัวใน FARM-03 (respawn window)
 - [x] **S4 Quests:** main + side, server นับ kill/collect/talk, ส่งเควสต์ที่ NPC, รางวัลผ่าน ledger
-- [ ] **S5 Party + Party Finder:** เชิญ/รับ/ออก/เตะ, หัวหน้า, party chat, แชร์ EXP/สิทธิ์ loot ตาม contribution, Party Finder (ประกาศหาทีม)
+- [x] **S5 Party + Party Finder:** เชิญ/รับ/ออก/เตะ, หัวหน้า, party chat, แชร์ EXP/สิทธิ์ loot ตาม contribution, Party Finder (ประกาศหาทีม)
 - [ ] **S6 Normal Dungeon:** เข้าได้เฉพาะคุยกับ Dungeon Gatekeeper ในเมือง → validate → ready check → สร้าง instance แยก (ไม่นับใน 32) → objective + boss → personal loot → ออกกลับเมือง; reconnect เข้า instance เดิม; ไม่มีทางเข้าอื่น
 - [ ] **S7 Arena 1v1:** แมพ/instance แยก, ท้าดวล/คิว, manual only (ปิด Auto), stat normalization + PvP modifier, ไม่มีของหล่น, บันทึกผล (`pvp_matches`)
 - [ ] **S8 Player trade:** ขอเทรด → ใส่ของ/Gold → ล็อกทั้งสองฝ่าย → ยืนยัน → swap แบบ atomic + ledger; ห้ามเทรด GM-only/bound items
@@ -23,4 +23,5 @@ Create → choose weapon → farm/loot → bind/Activate Power → party → tal
 - 2026-11-22: S1 เสร็จ (4 แมพ + portal + เกิดในเมือง), S2 ส่วนใหญ่เสร็จ, data S3 พร้อม; online E2E 11/11 ผ่าน (รวม phase4.spec 2 ตัว)
 - S3 เสร็จ: equipment 6 ช่อง + stats, ตีบวก +0..+10 ไม่ทำลายของ, Blacksmith คราฟต์, trade loot ตามแมพ; online E2E 12/12
 - S4 เสร็จ: quest_progress (migration 006), CompleteQuest atomic (ledger), accept/abandon/turnin ที่ Quest Board เท่านั้น, นับ kill/talk + collect จาก inventory จริง, UI Quest Board + tracker; E2E Quest Board ผ่าน
-- ถัดไป: S5 Party + Party Finder
+- S5 เสร็จ: ปาร์ตี้ 4 คน (in-memory, อยู่รอด reconnect ใน grace), เชิญ/รับ/ปฏิเสธ/ออก/เตะ/ตั้งหัวหน้า, party chat (/p), แชร์ EXP (สมาชิกใกล้ที่ไม่ได้ตี 50%, คนตี +10%/คน สูงสุด +30%), loot เฉพาะคนช่วยตี, Party Finder ประกาศ/เข้าร่วม; party frames HUD; Go tests + E2E Party ผ่าน
+- ถัดไป: S6 Normal Dungeon ผ่าน Gatekeeper (instance แยก, ready check, boss, personal loot, reconnect)

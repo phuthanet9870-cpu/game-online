@@ -163,3 +163,40 @@ test('Quest Board: accept, server counts a talk objective, tracker updates, turn
   expect(a.errors).toEqual([]);
   await a.ctx.close();
 });
+
+test('Party: invite/accept, party frames + party chat, Party Finder join, leave', async ({ browser }) => {
+  const a = await newChar(browser, 'pta');
+  const b = await newChar(browser, 'ptb');
+  const c = await newChar(browser, 'ptc');
+  await a.page.getByTestId('menu-party').click();
+  await a.page.getByTestId('party-invite-name').fill(b.char);
+  await a.page.getByTestId('party-invite').click();
+  await expect(b.page.getByTestId('party-invite-prompt')).toContainText(a.char);
+  await b.page.getByTestId('party-accept').click();
+  await expect(a.page.getByTestId('party-frames')).toContainText(b.char);
+  await expect(b.page.getByTestId('party-frames')).toContainText(a.char);
+  // party chat via /p reaches members only
+  await b.page.locator('.chat input').fill('/p พร้อมลงดัน');
+  await b.page.locator('.chat input').press('Enter');
+  await expect(a.page.locator('.chat')).toContainText('[ปาร์ตี้]');
+  await expect(a.page.locator('.chat')).toContainText('พร้อมลงดัน');
+  await expect(c.page.locator('.chat')).not.toContainText('พร้อมลงดัน');
+  // leader lists the party; C joins through Party Finder
+  await a.page.getByTestId('finder-note').fill('หาคนลงดัน');
+  await a.page.getByTestId('finder-post').click();
+  await c.page.getByTestId('menu-party').click();
+  await expect(c.page.getByTestId(`finder-${a.char}`)).toContainText('2/4', { timeout: 10_000 });
+  await c.page.getByTestId(`finder-join-${a.char}`).click();
+  await expect(c.page.getByTestId('party-panel')).toContainText('(3/4)');
+  await expect(a.page.getByTestId('party-frames')).toContainText(c.char);
+  // kick and leave
+  await a.page.getByTestId(`party-kick-${c.char}`).click();
+  await expect(c.page.getByTestId('party-panel')).toContainText('ยังไม่มีปาร์ตี้');
+  await b.page.getByTestId('menu-party').click();
+  await b.page.getByTestId('party-leave').click();
+  await expect(a.page.getByTestId('party-panel')).toContainText('ยังไม่มีปาร์ตี้');
+  for (const x of [a, b, c]) {
+    expect(x.errors).toEqual([]);
+    await x.ctx.close();
+  }
+});

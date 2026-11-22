@@ -27,6 +27,7 @@ import type {
   AutoView,
   MonsterView,
   OnlineState,
+  PartyOp,
   OtherPlayerView,
   PlayerView,
   PowerView,
@@ -233,6 +234,9 @@ export class NetWorld implements WorldSource {
     equipment: {},
     enhance: {},
     quests: [],
+    party: null,
+    partyInvite: null,
+    finder: [],
   };
 
   private ws: WebSocket | null = null;
@@ -414,6 +418,21 @@ export class NetWorld implements WorldSource {
         else if (m.op !== 'hotbar' && m.op !== 'loadout')
           pushLog('system', `สำเร็จ: ${m.op}${m.msg ? ` — ${m.msg}` : ''}`, 'good');
         break;
+      case 'party': {
+        const had = this.online.partyInvite;
+        this.online.party = (m.party as OnlineState['party']) ?? null;
+        this.online.partyInvite = (m.invite as OnlineState['partyInvite']) ?? null;
+        if (this.online.partyInvite && !had)
+          pushLog(
+            'party',
+            `${this.online.partyInvite.from} ชวนเข้าปาร์ตี้ — ตอบรับที่หน้าต่างคำเชิญ`,
+            'good',
+          );
+        break;
+      }
+      case 'finder':
+        this.online.finder = (m.listings as OnlineState['finder']) ?? [];
+        break;
       case 'quests':
         this.online.quests = (m.quests as OnlineState['quests']) ?? [];
         break;
@@ -425,7 +444,8 @@ export class NetWorld implements WorldSource {
         this.gmResult = m;
         break;
       case 'chat':
-        pushLog('world', `${m.from}: ${m.text}`);
+        if (m.ch === 'party') pushLog('party', `[ปาร์ตี้] ${m.from}: ${m.text}`);
+        else pushLog('world', `${m.from}: ${m.text}`);
         break;
       case 'sys':
         pushLog('system', String(m.text), (m.tone as 'normal') ?? 'normal');
@@ -727,7 +747,11 @@ export class NetWorld implements WorldSource {
   }
 
   sendChat(text: string): void {
-    this.send({ t: 'chat', text });
+    if (/^\/p\s+/.test(text)) this.send({ t: 'party', op: 'chat', text: text.replace(/^\/p\s+/, '') });
+    else this.send({ t: 'chat', text });
+  }
+  party(op: PartyOp, arg: { target?: string; text?: string; id?: number } = {}): void {
+    this.send({ t: 'party', op, target: arg.target, text: arg.text, count: arg.id });
   }
 
   /* ------------------------------------------------- Phase 3 commands */

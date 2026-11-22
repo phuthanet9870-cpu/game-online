@@ -150,6 +150,10 @@ type Hub struct {
 	sessions   map[string]*session
 	pending    map[string][]game.Event // per map
 	worlds     map[string]*game.World  // one authoritative instance per map
+	parties    map[int]*party
+	partyOf    map[int64]int // charID -> party id
+	invites    map[int64]partyInvite
+	partySeq   int
 	tick       uint64
 	lastSave   time.Time
 	Online     atomic.Int32
@@ -175,6 +179,9 @@ func NewHub(cfg Config, c *content.Content, st Store, persist *Persister, log *s
 		sessions:   map[string]*session{},
 		pending:    map[string][]game.Event{},
 		worlds:     map[string]*game.World{},
+		parties:    map[int]*party{},
+		partyOf:    map[int64]int{},
+		invites:    map[int64]partyInvite{},
 	}
 	i := uint32(0)
 	for id, m := range c.Maps {
@@ -453,6 +460,8 @@ func (h *Hub) onMessage(s *session, m clientMsg) {
 		h.onPhase3(s, m)
 	case "quest":
 		h.questOp(s, m)
+	case "party":
+		h.partyOp(s, m)
 	case "talk", "shop", "storage", "equipItem", "unequip", "smith":
 		h.onPhase4(s, m)
 	default:
@@ -604,6 +613,11 @@ func (h *Hub) step(dt float64) {
 	if h.tick%uint64(h.cfg.SnapshotEvery) == 0 {
 		h.broadcastSnapshots()
 	}
+	if h.tick%30 == 0 { // party frames (HP/map/online) once per second
+		for _, pt := range h.parties {
+			h.syncParty(pt)
+		}
+	}
 	// grace expiry
 	for pid, s := range h.sessions {
 		if s.client != nil {
@@ -616,6 +630,7 @@ func (h *Hub) step(dt float64) {
 				s.auto.Stop(h.world.Time, "disconnected")
 			}
 			h.saveState(s)
+			h.partyDropSession(s)
 			h.world.RemovePlayer(pid)
 			delete(h.sessions, pid)
 			h.present.Delete(pid)
@@ -716,6 +731,10 @@ func (h *Hub) processRewards() {
 		if table == nil {
 			continue
 		}
+		extra, bonus := h.partyShare(r.PlayerIDs, [2]float64{r.Pos.X, r.Pos.Y})
+		for _, pid := range extra {
+			h.partyXP(pid, r, table.XP/2)
+		}
 		for _, pid := range r.PlayerIDs {
 			s := h.sessions[pid]
 			p := h.world.Player(pid)
@@ -723,6 +742,9 @@ func (h *Hub) processRewards() {
 				continue
 			}
 			loot := game.RollLoot(table, h.lootRng)
+			if b := bonus[pid]; b > 1 {
+				loot.XP = int64(math.Round(float64(loot.XP) * b))
+			}
 			// map trade loot (12 sellable items per farm map) rolled per eligible player
 			if ml := h.c.MapLoot[h.world.Map.MapID]; ml != nil {
 				for r := 0; r < max(1, ml.Rolls); r++ {
@@ -759,6 +781,29 @@ func (h *Hub) processRewards() {
 				h.sendInventory(s)
 			}
 		}
+	}
+}
+
+// partyXP credits a nearby non-contributing party member: XP and quest kill credit, no loot bag.
+func (h *Hub) partyXP(pid string, r game.KillReward, xp int64) {
+	s := h.sessions[pid]
+	p := h.world.Player(pid)
+	if s == nil || p == nil || xp <= 0 {
+		return
+	}
+	s.xp += xp
+	levelUp := false
+	if nl := LevelForXP(h.c.Progression, s.xp); nl > s.level {
+		s.level, levelUp = nl, true
+		h.world.SetLevel(p, nl)
+	}
+	base := fmt.Sprintf("%s:%s:%d:%d", h.instanceID, r.MonsterID, r.DeathSeq, s.charID)
+	rw := store.Reward{TxID: "kill:" + base, CharID: s.charID, XPDelta: xp, LevelAfter: s.level, Reason: "party:" + r.MonsterDef}
+	h.persist.Enqueue(rw.TxID, func(ctx context.Context) error { return h.st.ApplyReward(ctx, rw) })
+	h.questEvent(s, "kill", r.MonsterDef)
+	if s.client != nil {
+		h.send(s.client, map[string]any{"t": "reward", "monster": r.MonsterDef, "xp": xp, "levelUp": levelUp, "level": s.level, "party": true})
+		h.sendInventory(s)
 	}
 }
 

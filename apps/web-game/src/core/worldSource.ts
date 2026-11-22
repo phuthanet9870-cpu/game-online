@@ -90,7 +90,49 @@ export interface OnlineState {
   equipment: Record<string, string>;
   enhance: Record<string, number>;
   quests: QuestView[];
+  party: PartyView | null;
+  partyInvite: { from: string } | null;
+  finder: PartyListing[];
 }
+
+export interface PartyMemberView {
+  charId: number;
+  name: string;
+  level: number;
+  map: string;
+  online: boolean;
+  leader: boolean;
+  hp?: number;
+  maxHp?: number;
+}
+export interface PartyView {
+  id: number;
+  leader: number;
+  members: PartyMemberView[];
+  note: string;
+  listed: boolean;
+}
+export interface PartyListing {
+  id: number;
+  leader: string;
+  level: number;
+  size: number;
+  max: number;
+  note: string;
+}
+
+export type PartyOp =
+  | 'invite'
+  | 'accept'
+  | 'decline'
+  | 'leave'
+  | 'kick'
+  | 'promote'
+  | 'chat'
+  | 'list'
+  | 'unlist'
+  | 'finder'
+  | 'join';
 
 export interface QuestObjectiveView {
   type: 'kill' | 'collect' | 'talk';
@@ -156,6 +198,7 @@ export interface WorldSource {
   unequip?(slot: string): void;
   smith?(op: 'craft' | 'enhance', arg: string): void;
   quest?(op: 'accept' | 'abandon' | 'turnin', questId: string): void;
+  party?(op: PartyOp, arg?: { target?: string; text?: string; id?: number }): void;
 }
 
 export interface PowerSkillView {
