@@ -33,7 +33,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
     ], color: '#6a3a5a', boss: { phases: [0.5], breakGauge: 400, title: 'Mini-boss' }, lootBonus: 2,
   },
   veyra: {
-    id: 'veyra', name: 'Veyra, the Umbral Warden', family: 'hollowborn', role: 'boss', hp: 3200, power: 18, armor: 60, res: { shadow: 50, holy: -10, fire: 10 }, speed: 115, radius: 34, xp: 600, aggroRange: 520,
+    id: 'veyra', name: 'Veyra, the Umbral Warden', family: 'hollowborn', role: 'boss', hp: 4800, power: 17, armor: 60, res: { shadow: 50, holy: -10, fire: 10 }, speed: 115, radius: 34, xp: 600, aggroRange: 520,
     attacks: [
       { id: 'sweep', kind: 'cleave', range: 150, cooldown: 3.0, windup: 0.9, dmg: 1.6, type: 'shadow' },
       { id: 'orbs', kind: 'nova', range: 520, cooldown: 6, windup: 1.0, dmg: 1.0, type: 'shadow', count: 14, speed: 230 },
@@ -58,7 +58,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
     attacks: [{ id: 'crush', kind: 'slam', range: 80, cooldown: 2.8, windup: 0.8, dmg: 1.3, type: 'physical', radius: 90 }], color: '#7a7466',
   },
   labyrinth_warden: {
-    id: 'labyrinth_warden', name: 'Oruk, Warden of the Coil', family: 'construct', role: 'boss', hp: 2600, power: 18, armor: 110, res: { physical: 20, poison: 50, lightning: -15 }, speed: 125, radius: 32, xp: 650, aggroRange: 420,
+    id: 'labyrinth_warden', name: 'Oruk, Warden of the Coil', family: 'construct', role: 'boss', hp: 3400, power: 18, armor: 110, res: { physical: 20, poison: 50, lightning: -15 }, speed: 125, radius: 32, xp: 650, aggroRange: 420,
     attacks: [
       { id: 'gore', kind: 'charge', range: 420, cooldown: 6, windup: 1.0, dmg: 1.7, type: 'physical', status: { id: 'stun', chance: 1, duration: 0.8 } },
       { id: 'quake', kind: 'slam', range: 140, cooldown: 3.5, windup: 1.0, dmg: 1.6, type: 'physical', radius: 160 },
@@ -68,7 +68,7 @@ export const ENEMIES: Record<string, EnemyDef> = {
   },
   // Raid (4-8 players)
   sovereign: {
-    id: 'sovereign', name: 'Nyx Aurelion, the Eclipse Sovereign', family: 'hollowborn', role: 'boss', hp: 5200, power: 20, armor: 80, res: { shadow: 50, holy: -10, fire: 15, ice: 15 }, speed: 110, radius: 42, xp: 1500, aggroRange: 700,
+    id: 'sovereign', name: 'Nyx Aurelion, the Eclipse Sovereign', family: 'hollowborn', role: 'boss', hp: 10500, power: 17, armor: 80, res: { shadow: 50, holy: -10, fire: 15, ice: 15 }, speed: 110, radius: 42, xp: 1500, aggroRange: 700,
     attacks: [
       { id: 'crescent', kind: 'cleave', range: 170, cooldown: 3.2, windup: 1.0, dmg: 1.8, type: 'shadow' },
       { id: 'total_eclipse', kind: 'eclipse', range: 900, cooldown: 14, windup: 2.4, dmg: 3.2, type: 'shadow', radius: 150 },

@@ -1,7 +1,7 @@
 // End-to-end bot: plays the real online protocol against a running server.
 // Usage: tsx apps/server/test/bot.ts [baseUrl] [class] [--bots N]  (N>1 = simple load test)
 import WebSocket from 'ws';
-import { PROTOCOL_VERSION, clearPath, findPath, lineOfSight, type GameMap } from '@astra/shared';
+import { PROTOCOL_VERSION, expandEntities, clearPath, findPath, lineOfSight, type GameMap } from '@astra/shared';
 
 const base = process.argv[2] ?? 'http://localhost:8080';
 const cls = process.argv[3] ?? 'warrior';
@@ -24,11 +24,12 @@ async function runBot(i: number, full: boolean) {
   const charId = me.characters[0].id;
   const ws = new WebSocket(base.replace('http', 'ws') + '/ws');
   let map = null as GameMap | null, pid = 0, roomKind = '', ents: any[] = [], self: any = null, char: any = null, drops: any[] = [];
+  const statics = new Map<number, any[]>();
   const results = { kills: 0, bossKilled: false, runEnd: null as any, errors: new Map<string, number>(), snaps: 0, level: 1, items: 0 };
   ws.on('message', (d) => {
     const m = JSON.parse(String(d));
-    if (m.t === 'welcome') { map = m.map; pid = m.pid; roomKind = m.room.kind; char = m.char; log(`[${i}] welcome ${m.room.kind} ${m.room.id} lvl ${m.room.level} mods=${m.room.modifiers}`); }
-    if (m.t === 'snap') { ents = m.ents; self = m.self; drops = m.drops; results.snaps++; }
+    if (m.t === 'welcome') { statics.clear(); map = m.map; pid = m.pid; roomKind = m.room.kind; char = m.char; log(`[${i}] welcome ${m.room.kind} ${m.room.id} lvl ${m.room.level} mods=${m.room.modifiers}`); }
+    if (m.t === 'snap') { ents = expandEntities(statics, m.ents); self = m.self; drops = m.drops; results.snaps++; }
     if (m.t === 'char') { char = m.char; results.kills = m.char.stats.kills; results.level = m.char.level; results.items = m.char.inventory.filter(Boolean).length; }
     if (m.t === 'ev') for (const e of m.list) { if (e.t === 'it_add' && map) map.interactables.push(e.it); if (e.t === 'kill' ) results.kills++; if (e.t === 'boss_killed') results.bossKilled = true; }
     if (m.t === 'err') results.errors.set(m.msg, (results.errors.get(m.msg) ?? 0) + 1);

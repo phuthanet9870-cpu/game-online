@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.6.0] — 2026-11-22 — Polish & balance
+### Changed
+- Boss balance tuned with a new simulation harness (`npm run balance`, bot players with level-appropriate gear and mechanic awareness). Enemy life/power now scale with a gentle exponential term per level; Veyra 3200→4800 life, Oruk 2600→3400, Nyx 5200→10500 (power 20→17). Simulated results: Veyra solo 9/10 wins ~58s; party of 3 on Hard 10/10 ~65s; Oruk solo 9/10 ~97s; Nyx 4-player Normal and 6-player Hard roughly 2-3 minutes with 70-80% win rates. These are bot numbers, not human playtests.
+- Netcode: delta-compressed snapshots (static entity data, projectiles and areas sent only when new or changed) and interest radius 1100px — measured field bandwidth 71.6 → 30.1 KB/s per player, Rift 25.2 → 14.1 KB/s. Input sequence numbers + server acknowledgements: the client now replays only unacknowledged movement on top of the authoritative position.
+### Added
+- Procedural Web Audio sound effects (hits by element, crits, casts, dodge, potion, loot by rarity, gold, level up, boss phase, warnings) and per-zone ambience; volume settings.
+- Thai for item names, legendary powers, rarities, slots, stat labels, common panel text and frequent server messages.
+
 ## [0.5.0] — 2026-11-22 — Phase 6: Live service
 ### Added
 - Season framework with Season 1 "The Ember Tithe": Ember Shards and Season XP from Rifts, tower, arena, raid and the world boss; 20-tier reward track (dust, gold, respec tokens, titles, cosmetic auras — no combat power); season archive; documented permanent vs reset progress.

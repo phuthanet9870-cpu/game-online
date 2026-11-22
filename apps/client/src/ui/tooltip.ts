@@ -1,4 +1,5 @@
 import { AFFIX_MAP, CLASSES, ITEM_BASE_MAP, LEGENDARY_POWERS, RARITY_DEFS, computeStats, itemMods, statLabel, type CharacterData, type Item, type SkillDef, type SkillEffect, type Derived } from '@astra/shared';
+import { itemName, powerDesc, rarityName, slotName, statText, translateDom } from '../l10n.js';
 import { h, svg } from './dom.js';
 import { ct } from '../i18n.js';
 
@@ -38,7 +39,7 @@ function effectLine(fx: SkillEffect, st: Derived | null): string | null {
     case 'projectile': return `Projectile${(fx.count ?? 1) > 1 ? ` ×${fx.count}` : ''}: ${dmg(fx.dmg)}${fx.pierce ? ', pierces' : ''}${fx.chain ? `, chains ${fx.chain}×` : ''}${fx.explode ? `, explodes (${fx.explode.radius}px)` : ''}${fx.dmg.status ? `; ${Math.round(fx.dmg.status.chance * 100)}% ${fx.dmg.status.id}` : ''}`;
     case 'area': return `Area${(fx.count ?? 1) > 1 ? ` ×${fx.count}` : ''} (${fx.radius}px${fx.delay ? `, ${fx.delay}s delay` : ''}${fx.duration ? `, ${fx.duration}s` : ''})${fx.dmg ? `: ${dmg(fx.dmg)}${fx.duration ? ` every ${fx.tick ?? 0.5}s` : ''}` : ''}${fx.healPct ? `, heals ${(fx.healPct * 100).toFixed(1)}% life per tick` : ''}${fx.dmg?.status ? `; ${Math.round(fx.dmg.status.chance * 100)}% ${fx.dmg.status.id}` : ''}`;
     case 'dash': return `Dash ${fx.dist}px${fx.invuln ? ' (invulnerable)' : ''}${fx.dmg ? `, ${dmg(fx.dmg)} to enemies in path` : ''}`;
-    case 'buff': return `${fx.name} (${fx.duration}s): ${fx.mods.map((m) => statLabel(m.stat, m.value)).filter(Boolean).join(', ')}${fx.party ? ' — party' : ''}`;
+    case 'buff': return `${fx.name} (${fx.duration}s): ${fx.mods.map((m) => statText(m.stat, m.value)).filter(Boolean).join(', ')}${fx.party ? ' — party' : ''}`;
     case 'heal': return `Heal ${Math.round(fx.pct * 100)}% life${fx.radius ? ' (allies nearby)' : ''}`;
     case 'barrier': return `Barrier ${Math.round(fx.pct * 100)}% life for ${fx.duration}s${fx.radius ? ' (allies nearby)' : ''}`;
     case 'summon': return `Summon ${fx.count}× ${fx.minion} for ${fx.duration}s`;
@@ -64,17 +65,17 @@ export function skillTooltip(s: SkillDef, ch: CharacterData | null): HTMLElement
 export function itemTooltip(it: Item, compare?: Item | null): HTMLElement {
   const rd = RARITY_DEFS[it.rarity];
   const base = ITEM_BASE_MAP[it.baseId];
-  const lines = (x: Item) => itemMods(x).map((m) => statLabel(m.stat, m.value)).filter(Boolean);
+  const lines = (x: Item) => itemMods(x).map((m) => statText(m.stat, m.value)).filter(Boolean);
   const cmp = compare ? statDiff(compare, it) : null;
   return h('div', { class: 'tip', style: `border-color:${rd.color}` },
-    h('div', { class: 'tip-title', style: `color:${rd.color}` }, `${rd.glyph} ${it.name}`),
-    h('div', { class: 'tip-sub' }, `${rd.name} ${it.slot} · item level ${it.ilvl} · requires level ${it.reqLevel}${base?.classes ? ` · affinity: ${base.classes.join('/')}` : ''}`),
+    h('div', { class: 'tip-title', style: `color:${rd.color}` }, `${rd.glyph} ${itemName(it)}`),
+    h('div', { class: 'tip-sub' }, `${rarityName(it.rarity)} ${slotName(it.slot)} · item level ${it.ilvl} · requires level ${it.reqLevel}${base?.classes ? ` · affinity: ${base.classes.join('/')}` : ''}`),
     it.weaponPower ? h('div', { class: 'tip-big' }, `${it.weaponPower} Weapon Power`) : null,
-    h('ul', { class: 'tip-fx implicit' }, it.implicit.map((m) => h('li', null, statLabel(m.stat, m.value)))),
-    h('ul', { class: 'tip-fx' }, it.affixes.map((a) => h('li', null, AFFIX_MAP[a.id] ? AFFIX_MAP[a.id]!.label.replace('{v}', String(a.value)) : statLabel(a.stat, a.value), h('span', { class: 'tier' }, ` T${a.tier}`)))),
-    it.power ? h('p', { class: 'tip-legend' }, LEGENDARY_POWERS[it.power]?.desc ?? '') : null,
+    h('ul', { class: 'tip-fx implicit' }, it.implicit.map((m) => h('li', null, statText(m.stat, m.value)))),
+    h('ul', { class: 'tip-fx' }, it.affixes.map((a) => h('li', null, AFFIX_MAP[a.id] ? AFFIX_MAP[a.id]!.label.replace('{v}', String(a.value)) : statText(a.stat, a.value), h('span', { class: 'tier' }, ` T${a.tier}`)))),
+    it.power ? h('p', { class: 'tip-legend' }, powerDesc(it.power)) : null,
     h('div', { class: 'tip-meta' }, [it.bound ? 'Bound to character' : 'Tradeable', it.hardcore ? 'Hardcore' : null].filter(Boolean).join(' · ')),
-    cmp && cmp.length ? h('div', { class: 'tip-cmp' }, h('div', { class: 'tip-sub' }, `Compared to equipped ${compare!.name}:`), h('ul', { class: 'tip-fx' }, cmp.map(([k, v]) => h('li', { class: v > 0 ? 'up' : 'down' }, statLabel(k, Math.round(v * 100) / 100))))) : null,
+    cmp && cmp.length ? h('div', { class: 'tip-cmp' }, h('div', { class: 'tip-sub' }, `Compared to equipped ${compare!.name}:`), h('ul', { class: 'tip-fx' }, cmp.map(([k, v]) => h('li', { class: v > 0 ? 'up' : 'down' }, statText(k, Math.round(v * 100) / 100))))) : null,
     void lines,
   );
 }
@@ -92,6 +93,7 @@ function statDiff(a: Item, b: Item): Array<[string, number]> {
 let tipEl: HTMLElement | null = null;
 export function showTip(content: HTMLElement, x: number, y: number) {
   hideTip();
+  translateDom(content);
   tipEl = h('div', { class: 'tip-float' }, content);
   document.body.append(tipEl);
   const r = tipEl.getBoundingClientRect();

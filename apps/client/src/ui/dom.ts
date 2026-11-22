@@ -1,3 +1,4 @@
+import { trText } from '../l10n.js';
 type Attrs = Record<string, unknown> & { class?: string; style?: string; onclick?: (e: MouseEvent) => void };
 type Child = Node | string | number | null | undefined | false | Child[];
 
@@ -37,7 +38,7 @@ export function svg(path: string, color: string, size = 28): SVGSVGElement {
 let toastHost: HTMLElement | null = null;
 export function toast(msg: string, kind: 'info' | 'error' | 'good' = 'info') {
   if (!toastHost) { toastHost = h('div', { class: 'toasts', role: 'status', 'aria-live': 'polite' }); document.body.append(toastHost); }
-  const el = h('div', { class: `toast toast-${kind}` }, msg);
+  const el = h('div', { class: `toast toast-${kind}` }, trText(msg));
   toastHost.append(el);
   while (toastHost.children.length > 5) toastHost.firstChild?.remove();
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, kind === 'error' ? 3200 : 2600);

@@ -41,6 +41,7 @@ export interface PlayerState {
   lootBonus: number;
   softLock: boolean;
   aura: string | null;
+  lastSeq: number;
 }
 export interface EnemyState {
   def: EnemyDef;
@@ -196,7 +197,7 @@ export class World {
       armor: 0, res: {}, speed: def.base.moveSpeed, level: char.level,
       p: {
         char, sessionId, input: { mx: 0, my: 0, ax: 0, ay: 0, attack: false }, targetId: 0, res: 0, sec: 0, cds: {}, basicT: 0, comboIdx: 0, dodgeCd: 0, potionCd: 0,
-        stillT: 0, combatT: 99, lastElem: null, weaveT: 0, runMods: [], blessings: [], deadT: 0, partyId: null, lootBonus: 0, softLock: false, aura: null,
+        stillT: 0, combatT: 99, lastElem: null, weaveT: 0, runMods: [], blessings: [], deadT: 0, partyId: null, lootBonus: 0, softLock: false, aura: null, lastSeq: 0,
       },
     };
     if (circleBlocked(this.map, e.x, e.y, e.r)) { e.x = this.map.spawn.x; e.y = this.map.spawn.y; }
@@ -241,8 +242,9 @@ export class World {
     const lv = Math.max(1, level);
     const partyScale = 1 + 0.6 * (this.opts.partySize - 1);
     const sc = def.id === 'dummy' ? 1 : this.opts.scale ?? 1;
-    let hp = def.hp * (1 + 0.22 * (lv - 1)) * (def.id === 'dummy' ? 1 : d.hp * partyScale * this.enemyHpMul) * sc;
-    let power = def.power * (1 + 0.13 * (lv - 1)) * d.dmg * this.enemyDmgMul * Math.sqrt(sc);
+    // Enemy curves: linear + gentle exponential so higher levels keep pace with item-level growth (tuned with scripts/balance.ts)
+    let hp = def.hp * (1 + 0.22 * (lv - 1)) * Math.pow(1.05, lv - 1) * (def.id === 'dummy' ? 1 : d.hp * partyScale * this.enemyHpMul) * sc;
+    let power = def.power * (1 + 0.13 * (lv - 1)) * Math.pow(1.02, lv - 1) * d.dmg * this.enemyDmgMul * Math.sqrt(sc);
     const affixes: string[] = [];
     if (elite) {
       hp *= 2.2; power *= 1.3;
@@ -301,9 +303,10 @@ export class World {
   }
 
   // ───────────── Commands (validated; never trust the client) ─────────────
-  setInput(id: number, inp: { mx: number; my: number; ax: number; ay: number; attack: boolean }) {
+  setInput(id: number, inp: { mx: number; my: number; ax: number; ay: number; attack: boolean; seq?: number }) {
     const e = this.ents.get(id);
     if (!e?.p) return;
+    if (Number.isInteger(inp.seq) && inp.seq! > e.p.lastSeq) e.p.lastSeq = inp.seq!;
     const [mx, my] = normalize(clamp(+inp.mx || 0, -1, 1), clamp(+inp.my || 0, -1, 1));
     e.p.input = { mx, my, ax: clamp(+inp.ax || 0, -1e5, 1e5), ay: clamp(+inp.ay || 0, -1e5, 1e5), attack: !!inp.attack };
   }
@@ -1328,7 +1331,7 @@ export class World {
   }
 
   // ───────────── Snapshot ─────────────
-  snapshotFor(pid: number, radius = 1400) {
+  snapshotFor(pid: number, radius = 1100) {
     const me = this.ents.get(pid);
     const cx = me?.x ?? this.map.spawn.x, cy = me?.y ?? this.map.spawn.y;
     const r2 = radius * radius;
@@ -1355,7 +1358,7 @@ export class World {
         id: me.id, res: Math.round(p.res), maxRes: me.stats.maxRes, sec: Math.round(p.sec * 10) / 10, secMax: me.stats.secMax,
         cdA: lo.active.map((s) => (s ? Math.round((p.cds[s] ?? 0) * 10) / 10 : 0)), cdU: lo.ultimate.map((s) => (s ? Math.round((p.cds[s] ?? 0) * 10) / 10 : 0)),
         dodge: Math.round(p.dodgeCd * 10) / 10, potCd: Math.round(p.potionCd * 10) / 10, potions: p.char.potions, buffs: me.buffs.map((b) => [b.name, Math.round(b.t * 10) / 10]),
-        target: p.targetId, deadT: me.dead ? (this.opts.noRespawn ? -2 : Math.max(0, Math.round(p.deadT * 10) / 10)) : -1, lock: Math.round(me.lock * 100) / 100,
+        target: p.targetId, ack: p.lastSeq, deadT: me.dead ? (this.opts.noRespawn ? -2 : Math.max(0, Math.round(p.deadT * 10) / 10)) : -1, lock: Math.round(me.lock * 100) / 100,
       };
     }
     return { time: Math.round(this.time * 1000), ents, projs, areas, drops, self };

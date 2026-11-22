@@ -2,12 +2,14 @@ import {
   ACHIEVEMENTS, BLESSING_MAP, CLASSES, DIFFICULTIES, DIFFICULTY_ORDER, DUNGEON_MODIFIERS, ENEMIES, EQUIP_SLOTS, LORE, POTION, QUESTS, RARITY_DEFS, SKILL_MAP, classSkills, computeStats, enchantCost,
   masteryToNext, sellValue, salvageValue, statLabel, xpToNext, AFFIX_MAP, type CharacterData, type EquipSlot, type Item, type AccountProgress,
 } from '@astra/shared';
+import { statText } from '../l10n.js';
 import { ct, t, getLang, setLang } from '../i18n.js';
 import { ACTIVITIES, ACTIVITY_ORDER, ELIXIRS, MATERIALS, PROFESSIONS, type Activity } from '@astra/shared';
 import { BIND_LABELS, DEFAULT_BINDS, keyLabel, saveBinds, type Input } from '../input.js';
 import { clear, h, promptDialog, toast } from './dom.js';
 import { bindTip, hideTip, icon, itemTooltip, skillColor, skillTooltip } from './tooltip.js';
 import { passiveTreePanel } from './passive.js';
+import { sound } from '../audio.js';
 
 export interface PanelCtx {
   ch: CharacterData;
@@ -127,7 +129,7 @@ export function characterPanel(ctx: PanelCtx): HTMLElement {
   const d = CLASSES[ch.cls];
   const row = (k: string, v: string | number) => h('tr', null, h('th', null, k), h('td', null, String(v)));
   const res = Object.entries(st.res).filter(([k]) => k !== 'physical').map(([k, v]) => `${k} ${v}%`).join(' · ');
-  const extra = Object.entries(st.m).filter(([k, v]) => v && /^(dmgPct\.|basic\.|minion|dot|aoe|proj|finisher|status|heal|barrier)/.test(k)).map(([k, v]) => statLabel(k, v)).filter(Boolean);
+  const extra = Object.entries(st.m).filter(([k, v]) => v && /^(dmgPct\.|basic\.|minion|dot|aoe|proj|finisher|status|heal|barrier)/.test(k)).map(([k, v]) => statText(k, v)).filter(Boolean);
   return h('div', { class: 'char-sheet' },
     h('h3', null, `${ch.name} — ${d.name} ${t('level')} ${ch.level}${ch.hardcore ? ' · HARDCORE' : ''}`),
     h('p', { class: 'muted' }, `XP ${ch.xp}/${xpToNext(ch.level)} · ${t('mastery')} ${ch.mastery.level} (${ch.mastery.xp}/${masteryToNext(ch.mastery.level)}) · every 5 mastery levels grants +1 passive point`),
@@ -260,6 +262,11 @@ export function settingsPanel(ctx: PanelCtx): HTMLElement {
     sel(t('controlStyle'), s.style, [['action', t('actionMode')], ['tab', t('tabMode')]], (v) => { s.style = v as 'action' | 'tab'; ctx.applySettings(); }),
     sel(t('dmgNumbers'), s.numbers ? '1' : '0', [['1', t('on')], ['0', t('off')]], (v) => { s.numbers = v === '1'; ctx.applySettings(); }),
     sel(t('uiScale'), String(s.uiScale), [['0.85', '85%'], ['1', '100%'], ['1.15', '115%'], ['1.3', '130%']], (v) => { s.uiScale = Number(v); ctx.applySettings(); }),
+    h('h3', null, 'Audio'),
+    sel('Sound', sound.settings.on ? '1' : '0', [['1', t('on')], ['0', t('off')]], (v) => { sound.settings.on = v === '1'; sound.apply(); }),
+    sel('Master volume', String(sound.settings.master), [['0.2', '20%'], ['0.4', '40%'], ['0.6', '60%'], ['0.8', '80%'], ['1', '100%']], (v) => { sound.settings.master = Number(v); sound.apply(); }),
+    sel('Effects', String(sound.settings.sfx), [['0', t('off')], ['0.4', '40%'], ['0.8', '80%'], ['1', '100%']], (v) => { sound.settings.sfx = Number(v); sound.apply(); }),
+    sel('Ambience', String(sound.settings.music), [['0', t('off')], ['0.2', '20%'], ['0.35', '35%'], ['0.6', '60%']], (v) => { sound.settings.music = Number(v); sound.apply(); }),
     h('h3', null, t('keybinds')), binds,
     h('p', { class: 'hint' }, 'Action mode: skills fire toward the mouse cursor. Tab Target mode: press Tab (or click an enemy) to lock a target; skills and basic attacks aim at it automatically while it is in range and line of sight. Both modes use the same server rules.'),
     h('button', { class: 'btn danger', onclick: () => ctx.logout() }, t('logout') + ' / character select'));

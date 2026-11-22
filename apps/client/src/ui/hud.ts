@@ -10,6 +10,8 @@ import * as P from './panels.js';
 import { passiveTreePanel } from './passive.js';
 import { modeBanner } from './screens.js';
 import * as S from './social.js';
+import { sound } from '../audio.js';
+import { itemName, translateDom, trText } from '../l10n.js';
 
 type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 'codex' | 'social' | 'guild' | 'auction' | 'ladder' | 'alchemist' | 'season' | 'settings' | 'dungeon' | 'smith' | 'quartermaster' | 'trainer' | 'stash' | 'map';
 
@@ -92,6 +94,7 @@ export class GameUI {
     removeEventListener('resize', this.onResize);
     this.input.enabled = false;
     this.conn?.close();
+    sound.ambience(null);
     hideTip();
   }
   private leave() { this.destroy(); this.exit(); }
@@ -114,9 +117,9 @@ export class GameUI {
   private onMessage(m: any) {
     const g = this.game;
     switch (m.t) {
-      case 'welcome': g.welcome(m); this.status(null); this.buildBar(); this.updateZone(); this.closePanel(); this.renderWorldEvent(); if (m.mode === 'offline' && !this.offlineNoted) { this.offlineNoted = true; this.chatLine('system', 'Offline mode: this session is simulated locally in your browser.'); } this.chatLine('system', `Entered ${m.room.kind === 'town' ? 'Lumenhold' : m.room.id === 'highlands' ? 'the Ashen Highlands (open world, levels 10-20)' : m.room.kind === 'field' ? 'Duskmeadow (open world, levels 2-9)' : 'an instance'}.`); break;
+      case 'welcome': sound.ambience(m.room.kind === 'town' ? 'town' : m.room.id === 'highlands' ? 'ash' : m.room.kind === 'field' ? 'field' : m.room.mode === 'raid' ? 'raid' : 'dungeon'); g.welcome(m); this.status(null); this.buildBar(); this.updateZone(); this.closePanel(); this.renderWorldEvent(); if (m.mode === 'offline' && !this.offlineNoted) { this.offlineNoted = true; this.chatLine('system', 'Offline mode: this session is simulated locally in your browser.'); } this.chatLine('system', `Entered ${m.room.kind === 'town' ? 'Lumenhold' : m.room.id === 'highlands' ? 'the Ashen Highlands (open world, levels 10-20)' : m.room.kind === 'field' ? 'Duskmeadow (open world, levels 2-9)' : 'an instance'}.`); break;
       case 'snap': g.applySnap(m); break;
-      case 'ev': g.events(m.list); for (const ev of m.list) if (ev.t === 'msg') this.chatLine('system', ev.text); else if (ev.t === 'pickup' && ev.item) toast(`Picked up ${ev.item.name}`, 'good'); break;
+      case 'ev': g.events(m.list); for (const ev of m.list) if (ev.t === 'msg') this.chatLine('system', ev.text); else if (ev.t === 'pickup' && ev.item) toast(`Picked up ${itemName(ev.item)}`, 'good'); break;
       case 'char': g.char = m.char; g.account = m.account; this.buildBar(); if (this.panel && this.panel !== 'map') this.renderPanel(); if (this.trade) this.showModal(S.tradeModal(g.char!, this.trade, (x) => this.send(x))); break;
       case 'err': if (m.fatal) { toast(m.msg, 'error'); this.status(m.msg); setTimeout(() => this.leave(), 2500); } else this.flashErr(m.msg); break;
       case 'toast': toast(m.msg); this.chatLine('system', m.msg); break;
@@ -217,7 +220,7 @@ export class GameUI {
     if (this.sendT <= 0 || key !== this.lastInput) {
       this.sendT = 0.05;
       this.lastInput = key;
-      this.conn.send({ t: 'input', mx, my, ax: Math.round(ax), ay: Math.round(ay), atk });
+      this.conn.send({ t: 'input', mx, my, ax: Math.round(ax), ay: Math.round(ay), atk, q: ++g.seq });
     }
   }
 
@@ -242,8 +245,8 @@ export class GameUI {
     if (/^a[1-8]$/.test(a)) return this.cast('a', Number(a[1]) - 1);
     if (/^u[1-4]$/.test(a)) return this.cast('u', Number(a[1]) - 1);
     switch (a) {
-      case 'dodge': { const [mx, my] = this.input.moveVector(); const me = g.me(); const [ax, ay] = this.aim(); this.send({ t: 'dodge', dx: mx || (me ? ax - me.rx : 1), dy: my || (me ? ay - me.ry : 0) }); break; }
-      case 'potion': this.send({ t: 'potion' }); break;
+      case 'dodge': { sound.dodge(); const [mx, my] = this.input.moveVector(); const me = g.me(); const [ax, ay] = this.aim(); this.send({ t: 'dodge', dx: mx || (me ? ax - me.rx : 1), dy: my || (me ? ay - me.ry : 0) }); break; }
+      case 'potion': sound.potion(); this.send({ t: 'potion' }); break;
       case 'interact': this.send({ t: 'interact' }); break;
       case 'pickup': this.pickupNearest(); break;
       case 'target': { const cur = g.self?.target ?? 0; const n = this.nearestEnemy(700, cur) ?? this.nearestEnemy(700); if (n) this.send({ t: 'target', id: n.id }); break; }
@@ -388,7 +391,7 @@ export class GameUI {
 
   private chatLine(ch: string, text: string) {
     const log = this.el.chatLog!;
-    log.append(h('div', { class: 'cl ' + ch }, ch !== 'system' && ch !== 'local' ? `[${ch}] ` : '', text));
+    log.append(h('div', { class: 'cl ' + ch }, ch !== 'system' && ch !== 'local' ? `[${ch}] ` : '', ch === 'system' ? trText(text) : text));
     while (log.children.length > 60) log.firstChild?.remove();
     log.scrollTop = log.scrollHeight;
   }
@@ -457,8 +460,9 @@ export class GameUI {
     panel.classList.toggle('wide', p === 'passives' || p === 'map');
     panel.append(h('header', { class: 'row between' }, h('h2', null, titles[p]), h('button', { class: 'btn ghost tiny', onclick: () => this.closePanel(), 'aria-label': t('close') }, '✕')), h('div', { class: 'panel-body' }, body));
     panel.querySelector('.panel-body')!.scrollTop = scroll;
+    translateDom(panel);
     if (p !== 'quests' && p !== 'dungeon') this.panelExtra = null;
   }
-  private showModal(el: HTMLElement) { clear(this.el.modal!).append(el); }
+  private showModal(el: HTMLElement) { translateDom(el); clear(this.el.modal!).append(el); }
   private closeModal() { clear(this.el.modal!); }
 }

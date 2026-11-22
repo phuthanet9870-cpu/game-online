@@ -1,9 +1,12 @@
 {
   "name": "astra-eclipse-chronicles",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
-  "workspaces": ["packages/*", "apps/*"],
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
     "dev:server": "npm run dev -w @astra/server",
     "dev:client": "npm run dev -w @astra/client",
@@ -11,7 +14,8 @@
     "build:offline": "npm run build:offline -w @astra/client",
     "typecheck": "tsc -p packages/shared && tsc -p apps/server && tsc -p apps/client",
     "test": "vitest run",
-    "migrate": "npm run migrate -w @astra/server"
+    "migrate": "npm run migrate -w @astra/server",
+    "balance": "tsx packages/shared/scripts/balance.ts 10"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

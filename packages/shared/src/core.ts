@@ -64,6 +64,7 @@ interface Session {
   chatHist: Array<{ text: string; t: number }>;
   mutedUntil: number;
   reviveCd?: number;
+  netCache?: { room: string; ents: Map<number, string>; projs: Map<number, string>; areas: Map<number, string> };
 }
 
 interface Room { id: string; kind: 'town' | 'field' | 'dungeon'; world: World; sessions: Set<string>; emptyT: number; difficulty: DifficultyId; seed: number; partyId: string | null; mode?: Activity; floor?: number; startedAt?: number; arena?: { wave: number; nextT: number } }
@@ -225,7 +226,7 @@ export class GameCore {
     try {
       switch (msg.t) {
         case 'ping': s.send({ t: 'pong', c: msg.c }); break;
-        case 'input': w.setInput(pid, { mx: msg.mx, my: msg.my, ax: msg.ax, ay: msg.ay, attack: msg.atk }); break;
+        case 'input': w.setInput(pid, { mx: msg.mx, my: msg.my, ax: msg.ax, ay: msg.ay, attack: msg.atk, seq: Math.floor(Number(msg.q)) || 0 }); break;
         case 'cast': err(w.castSkill(pid, msg.k === 'u' ? 'ultimate' : 'active', clampInt(msg.s, 0, msg.k === 'u' ? 3 : 7), +msg.ax, +msg.ay, +msg.tid || 0)); break;
         case 'dodge': err(w.dodge(pid, +msg.dx, +msg.dy)); break;
         case 'potion': err(w.usePotion(pid)); this.sendChar(s); break;
@@ -1199,7 +1200,7 @@ export class GameCore {
     if (this.tickN % 2 === 0) {
       for (const s of this.sessions.values()) {
         const room = this.rooms.get(s.roomId);
-        if (room) s.send({ t: 'snap', ...room.world.snapshotFor(s.entId) });
+        if (room) s.send({ t: 'snap', ...this.compress(s, room.world.snapshotFor(s.entId)) });
       }
     }
     // periodic saves
@@ -1213,6 +1214,34 @@ export class GameCore {
       for (const s of this.sessions.values()) if (s.char.elixir && s.char.elixir.until <= t) { s.char.elixir = null; this.markDirty(s); this.sendChar(s); this.toast(s, 'Your elixir has worn off.'); }
     }
     for (const [k, e] of this.pf) if (this.clock() - e.at > 15 * 60_000) this.pf.delete(k);
+  }
+
+  /**
+   * Delta-compress a snapshot for one client: entity static fields are sent only when new/changed,
+   * projectiles and areas only once (the client extrapolates them) plus a list of ids still alive.
+   */
+  private compress(s: Session, snap: ReturnType<World['snapshotFor']>) {
+    const known = (s.netCache ??= { room: '', ents: new Map<number, string>(), projs: new Map<number, string>(), areas: new Map<number, string>() });
+    if (known.room !== s.roomId) { known.room = s.roomId; known.ents.clear(); known.projs.clear(); known.areas.clear(); }
+    const ents = (snap.ents as any[][]).map((e) => {
+      const key = `${e[1]}|${e[6]}|${e[8]}|${e[9]}|${e[10]}|${e[12]}|${e[16]}|${e[20]}`;
+      if (known.ents.get(e[0]) === key) return [e[0], e[2], e[3], e[4], e[5], e[7], e[11], e[13], e[14], e[15], e[17], e[18], e[19]];
+      known.ents.set(e[0], key);
+      return e;
+    });
+    const alive = new Set(ents.map((e) => e[0] as number));
+    for (const id of known.ents.keys()) if (!alive.has(id)) known.ents.delete(id);
+    const delta = (list: any[][], cache: Map<number, string>, sig: (x: any[]) => string) => {
+      const out: any[][] = [];
+      const ids = list.map((x) => x[0] as number);
+      for (const x of list) { const k = sig(x); if (cache.get(x[0]) !== k) { cache.set(x[0], k); out.push(x); } }
+      const keep = new Set(ids);
+      for (const id of cache.keys()) if (!keep.has(id)) cache.delete(id);
+      return { full: out, ids };
+    };
+    const pr = delta(snap.projs as any[][], known.projs, (p) => `${p[3]},${p[4]}`); // re-send only when direction changes (chain/bounce)
+    const ar = delta(snap.areas as any[][], known.areas, (a) => `${a[1]},${a[2]},${a[12]}`); // re-send when moved or fired
+    return { ...snap, ents, projs: pr.full, pid: pr.ids, areas: ar.full, aid: ar.ids, z: 1 };
   }
 
   private sessionByEnt(room: Room, entId: number): Session | undefined {
@@ -1339,3 +1368,16 @@ function clampInt(v: unknown, lo: number, hi: number): number {
 const str = (v: unknown) => (typeof v === 'string' ? v : null);
 
 export const SIM_DT = 1 / TICK_RATE;
+
+/** Rebuilds full entity tuples from a delta-compressed snapshot. `statics` must persist across snapshots. */
+export function expandEntities(statics: Map<number, any[]>, ents: any[][]): any[][] {
+  const out: any[][] = [];
+  const seen = new Set<number>();
+  for (const raw of ents) {
+    seen.add(raw[0]);
+    if (raw.length === 13) { const st = statics.get(raw[0]); if (!st) continue; out.push([raw[0], st[1], raw[1], raw[2], raw[3], raw[4], st[6], raw[5], st[8], st[9], st[10], raw[6], st[12], raw[7], raw[8], raw[9], st[16], raw[10], raw[11], raw[12], st[20]]); }
+    else { statics.set(raw[0], raw); out.push(raw); }
+  }
+  for (const id of statics.keys()) if (!seen.has(id)) statics.delete(id);
+  return out;
+}

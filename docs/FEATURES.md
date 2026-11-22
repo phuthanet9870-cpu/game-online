@@ -97,7 +97,7 @@ Last updated: 2026-11-22 (v0.5.0 — Phases 0-1, 4, 5, 6 and content expansion).
 | Remappable keys, graphics quality, UI scale, damage-number toggle | Implemented | |
 | Touch controls (joystick + buttons) | Implemented | Only checked in an emulated phone viewport. |
 | Thai / English UI | Tested | UI chrome + classes, 72 skills, quests, enemies, activities, blessings, modifiers, achievements, crafting in Thai (coverage test). Item names and stat labels still English. |
-| Audio | Not Started | Backlog B-7. |
+| Audio (synthesized SFX + ambience, volume settings) | Implemented | No recorded music/voice. |
 
 ## Backlog (prioritised)
 - **B-1 Deployment**: HTTPS host, domain, TLS proxy, managed Postgres backups. Blocked on the owner choosing a host.
@@ -107,6 +107,6 @@ Last updated: 2026-11-22 (v0.5.0 — Phases 0-1, 4, 5, 6 and content expansion).
 - **B-5 Life skills**: mining/fishing/cooking/alchemy recipes, housing, pets.
 - **B-6 Live ops**: data-driven content publishing (skills/items/drop tables edited from the console with schema validation); seasonal Eclipse Dimension activity; patch-notes page.
 - **B-7 Audio & art pass**: sound effects/music, sprite art replacing procedural drawing.
-- **B-8 Netcode**: input sequence numbers for exact reconciliation; delta-compressed snapshots.
+- **B-8 Netcode**: binary encoding (MessagePack) and per-entity update rates for very crowded zones.
 - **B-9 Localization**: Thai for item names, affix/stat labels and NPC dialogue.
 - **B-10 More tests**: party + reconnect integration tests, cross-browser runs, larger load tests.

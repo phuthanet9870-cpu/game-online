@@ -1,4 +1,5 @@
 import { CLASSES, PASSIVE_MAP, PASSIVE_NODES, canAllocate, encodeBuild, passivePointsFor, respecCost, refundCost, statLabel, type CharacterData, type PassiveNode } from '@astra/shared';
+import { statText } from '../l10n.js';
 import { t } from '../i18n.js';
 import { confirmDialog, h, promptDialog, toast } from './dom.js';
 import { hideTip, showTip } from './tooltip.js';
@@ -39,7 +40,7 @@ export function passiveTreePanel(ch: CharacterData, send: (m: any) => void, inTo
       const allocated = own.has(n.id);
       const avail = !allocated && canAllocate(ch.cls, ch.passives, n.id);
       const foreign = n.tree !== 'central' && n.tree !== ch.cls;
-      const match = q && (n.name.toLowerCase().includes(q) || (n.desc ?? '').toLowerCase().includes(q) || n.mods.some((m) => statLabel(m.stat, m.value).toLowerCase().includes(q)));
+      const match = q && (n.name.toLowerCase().includes(q) || (n.desc ?? '').toLowerCase().includes(q) || n.mods.some((m) => statText(m.stat, m.value).toLowerCase().includes(q)));
       x.globalAlpha = foreign ? 0.3 : 1;
       x.fillStyle = allocated ? colorFor(n) : '#221c33';
       x.strokeStyle = match ? '#5fffd0' : avail ? '#ffffff' : allocated ? '#ffd76a' : 'rgba(180,170,220,0.6)';
@@ -101,7 +102,7 @@ function nodeTip(n: PassiveNode, ch: CharacterData) {
     h('div', { class: 'tip-title', style: `color:${n.kind === 'keystone' ? '#ff9a2e' : n.kind === 'notable' ? '#b9a6ff' : '#eee'}` }, n.name),
     h('div', { class: 'tip-sub' }, `${n.kind.toUpperCase()} · ${n.tree === 'central' ? 'Astral Core' : CLASSES[n.tree].name}${allocated ? ' · allocated' : ''}`),
     n.desc ? h('p', { class: n.kind === 'keystone' ? 'tip-legend' : '' }, n.desc) : null,
-    h('ul', { class: 'tip-fx' }, n.mods.map((m) => statLabel(m.stat, m.value)).filter(Boolean).map((l) => h('li', null, l))),
+    h('ul', { class: 'tip-fx' }, n.mods.map((m) => statText(m.stat, m.value)).filter(Boolean).map((l) => h('li', null, l))),
     !allocated && !canAllocate(ch.cls, ch.passives, n.id) ? h('div', { class: 'tip-meta' }, n.tree !== 'central' && n.tree !== ch.cls ? 'Belongs to another class tree' : 'Not connected yet') : null,
   );
 }

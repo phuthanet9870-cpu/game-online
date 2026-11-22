@@ -1,4 +1,5 @@
-import { CLASSES, computeStats, moveCircle, type AccountProgress, type CharacterData, type GameMap, type Interactable } from '@astra/shared';
+import { sound } from './audio.js';
+import { CLASSES, SKILL_MAP, computeStats, moveCircle, type AccountProgress, type CharacterData, type GameMap, type Interactable } from '@astra/shared';
 
 export interface CEnt {
   id: number; kind: 0 | 1 | 2; x: number; y: number; f: number; hp: number; mhp: number; barrier: number; def: string; name: string; lv: number; st: string[];
@@ -31,6 +32,9 @@ export class ClientGame {
   rtt = 0;
   // local prediction
   px = 0; py = 0; predicted = false;
+  seq = 0;
+  frames: Array<{ seq: number; mx: number; my: number; dt: number; sp: number }> = [];
+  private statics = new Map<number, any[]>();
   input = { mx: 0, my: 0 };
   showNumbers = true;
   quality: 'low' | 'medium' | 'high' = 'high';
@@ -39,7 +43,7 @@ export class ClientGame {
 
   welcome(m: any) {
     this.map = m.map; this.pid = m.pid; this.char = m.char; this.account = m.account; this.room = m.room;
-    this.ents.clear(); this.projs = []; this.areas = []; this.drops = []; this.fx = []; this.particles = []; this.usedIts.clear(); this.predicted = false; this.blessings = [];
+    this.ents.clear(); this.statics.clear(); this.frames = []; this.projs = []; this.areas = []; this.drops = []; this.fx = []; this.particles = []; this.usedIts.clear(); this.predicted = false; this.blessings = [];
     for (const it of m.map.interactables as Interactable[]) if (it.used) this.usedIts.add(it.id);
   }
 
@@ -48,9 +52,13 @@ export class ClientGame {
     if (this.lastSnap) this.snapInterval = this.snapInterval * 0.9 + (now - this.lastSnap) * 0.1;
     this.lastSnap = now;
     const seen = new Set<number>();
-    for (const a of m.ents as any[]) {
-      const id = a[0] as number;
+    for (const raw of m.ents as any[]) {
+      const id = raw[0] as number;
       seen.add(id);
+      // short tuples (static fields unchanged) are merged with the cached static block
+      let a = raw;
+      if (raw.length === 13) { const st = this.statics.get(id); if (!st) continue; a = [raw[0], st[1], raw[1], raw[2], raw[3], raw[4], st[6], raw[5], st[8], st[9], st[10], raw[6], st[12], raw[7], raw[8], raw[9], st[16], raw[10], raw[11], raw[12], st[20]]; }
+      else this.statics.set(id, raw);
       let e = this.ents.get(id);
       const next = { id, kind: a[1], x: a[2], y: a[3], f: a[4], hp: a[5], mhp: a[6], barrier: a[7], def: a[8], name: a[9], lv: a[10], st: a[11] ? String(a[11]).split(',') : [], flags: a[12], windup: a[13], dead: !!a[14], size: a[15], affixes: a[16] ? String(a[16]).split(',') : [], breakG: a[17], phase: a[18], invuln: !!a[19], aura: a[20] ?? '' };
       if (!e) { e = { ...next, rx: next.x, ry: next.y, moving: 0, swingT: 0, flash: 0, seen: now }; this.ents.set(id, e); }
@@ -62,23 +70,34 @@ export class ClientGame {
         e.seen = now;
       }
     }
-    for (const id of this.ents.keys()) if (!seen.has(id)) this.ents.delete(id);
-    this.projs = (m.projs as any[]).map((p) => ({ id: p[0], x: p[1], y: p[2], vx: p[3], vy: p[4], r: p[5], v: p[6], team: p[7] }));
-    const prevAreas = new Map(this.areas.map((a) => [a.id, a.age]));
-    this.areas = (m.areas as any[]).map((a) => ({ id: a[0], x: a[1], y: a[2], r: a[3], cone: a[4] === 1, outside: a[4] === 2, ang: a[5], arc: a[6], delay: a[7], delayT: a[8], team: a[9], v: a[10], dur: a[11], fired: !!a[12], age: prevAreas.get(a[0]) ?? 0 }));
+    for (const id of this.ents.keys()) if (!seen.has(id)) { this.ents.delete(id); this.statics.delete(id); }
+    if (m.z) {
+      // delta lists: new/changed items + ids still alive
+      const pAlive = new Set<number>(m.pid);
+      const pMap = new Map(this.projs.filter((p) => pAlive.has(p.id)).map((p) => [p.id, p]));
+      for (const p of m.projs as any[]) pMap.set(p[0], { id: p[0], x: p[1], y: p[2], vx: p[3], vy: p[4], r: p[5], v: p[6], team: p[7] });
+      this.projs = [...pMap.values()];
+      const aAlive = new Set<number>(m.aid);
+      const aMap = new Map(this.areas.filter((a) => aAlive.has(a.id)).map((a) => [a.id, a]));
+      for (const a of m.areas as any[]) aMap.set(a[0], { id: a[0], x: a[1], y: a[2], r: a[3], cone: a[4] === 1, outside: a[4] === 2, ang: a[5], arc: a[6], delay: a[7], delayT: a[8], team: a[9], v: a[10], dur: a[11], fired: !!a[12], age: aMap.get(a[0])?.age ?? 0 });
+      this.areas = [...aMap.values()];
+    } else {
+      this.projs = (m.projs as any[]).map((p) => ({ id: p[0], x: p[1], y: p[2], vx: p[3], vy: p[4], r: p[5], v: p[6], team: p[7] }));
+      const prevAreas = new Map(this.areas.map((a) => [a.id, a.age]));
+      this.areas = (m.areas as any[]).map((a) => ({ id: a[0], x: a[1], y: a[2], r: a[3], cone: a[4] === 1, outside: a[4] === 2, ang: a[5], arc: a[6], delay: a[7], delayT: a[8], team: a[9], v: a[10], dur: a[11], fired: !!a[12], age: prevAreas.get(a[0]) ?? 0 }));
+    }
     this.drops = (m.drops as any[]).map((d) => ({ id: d[0], x: d[1], y: d[2], rarity: d[3], name: d[4] }));
     this.self = m.self;
     const me = this.ents.get(this.pid);
     if (me && this.map) {
-      if (!this.predicted || me.dead || me.invuln) { this.px = me.x; this.py = me.y; this.predicted = true; }
-      else {
-        // reconcile: server position is ~latency old; aim at where it will be.
-        const lead = (this.rtt / 2 + this.snapInterval) / 1000 * this.moveSpeed();
-        const tx = me.x + this.input.mx * lead, ty = me.y + this.input.my * lead;
-        const err = Math.hypot(tx - this.px, ty - this.py);
-        if (err > 110) { this.px = me.x; this.py = me.y; }
-        else { const k = err > 40 ? 0.35 : 0.12; this.px += (tx - this.px) * k; this.py += (ty - this.py) * k; }
-      }
+      if (!this.predicted || me.dead || me.invuln) { this.px = me.x; this.py = me.y; this.predicted = true; this.frames = []; return; }
+      // Reconcile: start from the authoritative position and replay movement the server has not processed yet.
+      const ack = m.self?.ack ?? 0;
+      this.frames = this.frames.filter((f) => f.seq > ack);
+      let x = me.x, y = me.y;
+      for (const f of this.frames) [x, y] = moveCircle(this.map, x, y, 14, f.mx * f.sp * f.dt, f.my * f.sp * f.dt);
+      const err = Math.hypot(x - this.px, y - this.py);
+      if (err > 120) { this.px = x; this.py = y; } else { this.px += (x - this.px) * 0.3; this.py += (y - this.py) * 0.3; }
     }
   }
 
@@ -101,7 +120,8 @@ export class ClientGame {
           if (!e) break;
           const mine = ev.src === this.pid || this.isMyMinion(ev.src);
           const onMe = ev.id === this.pid;
-          if (onMe) this.shake = Math.min(8, this.shake + (ev.v / Math.max(1, e.mhp)) * 40);
+          if (onMe) { this.shake = Math.min(8, this.shake + (ev.v / Math.max(1, e.mhp)) * 40); sound.hurt(); }
+          else if (mine) sound.hit(ev.dt, ev.c);
           if (mine && e.def === 'dummy') { const n = performance.now(); if (n - this.dps.last > 4000) { this.dps.total = 0; this.dps.start = n; } this.dps.total += ev.v; this.dps.last = n; }
           if (this.showNumbers && (mine || onMe || this.quality !== 'low')) this.float(e.rx, e.ry - 30, String(ev.v) + (ev.c ? '!' : ''), onMe ? '#ff5a5a' : ev.c ? '#ffd23a' : mine ? DMG_COLORS[ev.dt] ?? '#fff' : '#bbb', ev.c ? 20 : onMe ? 15 : 14);
           if (this.quality !== 'low') this.burst(e.rx, e.ry, DMG_COLORS[ev.dt] ?? '#fff', ev.c ? 8 : 4);
@@ -109,13 +129,14 @@ export class ClientGame {
         }
         case 'heal': if (e && this.showNumbers) this.float(e.rx, e.ry - 34, '+' + ev.v, '#5dff8a', 14); break;
         case 'miss': if (e) this.float(e.rx, e.ry - 34, ev.kind === 'dodge' ? 'Dodge' : ev.kind === 'block' ? 'Block' : 'Immune', '#9fd8ff', 13); break;
-        case 'cast': { if (e) e.swingT = 0.25; break; }
-        case 'death': if (e) { this.burst(e.rx, e.ry, '#c9a0ff', 18); } break;
-        case 'level': if (e) { this.float(e.rx, e.ry - 50, 'LEVEL UP!', '#ffe47a', 22); this.burst(e.rx, e.ry, '#ffe47a', 30); } break;
-        case 'phase': if (e) { this.shake = 10; this.burst(e.rx, e.ry, '#ff4f9a', 40); } break;
+        case 'cast': { if (e) e.swingT = 0.25; if (ev.id === this.pid) { const sk = SKILL_MAP[ev.skill]; sound.cast(['fire', 'ice', 'lightning', 'holy', 'shadow', 'poison'].find((x) => sk?.tags.includes(x)) ?? 'physical'); } break; }
+        case 'death': if (e) { this.burst(e.rx, e.ry, '#c9a0ff', 18); if (e.id === this.pid) sound.death(); } break;
+        case 'msg': if (ev.kind === 'warn') sound.warn(); break;
+        case 'level': if (e && ev.id === this.pid) sound.levelUp(); if (e) { this.float(e.rx, e.ry - 50, 'LEVEL UP!', '#ffe47a', 22); this.burst(e.rx, e.ry, '#ffe47a', 30); } break;
+        case 'phase': sound.phase(); if (e) { this.shake = 10; this.burst(e.rx, e.ry, '#ff4f9a', 40); } break;
         case 'broken': if (e) { this.float(e.rx, e.ry - 60, 'BROKEN!', '#ffb347', 24); this.shake = 6; } break;
         case 'it_add': if (this.map && !this.map.interactables.some((i) => i.id === ev.it.id)) this.map.interactables.push(ev.it); break;
-        case 'pickup': if (ev.gold) { const me = this.ents.get(this.pid); if (me) this.float(me.rx, me.ry - 40, `+${ev.gold}g`, '#ffd76a', 13); } break;
+        case 'pickup': if (ev.item) sound.loot(ev.item.rarity); if (ev.gold) { sound.gold(); const me = this.ents.get(this.pid); if (me) this.float(me.rx, me.ry - 40, `+${ev.gold}g`, '#ffd76a', 13); } break;
         default: break;
       }
     }
@@ -141,6 +162,7 @@ export class ClientGame {
     if (me && this.map && this.predicted && !me.dead) {
       const sp = this.moveSpeed();
       [this.px, this.py] = moveCircle(this.map, this.px, this.py, 14, this.input.mx * sp * dt, this.input.my * sp * dt);
+      if (this.input.mx || this.input.my) { this.frames.push({ seq: this.seq, mx: this.input.mx, my: this.input.my, dt, sp }); if (this.frames.length > 240) this.frames.shift(); }
     }
     const k = 1 - Math.pow(0.0001, dt * (1000 / Math.max(40, this.snapInterval)) / 6);
     for (const e of this.ents.values()) {

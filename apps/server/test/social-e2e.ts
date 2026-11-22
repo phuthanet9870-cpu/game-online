@@ -3,7 +3,7 @@
 // Usage: tsx apps/server/test/social-e2e.ts [baseUrl]   (DATABASE_URL must point at the server's DB)
 import WebSocket from 'ws';
 import pg from 'pg';
-import { PROTOCOL_VERSION, Rng, findPath, generateItem, type GameMap } from '@astra/shared';
+import { PROTOCOL_VERSION, Rng, expandEntities, findPath, generateItem, type GameMap } from '@astra/shared';
 
 const base = process.argv[2] ?? 'http://localhost:8080';
 const db = new pg.Pool({ connectionString: process.env.DATABASE_URL ?? 'postgres://astra:astra_dev@localhost:5432/astra' });
@@ -18,7 +18,7 @@ async function api(path: string, method = 'GET', body?: unknown, token?: string)
 }
 
 class Client {
-  ws!: WebSocket; map: GameMap | null = null; pid = 0; ents: any[] = []; char: any = null; inbox: any[] = []; token = ''; charId = ''; name = '';
+  ws!: WebSocket; statics = new Map<number, any[]>(); map: GameMap | null = null; pid = 0; ents: any[] = []; char: any = null; inbox: any[] = []; token = ''; charId = ''; name = '';
   async start(tag: string, fixture?: (charId: string) => Promise<void>) {
     const u = 'e2e' + tag + Date.now().toString(36);
     this.token = (await api('/api/register', 'POST', { username: u, password: 'password1234' })).token;
@@ -31,7 +31,7 @@ class Client {
   async connect() {
     this.map = null;
     this.ws = new WebSocket(base.replace('http', 'ws') + '/ws');
-    this.ws.on('message', (d) => { const m = JSON.parse(String(d)); this.inbox.push(m); if (m.t === 'welcome') { this.map = m.map; this.pid = m.pid; this.char = m.char; } if (m.t === 'snap') this.ents = m.ents; if (m.t === 'char') this.char = m.char; });
+    this.ws.on('message', (d) => { const m = JSON.parse(String(d)); this.inbox.push(m); if (m.t === 'welcome') { this.statics.clear(); this.map = m.map; this.pid = m.pid; this.char = m.char; } if (m.t === 'snap') this.ents = expandEntities(this.statics, m.ents); if (m.t === 'char') this.char = m.char; });
     await new Promise((r) => this.ws.on('open', r));
     this.send({ t: 'auth', v: PROTOCOL_VERSION, token: this.token, char: this.charId });
     while (!this.map || !this.me()) await sleep(30);
