@@ -23,9 +23,30 @@ const (
 func (h *Hub) loadExtras(s *session, p *game.Player, x *store.CharacterExtras) {
 	s.archive = map[string]int{}
 	s.storage = map[string]int{}
+	s.equip = map[string]string{}
+	s.enh = map[string]int{}
 	s.autoCfg = game.DefaultAutoSettings()
+	defer func() {
+		// characters created before equipment existed: the carried weapon type maps to its template
+		if s.equip["weapon"] == "" {
+			if id := h.c.Progression.StarterWeaponItems[p.Weapon.ID]; s.inv[id] > 0 {
+				s.equip["weapon"] = id
+				cid := s.charID
+				h.persist.Enqueue("equip", func(ctx context.Context) error { return h.st.SetEquipment(ctx, cid, "weapon", id) })
+			}
+		}
+		h.applyEquip(s, p)
+	}()
 	if x == nil {
 		return
+	}
+	for slot, id := range x.Equipment {
+		if s.inv[id] > 0 {
+			s.equip[slot] = id
+		}
+	}
+	for id, l := range x.Enhance {
+		s.enh[id] = l
 	}
 	for _, it := range x.Storage {
 		s.storage[it.TemplateID] = it.Quantity
@@ -193,22 +214,17 @@ func (h *Hub) ownsWeapon(s *session, weapon string) bool {
 }
 
 func (h *Hub) equip(s *session, p *game.Player, weapon string) {
-	switch {
-	case !h.ownsWeapon(s, weapon):
-		h.fail(s, "equip", "ไม่มีอาวุธชนิดนี้ในกระเป๋า")
-	case h.inCombat(p) || s.auto.Enabled:
-		h.fail(s, "equip", "เปลี่ยนอาวุธได้เฉพาะนอกการต่อสู้และเมื่อปิด Auto")
-	default:
-		if err := h.world.EquipWeapon(p, weapon); err != nil {
-			h.fail(s, "equip", err.Error())
-			return
+	best := ""
+	for id, q := range s.inv {
+		if t := h.c.Items[id]; q > 0 && t != nil && t.WeaponType == weapon && (best == "" || t.LevelReq > h.c.Items[best].LevelReq) {
+			best = id
 		}
-		s.weapon = weapon
-		cid := s.charID
-		h.persist.Enqueue("weapon", func(ctx context.Context) error { return h.st.SetWeapon(ctx, cid, weapon) })
-		h.sendPower(s)
-		h.ok(s, "equip", map[string]any{"weapon": weapon})
 	}
+	if best == "" {
+		h.fail(s, "equip", "ไม่มีอาวุธชนิดนี้ในกระเป๋า")
+		return
+	}
+	h.equipItem(s, p, best, "equip")
 }
 
 func (h *Hub) bind(s *session, p *game.Player, itemID string) {

@@ -60,3 +60,84 @@ func TestStorageDepositWithdraw(t *testing.T) {
 		t.Fatalf("inv %v storage %v", s.inv, s.storage)
 	}
 }
+
+func TestEquipmentStatsAndBlacksmith(t *testing.T) {
+	h, _, p := newTestHub(t)
+	defer p.Close()
+	c, s, pl := joinWith(t, h, 1, "player", "sword", []store.ItemStack{{TemplateID: "WPN-SWD-001", Quantity: 1}, {TemplateID: "ARM-CHS-001", Quantity: 1},
+		{TemplateID: "MAT-ORE-001", Quantity: 8}, {TemplateID: "MAT-ORE-002", Quantity: 20}})
+	drain(c)
+	if s.equip["weapon"] != "WPN-SWD-001" {
+		t.Fatalf("starter weapon should be equipped: %v", s.equip)
+	}
+	def0, hp0 := pl.Defense, pl.MaxHp
+	h.onMessage(s, clientMsg{T: "equipItem", ItemID: "ARM-CHS-001"})
+	if pl.Defense != def0+4 || pl.MaxHp != hp0+20 {
+		t.Fatalf("chest stats not applied: def %v->%v hp %v->%v", def0, pl.Defense, hp0, pl.MaxHp)
+	}
+	// equipped items cannot be sold
+	standAt(h, pl, "merchant")
+	h.onMessage(s, clientMsg{T: "shop", Op: "sell", ItemID: "ARM-CHS-001", Qty: 1})
+	if s.inv["ARM-CHS-001"] != 1 {
+		t.Fatal("equipped item was sold")
+	}
+	// Blacksmith: craft needs gold, then works atomically
+	standAt(h, pl, "blacksmith")
+	h.onMessage(s, clientMsg{T: "smith", Op: "craft", Recipe: "RCP-WPN-T2-SWD"})
+	if lastResult(c, "smith")["ok"] != false {
+		t.Fatal("craft without gold must fail")
+	}
+	s.gold = 1000
+	s.level = 5
+	h.onMessage(s, clientMsg{T: "smith", Op: "craft", Recipe: "RCP-WPN-T2-SWD"})
+	if s.inv["WPN-T2-SWD"] != 1 || s.inv["MAT-ORE-001"] != 0 || s.gold != 950 || s.equip["weapon"] != "WPN-T2-SWD" {
+		t.Fatalf("craft result inv=%v gold=%d", s.inv, s.gold)
+	}
+	// enhancement +1..+3 always succeeds; failure never destroys the item
+	for i := 0; i < 10; i++ {
+		h.onMessage(s, clientMsg{T: "smith", Op: "enhance", ItemID: "ARM-CHS-001"})
+	}
+	if s.enh["ARM-CHS-001"] < 3 || s.inv["ARM-CHS-001"] != 1 {
+		t.Fatalf("enhance level %d inv %d", s.enh["ARM-CHS-001"], s.inv["ARM-CHS-001"])
+	}
+	if pl.Defense <= def0+4 {
+		t.Fatal("enhancement should raise equipped stats")
+	}
+}
+
+func TestMapTradeLootDropsOnFarmMaps(t *testing.T) {
+	h, _, p := newTestHub(t)
+	defer p.Close()
+	c := NewClient(func(string) {})
+	_ = h.join(JoinRequest{Account: &store.Account{ID: 9, Role: "player"}, Character: &store.Character{ID: 9, Name: "Farmer", Weapon: "sword", Level: 1, MapID: "FARM-01"}, Client: c})
+	s := h.sessions["c9"]
+	w := h.World("FARM-01")
+	pl := w.Player("c9")
+	pl.GodMode = true
+	trd := 0
+	for k := 0; k < 6; k++ {
+		var target *game.Monster
+		for _, m := range w.Monsters {
+			if m.Alive() {
+				target = m
+				break
+			}
+		}
+		pl.Pos = game.Vec{X: target.Pos.X - 20, Y: target.Pos.Y}
+		for i := 0; i < 4000 && target.Alive(); i++ {
+			s.aim = &target.Pos
+			s.actions = []game.ActionRequest{{Type: "attack", Slot: "basic"}}
+			h.step(1000.0 / 30)
+		}
+		for _, d := range w.DropsOf("c9") {
+			for _, it := range d.Items {
+				if h.c.Items[it.ItemID].SourceMap == "FARM-01" {
+					trd++
+				}
+			}
+		}
+	}
+	if trd == 0 {
+		t.Fatal("no FARM-01 trade loot dropped in 6 kills")
+	}
+}

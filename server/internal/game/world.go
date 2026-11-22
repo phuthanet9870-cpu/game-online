@@ -172,6 +172,8 @@ type Player struct {
 	DisconnectedAt      float64
 	currentMove         Vec
 	Power               *PowerState
+	// Equipment bonus (already includes enhancement) from the server inventory.
+	BonusAtk, BonusDef, BonusHp float64
 	// GodMode is a GM test flag; only settable through an authorised, audited GM command.
 	GodMode bool
 }
@@ -429,12 +431,28 @@ func (w *World) Players() []*Player {
 	return out
 }
 
-// SetLevel applies a level change (from XP rewards) and refreshes derived stats.
+// SetLevel applies a level change (from XP rewards) and refreshes derived stats (full heal).
 func (w *World) SetLevel(p *Player, level int) {
 	p.Level = level
-	maxHp, atk, def := w.StatsForLevel(level)
-	p.MaxHp, p.Attack, p.Defense = maxHp, atk, def
-	p.Hp = maxHp
+	w.Recalc(p)
+	p.Hp = p.MaxHp
+}
+
+// SetEquipBonus updates equipment stats; HP keeps its ratio.
+func (w *World) SetEquipBonus(p *Player, atk, def, hp float64) {
+	p.BonusAtk, p.BonusDef, p.BonusHp = atk, def, hp
+	w.Recalc(p)
+}
+
+// Recalc derives combat stats = level base + equipment ([TUNING] stat budget lives in item data).
+func (w *World) Recalc(p *Player) {
+	ratio := 1.0
+	if p.MaxHp > 0 {
+		ratio = p.Hp / p.MaxHp
+	}
+	maxHp, atk, def := w.StatsForLevel(p.Level)
+	p.MaxHp, p.Attack, p.Defense = maxHp+p.BonusHp, atk+p.BonusAtk, def+p.BonusDef
+	p.Hp = math.Min(p.MaxHp, math.Max(1, p.MaxHp*ratio))
 }
 
 // EquipWeapon switches weapon type. Cooldowns are kept (spec §6); an incompatible Power stance is

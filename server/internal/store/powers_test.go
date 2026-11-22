@@ -122,3 +122,32 @@ func TestExchangeAndStorage(t *testing.T) {
 		t.Fatalf("storage %v items %v", st, items)
 	}
 }
+
+func TestEquipmentAndEnhanceLedger(t *testing.T) {
+	s := testStore(t)
+	c := setup(t, s)
+	ctx := context.Background()
+	_ = s.ApplyReward(ctx, Reward{TxID: "seed", CharID: c.ID, LevelAfter: 1, GoldDelta: 100, Items: []ItemStack{{"ARM-CHS-001", 1}, {"MAT-ORE-002", 3}}, Reason: "seed"})
+	if err := s.SetEquipment(ctx, c.ID, "chest", "ARM-HLM-001"); err != nil {
+		t.Fatal(err)
+	}
+	eq, _ := s.Equipment(ctx, c.ID)
+	if len(eq) != 0 {
+		t.Fatal("cannot equip an item that is not owned")
+	}
+	_ = s.SetEquipment(ctx, c.ID, "chest", "ARM-CHS-001")
+	if err := s.Enhance(ctx, "e1", c.ID, "ARM-CHS-001", 20, []ItemStack{{"MAT-ORE-002", 1}}, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Enhance(ctx, "e2", c.ID, "ARM-CHS-001", 40, []ItemStack{{"MAT-ORE-002", 1}}, false); err != nil {
+		t.Fatal(err)
+	}
+	lv, _ := s.EnhanceLevels(ctx, c.ID)
+	got, _ := s.CharacterForAccount(ctx, c.AccountID, c.ID)
+	if lv["ARM-CHS-001"] != 1 || got.Gold != 40 {
+		t.Fatalf("enhance level %v gold %d (failed attempt still pays, item kept)", lv, got.Gold)
+	}
+	if err := s.Enhance(ctx, "e3", c.ID, "ARM-CHS-001", 500, nil, true); !errors.Is(err, ErrInsufficient) {
+		t.Fatalf("enhance without gold err = %v", err)
+	}
+}

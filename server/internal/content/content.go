@@ -189,9 +189,11 @@ func (pc *PowerConfig) RankFor(points int) RankDef {
 }
 
 type Recipe struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Inputs []struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	NPC      string `json:"npc,omitempty"`
+	GoldCost int64  `json:"goldCost,omitempty"`
+	Inputs   []struct {
 		ItemID   string `json:"itemId"`
 		Quantity int    `json:"quantity"`
 	} `json:"inputs"`
@@ -284,6 +286,35 @@ type ItemTemplate struct {
 	Use           *ItemUse `json:"use,omitempty"`
 	WeaponType    string   `json:"weaponType,omitempty"`
 	PowerID       string   `json:"powerId,omitempty"`
+	Slot          string   `json:"slot,omitempty"` // weapon | helmet | chest | armguard | legs | boots
+	LevelReq      int      `json:"levelReq,omitempty"`
+	Stats         *Stats   `json:"stats,omitempty"`
+	SourceMap     string   `json:"sourceMap,omitempty"`
+}
+
+type Stats struct {
+	Attack  float64 `json:"attack,omitempty"`
+	Defense float64 `json:"defense,omitempty"`
+	MaxHp   float64 `json:"maxHp,omitempty"`
+}
+
+type MapLoot struct {
+	MapID string     `json:"mapId"`
+	Rolls int        `json:"rolls"`
+	Items []DropItem `json:"items"`
+}
+
+type EnhanceLevel struct {
+	To     int     `json:"to"`
+	Gold   int64   `json:"gold"`
+	Stones int     `json:"stones"`
+	Chance float64 `json:"chance"`
+}
+
+type EnhanceConfig struct {
+	MaxLevel        int            `json:"maxLevel"`
+	StatPctPerLevel float64        `json:"statPctPerLevel"`
+	Levels          []EnhanceLevel `json:"levels"`
 }
 
 type DropItem struct {
@@ -378,6 +409,8 @@ type Content struct {
 	Powers               *PowerConfig
 	Recipes              map[string]*Recipe
 	Shops                map[string][]ShopItem // npc id -> stock
+	MapLoot              map[string]*MapLoot
+	Enhance              EnhanceConfig
 }
 
 type ShopItem struct {
@@ -624,9 +657,11 @@ func Load(dir string) (*Content, error) {
 		c.Items[it.Items[i].ID] = &it.Items[i]
 	}
 	var dr struct {
-		MinContributionShare float64     `json:"minContributionShare"`
-		Tables               []DropTable `json:"tables"`
-		Recipes              []Recipe    `json:"recipes"`
+		MinContributionShare float64       `json:"minContributionShare"`
+		Tables               []DropTable   `json:"tables"`
+		Recipes              []Recipe      `json:"recipes"`
+		MapLoot              []MapLoot     `json:"mapLoot"`
+		Enhancement          EnhanceConfig `json:"enhancement"`
 	}
 	if err := readJSON(dir, "drops/phase2-drops.json", &dr); err != nil {
 		return nil, err
@@ -638,6 +673,11 @@ func Load(dir string) (*Content, error) {
 	for i := range dr.Recipes {
 		c.Recipes[dr.Recipes[i].ID] = &dr.Recipes[i]
 	}
+	c.MapLoot = map[string]*MapLoot{}
+	for i := range dr.MapLoot {
+		c.MapLoot[dr.MapLoot[i].MapID] = &dr.MapLoot[i]
+	}
+	c.Enhance = dr.Enhancement
 	if err := readJSON(dir, "progression/progression.json", &c.Progression); err != nil {
 		return nil, err
 	}

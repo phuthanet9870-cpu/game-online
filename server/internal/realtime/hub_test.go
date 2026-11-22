@@ -251,3 +251,7 @@ func (f *fakeStore) Craft(context.Context, string, int64, []store.ItemStack, sto
 
 func (f *fakeStore) ApplyExchange(context.Context, store.Exchange) error           { return nil }
 func (f *fakeStore) MoveStorage(context.Context, string, int64, string, int) error { return nil }
+func (f *fakeStore) SetEquipment(context.Context, int64, string, string) error     { return nil }
+func (f *fakeStore) Enhance(context.Context, string, int64, string, int64, []store.ItemStack, bool) error {
+	return nil
+}

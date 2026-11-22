@@ -51,6 +51,8 @@ type Store interface {
 	SetWeapon(ctx context.Context, charID int64, weapon string) error
 	Craft(ctx context.Context, txID string, charID int64, inputs []store.ItemStack, output store.ItemStack) error
 	ApplyExchange(ctx context.Context, x store.Exchange) error
+	SetEquipment(ctx context.Context, charID int64, slot, templateID string) error
+	Enhance(ctx context.Context, txID string, charID int64, templateID string, gold int64, stones []store.ItemStack, success bool) error
 	MoveStorage(ctx context.Context, txID string, charID int64, templateID string, qty int) error
 }
 
@@ -108,6 +110,8 @@ type session struct {
 	manualMove bool
 	mapID      string
 	storage    map[string]int
+	equip      map[string]string // slot -> template
+	enh        map[string]int    // template -> +level
 }
 
 type JoinRequest struct {
@@ -443,7 +447,7 @@ func (h *Hub) onMessage(s *session, m clientMsg) {
 		h.send(s.client, map[string]any{"t": "pong", "c": m.C, "s": h.world.Time})
 	case "equip", "bind", "unbind", "loadout", "craft", "hotbar", "auto", "pickup", "gm":
 		h.onPhase3(s, m)
-	case "talk", "shop", "storage":
+	case "talk", "shop", "storage", "equipItem", "unequip", "smith":
 		h.onPhase4(s, m)
 	default:
 		h.violation(s, "unknown message")
@@ -713,6 +717,17 @@ func (h *Hub) processRewards() {
 				continue
 			}
 			loot := game.RollLoot(table, h.lootRng)
+			// map trade loot (12 sellable items per farm map) rolled per eligible player
+			if ml := h.c.MapLoot[h.world.Map.MapID]; ml != nil {
+				for r := 0; r < max(1, ml.Rolls); r++ {
+					for _, d := range ml.Items {
+						if h.lootRng.Next() < d.Chance {
+							loot.Items = append(loot.Items, game.LootItem{ItemID: d.ItemID, Quantity: int(h.lootRng.IntRange(int64(d.Min), int64(d.Max)))})
+							break
+						}
+					}
+				}
+			}
 			// XP is credited immediately; Gold and items go into a personal loot bag (pickup / Auto Loot)
 			s.xp += loot.XP
 			newLevel := LevelForXP(h.c.Progression, s.xp)
@@ -844,7 +859,7 @@ func (h *Hub) sendInventory(s *session) {
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].TemplateID < items[j].TemplateID })
 	h.send(s.client, map[string]any{"t": "inv", "gold": s.gold, "xp": s.xp, "level": s.level, "xpLevelStart": start, "xpLevelNext": next,
-		"items": items, "slots": h.c.Progression.InventorySlots})
+		"items": items, "slots": h.c.Progression.InventorySlots, "equipment": s.equip, "enhance": s.enh})
 }
 
 type actionView struct {
