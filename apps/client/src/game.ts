@@ -14,6 +14,8 @@ export class ClientGame {
   vfx = new Vfx(this);
   map: GameMap | null = null;
   pid = 0;
+  /** Arena: entity id → team, from pvp_state (blue = mine, red = theirs). */
+  pvpTeams = new Map<number, number>();
   char: CharacterData | null = null;
   account: AccountProgress | null = null;
   room: { id: string; kind: 'town' | 'field' | 'dungeon'; mode?: string; floor?: number; wave?: number; difficulty: string; seed: number; modifiers: string[]; level: number } | null = null;

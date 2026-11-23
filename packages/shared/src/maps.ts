@@ -11,7 +11,7 @@ export type MapTheme = 'town' | 'field' | 'dungeon';
 
 export interface Interactable {
   id: string;
-  type: 'portal_dungeon' | 'zone_gate' | 'npc_enchanter' | 'npc_salvager' | 'npc_merchant' | 'npc_apothecary' | 'npc_cook' | 'npc_stable' | 'npc_guild' | 'npc_stylist' | 'npc_tailor' | 'npc_wish' | 'npc_awaken' | 'npc_shop' | 'npc_waymaster' | 'npc_forgemaster' | 'npc_runesmith' | 'npc_auction' | 'npc_alchemist' | 'npc_carpenter' | 'house_door' | 'house_exit' | 'furniture' | 'gate_highlands' | 'gate_meadow' | 'gate_wastes' | 'gate_ash' | 'ore' | 'fishing' | 'dig' | 'gate_field' | 'gate_town' | 'npc_smith' | 'npc_trainer' | 'npc_quartermaster' | 'npc_quests' | 'chest' | 'shrine' | 'fountain' | 'altar' | 'exit' | 'herb' | 'stash';
+  type: 'portal_dungeon' | 'zone_gate' | 'npc_enchanter' | 'npc_salvager' | 'npc_merchant' | 'npc_apothecary' | 'npc_cook' | 'npc_stable' | 'npc_guild' | 'npc_stylist' | 'npc_tailor' | 'npc_wish' | 'npc_awaken' | 'npc_shop' | 'npc_waymaster' | 'npc_forgemaster' | 'npc_runesmith' | 'npc_arena' | 'npc_auction' | 'npc_alchemist' | 'npc_carpenter' | 'house_door' | 'house_exit' | 'furniture' | 'gate_highlands' | 'gate_meadow' | 'gate_wastes' | 'gate_ash' | 'ore' | 'fishing' | 'dig' | 'gate_field' | 'gate_town' | 'npc_smith' | 'npc_trainer' | 'npc_quartermaster' | 'npc_quests' | 'chest' | 'shrine' | 'fountain' | 'altar' | 'exit' | 'herb' | 'stash';
   x: number;
   y: number;
   name: string;
@@ -174,7 +174,7 @@ export const TOWN_NPCS: Array<[Interactable['type'], string]> = [
   ['npc_trainer', 'Master Ilrin'], ['npc_auction', 'Auctioneer Vell'], ['npc_carpenter', 'Carpenter Odo'], ['npc_guild', 'Registrar Hale'],
   ['npc_quests', 'Commander Aveline'], ['stash', 'Astral Vault'], ['npc_stylist', 'Stylist Mirelle'], ['npc_tailor', 'Tailor Pim'],
   ['npc_wish', 'Astral Wishing Shrine'], ['npc_awaken', 'Sage Orin'], ['npc_shop', 'Shopkeeper Vala'], ['npc_waymaster', 'Waymaster Juno'],
-  ['npc_forgemaster', 'Forgemaster Kael'], ['npc_runesmith', 'Runesmith Sefa'],
+  ['npc_forgemaster', 'Forgemaster Kael'], ['npc_runesmith', 'Runesmith Sefa'], ['npc_arena', 'Arena Master Brann'],
 ];
 export function buildTown(): GameMap {
   const w = 100, h = 72, cx = 50, cy = 36;
@@ -199,7 +199,7 @@ export function buildTown(): GameMap {
   }
   const T = (tx: number, ty: number) => ({ x: tx * TILE + TILE / 2, y: ty * TILE + TILE / 2 });
   const spots: Array<[number, number]> = [...cols.map((x) => [x + 4, 13] as [number, number]), ...cols.map((x) => [x + 4, 58] as [number, number]),
-    [cx - 12, cy - 9], [cx + 12, cy - 9], [cx - 12, cy + 9], [cx + 12, cy + 9], [cx - 15, cy], [cx + 15, cy - 4], [cx - 6, cy - 11], [cx + 6, cy + 11], [cx - 6, cy + 11], [cx + 6, cy - 11]];
+    [cx - 12, cy - 9], [cx + 12, cy - 9], [cx - 12, cy + 9], [cx + 12, cy + 9], [cx - 15, cy], [cx + 15, cy - 4], [cx - 6, cy - 11], [cx + 6, cy + 11], [cx - 6, cy + 11], [cx + 6, cy - 11], [cx + 15, cy + 8]];
   const interactables: Interactable[] = [
     { id: 'portal', type: 'portal_dungeon', name: 'Rift Gate', ...T(cx, 3) },
     { id: 'gate_field', type: 'zone_gate', to: 'field', name: 'Duskmeadow Road', ...T(w - 2, cy) },

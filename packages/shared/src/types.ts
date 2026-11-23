@@ -210,7 +210,7 @@ export interface EnemyDef {
   enrage?: number;
   lootBonus?: number;
   /** Body archetype for procedural monsters (client sprite builder). */
-  look?: 'beast' | 'golem' | 'orb' | 'caster' | 'hollow' | 'tree';
+  look?: 'beast' | 'golem' | 'orb' | 'caster' | 'hollow' | 'tree' | 'chibi';
   /** Home zone of procedural monsters. */
   zone?: string;
 }
@@ -270,6 +270,8 @@ export interface CharacterData {
   bagSlots?: number;
   /** AFK camp: set when logging out in the open world; settled into `afkPending` on the next login. */
   afk?: { from: number; zone: string } | null;
+  /** Ranked arena record (per character). */
+  pvp?: { rp: number; wins: number; losses: number; best: number; streak: number };
   afkPending?: { minutes: number; zone: string; xp: number; gold: number; mats: Record<string, number> } | null;
   treasure?: { zone: string; x: number; y: number; hx: number; hy: number; hr: number } | null;
 }

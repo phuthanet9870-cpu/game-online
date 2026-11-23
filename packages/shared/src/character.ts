@@ -59,6 +59,7 @@ function padTo<T>(arr: T[], n: number): (T | null)[] {
 export function normalizeCharacter(raw: CharacterData): CharacterData {
   const ch = { ...raw };
   ch.inventory = padTo((ch.inventory ?? []).slice(0, invSize(ch)), invSize(ch));
+  ch.pvp ??= { rp: 1000, wins: 0, losses: 0, best: 1000, streak: 0 };
   ch.loadout = { active: padTo(ch.loadout?.active ?? [], ACTIVE_SLOTS), ultimate: padTo(ch.loadout?.ultimate ?? [], ULTIMATE_SLOTS) };
   ch.presets ??= []; ch.quests ??= {}; ch.mastery ??= { level: 1, xp: 0 };
   ch.stats ??= { kills: 0, deaths: 0, bossKills: 0, runsCleared: 0, highestTier: 0 };

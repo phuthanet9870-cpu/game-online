@@ -1,6 +1,6 @@
 // NPC service windows: a framed portrait of the NPC with their line, then the service. Trainer (passive paths,
 // skills, resets, info) and Carpenter (furniture catalogue) follow the reference layouts.
-import { BAG_MAX_EXTRA, BAG_STEP, MOUNTS, PETS, POTION, ZONES, bagExpandCost, waypointCost, CLASSES, CLASS_IDS, FURNITURE, MATERIALS, PASSIVE_MAP, passivePointsFor, respecCost, refundCost, type AccountProgress, type CharacterData } from '@astra/shared';
+import { PVP, PVP_SIZES, PVP_TIERS, pvpTier, BAG_MAX_EXTRA, BAG_STEP, MOUNTS, PETS, POTION, ZONES, bagExpandCost, waypointCost, CLASSES, CLASS_IDS, FURNITURE, MATERIALS, PASSIVE_MAP, passivePointsFor, respecCost, refundCost, type AccountProgress, type CharacterData } from '@astra/shared';
 import { getLang, t } from '../i18n.js';
 import { confirmDialog, h } from './dom.js';
 import { tileIcon, uiIcon, matIcon } from './icons.js';
@@ -106,4 +106,22 @@ export function waymasterWindow(ch: CharacterData, send: Send): HTMLElement {
       return h('div', { class: 'svc-card' + (ok ? '' : ' locked') }, h('b', { class: 'way-n' }, String(i + 1)), h('div', { class: 'grow' }, h('b', null, th ? z.th : z.name), h('small', { class: 'muted' }, `Lv ${z.levelMin}-${z.levelMax} · ${z.familyName}`)),
         h('button', { class: 'btn gold', disabled: !ok || ch.gold < cost, title: ok ? '' : (th ? `ต้องเลเวล ${z.levelMin - 5}+` : `Requires level ${z.levelMin - 5}+`), onclick: () => send({ t: 'waypoint', zone: z.id }) }, ok ? (cost ? `${cost}g` : (th ? 'ฟรี' : 'Free')) : `🔒 Lv ${z.levelMin - 5}`));
     })));
+}
+
+// ── Arena Master Brann: ranked arena ──
+export function arenaWindow(ch: CharacterData, data: any, send: Send): HTMLElement {
+  const th = getLang() === 'th', r = ch.pvp ?? { rp: 1000, wins: 0, losses: 0, best: 1000, streak: 0 }, tier = pvpTier(r.rp);
+  const next = PVP_TIERS.find((x) => x.min > r.rp);
+  return h('div', { class: 'npcwin' }, npcHeader('npc_arena', 'Arena Master Brann', th ? 'สนามประลองไม่สนใจว่าเจ้ามาจากไหน มีแค่ชนะหรือแพ้ ชนะ 3 ใน 5 ยกเพื่อไต่อันดับ' : 'The arena does not care where you came from. Win 3 of 5 rounds and climb.'),
+    h('div', { class: 'pvp-top' },
+      h('div', { class: 'pvp-rank', style: `--tc:${tier.color}` }, uiIcon('crossed', 54, tier.color), h('b', null, th ? tier.th : tier.name), h('span', null, `${r.rp} RP`), next ? h('small', { class: 'muted' }, `${th ? 'อีก' : 'Next tier in'} ${next.min - r.rp} RP`) : null),
+      h('div', { class: 'pvp-stats' }, h('div', null, h('b', null, String(r.wins)), h('small', null, th ? 'ชนะ' : 'Wins')), h('div', null, h('b', null, String(r.losses)), h('small', null, th ? 'แพ้' : 'Losses')),
+        h('div', null, h('b', null, `${r.wins + r.losses ? Math.round((r.wins / (r.wins + r.losses)) * 100) : 0}%`), h('small', null, th ? 'อัตราชนะ' : 'Win rate')), h('div', null, h('b', null, String(r.best)), h('small', null, th ? 'สูงสุด' : 'Best')))),
+    data?.queued ? h('div', { class: 'svc-card' }, uiIcon('search', 36), h('div', { class: 'grow' }, h('b', null, `${th ? 'กำลังหาคู่' : 'Searching'} ${data.queued.size}v${data.queued.size}…`), h('small', { class: 'muted' }, th ? `รอ ${data.queued.wait} วินาที · ถ้าคนไม่ครบ ระบบจะเติม AI แชมเปี้ยนให้` : `Waited ${data.queued.wait}s · missing players are filled with AI champions`)),
+      h('button', { class: 'btn', onclick: () => send({ t: 'pvp_leave' }) }, th ? 'ยกเลิก' : 'Cancel'))
+      : h('div', { class: 'pvp-modes' }, ...PVP_SIZES.map((n) => h('button', { class: 'pvp-mode', onclick: () => send({ t: 'pvp_queue', size: n }) }, h('b', null, `${n}v${n}`), h('small', null, `${data?.sizes?.find((x: any) => x.size === n)?.waiting ?? 0} ${th ? 'คนรอ' : 'waiting'}`)))),
+    h('p', { class: 'hint' }, th ? `กติกา: ชนะ ${PVP.roundsToWin} ยกก่อนชนะ · ยกละ ${PVP.roundTime} วินาที · ดาเมจระหว่างผู้เล่นถูกปรับให้สมดุล · ตายในอารีน่าไม่นับเป็นการตายของ Hardcore และไม่เสียของ · ออกกลางคันนับว่าแพ้` : `Rules: first to ${PVP.roundsToWin} rounds · ${PVP.roundTime}s per round · player damage is normalised · arena deaths never count as Hardcore deaths and drop nothing · leaving counts as a loss`),
+    h('div', { class: 'sec-title' }, uiIcon('trophy', 20), th ? 'อันดับอารีน่า' : 'Arena leaderboard'),
+    h('table', { class: 'gw-rank' }, h('tbody', null, ...(data?.board ?? []).map((x: any, i: number) => h('tr', { class: x.name === ch.name ? 'me' : '' }, h('td', null, String(i + 1)), h('td', null, x.name), h('td', null, CLASSES[x.cls as keyof typeof CLASSES]?.name ?? x.cls), h('td', null, `${x.value} RP`), h('td', null, th ? pvpTier(x.value).th : pvpTier(x.value).name))))),
+    (data?.board ?? []).length ? null : h('p', { class: 'muted' }, th ? 'ยังไม่มีใครลงแข่ง' : 'No ranked matches yet.'));
 }

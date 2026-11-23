@@ -1,6 +1,7 @@
 // Authoritative world simulation. Runs on the server (and inside the clearly-labelled offline mode).
 // Pure TypeScript, no DOM or Node APIs, deterministic given the same seed and command stream.
 
+import { PVP } from './pvp.js';
 import { lookKey } from './data/appearance.js';
 import { MOUNTS } from './meta.js';
 import { CLASSES, MINIONS } from './data/classes.js';
@@ -139,6 +140,8 @@ export type WorldEvent =
   | { t: 'it_add'; it: import('./maps.js').Interactable };
 
 export interface WorldOptions {
+  /** Ranked arena: player damage/heal normalisation, no loot, no XP. */
+  pvp?: boolean;
   /** Item bases that drop more often in this zone (zone-themed runes/relics). */
   zoneLoot?: string[];
   difficulty: DifficultyId; partySize: number; seed: number; kind: 'town' | 'field' | 'dungeon';
@@ -206,10 +209,10 @@ export class World {
   id() { return this.nextId++; }
 
   // ───────────── Entities ─────────────
-  addPlayer(char: CharacterData, sessionId: string, pos?: { x: number; y: number }): Ent {
+  addPlayer(char: CharacterData, sessionId: string, pos?: { x: number; y: number }, team: 0 | 1 = 0): Ent {
     const def = CLASSES[char.cls];
     const e: Ent = {
-      id: this.id(), kind: 'player', team: 0, x: pos?.x ?? this.map.spawn.x + this.rng.range(-30, 30), y: pos?.y ?? this.map.spawn.y + this.rng.range(-30, 30), r: 14, facing: 0,
+      id: this.id(), kind: 'player', team, x: pos?.x ?? this.map.spawn.x + this.rng.range(-30, 30), y: pos?.y ?? this.map.spawn.y + this.rng.range(-30, 30), r: 14, facing: 0,
       hp: 1, maxHp: 1, barrier: 0, barrierT: 0, dead: false, statuses: [], buffs: [], stats: null, dirty: true, lock: 0, invuln: 1, dash: null, name: char.name,
       armor: 0, res: {}, speed: def.base.moveSpeed, level: char.level,
       p: {
@@ -252,7 +255,7 @@ export class World {
     e.dirty = false;
   }
 
-  spawnEnemy(defId: string, x: number, y: number, level: number, elite: boolean, room?: number, respawn?: EnemyState['respawn']): Ent | null {
+  spawnEnemy(defId: string, x: number, y: number, level: number, elite: boolean, room?: number, respawn?: EnemyState['respawn'], team: 0 | 1 = 1): Ent | null {
     const def = ENEMIES[defId];
     if (!def) return null;
     const d = this.diff;
@@ -272,7 +275,7 @@ export class World {
       affixes.push(this.rng.pick(['hasted', 'frenzied', 'vampiric']));
     }
     const e: Ent = {
-      id: this.id(), kind: 'enemy', team: 1, x, y, r: def.radius * (elite ? 1.15 : 1), facing: Math.PI / 2, hp: Math.round(hp), maxHp: Math.round(hp), barrier: 0, barrierT: 0, dead: false,
+      id: this.id(), kind: 'enemy', team, x, y, r: def.radius * (elite ? 1.15 : 1), facing: Math.PI / 2, hp: Math.round(hp), maxHp: Math.round(hp), barrier: 0, barrierT: 0, dead: false,
       statuses: [], buffs: [], stats: null, dirty: false, lock: 0, invuln: 0, dash: null, name: (elite ? 'Elite ' : '') + def.name, armor: def.armor * (1 + 0.1 * (lv - 1)), res: def.res,
       speed: def.speed * (affixes.includes('hasted') ? 1.35 : 1) * (this.modifierFlags.has('fast_enemies') ? 1.1 : 1), level: lv,
       e: {
@@ -311,7 +314,7 @@ export class World {
     if (circleBlocked(this.map, x, y, md.radius)) { x = owner.x; y = owner.y; }
     const hp = Math.round(st.maxHp * md.hp * (1 + (st.m.minionHpPct ?? 0) / 100));
     const e: Ent = {
-      id: this.id(), kind: 'minion', team: 0, x, y, r: md.radius, facing: 0, hp, maxHp: hp, barrier: 0, barrierT: 0, dead: false, statuses: [], buffs: [], stats: null, dirty: false,
+      id: this.id(), kind: 'minion', team: owner.team, x, y, r: md.radius, facing: 0, hp, maxHp: hp, barrier: 0, barrierT: 0, dead: false, statuses: [], buffs: [], stats: null, dirty: false,
       lock: 0, invuln: 0, dash: null, name: md.name, armor: st.armor * 0.5, res: st.res, speed: md.speed * (1 + (st.m.minionSpeedPct ?? 0) / 100), level: st.level,
       mi: { owner: owner.id, type, t: duration, atkT: 0.3, power: md.power, range: md.range, ranged: !!md.ranged, dtype: md.type },
     };
@@ -634,6 +637,8 @@ export class World {
     if (target.invuln > 0 || target.buffs.some((b) => b.mods.some((m) => m.stat === 'invuln'))) { if (!opts.dot) this.events.push({ t: 'miss', id: target.id, kind: 'immune' }); return 0; }
     if (target.e?.def.id === 'dummy') target.e.regenT = 5;
     let amt = pk.amount;
+    // Arena: player-vs-player damage is normalised so nobody is one-shot
+    if (this.opts.pvp && (target.kind === 'player' || target.e?.def.look === 'chibi')) amt *= PVP.dmgMul;
     let crit = false;
     // player defenses
     if (target.kind === 'player' && target.stats && !opts.dot) {
@@ -765,7 +770,7 @@ export class World {
     if (target.dead) return;
     let mul = 1 + ((src.stats?.m.healPct ?? 0) + (isLeech || isPotion ? 0 : 0)) / 100;
     if (target.stats && target !== src) mul *= 1;
-    const v = Math.round(amount * Math.max(0.1, mul));
+    const v = Math.round(amount * Math.max(0.1, mul) * (this.opts.pvp && !isPotion ? PVP.healMul : 1));
     const before = target.hp;
     target.hp = Math.min(target.maxHp, target.hp + v);
     const gained = target.hp - before;
@@ -810,7 +815,7 @@ export class World {
       const pk: Packet = { amount: es.power * 1.5, type: 'shadow', critChance: 0, critMult: 1, src: target.id, tags: [] };
       this.areas.push(this.mkArea(target, { x: target.x, y: target.y, r: 90, delay: 1.1, packet: pk, visual: 'shadow' }));
     }
-    for (const p of players) this.rollLoot(p, target);
+    if (!this.opts.pvp) for (const p of players) this.rollLoot(p, target);
     if (es.def.boss) this.events.push({ t: 'boss_killed', enemy: es.def.id, players: players.map((p) => p.id) });
     const finalBoss = this.opts.finalBoss ?? (this.opts.kind === 'dungeon' ? 'veyra' : null);
     if (es.def.id === finalBoss && !this.bossDefeated) {
@@ -1267,7 +1272,7 @@ export class World {
         const a = this.rng.range(0, Math.PI * 2);
         let x = e.x + Math.cos(a) * 80, y = e.y + Math.sin(a) * 80;
         if (circleBlocked(this.map, x, y, 16)) { x = e.x; y = e.y; }
-        const m = this.spawnEnemy(atk.summon, x, y, es.level, false, es.room);
+        const m = this.spawnEnemy(atk.summon, x, y, es.level, false, es.room, undefined, e.team);
         if (m) { m.e!.awake = true; m.e!.threat = new Map(es.threat); }
       }
     } else if (atk.kind === 'charge') {

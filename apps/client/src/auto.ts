@@ -34,6 +34,8 @@ export function questGoal(ch: CharacterData, questId: string): QuestGoal | null 
 }
 
 export class AutoPilot {
+  /** Hostile to me: monsters, or in the arena anyone on the other team (players and AI champions). */
+  private foe(e: CEnt): boolean { const t = this.g.pvpTeams; if (t.size && t.has(e.id)) return t.get(e.id) !== t.get(this.g.pid); return e.kind === 1; }
   s: AutoSettings;
   quest: string | null = null;
   status = '';
@@ -126,10 +128,10 @@ export class AutoPilot {
     const cur = g.self?.target ? g.ents.get(g.self.target) : null;
     const leash = this.quest ? 900 : this.s.leash;
     const inLeash = (e: CEnt) => !this.anchor || this.quest || Math.hypot(e.rx - this.anchor.x, e.ry - this.anchor.y) < leash;
-    if (cur && cur.kind === 1 && !cur.dead && cur.def !== 'dummy' && Math.hypot(cur.rx - me.rx, cur.ry - me.ry) < 750) return cur;
+    if (cur && this.foe(cur) && !cur.dead && cur.def !== 'dummy' && Math.hypot(cur.rx - me.rx, cur.ry - me.ry) < 750) return cur;
     let best: CEnt | null = null, bd = 520;
     for (const e of g.ents.values()) {
-      if (e.kind !== 1 || e.dead || e.def === 'dummy' || !inLeash(e)) continue;
+      if (!this.foe(e) || e.dead || e.def === 'dummy' || !inLeash(e)) continue;
       const d = Math.hypot(e.rx - me.rx, e.ry - me.ry) - (e.windup > 0 ? 120 : 0); // whoever is swinging at us first
       if (d < bd) { bd = d; best = e; }
     }
@@ -142,7 +144,7 @@ export class AutoPilot {
     if (this.castT > 0) return;
     const self = this.g.self;
     const tough = (tgt.flags & 3) !== 0;
-    const pack = [...this.g.ents.values()].filter((e) => e.kind === 1 && !e.dead && Math.hypot(e.rx - tgt.rx, e.ry - tgt.ry) < 180).length;
+    const pack = [...this.g.ents.values()].filter((e) => this.foe(e) && !e.dead && Math.hypot(e.rx - tgt.rx, e.ry - tgt.ry) < 180).length;
     const minions = [...this.g.ents.values()].filter((e) => e.kind === 2).length;
     const d = Math.hypot(tgt.rx - me.rx, tgt.ry - me.ry);
     const ok = (id: string | null, cd: number) => {

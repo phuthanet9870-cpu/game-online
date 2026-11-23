@@ -21,7 +21,7 @@ const THEMES: Record<string, { floor: string[]; path: string[]; wall: string; wa
   dungeon: { floor: ['#2d2a3d', '#322e44', '#2a2739'], path: ['#3a3450', '#3f3857', '#363049'], wall: '#17141f', wallTop: '#3b3352', water: '#2a2460', tree: '#4a3f66', bg: '#0b0910' },
 };
 
-export const NPC_COLORS: Record<string, [string, string]> = { npc_carpenter: ['#7a5a2a', '#c87a3a'], npc_alchemist: ['#3b7a6a', '#e8e0f0'], npc_auction: ['#6b4a8f', '#d8c08a'], npc_smith: ['#8a4b2b', '#2b1a10'], npc_trainer: ['#3b5c8f', '#e0e0e8'], npc_quartermaster: ['#5c7a3b', '#6b3b1f'], npc_quests: ['#8f2b3b', '#f0d070'], npc_enchanter: ['#5a3a9a', '#f0c8ff'], npc_salvager: ['#5a5a5a', '#3a2a1a'], npc_merchant: ['#2a6a4a', '#d8b060'], npc_apothecary: ['#9a3a4a', '#f0e8d0'], npc_cook: ['#e8e0d0', '#6a3a1a'], npc_stable: ['#6a4a2a', '#2a1a10'], npc_guild: ['#2a4a8a', '#c0c0c0'], npc_stylist: ['#c83a8a', '#ffd0e8'], npc_tailor: ['#7a6a3a', '#e0d0a0'], npc_wish: ['#3a5aa0', '#c8e0ff'], npc_awaken: ['#5a2a6a', '#ffffff'], npc_shop: ['#c87a2a', '#3a2010'], npc_waymaster: ['#2a7a8a', '#f0e070'], npc_forgemaster: ['#a03a1a', '#1a1010'], npc_runesmith: ['#2a6aa0', '#7fe0ff'] };
+export const NPC_COLORS: Record<string, [string, string]> = { npc_carpenter: ['#7a5a2a', '#c87a3a'], npc_alchemist: ['#3b7a6a', '#e8e0f0'], npc_auction: ['#6b4a8f', '#d8c08a'], npc_smith: ['#8a4b2b', '#2b1a10'], npc_trainer: ['#3b5c8f', '#e0e0e8'], npc_quartermaster: ['#5c7a3b', '#6b3b1f'], npc_quests: ['#8f2b3b', '#f0d070'], npc_enchanter: ['#5a3a9a', '#f0c8ff'], npc_salvager: ['#5a5a5a', '#3a2a1a'], npc_merchant: ['#2a6a4a', '#d8b060'], npc_apothecary: ['#9a3a4a', '#f0e8d0'], npc_cook: ['#e8e0d0', '#6a3a1a'], npc_stable: ['#6a4a2a', '#2a1a10'], npc_guild: ['#2a4a8a', '#c0c0c0'], npc_stylist: ['#c83a8a', '#ffd0e8'], npc_tailor: ['#7a6a3a', '#e0d0a0'], npc_wish: ['#3a5aa0', '#c8e0ff'], npc_awaken: ['#5a2a6a', '#ffffff'], npc_shop: ['#c87a2a', '#3a2010'], npc_waymaster: ['#2a7a8a', '#f0e070'], npc_forgemaster: ['#a03a1a', '#1a1010'], npc_runesmith: ['#2a6aa0', '#7fe0ff'], npc_arena: ['#8a1a1a', '#e0c040'] };
 const AURA_COLORS: Record<string, string> = { ember: '#ff7a2e', starlight: '#9fd8ff', eclipse: '#f2c46b' };
 const hash = (x: number, y: number) => { let h = (x * 374761393 + y * 668265263) >>> 0; h = ((h ^ (h >>> 13)) * 1274126177) >>> 0; return (h ^ (h >>> 16)) >>> 0; };
 
@@ -298,7 +298,7 @@ export class Renderer {
       if (e.mount && !e.dead) drawMountSprite(ctx, e.mount, MOUNTS[e.mount]?.color ?? '#ccc', e.f, e.moving > 0.2, this.time);
       drawChibi(ctx, 0, e.mount ? -14 : 0, scale, e.f, lc.body, lc.hair, lc.accent, e.swingT, e.mount ? 0 : e.moving > 0.2 ? 2 : 0, e.def, e.id, e.flash);
       ctx.globalAlpha = 1;
-      if (e.id !== g.pid) { ctx.font = '700 12px system-ui'; ctx.textAlign = 'center'; label(ctx, `${e.name} · ${e.lv}`, 0, -54 * scale, '#bfe3ff'); bar(ctx, -20, -48 * scale, 40, 4, e.hp / e.mhp, '#5bd16a'); }
+      if (e.id !== g.pid) { ctx.font = '700 12px system-ui'; ctx.textAlign = 'center'; label(ctx, `${e.name} · ${e.lv}`, 0, -54 * scale, g.pvpTeams.has(e.id) ? (g.pvpTeams.get(e.id) === g.pvpTeams.get(g.pid) ? '#7fc8ff' : '#ff6a6a') : '#bfe3ff'); bar(ctx, -20, -48 * scale, 40, 4, e.hp / e.mhp, '#5bd16a'); }
     } else if (e.kind === 1) {
       this.drawEnemy(e, scale, bob);
     } else {
@@ -322,7 +322,8 @@ export class Renderer {
     const r = (def?.radius ?? 15) * (elite ? 1.15 : 1);
     if (e.windup > 0) { ctx.strokeStyle = `rgba(255,70,70,${0.4 + e.windup * 0.6})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, -r * 0.7, r + 6 + e.windup * 6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * e.windup); ctx.stroke(); }
     if (elite || boss) { const grd = ctx.createRadialGradient(0, -r * 0.6, r * 0.3, 0, -r * 0.6, r * 2); grd.addColorStop(0, boss ? 'rgba(255,60,140,0.35)' : 'rgba(255,190,60,0.3)'); grd.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(0, -r * 0.6, r * 2, 0, Math.PI * 2); ctx.fill(); }
-    drawEnemySprite(ctx, { ...e, rx: 0, ry: 0 }, def, elite, boss, scale);
+    if (def?.look === 'chibi') { const c = CLASSES[def.family as keyof typeof CLASSES]; if (c) drawChibi(ctx, 0, 0, 1, e.f, c.colors.body, c.colors.hair, c.colors.accent, e.windup > 0 ? 0.5 : 0, e.moving > 0.2 ? 2 : 0, def.family, e.id, e.flash); }
+    else drawEnemySprite(ctx, { ...e, rx: 0, ry: 0 }, def, elite, boss, scale);
     if (e.def !== 'dummy' || e.hp < e.mhp) {
       const w = boss ? 0 : Math.max(30, r * 2.4);
       if (w) bar(ctx, -w / 2, -r * 2.7 - 8, w, 4, e.hp / e.mhp, elite ? '#ffb347' : '#e04848');

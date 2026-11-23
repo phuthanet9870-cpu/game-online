@@ -1,5 +1,5 @@
 import * as NW from './npcwin.js';
-import { ZONE_MAP } from '@astra/shared';
+import { ZONE_MAP, PVP_TIERS } from '@astra/shared';
 const zoneName = (id: string) => { const z = ZONE_MAP[id]; return z ? (getLang() === 'th' ? z.th : z.name) : id; };
 import { guildWindow, guildUI } from './guildwin.js';
 import { combatPower, weeklyObjectives, ACTIVITY_ORDER, QUESTS, FURNITURE, validatePlacement, applyContentPatch, ACTIVITIES, MATERIALS, CLASSES, DIFFICULTIES, DUNGEON_MODIFIERS, BLESSING_MAP, SKILL_MAP, ENEMIES, computeStats, xpToNext, type CharacterData } from '@astra/shared';
@@ -25,7 +25,7 @@ import * as S from './social.js';
 import { sound } from '../audio.js';
 import { itemName, translateDom, trText } from '../l10n.js';
 
-type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 'codex' | 'social' | 'guild' | 'auction' | 'ladder' | 'alchemist' | 'season' | 'hearth' | 'carpenter' | 'settings' | 'dungeon' | 'smith' | 'quartermaster' | 'trainer' | 'stash' | 'map' | 'crafting' | 'login' | 'shop' | 'benefits' | 'wish' | 'awaken' | 'wardrobe' | 'friends' | 'gm' | 'auto' | 'enchanter' | 'salvager' | 'merchant' | 'apothecary' | 'cook' | 'stable' | 'tailor' | 'waymaster' | 'forgemaster' | 'runesmith';
+type PanelName = 'inventory' | 'skills' | 'passives' | 'character' | 'quests' | 'codex' | 'social' | 'guild' | 'auction' | 'ladder' | 'alchemist' | 'season' | 'hearth' | 'carpenter' | 'settings' | 'dungeon' | 'smith' | 'quartermaster' | 'trainer' | 'stash' | 'map' | 'crafting' | 'login' | 'shop' | 'benefits' | 'wish' | 'awaken' | 'wardrobe' | 'friends' | 'gm' | 'auto' | 'enchanter' | 'salvager' | 'merchant' | 'apothecary' | 'cook' | 'stable' | 'tailor' | 'waymaster' | 'forgemaster' | 'runesmith' | 'arena';
 
 export class GameUI {
   game = new ClientGame();
@@ -104,6 +104,8 @@ export class GameUI {
       E.touchBtns = h('div', { class: 'touch-btns', hidden: !this.touch }),
     );
     E.goal = h('div', { class: 'goal', hidden: true });
+    this.pvpBox = h('div', { class: 'pvp-hud', hidden: true });
+    E.wrap.append(this.pvpBox);
     this.root.append(E.wrap);
     // every HUD block that can cover the view can be collapsed to a small tab (remembered per browser)
     const th0 = getLang() === 'th';
@@ -180,7 +182,7 @@ export class GameUI {
     const g = this.game;
     switch (m.t) {
       case 'content': applyContentPatch(m.patch); this.buildBar(); if (this.panel) this.renderPanel(); break;
-      case 'welcome': applyContentPatch(m.content ?? null); sound.ambience(m.room.kind === 'town' ? 'town' : ['highlands', 'abyss', 'dunes'].includes(m.room.id) ? 'ash' : m.room.kind === 'field' ? 'field' : m.room.mode === 'raid' ? 'raid' : 'dungeon'); g.welcome(m); this.status(null); this.buildBar(); this.updateZone(); this.closePanel(); this.renderWorldEvent(); if (m.mode === 'offline' && !this.offlineNoted) { this.offlineNoted = true; this.chatLine('system', 'Offline mode: this session is simulated locally in your browser.'); } this.chatLine('system', `Entered ${m.room.id.startsWith('house:') ? 'a Hearth' : m.room.kind === 'town' ? 'Lumenhold' : m.room.kind === 'field' && ZONE_MAP[m.room.id] ? `${zoneName(m.room.id)} (open world, levels ${ZONE_MAP[m.room.id]!.levelMin}-${ZONE_MAP[m.room.id]!.levelMax})` : 'an instance'}.`); break;
+      case 'welcome': if (!String(m.room.id).startsWith('pvp')) { this.pvpBox.hidden = true; this.game.pvpTeams.clear(); } applyContentPatch(m.content ?? null); sound.ambience(m.room.kind === 'town' ? 'town' : ['highlands', 'abyss', 'dunes'].includes(m.room.id) ? 'ash' : m.room.kind === 'field' ? 'field' : m.room.mode === 'raid' ? 'raid' : 'dungeon'); g.welcome(m); this.status(null); this.buildBar(); this.updateZone(); this.closePanel(); this.renderWorldEvent(); if (m.mode === 'offline' && !this.offlineNoted) { this.offlineNoted = true; this.chatLine('system', 'Offline mode: this session is simulated locally in your browser.'); } this.chatLine('system', `Entered ${m.room.id.startsWith('house:') ? 'a Hearth' : m.room.kind === 'town' ? 'Lumenhold' : m.room.kind === 'field' && ZONE_MAP[m.room.id] ? `${zoneName(m.room.id)} (open world, levels ${ZONE_MAP[m.room.id]!.levelMin}-${ZONE_MAP[m.room.id]!.levelMax})` : 'an instance'}.`); break;
       case 'snap': g.applySnap(m); break;
       case 'ev': g.events(m.list); for (const ev of m.list) if (ev.t === 'msg') this.chatLine('system', ev.text); else if (ev.t === 'pickup' && ev.item) toast(`Picked up ${itemName(ev.item)}`, 'good'); break;
       case 'char': g.char = m.char; g.account = m.account; this.buildBar(); if (!this.tut?.cur) this.renderGoal(); if (this.panel && this.panel !== 'map') this.renderPanel(); if (this.trade) this.showModal(S.tradeModal(g.char!, this.trade, (x) => this.send(x))); break;
@@ -221,6 +223,9 @@ export class GameUI {
       case 'gm': this.gmOn = !!m.on; if (this.gmOn) this.openPanel('gm'); break;
       case 'friends': this.friendsData = m; if (this.panel === 'friends') this.renderPanel(); break;
       case 'friend_request': void confirmDialog(getLang() === 'th' ? 'คำขอเป็นเพื่อน' : 'Friend request', `${m.from} ${getLang() === 'th' ? 'ขอเป็นเพื่อนกับคุณ' : 'wants to be your friend.'}`, t('accept'), t('decline')).then((ok) => { if (ok) this.send({ t: 'friend_accept', id: m.id }); }); break;
+      case 'pvp_info': this.pvpData = m; if (this.panel === 'arena') this.renderPanel(); break;
+      case 'pvp_state': this.renderPvp(m); break;
+      case 'pvp_end': this.showPvpEnd(m); sound.loot(m.won ? 'legendary' : 'rare'); break;
       case 'wish_result': this.lastWish = m.prizes; sound.loot(m.prizes.some((p: any) => p.r === 'SSR') ? 'legendary' : 'rare'); this.openPanel('wish'); break;
       default: break;
     }
@@ -548,6 +553,7 @@ export class GameUI {
     const z = clear(this.el.zone!);
     if (r.id.startsWith('house:')) z.append(h('b', null, this.houseData?.mine ? 'Your Hearth' : `${this.houseData?.owner ?? ''}'s Hearth`), h('button', { class: 'btn tiny ghost', onclick: () => this.openPanel('hearth') }, 'Furniture (U)'));
     else if (r.kind === 'town') z.append(h('b', null, t('townSafe')), h('small', null, `${t('trainingGround')}: west side`));
+    else if (String(r.id).startsWith('pvp')) { const th = getLang() === 'th'; z.append(h('div', { class: 'run-card' }, h('div', { class: 'rc-head' }, uiIcon('crossed', 22, '#e0c040'), h('b', null, th ? 'อารีน่าจัดอันดับ' : 'Ranked Arena')), h('small', { class: 'muted' }, th ? 'ชนะ 3 ยกก่อนชนะ · ตายในอารีน่าไม่เสียอะไร' : 'First to 3 rounds · arena deaths cost nothing'), h('button', { class: 'btn danger', onclick: async () => { if (await confirmDialog(th ? 'ออกจากอารีน่า' : 'Leave arena', th ? 'ออกตอนนี้จะนับว่าแพ้และเสีย RP' : 'Leaving now counts as a loss and costs RP.', th ? 'ออก' : 'Leave', t('cancel'))) this.send({ t: 'leave' }); } }, th ? '⇦ ยอมแพ้และออก' : '⇦ Forfeit & leave'))); }
     else if (r.kind === 'field') z.append(h('b', null, zoneName(r.id)), h('small', null, `Open world · levels ${ZONE_MAP[r.id] ? `${ZONE_MAP[r.id]!.levelMin}-${ZONE_MAP[r.id]!.levelMax}` : '?'} · shared with other players`));
     else {
       const rr = r as any; const act = ACTIVITIES[(rr.mode ?? 'rift') as keyof typeof ACTIVITIES];
@@ -616,6 +622,27 @@ export class GameUI {
   private trackerT = 0;
   shopState = { tab: 'supplies' as 'supplies' | 'materials' | 'cosmetics' | 'mounts' };
   lastWish: any[] | null = null;
+  pvpData: any = null;
+  pvpBox!: HTMLElement;
+  /** Live arena scoreboard: round, score, timer, players alive per team. */
+  private renderPvp(m: any) {
+    const th = getLang() === 'th', me = m.myTeam as number;
+    this.game.pvpTeams = new Map((m.ents ?? []) as Array<[number, number]>);
+    const side = (t: number) => h('div', { class: 'pvp-side ' + (t === 0 ? 'blue' : 'red') + (t === me ? ' mine' : '') }, h('b', null, t === 0 ? (th ? 'ทีมน้ำเงิน' : 'Blue') : (th ? 'ทีมแดง' : 'Red')),
+      h('small', null, [...m.names[t], ...m.bots[t].map((c: string) => `AI ${c}`)].join(' · ')), h('em', null, `${th ? 'เหลือ' : 'alive'} ${m.alive[t]}`));
+    clear(this.pvpBox).append(side(0), h('div', { class: 'pvp-mid' }, h('div', { class: 'pvp-score' }, `${m.score[0]} : ${m.score[1]}`),
+      h('small', null, m.phase === 'done' ? (th ? 'จบการแข่งขัน' : 'Match over') : `${th ? 'ยก' : 'Round'} ${m.round} · ${m.phase === 'prep' ? (th ? 'เตรียมตัว' : 'Get ready') : m.phase === 'fight' ? (th ? 'สู้!' : 'Fight!') : '…'} · ${m.left}s`)), side(1));
+    this.pvpBox.hidden = false;
+  }
+  private showPvpEnd(m: any) {
+    const th = getLang() === 'th', tier = PVP_TIERS.find((x) => x.id === m.tier)!;
+    this.showModal(h('div', { class: 'modal pvp-end ' + (m.won ? 'win' : 'lose') }, h('h2', null, m.won ? (th ? 'ชัยชนะ!' : 'VICTORY') : (th ? 'พ่ายแพ้' : 'DEFEAT')),
+      h('div', { class: 'pvp-score' }, `${m.score[0]} : ${m.score[1]}`),
+      h('p', null, `${m.delta >= 0 ? '+' : ''}${m.delta} RP → ${m.rec.rp} RP · `, h('b', { style: `color:${tier.color}` }, th ? tier.th : tier.name)),
+      h('p', null, uiIcon('coin', 18), ` +${m.gold}  `, m.dust ? h('span', null, uiIcon('dust', 18, '#b48aff'), ` +${m.dust}`) : null),
+      h('small', { class: 'muted' }, th ? 'กำลังกลับเมือง…' : 'Returning to Lumenhold…'),
+      h('button', { class: 'btn gold', onclick: () => this.closeModal() }, 'OK')));
+  }
   private friendsData: any = null;
   private gmFlag = false;
   private get gmOn() { return this.gmFlag; }
@@ -649,6 +676,7 @@ export class GameUI {
     if (r.id.startsWith('house:')) return th ? 'บ้านฮาร์ธ' : 'Hearthstone Lane';
     if (r.kind === 'town') return th ? 'ลูเมนโฮลด์' : 'Lumenhold';
     if (r.kind === 'field') return zoneName(r.id);
+    if (String(r.id).startsWith('pvp')) return th ? 'อารีน่า' : 'Arena';
     return ACTIVITIES[((r as any).mode ?? 'rift') as keyof typeof ACTIVITIES]?.name ?? 'Rift';
   }
   private trackTab: 'quests' | 'activities' = 'quests';
@@ -723,7 +751,7 @@ export class GameUI {
     if (!p || !this.game.char) return;
     const ctx = this.ctx();
     const inTown = this.game.room?.kind === 'town';
-    const titles: Record<PanelName, string> = { inventory: t('inventory'), skills: t('skills'), passives: t('passives'), character: t('character'), quests: t('quests'), codex: t('codex'), social: t('social'), guild: 'Guild', ladder: 'Leaderboards', alchemist: 'Sister Maelis — alchemy', season: 'Season & weekly', hearth: 'Your Hearth', carpenter: 'Carpenter Odo — furniture', auction: 'Auctioneer Vell — auction house', settings: t('settings'), dungeon: 'Rift Gate', smith: 'Brenna the Smith — forging', quartermaster: 'Merchant Tobin — selling', enchanter: 'Enchantress Lyra — affix enchanting', salvager: 'Salvager Grimm — salvage', merchant: 'Merchant Tobin — selling', apothecary: 'Apothecary Fenna — potions', cook: 'Chef Bramble — cooking', stable: 'Stablemaster Rook — companions & mounts', tailor: 'Tailor Pim — bag expansion', waymaster: 'Waymaster Juno — zone travel', forgemaster: 'Forgemaster Kael — enhancement +15', runesmith: 'Runesmith Sefa — bonus options', trainer: 'Master Ilrin — trainer', stash: 'Astral Vault', map: t('map'), crafting: getLang() === 'th' ? 'คราฟต์และทักษะชีวิต' : 'Crafting & Life Skills', login: getLang() === 'th' ? 'รางวัลล็อกอิน' : 'Login Rewards', shop: getLang() === 'th' ? 'ร้านค้า' : 'Shop', benefits: getLang() === 'th' ? 'สิทธิประโยชน์' : 'Benefits', wish: getLang() === 'th' ? 'ขอพรแห่งดวงดาว' : 'Astral Wish', awaken: getLang() === 'th' ? 'ตื่นรู้และตราสัญลักษณ์' : 'Awakening & Emblems', wardrobe: getLang() === 'th' ? 'ตู้เสื้อผ้า' : 'Wardrobe', friends: getLang() === 'th' ? 'สังคมและชุมชน' : 'Social & Community', gm: 'GM Console', auto: getLang() === 'th' ? 'ตั้งค่าระบบออโต้' : 'Auto Settings' };
+    const titles: Record<PanelName, string> = { inventory: t('inventory'), skills: t('skills'), passives: t('passives'), character: t('character'), quests: t('quests'), codex: t('codex'), social: t('social'), guild: 'Guild', ladder: 'Leaderboards', alchemist: 'Sister Maelis — alchemy', season: 'Season & weekly', hearth: 'Your Hearth', carpenter: 'Carpenter Odo — furniture', auction: 'Auctioneer Vell — auction house', settings: t('settings'), dungeon: 'Rift Gate', smith: 'Brenna the Smith — forging', quartermaster: 'Merchant Tobin — selling', enchanter: 'Enchantress Lyra — affix enchanting', salvager: 'Salvager Grimm — salvage', merchant: 'Merchant Tobin — selling', apothecary: 'Apothecary Fenna — potions', cook: 'Chef Bramble — cooking', stable: 'Stablemaster Rook — companions & mounts', tailor: 'Tailor Pim — bag expansion', waymaster: 'Waymaster Juno — zone travel', forgemaster: 'Forgemaster Kael — enhancement +15', runesmith: 'Runesmith Sefa — bonus options', arena: 'Arena Master Brann — ranked arena', trainer: 'Master Ilrin — trainer', stash: 'Astral Vault', map: t('map'), crafting: getLang() === 'th' ? 'คราฟต์และทักษะชีวิต' : 'Crafting & Life Skills', login: getLang() === 'th' ? 'รางวัลล็อกอิน' : 'Login Rewards', shop: getLang() === 'th' ? 'ร้านค้า' : 'Shop', benefits: getLang() === 'th' ? 'สิทธิประโยชน์' : 'Benefits', wish: getLang() === 'th' ? 'ขอพรแห่งดวงดาว' : 'Astral Wish', awaken: getLang() === 'th' ? 'ตื่นรู้และตราสัญลักษณ์' : 'Awakening & Emblems', wardrobe: getLang() === 'th' ? 'ตู้เสื้อผ้า' : 'Wardrobe', friends: getLang() === 'th' ? 'สังคมและชุมชน' : 'Social & Community', gm: 'GM Console', auto: getLang() === 'th' ? 'ตั้งค่าระบบออโต้' : 'Auto Settings' };
     let body: HTMLElement;
     switch (p) {
       case 'inventory': body = inventoryWindow(ctx, 'normal', () => this.renderPanel()); break;
@@ -735,6 +763,7 @@ export class GameUI {
       case 'stable': body = NW.stableWindow(ctx.account, (m) => this.send(m)); break;
       case 'tailor': body = NW.tailorWindow(ctx.ch, (m) => this.send(m)); break;
       case 'waymaster': body = NW.waymasterWindow(ctx.ch, (m) => this.send(m)); break;
+      case 'arena': body = NW.arenaWindow(ctx.ch, this.pvpData, (m) => this.send(m)); break;
       case 'hearth': body = S.hearthPanel(this.houseData, (m) => this.send(m), (id) => this.startPlacing(id)); break;
       case 'carpenter': body = NW.carpenterWindow(ctx.ch, ctx.account, (m) => this.send(m), () => this.renderPanel()); break;
       case 'season': body = S.seasonPanel(this.seasonData, ctx.ch, ctx.account, (m) => this.send(m)); break;
@@ -768,7 +797,7 @@ export class GameUI {
     const panel = clear(this.el.panel!);
     panel.hidden = false;
     panel.classList.toggle('wide', p === 'passives' || p === 'map' || (p === 'trainer' && NW.trainerState.tab === 'tree'));
-    panel.classList.toggle('win', ['inventory', 'smith', 'quartermaster', 'stash', 'crafting', 'alchemist', 'auction', 'social', 'guild', 'skills', 'passives', 'character', 'season', 'dungeon', 'friends', 'gm', 'auto', 'login', 'shop', 'benefits', 'wish', 'awaken', 'wardrobe', 'trainer', 'carpenter', 'enchanter', 'salvager', 'merchant', 'forgemaster', 'runesmith', 'cook', 'apothecary', 'stable', 'tailor', 'waymaster'].includes(p));
+    panel.classList.toggle('win', ['inventory', 'smith', 'quartermaster', 'stash', 'crafting', 'alchemist', 'auction', 'social', 'guild', 'skills', 'passives', 'character', 'season', 'dungeon', 'friends', 'gm', 'auto', 'login', 'shop', 'benefits', 'wish', 'awaken', 'wardrobe', 'trainer', 'carpenter', 'enchanter', 'salvager', 'merchant', 'forgemaster', 'runesmith', 'cook', 'apothecary', 'stable', 'tailor', 'waymaster', 'arena'].includes(p));
     const th = getLang() === 'th';
     const socialTabs = ['social', 'guild', 'auction', 'friends'].includes(p) ? h('div', { class: 'win-tabs' }, ...([['auction', 'gavel', th ? 'ห้องประมูล' : 'Auction House'], ['guild', 'crest', th ? 'กิลด์' : 'Guild'], ['social', 'people', th ? 'ปาร์ตี้และเทรด' : 'Party & Trade'], ['friends', 'person', th ? 'เพื่อน' : 'Friends']] as const).map(([id, ic, label]) => h('button', { class: 'wt icon' + (p === id ? ' on' : ''), onclick: () => { this.openPanel(id); if (id === 'friends') this.send({ t: 'friend_list' }); if (id === 'auction') { this.send({ t: 'ah_search', q: this.ah.q }); this.send({ t: 'ah_mine' }); } } }, uiIcon(ic, 22), label))) : null;
     if (socialTabs) titles[p] = th ? 'สังคมและชุมชน' : 'Social & Community';

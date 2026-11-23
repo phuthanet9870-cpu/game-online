@@ -1,7 +1,9 @@
 import { BESTIARY_TH } from './bestiary.js';
+import { PVP_BOT_TH } from '../pvp.js';
 // Thai translations for game content. Keys: <kind>.<id>[.<field>]. Missing keys fall back to English.
 export const CONTENT_TH: Record<string, string> = {
   ...BESTIARY_TH,
+  ...PVP_BOT_TH,
   // ── Classes
   'class.warrior.name': 'นักรบ', 'class.warrior.role': 'แนวหน้าสายบู๊', 'class.warrior.fantasy': 'ปรมาจารย์อาวุธแห่งกองทัพไอรอนเวล ผู้เปลี่ยนความเจ็บปวดเป็นความเกรี้ยวกราด',
   'class.warrior.mechanic': 'โทสะ (Rage): สะสมเมื่อโจมตีหรือถูกโจมตี และลดลงเมื่อออกจากการต่อสู้ การโจมตีพื้นฐานครั้งที่สามเป็นการฟันกวาดกว้าง',

@@ -20,6 +20,8 @@ import { Rng, dist } from './math.js';
 import { buildArena, buildHouse, buildTown, buildZone, validatePlacement, generateDungeon, generateLabyrinth, type GameMap } from './maps.js';
 import { ZONES, ZONE_MAP, waypointCost } from './data/bestiary.js';
 import * as EH from './enhance.js';
+import { PVP, PVP_SIZES, applyResult, pvpTier, type PvpSize } from './pvp.js';
+import { buildArena as buildPvpArena } from './maps.js';
 import { ACTIVITIES, ACTIVITY_ORDER, ECLIPSE_POOL, NIGHTMARE_MODS, towerScale, type Activity } from './data/activities.js';
 import { MATERIALS, PROFESSIONS, RECIPE_MAP } from './data/crafting.js';
 import { PETS } from './data/pets.js';
@@ -27,7 +29,7 @@ import { TUTORIAL } from './data/tutorial.js';
 import { FURNITURE, emptyHouse, type HouseState } from './data/housing.js';
 import { AURAS, DEFAULT_LIVE, SEASON_XP_PER_TIER, SHARD_SOURCES, currentSeason, weekIndex, weeklyEvent, weeklyObjectives, type LiveConfig, type SeasonDef } from './data/seasons.js';
 import type { AccountProgress, CharacterData, DifficultyId, EquipSlot } from './types.js';
-import { EQUIP_SLOTS, PROTOCOL_VERSION, STASH_SIZE } from './types.js';
+import { CLASS_IDS, EQUIP_SLOTS, PROTOCOL_VERSION, STASH_SIZE, type ClassId } from './types.js';
 import { TICK_RATE, World, type WorldEvent, type WorldOptions } from './world.js';
 import * as EC from './economy.js';
 import { applyContentPatch, type ContentPatch } from './content.js';
@@ -82,12 +84,13 @@ interface Session {
   gm: boolean;
 }
 
-interface Room { id: string; kind: 'town' | 'field' | 'dungeon'; world: World; sessions: Set<string>; emptyT: number; difficulty: DifficultyId; seed: number; partyId: string | null; mode?: Activity; floor?: number; startedAt?: number; arena?: { wave: number; nextT: number } }
+interface PvpMatch { size: number; teams: [string[], string[]]; names: [string[], string[]]; rp: [number, number]; level: number; round: number; score: [number, number]; phase: 'prep' | 'fight' | 'end' | 'done'; until: number; left: Set<string>; botClasses: [ClassId[], ClassId[]]; winner?: 0 | 1 }
+interface Room { pvp?: PvpMatch; id: string; kind: 'town' | 'field' | 'dungeon'; world: World; sessions: Set<string>; emptyT: number; difficulty: DifficultyId; seed: number; partyId: string | null; mode?: Activity; floor?: number; startedAt?: number; arena?: { wave: number; nextT: number } }
 export interface LeaderRecord { board: string; charId: string; name: string; cls: string; hardcore: boolean; value: number; at: number }
 interface Party { id: string; leader: string; members: string[] }
 
 export const FRIEND_MAX = 50;
-const MUTATIONS = new Set(['house_buy', 'house_place', 'house_remove', 'use_map', 'guild_vault_put', 'guild_vault_take', 'pet_buy', 'season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose', 'login_claim', 'shop_buy', 'benefit_claim', 'awaken', 'wish', 'emblem_set', 'cosmetic_set', 'afk_claim', 'bag_expand', 'sell_many', 'stash_put_many', 'guild_apply', 'guild_req', 'guild_settings', 'discard', 'waypoint', 'enhance', 'bonus_reroll']);
+const MUTATIONS = new Set(['house_buy', 'house_place', 'house_remove', 'use_map', 'guild_vault_put', 'guild_vault_take', 'pet_buy', 'season_claim', 'craft', 'trade_confirm', 'ah_list', 'ah_buy', 'ah_cancel', 'ah_claim', 'guild_create', 'equip', 'unequip', 'salvage', 'sell', 'enchant', 'move_inv', 'loadout', 'passive_alloc', 'passive_refund', 'respec', 'preset_save', 'preset_load', 'import_build', 'buy_potion', 'quest_accept', 'quest_claim', 'stash_put', 'stash_take', 'choose', 'login_claim', 'shop_buy', 'benefit_claim', 'awaken', 'wish', 'emblem_set', 'cosmetic_set', 'afk_claim', 'bag_expand', 'sell_many', 'stash_put_many', 'guild_apply', 'guild_req', 'guild_settings', 'discard', 'waypoint', 'enhance', 'bonus_reroll', 'pvp_queue']);
 
 /** Character as sent to its owner: hidden server knowledge (exact treasure spot) is removed. */
 export function publicChar(ch: CharacterData): CharacterData {
@@ -192,6 +195,7 @@ export class GameCore {
     if (room && room.kind === 'dungeon' && ent && !ent.dead) this.reconnect.set(s.char.id, { roomId: room.id, until: this.now + 90, x: ent.x, y: ent.y });
     this.cancelTrade(s, 'Trade cancelled: player left');
     this.pf.delete(s.id);
+    this.pvpDequeue(s.id);
     if (room?.kind === 'field' && ent && !ent.dead) M.afkStart(s.char, room.id, this.clock());
     this.leaveRoom(s);
     this.leaveParty(s);
@@ -199,14 +203,14 @@ export class GameCore {
     this.sessions.delete(sessionId);
   }
 
-  private joinRoom(s: Session, roomId: string, pos?: { x: number; y: number }) {
+  private joinRoom(s: Session, roomId: string, pos?: { x: number; y: number }, team: 0 | 1 = 0) {
     const room = this.rooms.get(roomId);
     if (!room) return;
     s.roomId = roomId;
     room.sessions.add(s.id);
     room.emptyT = 0;
-    const ent = room.world.addPlayer(s.char, s.id, pos);
-    ent.p!.partyId = s.partyId;
+    const ent = room.world.addPlayer(s.char, s.id, pos, team);
+    ent.p!.partyId = room.pvp ? null : s.partyId;
     ent.p!.aura = s.account.aura;
     ent.p!.costume = normalizeMeta(s.account.meta).cosmetics.costume;
     ent.p!.pet = s.account.pet;
@@ -224,6 +228,7 @@ export class GameCore {
   private leaveRoom(s: Session) {
     const room = this.rooms.get(s.roomId);
     if (!room) return;
+    if (room.pvp && room.pvp.phase !== 'done' && !room.pvp.left.has(s.char.id)) this.pvpForfeit(s, room);
     room.sessions.delete(s.id);
     room.world.removeEnt(s.entId);
     s.entId = 0;
@@ -311,6 +316,17 @@ export class GameCore {
           }
           break;
         }
+        case 'pvp_queue': {
+          const size = Number(msg.size) as PvpSize;
+          if (!PVP_SIZES.includes(size)) return err('Choose 1v1, 3v3 or 5v5');
+          if (!this.nearNpc(s, room, 'npc_arena')) return err('Queue at Arena Master Brann');
+          this.pvpDequeue(s.id);
+          this.pvpQueue.get(size)!.push({ sid: s.id, at: this.now });
+          this.toast(s, `Searching for a ${size}v${size} match…`);
+          return this.pvpInfo(s);
+        }
+        case 'pvp_leave': this.pvpDequeue(s.id); return this.pvpInfo(s);
+        case 'pvp_info': return this.pvpInfo(s);
         case 'waypoint': {
           if (!this.nearNpc(s, room, 'npc_waymaster')) return err('Visit Waymaster Juno to travel');
           const z = ZONE_MAP[String(msg.zone)];
@@ -486,6 +502,7 @@ export class GameCore {
       case 'npc_waymaster': s.send({ t: 'open', what: 'waymaster' }); break;
       case 'npc_forgemaster': s.send({ t: 'open', what: 'forgemaster' }); break;
       case 'npc_runesmith': s.send({ t: 'open', what: 'runesmith' }); break;
+      case 'npc_arena': s.send({ t: 'open', what: 'arena' }); this.pvpInfo(s); break;
       case 'npc_carpenter': s.send({ t: 'open', what: 'carpenter' }); break;
       case 'house_door': this.enterHouse(s, s); break;
       case 'house_exit': { const d = this.rooms.get('town')!.world.map.interactables.find((i) => i.type === 'house_door')!; this.moveTo(s, 'town', { x: d.x, y: d.y + 40 }); break; }
@@ -747,6 +764,7 @@ export class GameCore {
 
   // ─────────── Arena waves & raid wipes ───────────
   private tickInstance(room: Room) {
+    if (room.pvp) return this.tickPvp(room);
     if (room.kind !== 'dungeon' || !room.sessions.size) return;
     const w = room.world;
     const players = [...w.ents.values()].filter((e) => e.kind === 'player');
@@ -1283,6 +1301,130 @@ export class GameCore {
     const online = new Set([...this.sessions.values()].map((o) => o.char.id));
     s.send({ t: 'guild', guild: { ...g, members: g.members.map((m) => ({ ...m, online: online.has(m.charId) })), xpToNext: EC.guildXpToNext(g.level), requests: EC.can(g, s.char.id, 'invite') ? g.requests ?? [] : [] }, invites: [] });
   }
+  // ─────────── Ranked Arena (PvP) ───────────
+  pvpQueue = new Map<number, Array<{ sid: string; at: number }>>(PVP_SIZES.map((n) => [n, []]));
+  private pvpDequeue(sid: string) { for (const q of this.pvpQueue.values()) { const i = q.findIndex((x) => x.sid === sid); if (i >= 0) q.splice(i, 1); } }
+  private pvpInfo(s: Session) {
+    const r = s.char.pvp!;
+    const queued = [...this.pvpQueue.entries()].find(([, q]) => q.some((x) => x.sid === s.id));
+    const board = [...this.records.values()].filter((x) => x.board === 'pvp' && x.hardcore === s.char.hardcore).sort((a, b) => b.value - a.value).slice(0, 20);
+    s.send({ t: 'pvp_info', rec: r, tier: pvpTier(r.rp).id, queued: queued ? { size: queued[0], wait: Math.round(this.now - queued[1].find((x) => x.sid === s.id)!.at) } : null, board, sizes: PVP_SIZES.map((n) => ({ size: n, waiting: this.pvpQueue.get(n)!.length })) });
+  }
+  private tickPvpQueues() {
+    const wait = this.opts.label === 'offline' ? PVP.offlineBotWait : PVP.botWait;
+    for (const [size, q] of this.pvpQueue) {
+      for (let i = q.length - 1; i >= 0; i--) { const s = this.sessions.get(q[i]!.sid); if (!s || s.closed || this.rooms.get(s.roomId)?.kind !== 'town') q.splice(i, 1); }
+      if (!q.length) continue;
+      if (q.length >= size * 2 || this.now - q[0]!.at >= wait) {
+        const picked = q.splice(0, Math.min(q.length, size * 2)).map((x) => this.sessions.get(x.sid)!).sort((a, b) => b.char.pvp!.rp - a.char.pvp!.rp);
+        const teams: [Session[], Session[]] = [[], []];
+        // snake draft by rating so both sides are even (1-2-2-1 …)
+        picked.forEach((p, i) => { const t = [0, 1, 1, 0][i % 4]! as 0 | 1; (teams[t].length < size ? teams[t] : teams[1 - t as 0 | 1]).push(p); });
+        this.startPvp(size, teams);
+      } else for (const x of q) { const s = this.sessions.get(x.sid); if (s && this.tickN % 60 === 0) this.pvpInfo(s); }
+    }
+  }
+  private startPvp(size: number, teams: [Session[], Session[]]) {
+    const seed = this.rng.int(1, 1e9);
+    const humans = [...teams[0], ...teams[1]];
+    const level = Math.round(humans.reduce((a, s) => a + s.char.level, 0) / humans.length);
+    const id = this.uid('pvp');
+    const room = this.createRoom(id, buildPvpArena('arena', seed, level), 'normal', seed, 1, null, { pvp: true, noRespawn: true });
+    const avg = (t: Session[]) => t.length ? t.reduce((a, s) => a + s.char.pvp!.rp, 0) / t.length : 0;
+    const rp0 = avg(teams[0]) || avg(teams[1]), rp1 = avg(teams[1]) || rp0;
+    const pick = () => CLASS_IDS[this.rng.int(0, CLASS_IDS.length - 1)]!;
+    room.pvp = { size, teams: [teams[0].map((s) => s.id), teams[1].map((s) => s.id)], names: [teams[0].map((s) => s.char.name), teams[1].map((s) => s.char.name)], rp: [rp0, rp1], level, round: 0, score: [0, 0], phase: 'prep', until: 0, left: new Set(),
+      botClasses: [Array.from({ length: size - teams[0].length }, pick), Array.from({ length: size - teams[1].length }, pick)] };
+    for (const [t, list] of teams.entries()) for (const s of list) {
+      this.pvpDequeue(s.id); this.cancelTrade(s, 'Trade cancelled: arena match'); this.leaveRoom(s); s.pendingChoice = null;
+      this.joinRoom(s, room.id, this.pvpSpot(room, t as 0 | 1, list.indexOf(s)), t as 0 | 1);
+      this.toast(s, `Arena ${size}v${size} — first to ${PVP.roundsToWin} rounds wins!`);
+    }
+    this.pvpRound(room);
+  }
+  private pvpSpot(room: Room, team: 0 | 1, i: number) {
+    const m = room.world.map, c = m.w / 2;
+    return { x: (c + (team === 0 ? -8 : 8)) * TILE, y: (c - 4 + (i % 5) * 2) * TILE };
+  }
+  /** Reset the arena for the next round: revive humans, clear summons/effects, respawn AI champions. */
+  private pvpRound(room: Room) {
+    const m = room.pvp!, w = room.world;
+    m.round++; m.phase = 'prep'; m.until = this.now + PVP.prep;
+    for (const e of [...w.ents.values()]) if (e.kind !== 'player') w.ents.delete(e.id);
+    w.projs = []; w.areas = [];
+    for (const [t, list] of m.teams.entries()) list.forEach((sid, i) => {
+      const s = this.sessions.get(sid); if (!s || s.roomId !== room.id) return;
+      const e = w.ents.get(s.entId); if (!e) return;
+      const p = this.pvpSpot(room, t as 0 | 1, i);
+      e.dead = false; e.hp = e.maxHp; e.barrier = 0; e.statuses = []; e.x = p.x; e.y = p.y; e.invuln = PVP.prep; e.dirty = true;
+      if (e.p) { e.p.cds = {}; e.p.res = e.stats?.maxRes ?? e.p.res; }
+    });
+    for (const t of [0, 1] as const) m.botClasses[t].forEach((cls, i) => {
+      const p = this.pvpSpot(room, t, m.teams[t].length + i);
+      const b = w.spawnEnemy(`pvp_bot_${cls}`, p.x, p.y, m.level, false, undefined, undefined, t);
+      if (b) { b.invuln = PVP.prep; b.e!.awake = true; }
+    });
+    this.pvpBroadcast(room, `Round ${m.round} — fight in ${PVP.prep}s!`);
+  }
+  private pvpAlive(room: Room, team: 0 | 1): { n: number; hp: number } {
+    let n = 0, hp = 0;
+    for (const e of room.world.ents.values()) if (e.team === team && !e.dead && (e.kind === 'player' || e.e?.def.look === 'chibi')) { n++; hp += e.hp / e.maxHp; }
+    return { n, hp };
+  }
+  private tickPvp(room: Room) {
+    const m = room.pvp!;
+    if (m.phase === 'done') { if (this.now >= m.until) { for (const sid of [...room.sessions]) { const s = this.sessions.get(sid); if (s) this.moveTo(s, 'town'); } this.rooms.delete(room.id); } return; }
+    if (!room.sessions.size) { this.rooms.delete(room.id); return; }
+    if (this.tickN % 15 === 0) this.pvpBroadcast(room);
+    if (this.now < m.until && m.phase !== 'fight') return;
+    if (m.phase === 'prep') { m.phase = 'fight'; m.until = this.now + PVP.roundTime; return this.pvpBroadcast(room, 'FIGHT!'); }
+    if (m.phase === 'end') return m.score.some((x) => x >= PVP.roundsToWin) ? this.pvpFinish(room) : this.pvpRound(room);
+    const a = this.pvpAlive(room, 0), b = this.pvpAlive(room, 1);
+    let winner: 0 | 1 | null = null;
+    if (!a.n || !b.n) winner = a.n ? 0 : b.n ? 1 : null;
+    if (winner === null && (this.now >= m.until || (!a.n && !b.n))) winner = a.n === b.n ? (a.hp >= b.hp ? 0 : 1) : a.n > b.n ? 0 : 1;
+    if (winner === null) return;
+    m.score[winner]++; m.phase = 'end'; m.until = this.now + 3;
+    this.pvpBroadcast(room, `Round ${m.round} → ${winner === 0 ? 'Blue' : 'Red'} team (${m.score[0]} : ${m.score[1]})`);
+  }
+  private pvpBroadcast(room: Room, text?: string) {
+    const m = room.pvp!;
+    const st = { t: 'pvp_state', size: m.size, round: m.round, score: m.score, phase: m.phase, left: Math.max(0, Math.ceil(m.until - this.now)), alive: [this.pvpAlive(room, 0).n, this.pvpAlive(room, 1).n], names: m.names, bots: m.botClasses, text, winner: m.winner, ents: [...room.world.ents.values()].filter((e) => e.kind === 'player' || e.e?.def.look === 'chibi').map((e) => [e.id, e.team]) };
+    for (const sid of room.sessions) { const s = this.sessions.get(sid); if (s) { s.send({ ...st, myTeam: m.teams[0].includes(sid) ? 0 : 1 }); if (text) this.toast(s, text); } }
+  }
+  private pvpFinish(room: Room) {
+    const m = room.pvp!;
+    const win = (m.score[0] >= PVP.roundsToWin ? 0 : 1) as 0 | 1;
+    m.winner = win; m.phase = 'done'; m.until = this.now + 6;
+    for (const t of [0, 1] as const) for (const sid of m.teams[t]) {
+      const s = this.sessions.get(sid); if (!s || m.left.has(s.char.id)) continue;
+      const won = t === win;
+      const d = applyResult(s.char.pvp!, m.rp[1 - t]!, won);
+      const gold = won ? 60 * m.size + m.level * 4 : 15 * m.size, dust = won ? 8 * m.size : 0;
+      s.char.gold += gold; s.char.dust += dust;
+      this.setPvpRecord(s);
+      this.tx({ characters: [s.char] });
+      this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'pvp_result', data: { won, d, rp: s.char.pvp!.rp, size: m.size, score: m.score } });
+      s.send({ t: 'pvp_end', won, delta: d, rec: s.char.pvp, tier: pvpTier(s.char.pvp!.rp).id, gold, dust, score: m.score });
+      this.sendChar(s);
+    }
+    this.pvpBroadcast(room, `${win === 0 ? 'Blue' : 'Red'} team wins ${m.score[0]} : ${m.score[1]}!`);
+  }
+  private pvpForfeit(s: Session, room: Room) {
+    const m = room.pvp!;
+    m.left.add(s.char.id);
+    const t = m.teams[0].includes(s.id) ? 0 : 1;
+    const d = applyResult(s.char.pvp!, m.rp[1 - t]!, false);
+    this.setPvpRecord(s);
+    this.persist.audit({ accountId: s.accountId, charId: s.char.id, action: 'pvp_forfeit', data: { d, rp: s.char.pvp!.rp } });
+    this.toast(s, `Left the arena — counted as a loss (${d} RP)`);
+  }
+  /** The PvP board shows current rating (it can go down), unlike personal-best boards. */
+  private setPvpRecord(s: Session) {
+    const rec: LeaderRecord = { board: 'pvp', charId: s.char.id, name: s.char.name, cls: s.char.cls, hardcore: s.char.hardcore, value: s.char.pvp!.rp, at: this.clock() };
+    this.records.set(`pvp:${s.char.id}`, rec);
+    this.tx({ records: [rec] });
+  }
   /** A character joined `joined`: drop their pending requests everywhere else. */
   private clearRequests(charId: string, joined: Guild) {
     const touched: Guild[] = [];
@@ -1741,6 +1883,7 @@ export class GameCore {
     // periodic saves
     for (const s of this.sessions.values()) { s.saveT -= dt; if (s.saveT <= 0) { s.saveT = 30; if (s.dirty) this.save(s); } }
     for (const [k, v] of this.reconnect) if (v.until < this.now) this.reconnect.delete(k);
+    if (this.tickN % 15 === 0) this.tickPvpQueues();
     this.tickWorldEvent();
     for (const s of this.sessions.values()) {
       const f = s.fishing;
@@ -1843,6 +1986,7 @@ export class GameCore {
           pub.push(ev);
           break;
         case 'player_death': {
+          if (room.pvp) break; // arena deaths are part of the round, never Hardcore deaths
           const s = this.sessionByEnt(room, ev.id);
           if (s) {
             if (s.char.hardcore) {
