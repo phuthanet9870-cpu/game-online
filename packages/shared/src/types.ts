@@ -27,6 +27,8 @@ export interface Dmg {
   coef: number; // multiplier of caster power
   type: DamageType;
   status?: StatusApply;
+  /** Extra damage multiplier against targets below 35% life (execute). */
+  execute?: number;
 }
 
 /** Stat modifier. `stat` is a StatKey (see stats.ts). */
@@ -40,11 +42,33 @@ export type SkillEffect =
   | {
       t: 'projectile'; count?: number; spread?: number; speed: number; range: number; radius?: number;
       dmg: Dmg; pierce?: number; chain?: number; explode?: { radius: number; dmg: Dmg }; homing?: boolean;
+      /** Flies back to the caster at the end of its range, hitting again on the way. */
+      returns?: boolean;
+      /** Shatters into N shards on its first hit. */
+      split?: { count: number; dmg: Dmg };
     }
   | {
       t: 'area'; at: 'self' | 'cursor'; radius: number; dmg?: Dmg; delay?: number; duration?: number;
       tick?: number; count?: number; scatter?: number; pull?: number; healPct?: number; follow?: boolean;
+      /** Trap: stays armed (up to `duration` seconds) and only fires when an enemy steps in. */
+      trap?: boolean;
     }
+  /** Instant line hitting everything along it (optionally lingering and ticking). */
+  | { t: 'beam'; length: number; width: number; dmg: Dmg; duration?: number; tick?: number }
+  /** Instant teleport toward the aim point. */
+  | { t: 'blink'; dist: number; backward?: boolean }
+  /** Drag enemies toward a point. */
+  | { t: 'pull'; at: 'self' | 'cursor'; radius: number; force: number; dmg?: Dmg }
+  /** Swap places with the targeted enemy. */
+  | { t: 'swap'; dmg?: Dmg }
+  /** Remove harmful statuses from yourself (and allies in radius). */
+  | { t: 'cleanse'; radius?: number }
+  /** Replay this skill's damaging effects after a delay at a fraction of the power. */
+  | { t: 'echo'; delay: number; mult: number; times?: number }
+  /** Debuff enemies in an area with stat modifiers (dmgTakenPct, dmgPct, moveSpeedPct, armorPct). */
+  | { t: 'debuff'; at: 'self' | 'cursor'; radius: number; name: string; duration: number; mods: Mod[] }
+  /** Consume a status on enemies in an area for burst damage scaled by its remaining duration. */
+  | { t: 'detonate'; at: 'self' | 'cursor'; radius: number; status: StatusId; dmg: Dmg }
   | { t: 'dash'; dist: number; dmg?: Dmg; radius?: number; invuln?: boolean; backward?: boolean }
   | { t: 'buff'; name: string; duration: number; mods: Mod[]; party?: boolean; radius?: number }
   | { t: 'heal'; pct: number; radius?: number }

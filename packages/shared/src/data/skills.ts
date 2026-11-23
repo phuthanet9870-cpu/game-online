@@ -1,4 +1,5 @@
 import type { SkillDef } from '../types.js';
+import { EXT_SKILLS } from './skills/index.js';
 
 // Skill library. 8 Active + 4 Ultimate per class at launch. Values are balance data, not code.
 // `cast` = action lock seconds. Ranges in pixels (1 tile = 32px).
@@ -6,7 +7,7 @@ import type { SkillDef } from '../types.js';
 type S = Omit<SkillDef, 'tags'> & { tags?: string[] };
 const s = (d: S): SkillDef => ({ tags: [], ...d });
 
-export const SKILLS: SkillDef[] = [
+const BASE_SKILLS: SkillDef[] = [
   // ───────────────────────── WARRIOR ─────────────────────────
   s({ id: 'war_cleave', cls: 'warrior', kind: 'active', name: 'Sundering Arc', desc: 'A wide arc that tears through every enemy in front of you.', cost: 15, cooldown: 2.5, cast: 0.35, range: 0, targeting: 'direction', unlockLevel: 1, icon: 'arc', tags: ['melee', 'attack', 'aoe'],
     effects: [{ t: 'melee', range: 110, arc: 200, dmg: { coef: 1.8, type: 'physical', status: { id: 'bleed', chance: 0.4, duration: 4, power: 0.15 } } }] }),
@@ -194,6 +195,8 @@ function nec(id: string) {
   return 'nec_' + id;
 }
 
+/** 12 launch skills per class + the extended library (total 40 active + 10 ultimate per class). */
+export const SKILLS: SkillDef[] = [...BASE_SKILLS, ...EXT_SKILLS];
 export const SKILL_MAP: Record<string, SkillDef> = Object.fromEntries(SKILLS.map((k) => [k.id, k]));
 
 export function classSkills(cls: string, kind?: 'active' | 'ultimate'): SkillDef[] {

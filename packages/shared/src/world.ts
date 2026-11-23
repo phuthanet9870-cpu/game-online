@@ -107,13 +107,13 @@ export interface Ent {
   level: number;
 }
 
-export interface Packet { amount: number; type: DamageType; critChance: number; critMult: number; status?: StatusApply; src: number; tags: string[]; isBasic?: boolean; noCrit?: boolean; alwaysCrit?: boolean }
+export interface Packet { execute?: number; amount: number; type: DamageType; critChance: number; critMult: number; status?: StatusApply; src: number; tags: string[]; isBasic?: boolean; noCrit?: boolean; alwaysCrit?: boolean }
 interface CastCtx { skill?: SkillDef; tags: string[]; basic: boolean; points: number; ax: number; ay: number; targetId: number; mult?: number }
 
-export interface Proj { id: number; team: 0 | 1; owner: number; x: number; y: number; vx: number; vy: number; r: number; range: number; packet: Packet; pierce: number; chain: number; hit: Set<number>; explode?: { radius: number; packet: Packet }; homing?: boolean; visual: string }
+export interface Proj { returns?: boolean; back?: boolean; split?: { count: number; packet: Packet }; id: number; team: 0 | 1; owner: number; x: number; y: number; vx: number; vy: number; r: number; range: number; packet: Packet; pierce: number; chain: number; hit: Set<number>; explode?: { radius: number; packet: Packet }; homing?: boolean; visual: string }
 export interface Area {
   id: number; team: 0 | 1; owner: number; x: number; y: number; r: number;
-  shape: 'circle' | 'cone' | 'outside'; ang: number; arc: number;
+  shape: 'circle' | 'cone' | 'outside' | 'line'; ang: number; arc: number; trapT?: number;
   delay: number; delayTotal: number; dur: number; tick: number; tickT: number; fired: boolean; linger?: number;
   packet: Packet | null; healPct: number; follow: boolean; visual: string; pull: number;
 }
@@ -159,6 +159,8 @@ export interface WorldOptions {
   pressureEvery?: number;
 }
 
+/** Sum of a stat across an entity's timed buffs/debuffs (used for enemies, which have no stat sheet). */
+const buffSum = (e: Ent, stat: string) => { let v = 0; for (const b of e.buffs) for (const m of b.mods) if (m.stat === stat) v += m.value; return v; };
 const ELEM_STATUS: Record<DamageType, StatusId> = { physical: 'bleed', fire: 'burn', ice: 'chill', lightning: 'shock', holy: 'weaken', shadow: 'curse', poison: 'poison' };
 const DOTS = new Set<StatusId>(['burn', 'poison', 'bleed', 'curse']);
 const HARD_CC = new Set<StatusId>(['stun', 'freeze', 'broken']);
@@ -508,6 +510,7 @@ export class World {
               range: fx.range, packet: p2, pierce: lone ? 99 : fx.pierce ?? 0, chain: fx.chain ?? 0, hit: new Set(), homing: fx.homing,
               explode: fx.explode ? { radius: fx.explode.radius * aoe, packet: { ...this.packet(e, fx.explode.dmg, ctx), amount: this.packet(e, fx.explode.dmg, ctx).amount * mult } } : undefined,
               visual: pk.type + (ctx.basic ? '_basic' : '') + vtag(ctx),
+              returns: fx.returns, split: fx.split ? { count: fx.split.count, packet: { ...this.packet(e, fx.split.dmg, ctx), amount: this.packet(e, fx.split.dmg, ctx).amount * mult } } : undefined,
             });
           }
         };
@@ -530,6 +533,7 @@ export class World {
             } else { const a = this.rng.range(0, Math.PI * 2), rr = this.rng.range(0, fx.scatter ?? 100); x = cx + Math.cos(a) * rr; y = cy + Math.sin(a) * rr; }
           }
           const pk = fx.dmg ? this.packet(e, fx.dmg, ctx) : null;
+          if (fx.trap) { this.areas.push(this.mkArea(e, { x, y, r: fx.radius * aoe, delay: 0, dur: 0, tick: 0.5, packet: pk, visual: (pk?.type ?? 'physical') + '_trap' + vtag(ctx), trapT: fx.duration ?? 20 })); continue; }
           this.areas.push(this.mkArea(e, { x, y, r: fx.radius * aoe, shape: 'circle', ang: 0, arc: 0, delay: (fx.delay ?? 0) + (n > 1 ? i * 0.12 : 0), dur: fx.duration ?? 0, tick: fx.tick ?? 0.5, packet: pk, healPct: fx.healPct ?? 0, follow: !!fx.follow, visual: (pk?.type ?? 'holy') + (fx.healPct ? '_heal' : '') + vtag(ctx), pull: fx.pull ?? 0 }));
         }
         break;
@@ -563,6 +567,65 @@ export class World {
       case 'taunt':
         for (const t of this.hostilesNear(e, e.x, e.y, fx.radius)) if (t.e) { t.e.forced = { id: e.id, t: fx.duration }; t.e.awake = true; this.addThreat(t, e, 500); }
         break;
+      case 'beam': {
+        const [nx, ny] = this.dir(e, ctx);
+        const pk = this.packet(e, fx.dmg, ctx);
+        this.areas.push(this.mkArea(e, { x: e.x, y: e.y, r: fx.length * aoe, shape: 'line', ang: Math.atan2(ny, nx), arc: fx.width * aoe, dur: fx.duration ?? 0, tick: fx.tick ?? 0.25, follow: !!fx.duration, packet: pk, visual: 'beam_' + pk.type + vtag(ctx) }));
+        break;
+      }
+      case 'blink': {
+        let [nx, ny] = this.dir(e, ctx);
+        if (fx.backward) { nx = -nx; ny = -ny; }
+        const d = ctx.skill?.targeting === 'ground' && !fx.backward ? Math.min(fx.dist, dist(e.x, e.y, ctx.ax, ctx.ay)) : fx.dist;
+        for (let k = 0; k < 12; k++) [e.x, e.y] = moveCircle(this.map, e.x, e.y, e.r, (nx * d) / 12, (ny * d) / 12);
+        e.invuln = Math.max(e.invuln, 0.15); e.dirty = true;
+        break;
+      }
+      case 'pull': {
+        const cx = fx.at === 'self' ? e.x : ctx.ax, cy = fx.at === 'self' ? e.y : ctx.ay;
+        const pk = fx.dmg ? this.packet(e, fx.dmg, ctx) : null;
+        for (const v of this.hostilesNear(e, cx, cy, fx.radius * aoe)) {
+          if (!v.e?.def.boss) { const d = dist(v.x, v.y, cx, cy); const [nx, ny] = normalize(cx - v.x, cy - v.y); const m = Math.min(fx.force, Math.max(0, d - v.r - 10)); [v.x, v.y] = moveCircle(this.map, v.x, v.y, v.r, nx * m, ny * m); v.dirty = true; }
+          if (pk) this.applyHit(v, pk);
+        }
+        this.areas.push(this.mkArea(e, { x: cx, y: cy, r: fx.radius * aoe, dur: 0, packet: null, visual: 'pull_' + (pk?.type ?? 'physical') + vtag(ctx) }));
+        break;
+      }
+      case 'swap': {
+        const t = this.ents.get(ctx.targetId) ?? this.nearestHostile(e, ctx.ax, ctx.ay, 180);
+        if (!t || t.dead || t.team === e.team || t.e?.def.boss) break;
+        const [ox, oy] = [e.x, e.y]; e.x = t.x; e.y = t.y; t.x = ox; t.y = oy; e.dirty = t.dirty = true;
+        if (fx.dmg) this.applyHit(t, this.packet(e, fx.dmg, ctx));
+        break;
+      }
+      case 'cleanse': {
+        const targets = fx.radius ? this.alliesNear(e, fx.radius) : [e];
+        for (const t of targets) { t.statuses = []; t.dirty = true; }
+        break;
+      }
+      case 'echo': {
+        const dmgFx = (ctx.skill?.effects ?? []).filter((f) => f.t === 'melee' || f.t === 'projectile' || f.t === 'beam' || (f.t === 'area' && !!f.dmg));
+        for (let k = 1; k <= (fx.times ?? 1); k++) this.delayed.push({ t: this.time + fx.delay * k, fn: () => { if (!this.ents.has(e.id) || e.dead) return; this.events.push({ t: 'cast', id: e.id, skill: ctx.skill!.id, x: Math.round(ctx.ax), y: Math.round(ctx.ay) }); for (const f of dmgFx) this.applyEffect(e, f, { ...ctx, mult: (ctx.mult ?? 1) * fx.mult }); } });
+        break;
+      }
+      case 'debuff': {
+        const cx = fx.at === 'self' ? e.x : ctx.ax, cy = fx.at === 'self' ? e.y : ctx.ay;
+        for (const v of this.hostilesNear(e, cx, cy, fx.radius * aoe)) { this.addBuff(v, fx.name, fx.duration, fx.mods); if (v.e) { v.e.awake = true; this.addThreat(v, e, 5); } }
+        this.areas.push(this.mkArea(e, { x: cx, y: cy, r: fx.radius * aoe, dur: 0, packet: null, visual: 'debuff_shadow' + vtag(ctx) }));
+        break;
+      }
+      case 'detonate': {
+        const cx = fx.at === 'self' ? e.x : ctx.ax, cy = fx.at === 'self' ? e.y : ctx.ay;
+        const pk = this.packet(e, fx.dmg, ctx);
+        for (const v of this.hostilesNear(e, cx, cy, fx.radius * aoe)) {
+          const st2 = v.statuses.find((x) => x.id === fx.status);
+          if (!st2) continue;
+          v.statuses = v.statuses.filter((x) => x !== st2);
+          this.applyHit(v, { ...pk, amount: pk.amount * (1 + Math.min(3, st2.t ?? 0) * 0.35) });
+        }
+        this.areas.push(this.mkArea(e, { x: cx, y: cy, r: fx.radius * aoe, dur: 0, packet: null, visual: 'detonate_' + pk.type + vtag(ctx) }));
+        break;
+      }
       default:
         break;
     }
@@ -595,7 +658,7 @@ export class World {
   packet(e: Ent, d: Dmg, ctx: CastCtx): Packet {
     let type = d.type;
     if (e.kind === 'enemy') {
-      return { amount: e.e!.power * d.coef, type, critChance: 0, critMult: 1, status: d.status, src: e.id, tags: ctx.tags };
+      return { amount: e.e!.power * d.coef * Math.max(0.2, 1 + buffSum(e, 'dmgPct') / 100), type, critChance: 0, critMult: 1, status: d.status, src: e.id, tags: ctx.tags };
     }
     if (e.kind === 'minion') {
       const owner = this.ents.get(e.mi!.owner);
@@ -627,7 +690,7 @@ export class World {
     if (ctx.basic && (m['basic.statusChance'] ?? 0) > 0 && !status) status = { id: ELEM_STATUS[type], chance: m['basic.statusChance']!, duration: 3, power: 0.2 };
     if (st.flags.has('thousand_cuts') && !status) status = { id: 'bleed', chance: 1, duration: 3, power: 0.15 };
     more *= ctx.mult ?? 1;
-    return { amount: st.power * d.coef * (1 + inc / 100) * more, type, critChance: st.critChance, critMult: st.critMult / 100, status, src: e.id, tags: ctx.tags, isBasic: ctx.basic, alwaysCrit: ctx.skill?.id === 'asn_u_assassinate' };
+    return { execute: d.execute, amount: st.power * d.coef * (1 + inc / 100) * more, type, critChance: st.critChance, critMult: st.critMult / 100, status, src: e.id, tags: ctx.tags, isBasic: ctx.basic, alwaysCrit: ctx.skill?.id === 'asn_u_assassinate' };
   }
 
   // ───────────── Damage ─────────────
@@ -639,6 +702,10 @@ export class World {
     let amt = pk.amount;
     // Arena: player-vs-player damage is normalised so nobody is one-shot
     if (this.opts.pvp && (target.kind === 'player' || target.e?.def.look === 'chibi')) amt *= PVP.dmgMul;
+    if (pk.execute && target.hp / target.maxHp < 0.35) amt *= 1 + pk.execute;
+    if (!target.stats) { const tk = buffSum(target, 'dmgTakenPct'); if (tk) amt *= Math.max(0.1, 1 + tk / 100); }
+    const refl = opts.dot || pk.tags.includes('reflect') ? 0 : buffSum(target, 'reflectPct');
+    if (refl > 0 && src && !src.dead && src.team !== target.team) this.delayed.push({ t: this.time, fn: () => { if (!src.dead && this.ents.has(src.id)) this.applyHit(src, { amount: pk.amount * refl / 100, type: pk.type, critChance: 0, critMult: 1, src: target.id, tags: ['reflect'] }); } });
     let crit = false;
     // player defenses
     if (target.kind === 'player' && target.stats && !opts.dot) {
@@ -1107,12 +1174,13 @@ export class World {
     for (const [id, v] of es.threat) {
       const o = this.ents.get(id);
       if (!o || o.dead || dist2(o.x, o.y, e.x, e.y) > 1100 * 1100) { es.threat.delete(id); continue; }
+      if (buffSum(o, 'stealth') > 0) continue;
       if (v > bv) { bv = v; best = o; }
     }
     if (best) return best;
     // aggro on sight
     for (const o of this.ents.values()) {
-      if (o.team === e.team || o.dead) continue;
+      if (o.team === e.team || o.dead || buffSum(o, 'stealth') > 0) continue;
       if (dist2(o.x, o.y, e.x, e.y) < es.def.aggroRange ** 2 && lineOfSight(this.map, e.x, e.y, o.x, o.y)) {
         es.awake = true; this.addThreat(e, o, 1);
         // wake room-mates
@@ -1194,7 +1262,7 @@ export class World {
       }
     }
     // movement
-    let speed = e.speed;
+    let speed = e.speed * clamp(1 + buffSum(e, 'moveSpeedPct') / 100, 0.2, 2);
     for (const s of e.statuses) if (s.id === 'slow' || s.id === 'chill') speed *= 1 - clamp(s.power, 0, 0.7);
     const pref = def.preferRange ?? Math.max(30, Math.min(...def.attacks.map((a) => a.range)) * 0.8);
     let mx = 0, my = 0;
@@ -1299,6 +1367,8 @@ export class World {
       const sp = Math.hypot(pr.vx, pr.vy);
       const step = sp * dt;
       pr.x += pr.vx * dt; pr.y += pr.vy * dt; pr.range -= step;
+      if (pr.returns && !pr.back && pr.range <= 0) { pr.back = true; pr.hit.clear(); pr.range = 2000; }
+      if (pr.back) { const o = this.ents.get(pr.owner); if (!o || o.dead) pr.range = 0; else { const [nx, ny] = normalize(o.x - pr.x, o.y - pr.y); pr.vx = nx * sp; pr.vy = ny * sp; if (dist2(o.x, o.y, pr.x, pr.y) < (o.r + 10) ** 2) pr.range = 0; } }
       let alive = pr.range > 0;
       if (alive && this.map && circleBlocked(this.map, pr.x, pr.y, Math.min(pr.r, 6))) {
         alive = false;
@@ -1311,6 +1381,10 @@ export class World {
           pr.hit.add(o.id);
           this.applyHit(o, pr.packet);
           if (pr.explode) { this.explode(pr); pr.explode = undefined; }
+          if (pr.split) {
+            for (let k = 0; k < pr.split.count; k++) { const a = (k / pr.split.count) * Math.PI * 2; this.projs.push({ id: this.id(), team: pr.team, owner: pr.owner, x: pr.x, y: pr.y, vx: Math.cos(a) * sp * 0.8, vy: Math.sin(a) * sp * 0.8, r: Math.max(4, pr.r * 0.6), range: 220, packet: pr.split.packet, pierce: 0, chain: 0, hit: new Set([o.id]), visual: pr.visual }); }
+            pr.split = undefined;
+          }
           if (pr.chain > 0) {
             pr.chain--;
             const owner = this.ents.get(pr.owner);
@@ -1346,6 +1420,12 @@ export class World {
       const owner = this.ents.get(a.owner);
       if (a.linger !== undefined) { a.linger -= dt; if (a.linger > 0) keep.push(a); continue; }
       if (a.follow && owner) { a.x = owner.x; a.y = owner.y; }
+      if (a.trapT !== undefined) {
+        a.trapT -= dt;
+        const sprung = [...this.ents.values()].some((o) => o.team !== a.team && !o.dead && o.kind !== 'minion' && dist2(o.x, o.y, a.x, a.y) <= (a.r + o.r) ** 2);
+        if (!sprung) { if (a.trapT > 0) keep.push(a); continue; }
+        a.trapT = undefined; a.delay = 0;
+      }
       if (a.delay > 0) {
         a.delay -= dt;
         // telegraphed enemy attacks are cancelled if the caster dies or is crowd-controlled
@@ -1377,6 +1457,11 @@ export class World {
   inArea(a: Area, o: Ent): boolean {
     const d2 = dist2(a.x, a.y, o.x, o.y);
     if (a.shape === 'outside') return Math.sqrt(d2) + o.r * 0.5 > a.r; // everyone NOT inside the safe circle is hit
+    if (a.shape === 'line') { // beam: r = length, arc = width in px
+      const dx = o.x - a.x, dy = o.y - a.y, ux = Math.cos(a.ang), uy = Math.sin(a.ang);
+      const along = dx * ux + dy * uy, across = Math.abs(-dx * uy + dy * ux);
+      return along >= -o.r && along <= a.r + o.r && across <= a.arc / 2 + o.r;
+    }
     if (d2 > (a.r + o.r) ** 2) return false;
     if (a.shape === 'cone') {
       if (d2 < (o.r + 10) ** 2) return true;
@@ -1403,7 +1488,7 @@ export class World {
       ]);
     }
     const projs = this.projs.filter((p) => dist2(p.x, p.y, cx, cy) < r2).map((p) => [p.id, Math.round(p.x), Math.round(p.y), Math.round(p.vx), Math.round(p.vy), p.r, p.visual, p.team]);
-    const areas = this.areas.filter((a) => dist2(a.x, a.y, cx, cy) < r2 * 1.2).map((a) => [a.id, Math.round(a.x), Math.round(a.y), Math.round(a.r), a.shape === 'cone' ? 1 : a.shape === 'outside' ? 2 : 0, Math.round(a.ang * 100) / 100, Math.round(a.arc * 100) / 100, Math.round(a.delay * 100) / 100, Math.round(a.delayTotal * 100) / 100, a.team, a.visual, Math.round(a.dur * 10) / 10, a.fired ? 1 : 0]);
+    const areas = this.areas.filter((a) => dist2(a.x, a.y, cx, cy) < r2 * 1.2).map((a) => [a.id, Math.round(a.x), Math.round(a.y), Math.round(a.r), a.shape === 'cone' ? 1 : a.shape === 'outside' ? 2 : a.shape === 'line' ? 3 : 0, Math.round(a.ang * 100) / 100, Math.round(a.arc * 100) / 100, Math.round(a.delay * 100) / 100, Math.round(a.delayTotal * 100) / 100, a.team, a.visual, Math.round(a.dur * 10) / 10, a.fired ? 1 : 0]);
     const drops = this.drops.filter((d) => d.owner === pid).map((d) => [d.id, Math.round(d.x), Math.round(d.y), d.item?.rarity ?? 'gold', d.item?.name ?? `${d.gold} gold`]);
     let self: unknown = null;
     if (me?.p && me.stats) {
