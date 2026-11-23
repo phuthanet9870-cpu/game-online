@@ -125,5 +125,7 @@ export const MINIONS: Record<string, { name: string; hp: number; power: number; 
   golem: { name: 'Bone Colossus', hp: 1.2, power: 0.9, speed: 170, radius: 22, range: 70, interval: 1.4, type: 'physical', color: '#d0c7a8' },
   hawk: { name: 'Sky Hawk', hp: 0.2, power: 0.3, speed: 300, radius: 10, range: 46, interval: 0.7, type: 'physical', color: '#c9a36b' },
   turret: { name: 'Snare Turret', hp: 0.3, power: 0.3, speed: 0, radius: 12, range: 380, interval: 0.6, type: 'physical', ranged: true, color: '#9fd36b' },
+  wolf: { name: 'Spirit Hound', hp: 0.3, power: 0.4, speed: 260, radius: 12, range: 48, interval: 0.8, type: 'physical', color: '#9ab8d8' },
+  bear: { name: 'Great Spirit Bear', hp: 1.5, power: 1.0, speed: 180, radius: 24, range: 70, interval: 1.3, type: 'physical', color: '#8a6a4a' },
   sentinel: { name: 'Dawn Sentinel', hp: 0.8, power: 0.5, speed: 190, radius: 16, range: 60, interval: 1.0, type: 'holy', color: '#ffe9a8' },
 };

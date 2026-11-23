@@ -207,4 +207,4 @@ export function classSkills(cls: string, kind?: 'active' | 'ultimate'): SkillDef
 export const DODGE = { cooldown: 3, dist: 150, invuln: 0.3 };
 
 /** Max simultaneous minions per minion type. */
-export const MINION_CAPS: Record<string, number> = { skeleton: 6, wraith: 2, golem: 1, hawk: 2, turret: 3, sentinel: 2 };
+export const MINION_CAPS: Record<string, number> = { skeleton: 6, wraith: 2, golem: 1, hawk: 2, turret: 3, sentinel: 2, wolf: 2, bear: 1 };
