@@ -867,3 +867,9 @@ h3 { font-family: var(--f-display); color: var(--gold-2); }
 .modal.pvp-end { text-align: center; padding: 24px 40px; } .modal.pvp-end h2 { font-size: 40px; margin: 0; }
 .modal.pvp-end.win h2 { color: #ffd36a; text-shadow: 0 0 20px #ffb347; } .modal.pvp-end.lose h2 { color: #ff6a6a; }
 @media (max-width: 720px) { .pvp-top, .pvp-modes { grid-template-columns: 1fr; } .pvp-side small { display: none; } .pvp-side { min-width: 80px; } }
+/* ── Skill book filters ── */
+.skill-filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+.skill-filters input[type=search] { flex: 1 1 180px; min-width: 140px; }
+.skill-filters .chip { padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(200,170,255,.3); background: rgba(30,22,55,.75); color: #ddd; cursor: pointer; font: inherit; font-size: 13px; }
+.skill-filters .chip.on { border-color: #ffd36a; color: #ffe08a; background: rgba(110,80,40,.55); }
+.skill-lib { max-height: 380px; overflow-y: auto; }

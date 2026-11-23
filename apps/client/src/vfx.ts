@@ -204,7 +204,7 @@ export function skillPal(sk: SkillDef | undefined, base: string): Pal {
 }
 function parseVisual(v: string) {
   const [b, sk] = v.split('@');
-  const base = b!.replace('slash_', '').replace('enemy_', '').replace('_basic', '').replace('_heal', '');
+  const base = b!.replace('slash_', '').replace('enemy_', '').replace('_basic', '').replace('_heal', '').replace('_trap', '').replace(/^(beam|pull|debuff|detonate)_/, '');
   const enemy = b!.startsWith('enemy');
   return { base: ELEMS.includes(base) ? base : base === 'orb' ? 'orb' : 'physical', skill: sk && !enemy ? SKILL_MAP[sk] : undefined, kind: enemy ? sk ?? base : '', basic: b!.includes('_basic'), heal: b!.endsWith('_heal'), enemy };
 }
@@ -271,6 +271,12 @@ export class Vfx {
   }
   private castEffect(e: CEnt, sk: SkillDef, f: SkillEffect, pal: Pal, ax: number, ay: number, aim: number) {
     switch (f.t) {
+      case 'blink': this.add('portal', e.rx, e.ry, { life: 0.4, pal, r: 22 }); this.spray('streak', 10, e.rx, e.ry - 14, 260, 0.2, pal, { ang: aim + (f.backward ? Math.PI : 0), spread: 0.4 }); break;
+      case 'swap': this.add('portal', e.rx, e.ry, { life: 0.45, pal, r: 22 }); this.add('portal', ax, ay, { life: 0.45, pal, r: 22 }); break;
+      case 'cleanse': this.spray('mote', 16, e.rx, e.ry - 10, 70, 0.8, PAL.heal!, { up: 90 }); this.add('shock', e.rx, e.ry, { life: 0.4, pal: PAL.heal!, r: f.radius ?? 40 }); break;
+      case 'debuff': this.add('hexsigil', f.at === 'self' ? e.rx : ax, f.at === 'self' ? e.ry : ay, { life: 1.2, pal: PAL.shadow!, r: f.radius }); break;
+      case 'detonate': { const x = f.at === 'self' ? e.rx : ax, y = f.at === 'self' ? e.ry : ay; this.add('flare', x, y - 10, { life: 0.14, pal, r: 30 }); this.add('shock', x, y, { life: 0.5, pal, r: f.radius }); this.spray('chunk', 14, x, y, 200, 0.7, pal, { up: 160, grav: 800 }); break; }
+      case 'pull': { const x = f.at === 'self' ? e.rx : ax, y = f.at === 'self' ? e.ry : ay; this.add('portal', x, y, { life: 0.6, pal, r: f.radius * 0.5 }); for (let k = 0; k < 14; k++) { const a = (k / 14) * TAU, r = f.radius; this.p('streak', x + Math.cos(a) * r, y + Math.sin(a) * r * 0.7, -Math.cos(a) * r * 2.4, -Math.sin(a) * r * 1.7, 0.4, pal); } break; }
       case 'buff': {
         const bp = buffPal(sk, pal), big = sk.kind === 'ultimate';
         this.add('aura', e.rx, e.ry, { life: big ? 1.3 : 0.9, pal: bp, r: big ? 34 : 24, owner: e.id });
@@ -305,7 +311,18 @@ export class Vfx {
     }
   }
   /** Skills whose look is more than the sum of their effects. */
+  /** Every extended skill gets its own cast signature: a shape × particle × placement combination unique within its class. */
+  private recipe(e: CEnt, sk: SkillDef, pal: Pal, ax: number, ay: number) {
+    const list = SKILL_ORDER[sk.cls] ?? [];
+    const i = Math.max(0, list.indexOf(sk.id));
+    const shape = RECIPE_SHAPES[i % RECIPE_SHAPES.length]!, part = RECIPE_PARTS[Math.floor(i / RECIPE_SHAPES.length) % RECIPE_PARTS.length]!;
+    const atAim = sk.targeting === 'ground' || sk.targeting === 'target';
+    const x = atAim ? ax : e.rx, y = atAim ? ay : e.ry, big = sk.kind === 'ultimate' ? 1.8 : 1;
+    this.add(shape, x, y, { life: 0.55 * big, pal, r: (shape === 'clock' || shape === 'hexsigil' ? 46 : 30) * big, ang: Math.atan2(ay - e.ry, ax - e.rx) });
+    this.spray(part, Math.round(10 * big), x, y - 10, 90 + 40 * big, 0.7, pal, { up: part === 'smoke' || part === 'wisp' || part === 'mote' ? 50 : 120, grav: part === 'chunk' || part === 'drip' || part === 'spark' ? 700 : 0 });
+  }
   private signature(e: CEnt, sk: SkillDef, _pal: Pal, ax: number, ay: number) {
+    if (!LAUNCH_SIGNATURES.has(sk.id)) return this.recipe(e, sk, _pal, ax, ay);
     switch (sk.id) {
       case 'chr_u_stop': this.add('clock', e.rx, e.ry, { life: 1.6, pal: PAL.time!, r: 170 }); break;
       case 'chr_rewind': case 'chr_u_paradox': this.add('clock', e.rx, e.ry, { life: 0.9, pal: PAL.time!, r: 40, owner: e.id, data: { rev: true } }); break;
@@ -408,6 +425,8 @@ export class Vfx {
       if (a.cone) { this.markSeen(a.id); this.slashSparks(a); continue; }
       if (!a.fired) continue;
       this.markSeen(a.id);
+      if (a.line) { const v = parseVisual(a.v), pal = skillPal(v.skill, v.base); for (let k = 0; k < 10; k++) { const d = (k / 10) * a.r; this.spray('spark', 2, a.x + Math.cos(a.ang) * d, a.y - 10 + Math.sin(a.ang) * d, 120, 0.35, pal, { up: 60 }); } continue; }
+      if (/^(pull|debuff|detonate)_/.test(a.v)) continue; // drawn at cast time (castEffect)
       if (a.delayT > 0 || a.dur <= 0.05) this.areaImpact(a);
       else { const v = parseVisual(a.v); this.add('shock', a.x, a.y, { life: 0.45, pal: v.heal ? PAL.heal! : skillPal(v.skill, v.base), r: a.r }); }
     }
@@ -579,6 +598,8 @@ export class Vfx {
     if (a.outside) return false;
     if (a.team !== 0) { this.drawTelegraph(a, time); return true; }
     const v = parseVisual(a.v), pal = v.heal ? PAL.heal! : skillPal(v.skill, v.base), id = v.skill?.id ?? '';
+    if (a.line) { drawBeam(_ctx, a, pal, time); return true; }
+    if (a.v.includes('_trap') && !a.fired) { drawTrap(_ctx, a, pal, time); return true; }
     if (a.cone) this.drawSlash(a, pal, v.basic, v.skill);
     else if (a.delay > 0 && a.delayT > 0) this.drawSigil(a, pal, id, v.base, time);
     else if (a.dur > 0.05) this.drawField(a, pal, v.base, id, time, v.heal);
@@ -1007,3 +1028,33 @@ export class Vfx {
 /** Timed effects that lie on the floor (drawn under characters). */
 const GROUND_FX = new Set(['shock', 'scorch', 'cracks', 'portal', 'void', 'eslash', 'hexsigil']);
 const PLUS = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]] as const;
+
+// ── extended skills: beam / trap drawing and recipe tables ──
+const RECIPE_SHAPES = ['pillar', 'portal', 'flare', 'shock', 'hexsigil', 'clock', 'cracks', 'crystals', 'pool', 'blast'];
+const RECIPE_PARTS: PK[] = ['spark', 'ember', 'mote', 'wisp', 'flake', 'smoke', 'streak', 'chunk', 'drip', 'bubble'];
+const LAUNCH_SIGNATURES = new Set(['chr_u_stop', 'chr_rewind', 'chr_u_paradox', 'chr_haste', 'chr_u_accel', 'war_u_titan', 'pal_u_avatar', 'nec_u_lich', 'mag_u_overload', 'asn_u_massacre', 'asn_smoke', 'asn_u_clone', 'war_warcry', 'pal_taunt', 'rng_u_snipe', 'nec_drain', 'nec_curse', 'war_u_execution', 'pal_smite']);
+/** Skill ids of each class in library order (stable), used to give every skill a distinct recipe. */
+const SKILL_ORDER: Record<string, string[]> = (() => { const o: Record<string, string[]> = {}; for (const k of Object.values(SKILL_MAP)) (o[k.cls] ??= []).push(k.id); return o; })();
+/** Palette step (packed ABGR) → CSS colour. */
+const rgb = (p: Pal, i: number) => { const n = p[Math.min(i, p.length - 1)] ?? 0xffffffff; return `rgb(${n & 255},${(n >>> 8) & 255},${(n >>> 16) & 255})`; };
+function drawBeam(ctx: CanvasRenderingContext2D, a: Area, pal: Pal, time: number) {
+  const life = a.dur > 0.05 ? 1 : Math.max(0, 1 - a.age / 0.35);
+  if (life <= 0) return;
+  ctx.save(); ctx.translate(a.x, a.y - 10); ctx.rotate(a.ang);
+  ctx.globalCompositeOperation = 'lighter';
+  const w = a.arc * (0.7 + Math.sin(time * 30) * 0.08);
+  const g = ctx.createLinearGradient(0, -w / 2, 0, w / 2);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, rgb(pal, 6)); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.globalAlpha = 0.75 * life; ctx.fillStyle = g; ctx.fillRect(0, -w / 2, a.r, w);
+  ctx.globalAlpha = life; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, -Math.max(2, w * 0.12), a.r, Math.max(4, w * 0.24));
+  for (let i = 0; i < 6; i++) { const x = ((time * 600 + i * a.r / 6) % a.r); ctx.fillStyle = rgb(pal, 7); ctx.fillRect(x, -w * 0.35, 6, w * 0.7); }
+  ctx.restore();
+}
+function drawTrap(ctx: CanvasRenderingContext2D, a: Area, pal: Pal, time: number) {
+  const pulse = 0.5 + Math.sin(time * 4 + a.id) * 0.3;
+  ctx.save(); ctx.translate(a.x, a.y);
+  ctx.strokeStyle = rgb(pal, 6); ctx.globalAlpha = 0.35 + pulse * 0.4; ctx.lineWidth = 2;
+  ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.ellipse(0, 0, a.r, a.r * 0.6, 0, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  ctx.globalAlpha = 0.8; ctx.fillStyle = rgb(pal, 5); ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(9, 6); ctx.lineTo(-9, 6); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}

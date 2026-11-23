@@ -72,6 +72,8 @@ Last updated: 2026-11-22 (v0.9.0 — Phases 0-1, 4, 5, 6, 7, content expansion, 
 | One NPC per service in town (22 NPCs) | Tested | Reachability and uniqueness tested. |
 | Guild discovery: categories, browser, join requests, profile, rankings | Tested | Offline mode only ever has one player's guilds. |
 | Item discard (single + multi-select, audited) | Tested | |
+| Ranked Arena 1v1/3v3/5v5, best of 5, RP + tiers, AI fill, forfeits | Tested | In-process and offline; not yet a live multi-client session. |
+| 350 skills (40 active + 10 ultimate per class), 14 new mechanics | Tested | Mechanic fingerprint uniqueness + cast smoke test for every skill. |
 | Duskmeadow (zone 1) with respawning packs | Implemented | |
 | Second region: Ashen Highlands (levels 10-20), Cinderkin family (4 enemies), ore veins, lava fields | Tested | Connectivity and spawn bands tested. |
 | Seeded procedural Rift: rooms, branches, elite/treasure/shrine/rest/event rooms | Tested | 300 seeds validated navigable. |

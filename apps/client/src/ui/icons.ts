@@ -138,6 +138,80 @@ const GLYPH: Record<string, (c: string) => Sh[]> = {
 
 // ── skill glyphs: each skill's icon draws what the skill does ──
 const SKILL_GLYPH: Record<string, (c: string) => Sh[]> = {
+  // ── extended skill library glyphs ──
+  wire: (c) => [D('metal', 'M8 40 C20 20 44 20 56 40', { noGloss: true, sw: 3 }), C('leather', 8, 42, 5), C('leather', 56, 42, 5), D(`glow:${c}`, 'M20 32 L44 32', { noLine: true, sw: 2 })],
+  knife: (c) => [P('metal', [[10, 54], [44, 12], [52, 14], [18, 56]]), R('leather', 6, 50, 10, 8, 2), C(`glow:${c}`, 46, 14, 3, { noLine: true })],
+  swap: (c) => [D(`glow:${c}`, 'M10 24 L46 24 L46 14 L58 28 L46 42 L46 32 L10 32 Z'), D('white', 'M54 40 L18 40 L18 30 L6 44 L18 58 L18 48 L54 48 Z')],
+  drop: (c) => [D(`gem:${c}`, 'M32 6 C42 22 50 32 50 42 C50 54 42 60 32 60 C22 60 14 54 14 42 C14 32 22 22 32 6 Z'), C('white', 26, 40, 4, { noLine: true })],
+  cloud: (c) => [E(`glow:${c}`, 24, 34, 14, 11), E(`glow:${c}`, 40, 28, 16, 13), E(`glow:${c}`, 44, 40, 14, 10), ...[0, 1, 2].map((i) => C('dark', 22 + i * 10, 52, 2.5))],
+  mask: (c) => [D('dark', 'M8 22 C20 14 44 14 56 22 C56 40 46 50 32 50 C18 50 8 40 8 22 Z'), E(`glow:${c}`, 22, 30, 6, 3), E(`glow:${c}`, 42, 30, 6, 3)],
+  vial: (c) => [R('white', 26, 6, 12, 10, 2), D(`gem:${c}`, 'M24 16 L40 16 L40 26 C52 32 52 56 32 58 C12 56 12 32 24 26 Z')],
+  boom: (c) => [P(`glow:${c}`, star(32, 34, 26, 12, 8)), C('white', 32, 34, 7, { noLine: true })],
+  fist: (c) => [R('c:#d8a880', 16, 20, 30, 26, 8), ...[0, 1, 2, 3].map((i) => L('dark', [20 + i * 7, 22], [20 + i * 7, 32], 1.5, { noLine: true })), D(`glow:${c}`, 'M48 18 L58 12 M48 30 L60 30 M48 42 L58 48', { noLine: true, sw: 2 })],
+  spikes: (c) => [...[0, 1, 2, 3, 4].map((i) => P('metal', [[6 + i * 12, 54], [12 + i * 12, 22 + (i % 2) * 10], [18 + i * 12, 54]])), R(`c:${c}`, 4, 54, 56, 5, 1)],
+  fan: (c) => [...[0, 1, 2, 3, 4].map((i) => { const a = -2.4 + i * 0.32; return P('metal', [[32, 54], [32 + Math.cos(a) * 44, 54 + Math.sin(a) * 44], [32 + Math.cos(a + 0.12) * 44, 54 + Math.sin(a + 0.12) * 44]]); }), C(`glow:${c}`, 32, 54, 4)],
+  shuriken: (c) => [P('metal', star(32, 32, 26, 8, 4, 0.4)), C(`c:${c}`, 32, 32, 6)],
+  needle: (c) => [L('metal', [8, 56], [56, 8], 3), C(`glow:${c}`, 56, 8, 4, { noLine: true }), D(`glow:${c}`, 'M8 56 C14 46 18 50 22 44', { noLine: true, sw: 1.5 })],
+  chain: (c) => [...[0, 1, 2, 3].map((i) => E('metal', 14 + i * 12, 46 - i * 10, 7, 4, { rot: -40 } as never)), P(`glow:${c}`, [[48, 6], [60, 6], [60, 18]])],
+  heart: (c) => [D(`gem:${c}`, 'M32 56 C10 40 6 26 14 16 C22 8 30 12 32 20 C34 12 42 8 50 16 C58 26 54 40 32 56 Z')],
+  vortex: (c) => [...[0, 1, 2].map((i) => D(`glow:${c}`, `M${32 + 24 - i * 7} 32 A${24 - i * 7} ${24 - i * 7} 0 1 1 ${32} ${32 - 24 + i * 7}`, { noLine: true, sw: 3 })), C('dark', 32, 32, 4)],
+  clock: (c) => [C('gold', 32, 32, 24), C('white', 32, 32, 19), L('dark', [32, 32], [32, 16], 3), L('dark', [32, 32], [44, 36], 3), C(`c:${c}`, 32, 32, 3)],
+  whip: (c) => [R('leather', 6, 46, 12, 6, 2), D(`glow:${c}`, 'M16 48 C34 36 26 18 44 14 C52 12 56 20 50 26', { noLine: true, sw: 3 })],
+  pendulum: (c) => [L('metal', [32, 4], [20, 40], 2), D(`glow:${c}`, 'M8 40 A14 14 0 0 0 34 46 L20 40 Z'), C('gold', 32, 6, 4)],
+  frame: (c) => [R('gold', 8, 8, 48, 48, 4), R(`c:${c}`, 14, 14, 36, 36, 2), L('white', [20, 44], [44, 20], 2, { noLine: true })],
+  sand: (c) => [P('c:#e8c87a', [[12, 10], [52, 10], [36, 32], [52, 54], [12, 54], [28, 32]]), ...[0, 1, 2].map((i) => C(`glow:${c}`, 28 + i * 4, 44 + (i % 2) * 4, 2, { noLine: true }))],
+  loop: (c) => [D(`glow:${c}`, 'M14 32 C14 14 32 14 32 32 C32 50 50 50 50 32 C50 14 32 14 32 32 C32 50 14 50 14 32 Z', { noLine: true, sw: 4 })],
+  wing: (c) => [D('white', 'M32 50 C18 40 8 26 10 10 C20 20 28 22 32 30 Z'), D(`glow:${c}`, 'M32 50 C46 40 56 26 54 10 C44 20 36 22 32 30 Z')],
+  rewind: (c) => [P(`glow:${c}`, [[30, 14], [30, 50], [8, 32]]), P(`glow:${c}`, [[54, 14], [54, 50], [32, 32]])],
+  leaf: (c) => [D(`gem:${c}`, 'M10 54 C10 26 30 8 56 8 C56 34 38 54 10 54 Z'), L('dark', [12, 52], [46, 18], 2, { noLine: true })],
+  nova: (c) => [...Array.from({ length: 10 }, (_, i) => { const a = (i / 10) * Math.PI * 2; return L(`glow:${c}`, [32 + Math.cos(a) * 10, 32 + Math.sin(a) * 10], [32 + Math.cos(a) * 26, 32 + Math.sin(a) * 26], 3, { noLine: true }); }), C('white', 32, 32, 6)],
+  beam: (c) => [R(`glow:${c}`, 6, 26, 52, 12, 6), R('white', 6, 30, 52, 4, 2, { noLine: true }), C(`gem:${c}`, 8, 32, 8)],
+  mine: (c) => [C('dark', 32, 38, 16), ...[0, 1, 2, 3, 4, 5].map((i) => { const a = (i / 6) * Math.PI * 2; return C('metal', 32 + Math.cos(a) * 18, 38 + Math.sin(a) * 18, 3); }), C(`glow:${c}`, 32, 38, 5)],
+  infinity: (c) => [D(`glow:${c}`, 'M32 32 C24 18 8 20 8 32 C8 44 24 46 32 32 C40 18 56 20 56 32 C56 44 40 46 32 32 Z', { noLine: true, sw: 4 })],
+  split: (c) => [L(`glow:${c}`, [8, 32], [30, 32], 4), ...[-1, 0, 1].map((i) => L(`glow:${c}`, [30, 32], [56, 32 + i * 20], 3)), C('white', 30, 32, 4)],
+  flame: (c) => [D(`glow:${c}`, 'M32 58 C14 54 12 36 24 22 C24 32 30 34 30 26 C30 16 36 8 40 4 C40 18 54 26 52 42 C50 52 42 58 32 58 Z'), D('white', 'M32 54 C26 50 26 42 32 36 C36 42 38 50 32 54 Z', { noLine: true })],
+  thunder: (c) => [E('dark', 32, 16, 22, 10), P(`glow:${c}`, [[32, 20], [22, 40], [32, 40], [26, 60], [44, 34], [34, 34], [40, 20]])],
+  cube: (c) => [P(`gem:${c}`, [[32, 6], [56, 18], [32, 30], [8, 18]]), P(`gem:${c}`, [[8, 18], [32, 30], [32, 58], [8, 46]]), P('white', [[56, 18], [56, 46], [32, 58], [32, 30]], { op: 0.5 } as never)],
+  spark: (c) => [P(`glow:${c}`, star(32, 32, 26, 6, 4)), P('white', star(32, 32, 12, 3, 4, 0.78), { noLine: true })],
+  armor: (c) => [D(`gem:${c}`, 'M12 14 L32 8 L52 14 L52 34 C52 46 42 54 32 58 C22 54 12 46 12 34 Z'), L('white', [32, 12], [32, 54], 2, { noLine: true })],
+  snow: (c) => [...[0, 1, 2].map((i) => L(`c:${c}`, [32 + Math.cos(i * 1.047) * 24, 32 + Math.sin(i * 1.047) * 24], [32 - Math.cos(i * 1.047) * 24, 32 - Math.sin(i * 1.047) * 24], 4)), ...[10, 22, 40, 50].map((x, i) => C('white', x, 12 + i * 12, 2, { noLine: true }))],
+  lava: (c) => [E('dark', 32, 46, 26, 12), E(`glow:${c}`, 32, 44, 22, 9), ...[0, 1, 2].map((i) => C('c:#ffd36a', 20 + i * 12, 42 - (i % 2) * 4, 3, { noLine: true }))],
+  wall: (c) => [...[0, 1, 2].map((i) => R(`c:${c}`, 6, 14 + i * 14, 52, 12, 2)), ...[0, 1].map((i) => L('dark', [22 + i * 20, 14 + i * 14], [22 + i * 20, 26 + i * 14], 2))],
+  wave: (c) => [...[0, 1, 2].map((i) => D(`glow:${c}`, `M6 ${20 + i * 12} C18 ${10 + i * 12} 30 ${30 + i * 12} 44 ${20 + i * 12} C50 ${16 + i * 12} 56 ${20 + i * 12} 58 ${24 + i * 12}`, { noLine: true, sw: 3 }))],
+  bomb: (c) => [C('dark', 30, 38, 18), D('leather', 'M40 22 C44 14 50 12 54 14', { noGloss: true, sw: 2 }), P(`glow:${c}`, star(54, 12, 7, 3, 4))],
+  mirror: (c) => [E(`gem:${c}`, 32, 28, 16, 22), E('white', 26, 22, 4, 8, { noLine: true, op: 0.7 } as never), R('gold', 28, 50, 8, 10, 2)],
+  snowflake: (c) => [...[0, 1, 2, 3, 4, 5].map((i) => { const a = (i / 6) * Math.PI * 2; return L(`c:${c}`, [32, 32], [32 + Math.cos(a) * 26, 32 + Math.sin(a) * 26], 3); }), C('white', 32, 32, 5)],
+  prism: (c) => [P(`gem:${c}`, [[32, 6], [56, 54], [8, 54]]), ...['#ff5a5a', '#5ad0ff', '#ffe05a'].map((col, i) => L(`c:${col}`, [32, 36], [58, 26 + i * 8], 2, { noLine: true }))],
+  echo: (c) => [...[0, 1, 2].map((i) => C(`glow:${c}`, 20 + i * 10, 32, 14 - i * 3, { op: 1 - i * 0.25 } as never)), C('white', 40, 32, 4)],
+  bone: (c) => [L('bone', [14, 50], [50, 14], 8), ...[[12, 46], [18, 52], [46, 12], [52, 18]].map(([x, y]) => C('bone', x!, y!, 6)), C(`glow:${c}`, 32, 32, 3, { noLine: true })],
+  cage: (c) => [...[0, 1, 2, 3, 4].map((i) => D('bone', `M${10 + i * 11} 56 C${10 + i * 11} 30 ${20 + i * 3} 14 32 10`, { noGloss: true, sw: 3 })), C(`glow:${c}`, 32, 40, 6)],
+  hand: (c) => [D(`glow:${c}`, 'M18 58 L18 30 C18 26 24 26 24 30 L24 14 C24 10 30 10 30 14 L30 10 C30 6 36 6 36 10 L36 14 C36 10 42 10 42 14 L42 36 L48 30 C52 26 56 32 52 36 L40 58 Z')],
+  grave: (c) => [D('c:#8a8aa0', 'M16 58 L16 22 C16 8 48 8 48 22 L48 58 Z'), L('dark', [32, 18], [32, 40], 3), L('dark', [24, 26], [40, 26], 3), E(`glow:${c}`, 32, 58, 24, 4)],
+  bell: (c) => [D('gold', 'M14 46 C14 22 22 10 32 10 C42 10 50 22 50 46 Z'), R('gold', 10, 44, 44, 6, 3), C(`glow:${c}`, 32, 54, 5)],
+  aura: (c) => [C(`glow:${c}`, 32, 32, 26, { op: 0.6 } as never), C(`glow:${c}`, 32, 32, 18), C('white', 32, 32, 8)],
+  oath: (c) => [R('c:#e8dcc0', 14, 8, 36, 48, 3), ...[0, 1, 2, 3].map((i) => L('dark', [20, 18 + i * 8], [44, 18 + i * 8], 1.5, { noLine: true })), C(`gem:${c}`, 40, 50, 6)],
+  beacon: (c) => [P('c:#8a8aa0', [[24, 58], [28, 20], [36, 20], [40, 58]]), C(`glow:${c}`, 32, 14, 10), P(`glow:${c}`, [[32, 14], [6, 4], [6, 24]], { op: 0.5 } as never)],
+  cross: (c) => [R('gold', 27, 6, 10, 52, 2), R('gold', 12, 18, 40, 10, 2), C(`glow:${c}`, 32, 23, 5)],
+  scale: (c) => [L('gold', [32, 8], [32, 52], 3), L('gold', [10, 18], [54, 18], 3), D(`glow:${c}`, 'M4 34 L16 18 L28 34 Z'), D(`glow:${c}`, 'M36 34 L48 18 L60 34 Z'), R('gold', 22, 50, 20, 6, 2)],
+  angel: (c) => [D('white', 'M32 30 C18 24 8 12 10 4 C20 12 28 14 32 22 C36 14 44 12 54 4 C56 12 46 24 32 30 Z'), C('c:#ffe0c0', 32, 34, 7), D(`glow:${c}`, 'M22 58 L32 40 L42 58 Z'), E('gold', 32, 22, 10, 3)],
+  arrow: (c) => [L('wood', [8, 56], [50, 14], 3), P('metal', [[56, 8], [42, 14], [50, 22]]), P(`c:${c}`, [[8, 56], [8, 46], [14, 50]]), P(`c:${c}`, [[8, 56], [18, 56], [14, 50]])],
+  spread: (c) => [...[-1, 0, 1].map((i) => L('wood', [10, 54], [44 + i * 6, 14 - i * 6], 2)), ...[-1, 0, 1].map((i) => P(`glow:${c}`, star(46 + i * 7, 12 - i * 7, 5, 2, 3)))],
+  net: (c) => [...[0, 1, 2, 3].map((i) => L(`c:${c}`, [8 + i * 16, 8], [8 + i * 16, 56], 1.5)), ...[0, 1, 2, 3].map((i) => L(`c:${c}`, [8, 8 + i * 16], [56, 8 + i * 16], 1.5)), ...[[8, 8], [56, 8], [8, 56], [56, 56]].map(([x, y]) => C('metal', x!, y!, 4))],
+  paw: (c) => [E(`gem:${c}`, 32, 42, 13, 11), ...[[14, 26], [24, 16], [40, 16], [50, 26]].map(([x, y]) => E(`gem:${c}`, x!, y!, 6, 7))],
+  thorn: (c) => [D('c:#4a7a3a', 'M8 52 C24 44 40 40 56 14', { noGloss: true, sw: 4 }), ...[[18, 46], [30, 40], [42, 30], [50, 20]].map(([x, y]) => P(`c:${c}`, [[x!, y!], [x! - 4, y! - 10], [x! + 4, y! - 2]]))],
+  feather: (c) => [D(`gem:${c}`, 'M14 56 C14 30 30 10 54 6 C52 30 36 46 14 56 Z'), L('white', [14, 56], [48, 12], 2, { noLine: true })],
+  wind: (c) => [...[0, 1, 2].map((i) => D(`glow:${c}`, `M6 ${18 + i * 14} L${40 - i * 6} ${18 + i * 14} C${54 - i * 6} ${18 + i * 14} ${54 - i * 6} ${6 + i * 14} ${44 - i * 6} ${8 + i * 14}`, { noLine: true, sw: 3 }))],
+  boomerang: (c) => [D('wood', 'M8 50 C12 20 30 10 56 10 L56 20 C36 20 22 28 18 54 Z'), C(`glow:${c}`, 50, 14, 3, { noLine: true })],
+  rope: (c) => [E('leather', 36, 28, 18, 14, { noGloss: true } as never), E(`c:${c}`, 36, 28, 12, 8), D('leather', 'M20 36 C14 44 10 52 6 58', { noGloss: true, sw: 3 })],
+  hoof: (c) => [D(`gem:${c}`, 'M12 50 C12 24 22 12 32 12 C42 12 52 24 52 50 L42 50 C42 36 38 30 32 30 C26 30 22 36 22 50 Z'), ...[[16, 46], [48, 46], [32, 16]].map(([x, y]) => C('metal', x!, y!, 2.5))],
+  bear: (c) => [C(`c:${c}`, 32, 36, 20), C(`c:${c}`, 16, 18, 7), C(`c:${c}`, 48, 18, 7), E('c:#e8d0b0', 32, 44, 9, 7), C('dark', 24, 32, 3), C('dark', 40, 32, 3)],
+  crack: (c) => [R('c:#6a5a4a', 4, 44, 56, 14, 2), P(`glow:${c}`, [[6, 50], [20, 46], [28, 52], [40, 44], [58, 48], [40, 50], [28, 56], [18, 50]])],
+  quake: (c) => [...[0, 1, 2, 3].map((i) => P('c:#7a6a5a', [[6 + i * 13, 58], [10 + i * 13, 40 - (i % 2) * 8], [18 + i * 13, 58]])), D(`glow:${c}`, 'M4 30 L14 24 L22 32 L32 22 L42 30 L52 22 L60 28', { noLine: true, sw: 3 })],
+  rock: (c) => [P('c:#8a7a6a', [[10, 40], [18, 16], [40, 10], [56, 28], [50, 52], [24, 56]]), L('dark', [24, 30], [38, 38], 2), C(`glow:${c}`, 44, 20, 3, { noLine: true })],
+  rage: (c) => [C('c:#c83a2a', 32, 34, 20), D('dark', 'M20 26 L28 30 M44 26 L36 30', { noGloss: true, sw: 3 }), D('dark', 'M22 44 C28 38 36 38 42 44', { noGloss: true, sw: 3 }), P(`glow:${c}`, star(32, 8, 8, 3, 5))],
+  spirit: (c) => [D(`glow:${c}`, 'M32 8 C46 8 50 22 48 34 C46 46 52 52 56 58 C46 56 40 54 32 58 C24 54 18 56 8 58 C12 52 18 46 16 34 C14 22 18 8 32 8 Z', { op: 0.85 } as never), C('dark', 26, 26, 3), C('dark', 38, 26, 3)],
+  boot: (c) => [D('leather', 'M18 8 L34 8 L34 38 L54 44 C58 46 58 56 54 56 L14 56 L18 8 Z'), D(`glow:${c}`, 'M6 40 L14 40 M4 48 L14 48', { noLine: true, sw: 2 })],
+  horn: (c) => [D('bone', 'M8 46 C22 44 40 34 52 10 L58 14 C50 40 30 54 12 56 Z'), R('gold', 6, 42, 8, 16, 2), C(`glow:${c}`, 54, 12, 3, { noLine: true })],
   arc: (c) => [D(`glow:${c}`, 'M8 50 C10 24 30 8 56 8 C34 16 22 30 20 54 Z'), ...sword('metal').map((s) => s)],
   slash: (c) => [D(`glow:${c}`, 'M6 56 L46 6 L56 8 L14 58 Z'), D('white', 'M14 56 L54 8', { noGloss: true, sw: 2, noLine: true }), D(`glow:${c}`, 'M24 58 L58 18 L58 26 L30 58 Z', { noLine: true })],
   leap: (c) => [D(`glow:${c}`, 'M6 54 C14 20 36 8 52 16 L46 24 C36 18 22 26 14 56 Z'), P('dark', [[30, 52], [48, 34], [56, 54]]), D('c:#b8a27e', 'M14 58 L58 58 L52 52 L22 52 Z')],
@@ -180,7 +254,29 @@ const SKILL_GLYPH: Record<string, (c: string) => Sh[]> = {
   ghost: (c) => [D(`c:${c}`, 'M14 58 L14 28 C14 14 22 6 32 6 C42 6 50 14 50 28 L50 58 L44 52 L38 58 L32 52 L26 58 L20 52 Z'), E('dark', 26, 28, 4, 6, { noGloss: true }), E('dark', 38, 28, 4, 6, { noGloss: true })],
 };
 /** Small corner motif telling what kind of skill it is, so skills sharing a glyph stay distinct. */
-function motif(sk: SkillDef, c: string): Sh[] {
+/** Small corner badges naming the special mechanics a skill uses (echo, trap, pull, …) so look-alike glyphs stay distinguishable. */
+function badges(sk: SkillDef, c: string): Sh[] {
+  const out: Sh[] = [];
+  const has = (t: string) => sk.effects.some((e) => e.t === t);
+  const any = (f: (e: any) => boolean) => sk.effects.some((e) => f(e));
+  const marks: Array<(x: number) => Sh[]> = [];
+  if (has('echo')) marks.push((x) => [C('white', x, 54, 4, { noLine: true }), C(`glow:${c}`, x + 3, 54, 4, { noLine: true })]);
+  if (any((e) => e.trap)) marks.push((x) => [P('c:#ffb347', [[x - 5, 58], [x, 49], [x + 5, 58]])]);
+  if (has('pull') || any((e) => e.pull)) marks.push((x) => [D('white', `M${x - 6} 50 L${x - 1} 54 L${x - 6} 58 M${x + 6} 50 L${x + 1} 54 L${x + 6} 58`, { noGloss: true, sw: 1.6, noLine: true })]);
+  if (has('detonate')) marks.push((x) => [P('c:#ff6a3a', star(x, 54, 6, 2.5, 6))]);
+  if (any((e) => e.returns)) marks.push((x) => [D('white', `M${x - 5} 56 C${x - 5} 48 ${x + 5} 48 ${x + 5} 54`, { noGloss: true, sw: 1.6, noLine: true })]);
+  if (any((e) => e.split)) marks.push((x) => [L('white', [x - 5, 54], [x + 5, 50], 1.4, { noLine: true }), L('white', [x - 5, 54], [x + 5, 58], 1.4, { noLine: true })]);
+  if (has('debuff')) marks.push((x) => [P('c:#c84aff', [[x - 5, 50], [x + 5, 50], [x, 58]])]);
+  if (has('blink')) marks.push((x) => [P('white', star(x, 54, 5, 1.5, 4))]);
+  if (has('swap')) marks.push((x) => [L('white', [x - 5, 51], [x + 5, 51], 1.4, { noLine: true }), L(`glow:${c}`, [x - 5, 57], [x + 5, 57], 1.4, { noLine: true })]);
+  if (has('cleanse')) marks.push((x) => [C('c:#7fe0ff', x, 54, 4)]);
+  if (has('beam')) marks.push((x) => [R(`glow:${c}`, x - 6, 52, 12, 4, 2)]);
+  if (any((e) => e.dmg?.execute)) marks.push((x) => [P('c:#ff3a3a', [[x - 4, 50], [x + 4, 50], [x + 4, 54], [x, 58], [x - 4, 54]])]);
+  marks.slice(0, 3).forEach((m, i) => out.push(...m(8 + i * 11)));
+  return out;
+}
+function motif(sk: SkillDef, c: string): Sh[] { return [...motifBase(sk, c), ...badges(sk, c)]; }
+function motifBase(sk: SkillDef, c: string): Sh[] {
   const e = sk.effects[0];
   if (sk.kind === 'ultimate') return [P('gold', star(52, 12, 9, 3.5, 4)), C('white', 52, 12, 2, { noLine: true })];
   switch (e?.t) {
@@ -189,6 +285,10 @@ function motif(sk: SkillDef, c: string): Sh[] {
     case 'buff': return [P('gold', [[50, 4], [58, 14], [53, 14], [53, 20], [47, 20], [47, 14], [42, 14]])];
     case 'summon': return [P(`glow:${c}`, star(52, 52, 8, 3, 5))];
     case 'dash': return [D('white', 'M42 8 L58 8 M46 14 L60 14', { noGloss: true, sw: 2, noLine: true })];
+    case 'melee': return e.arc >= 300 ? [C(`glow:${c}`, 52, 12, 6, { op: 0.5 } as never)] : e.knock ? [D('white', 'M44 12 L58 12 L54 8 M58 12 L54 16', { noGloss: true, sw: 1.6, noLine: true })] : [];
+    case 'heal': return [R('c:#5bd16a', 49, 6, 6, 14, 1), R('c:#5bd16a', 45, 10, 14, 6, 1)];
+    case 'barrier': return [D('c:#7fc8ff', 'M44 6 L60 6 L60 14 C60 20 52 22 52 22 C52 22 44 20 44 14 Z')];
+    case 'gain': return [C('c:#ffd36a', 52, 12, 5)];
     default: return [];
   }
 }

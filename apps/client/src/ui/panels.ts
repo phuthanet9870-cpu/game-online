@@ -4,7 +4,7 @@ import {
 } from '@astra/shared';
 import { statText } from '../l10n.js';
 import { ct, t, getLang, setLang } from '../i18n.js';
-import { ACTIVITIES, ACTIVITY_ORDER, ELIXIRS, MATERIALS, PETS, PROFESSIONS, type Activity } from '@astra/shared';
+import { type SkillDef, ACTIVITIES, ACTIVITY_ORDER, ELIXIRS, MATERIALS, PETS, PROFESSIONS, type Activity } from '@astra/shared';
 import { BIND_LABELS, DEFAULT_BINDS, keyLabel, saveBinds, type Input } from '../input.js';
 import { clear, h, promptDialog, toast } from './dom.js';
 import { bindTip, hideTip, icon, itemTooltip, skillColor, skillTooltip } from './tooltip.js';
@@ -86,6 +86,8 @@ export function inventoryPanel(ctx: PanelCtx, mode: 'normal' | 'smith' | 'quarte
     h('h3', null, t('inventory'), h('span', { class: 'muted' }, ` ${ch.inventory.filter(Boolean).length}/${ch.inventory.length}`)), inv, actions, stash, petBox);
 }
 
+/** Skill book filter (kept between openings). */
+export const skillFilter = { q: '', role: 'all', unlocked: false };
 export function skillsPanel(ctx: PanelCtx): HTMLElement {
   const { ch, send } = ctx;
   const loadout = { active: ch.loadout.active.slice(), ultimate: ch.loadout.ultimate.slice() };
@@ -116,7 +118,35 @@ export function skillsPanel(ctx: PanelCtx): HTMLElement {
     slotsEl.append(h('div', { class: 'slot-row' }, h('small', null, 'ACTIVE ×8'), ...loadout.active.map((_, i) => mk('active', i))), h('div', { class: 'slot-row' }, h('small', null, 'ULTIMATE ×4'), ...loadout.ultimate.map((_, i) => mk('ultimate', i))));
   };
   const commit = () => { send({ t: 'loadout', active: loadout.active, ultimate: loadout.ultimate }); renderSlots(); };
-  const lib = (kind: 'active' | 'ultimate') => h('div', { class: 'skill-lib' }, classSkills(ch.cls, kind).map((s) => {
+  const th = getLang() === 'th';
+  const ROLES: Array<[string, string, string, (s: SkillDef) => boolean]> = [
+    ['all', 'ทั้งหมด', 'All', () => true],
+    ['attack', 'โจมตี', 'Damage', (s) => s.effects.some((e) => 'dmg' in e && !!e.dmg)],
+    ['aoe', 'วงกว้าง', 'Area', (s) => s.tags.includes('aoe') || s.effects.some((e) => e.t === 'area' || e.t === 'beam')],
+    ['control', 'ควบคุม', 'Control', (s) => s.effects.some((e) => e.t === 'pull' || e.t === 'debuff' || e.t === 'taunt' || ('dmg' in e && ['stun', 'freeze', 'slow', 'chill'].includes((e as any).dmg?.status?.id)))],
+    ['defense', 'ป้องกัน', 'Defense', (s) => s.effects.some((e) => e.t === 'barrier' || e.t === 'cleanse' || (e.t === 'buff' && e.mods.some((m) => ['armorPct', 'reflectPct', 'block', 'stealth', 'dmgTakenPct', 'res.all'].includes(m.stat))))],
+    ['support', 'สนับสนุน', 'Support', (s) => s.effects.some((e) => e.t === 'heal' || (e.t === 'area' && !!e.healPct) || (e.t === 'buff' && !!e.party))],
+    ['move', 'เคลื่อนที่', 'Movement', (s) => s.effects.some((e) => e.t === 'dash' || e.t === 'blink' || e.t === 'swap')],
+    ['summon', 'อัญเชิญ', 'Summon', (s) => s.effects.some((e) => e.t === 'summon')],
+    ['trap', 'กับดัก', 'Trap', (s) => s.effects.some((e) => e.t === 'area' && !!e.trap)],
+  ];
+  const filt = skillFilter;
+  const search = h('input', { type: 'search', placeholder: th ? 'ค้นหาสกิล…' : 'Search skills…', value: filt.q }) as HTMLInputElement;
+  search.onkeydown = (e) => e.stopPropagation();
+  const libs = h('div');
+  const shown = (s: SkillDef) => (filt.role === 'all' || ROLES.find((r) => r[0] === filt.role)![3](s)) && (!filt.unlocked || s.unlockLevel <= ch.level)
+    && (!filt.q || `${s.name} ${ct(`skill.${s.id}.name`, s.name)} ${s.desc} ${ct(`skill.${s.id}.desc`, s.desc)}`.toLowerCase().includes(filt.q.toLowerCase()));
+  const renderLibs = () => {
+    clear(libs);
+    const act = classSkills(ch.cls, 'active'), ult = classSkills(ch.cls, 'ultimate');
+    libs.append(h('h3', null, `${th ? 'สกิลแอคทีฟ' : 'Active skills'} (${act.filter((x) => x.unlockLevel <= ch.level).length}/${act.length} ${th ? 'ปลดล็อก' : 'unlocked'})`), lib('active'),
+      h('h3', null, `${th ? 'สกิลอัลติเมต' : 'Ultimate skills'} (${ult.filter((x) => x.unlockLevel <= ch.level).length}/${ult.length} ${th ? 'ปลดล็อก' : 'unlocked'})`), lib('ultimate'));
+  };
+  search.oninput = () => { filt.q = search.value; renderLibs(); };
+  const filterBar = h('div', { class: 'skill-filters' }, search,
+    ...ROLES.map(([id, t1, t2]) => h('button', { class: 'chip' + (filt.role === id ? ' on' : ''), onclick: (e: Event) => { filt.role = id; for (const b of (e.currentTarget as HTMLElement).parentElement!.querySelectorAll('.chip')) b.classList.remove('on'); (e.currentTarget as HTMLElement).classList.add('on'); renderLibs(); } }, th ? t1 : t2)),
+    h('label', { class: 'chk' }, h('input', { type: 'checkbox', checked: filt.unlocked, onchange: (e: Event) => { filt.unlocked = (e.target as HTMLInputElement).checked; renderLibs(); } }), th ? ' เฉพาะที่ปลดล็อก' : ' Unlocked only'));
+  const lib = (kind: 'active' | 'ultimate') => h('div', { class: 'skill-lib' }, classSkills(ch.cls, kind).filter(shown).sort((a, b) => a.unlockLevel - b.unlockLevel).map((s) => {
     const locked = s.unlockLevel > ch.level;
     const equipped = loadout[kind].includes(s.id);
     const el = h('button', { class: 'skill-card' + (locked ? ' locked' : '') + (equipped ? ' eq' : ''), draggable: !locked, disabled: locked },
@@ -127,8 +157,9 @@ export function skillsPanel(ctx: PanelCtx): HTMLElement {
     return el;
   }));
   renderSlots();
+  renderLibs();
   const d = CLASSES[ch.cls];
-  return h('div', null, h('p', { class: 'muted' }, `${ct(`class.${d.id}.name`, d.name)} — ${ct(`class.${d.id}.mechanic`, d.mechanic)}`), slotsEl, status, h('h3', null, 'Active skills'), lib('active'), h('h3', null, 'Ultimate skills'), lib('ultimate'),
+  return h('div', null, h('p', { class: 'muted' }, `${ct(`class.${d.id}.name`, d.name)} — ${ct(`class.${d.id}.mechanic`, d.mechanic)}`), slotsEl, status, filterBar, libs,
     h('p', { class: 'hint' }, 'Basic attack: hold left mouse (or the ⚔ button on touch). Dodge: Space. Passives and items can transform your basic attack (extra hits, chains, element conversion).'));
 }
 

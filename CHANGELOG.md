@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.15.0] — 2026-11-23 — Ranked Arena and the 350-skill library
+### Added
+- **Ranked Arena (PvP)** at Arena Master Brann:
+  - 1v1, 3v3 and 5v5. Best of 5 rounds (first to 3), 90-second rounds with a 5-second preparation phase.
+  - Teams are balanced by snake draft on rating. Missing players are filled with class-based AI champions after a short wait.
+  - Elo-style RP with a win-streak bonus and six tiers (Bronze → Astral), plus a PvP leaderboard.
+  - Rewards in gold and dust. Leaving mid-match counts as a loss and is audited.
+  - Player damage is normalised (×0.35) and healing reduced (×0.6). Arena deaths are never Hardcore deaths and drop nothing.
+  - Live scoreboard HUD, blue/red name colours, a result screen, and auto-combat that targets the other team.
+- **Skill library expanded to 40 active + 10 ultimate per class** (350 skills; 266 new), each with English and Thai names and descriptions. Players still equip 8 active + 4 ultimate from this pool.
+  - New engine mechanics:
+    - Lines and movement: beam (line, optionally channelled), blink, pull, swap.
+    - Ground and timing: trap (armed until an enemy steps in), echo (replays the skill's damage), debuff (area stat marks such as damage taken, enemy damage, enemy speed).
+    - Status and projectiles: detonate (consumes a status for burst damage), returning projectiles, splitting projectiles, execute damage.
+    - Buff stats: reflect and stealth (enemies lose track of you).
+  - New minions: Spirit Hound and Great Spirit Bear (Ranger).
+  - Visuals:
+    - 73 new glyphs, plus mechanic badges on icons (echo, trap, pull, detonate, return, split, debuff, blink, swap, cleanse, beam, execute).
+    - Beam and trap rendering, cast visuals for each new mechanic.
+    - A per-skill cast signature: a shape × particle × placement combination that is unique within each class.
+  - Skill book: search, role filters (Damage / Area / Control / Defense / Support / Movement / Summon / Trap), "unlocked only", unlock counts.
+### Verified
+- 88 tests, including:
+  - The PvP match flow (rounds, RP, Hardcore safety, AI fill, forfeits).
+  - 40 + 10 skills per class, with no two skills sharing a mechanic fingerprint or a name.
+  - Thai text for every skill.
+  - A cast-and-simulate smoke test for all 350 skills, and targeted tests for each new mechanic.
+- Chromium runs:
+  - Arena 3v3 with AI fill and the live scoreboard.
+  - Skill book at level 100.
+  - Mage casting Flame Lance (beam), Magma Snare (trap), Static Swarm (pull), Combustion (detonate) and Falling Sun.
+### Honest notes
+- "Unique" is enforced by a mechanic fingerprint: effect types, their switches, element and status. Skills share building blocks, and balance numbers are a first pass.
+- Online PvP has only been tested in-process and offline (AI fill). It has not yet had a live multi-client session.
+
 ## [0.14.0] — 2026-11-22 — World expansion, enhancement, guild discovery, GM tools
 ### Added
 - **10 farm zones, levels 1–100** (Duskmeadow → Ashen Highlands → Starfall Wastes → Sunken Mire → Frostpeak Tundra → Sandsea Dunes → Fungal Hollows → Obsidian Abyss → Celestial Gardens → Eclipse Throne). Each zone is 220×150 tiles (about 4× the old open-world area), chained by gates, with its own terrain palette, obstacles, gathering nodes, fishing, level band rising west → east, 3 field bosses and an Overlord.
