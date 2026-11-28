@@ -57,6 +57,7 @@ import { bindParty, handleChatInput, openMenu, partyDots, partyMemberByName, res
 import { bindEmotions, resetEmotions, updateEmotions } from "./ui/emotion.ts";
 import { applyBackdrop } from "./ui/backdrop.ts";
 import "./theme.css"; // the UI theme: last, so it wins over every window stylesheet
+import "./layout.css"; // the layout: after the theme, so every panel sits where the modern HUD map puts it
 
 const BACKDROP_SEED = 1337; // login-screen world; replaced if the server's seed differs
 
