@@ -19,10 +19,11 @@ import { skillFx2 } from "./skillFx2.ts";
 import { findPath, type GameMap } from "../../shared/map.ts";
 import { newMotion, patchMotion, setWalkGoal, stepMotion, walkGoal, type Motion } from "./motion.ts";
 import { FIELD, MAP_INFO, WARPS, buildMap, isMapName, roomOf, type MapName } from "../../shared/maps.ts";
-import { ART_STANDIN, artOf, tintOf, scaleOf } from "../../shared/mobart.ts";
+import { artOf, tintOf } from "../../shared/mobart.ts";
 import { makeDoorGlow, makePortal, tickPortals } from "./portal.ts";
 import { lookOf } from "./themes.ts";
 import { TILE_PX, paletteOf } from "./tiles.ts";
+import { mobPx } from "./mobs2d.ts";
 import { resumeNavi, stopNavi, takeNavi } from "./navi.ts";
 import { autoOn, setAuto } from "./autoplay.ts";
 import { MOB_BY_ID, type JobKey, type Mob, type StatKey } from "../../shared/rules/data.ts";
@@ -177,9 +178,6 @@ const SHADOW_SQUASH = new THREE.Vector3(0.78, 1, 0.45); // x across the body, z 
 const shadowGeo = new THREE.CircleGeometry(0.32, 20).rotateX(-Math.PI / 2);
 const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.38, depthWrite: false });
 
-const MOB_HEIGHT: Record<string, number> = { Small: 0.85, Medium: 1.15, Large: 1.7 };
-/** Bosses are drawn larger than their size class (data size stays rAthena's: it drives size_fix damage): mini-bosses x1.45, MVPs x1.35 on top of Large. */
-const BOSS_SCALE: Record<string, number> = { Boss: 1.45, Mvp: 1.35 };
 
 /** Player look from synced state (empty strings = nothing worn in that slot). */
 const lookOfState = (s: any): Look => ({ gender: s.gender === "F" ? "F" : "M", hair: s.hair, style: s.style ?? 0, outfit: s.outfit || "novice",
@@ -187,7 +185,7 @@ const lookOfState = (s: any): Look => ({ gender: s.gender === "F" ? "F" : "M", h
 
 function addEntity(id: string, s: any, isMonster: boolean, isMe: boolean, isPet = false) {
   const def = isMonster || isPet ? MOB_BY_ID.get(s.mobId) : undefined;
-  const view = def ? new AnimSprite({ body: `mob_${artOf(def.id)}`, fallback: `mob_${artOf(def.id)}`, standin: def.id in ART_STANDIN ? `mob_${ART_STANDIN[def.id]}` : undefined, tint: tintOf(def.id), height: (MOB_HEIGHT[def.size] ?? 1.1) * (BOSS_SCALE[def.bossType] ?? 1) * scaleOf(def.id) })
+  const view = def ? new AnimSprite({ mob: MOB_BY_ID.get(artOf(def.id)) ?? def, tint: tintOf(def.id), height: mobPx(def) / TILE_PX })
     : new AnimSprite({ look: lookOfState(s), height: 34 / TILE_PX });
   const obj: THREE.Object3D = view.object;
   obj.userData.entityId = id;

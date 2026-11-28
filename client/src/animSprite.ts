@@ -7,8 +7,12 @@
 //   move 4 frames · act [attack wind-up, strike, hurt, dead]
 import * as THREE from "three";
 import type { Look } from "../../shared/look.ts";
-import { getJson, loadImg } from "./paperdoll.ts";
 import { FEET as PIXEL_FEET, pixelLook } from "./pixelchar.ts";
+import { mobLook, mobPx } from "./mobs2d.ts";
+import { MOBS } from "../../shared/rules/data.ts";
+const MOB_INDEX = new Map(MOBS.map((m) => [m.id, m]));
+import type { Mob } from "../../shared/rules/data.ts";
+import { TILE_PX } from "./tiles.ts";
 
 /** stride = sheet px a planted foot travels per step in the side-view walk row (slice_grid.py --stride-row) */
 type Meta = { rows: number; cols: number; cellW: number; cellH: number; unit: number; views?: number; stride?: number };
@@ -16,32 +20,8 @@ type Sheet = { img: CanvasImageSource; meta: Meta; feet: number; horizontal: boo
 export type ActorState = { moving: boolean; dead: boolean; sitting: boolean; speed: number };
 export type ActionKind = "attack" | "hit" | "pickup" | "cheer";
 
-const animIndex: Promise<Set<string>> = fetch("/sprites/anim/index.json").then((r) => r.json()).then((a: string[]) => new Set(a)).catch(() => new Set());
-const spriteIndex: Promise<Set<string>> = fetch("/sprites/index.json").then((r) => r.json()).then((a: string[]) => new Set(a)).catch(() => new Set());
 const cache = new Map<string, Promise<Sheet | null>>();
-
-/** A monster animation sheet (`mob_1002_move`). */
-function animSheet(key: string): Promise<Sheet | null> {
-  if (!cache.has(key)) {
-    cache.set(key, (async () => {
-      if (!(await animIndex).has(key)) return null;
-      const [img, meta] = await Promise.all([loadImg(`/sprites/anim/${key}.png`), getJson(`/sprites/anim/${key}.json`) as Promise<Meta>]);
-      return { img, meta, feet: 2, horizontal: false };
-    })().catch(() => null));
-  }
-  return cache.get(key)!;
-}
-/** A static 3-view strip from slice.py (`mob_1002`): views side by side, feet 4 px above the bottom. */
-function viewSheet(key: string): Promise<Sheet | null> {
-  if (!cache.has(key)) {
-    cache.set(key, (async () => {
-      if (!(await spriteIndex).has(key)) return null;
-      const [img, m] = await Promise.all([loadImg(`/sprites/${key}.png`), getJson(`/sprites/${key}.json`)]);
-      return { img, meta: { rows: m.views, cols: 1, cellW: m.cellW, cellH: m.cellH, unit: m.cellH - 8 }, feet: 4, horizontal: true };
-    })().catch(() => null));
-  }
-  return cache.get(key)!;
-}
+void cache;
 
 // ---------- actor kinds ----------
 /** cols = sheet columns played in order; [] = every column the sheet has (its json `cols`), so a walk plays however
@@ -107,39 +87,12 @@ export class Composer {
 
   constructor(kind: Kind) { this.kind = kind; }
 
-  /** Monsters: (re)load the sheets for a body key ("mob_1002"); resolves once all exist or failed. */
-  async load(body: string, fallback?: string, onProvisional?: () => void, standin?: string) {
-    const id = ++this.loadId;
-    const names = ["move", "act"];
-    // never leave a monster invisible while its (big) animation sheets load: show its small static 3-view sprite meanwhile
-    if (fallback && !this.sheets.size) {
-      void viewSheet(fallback).then((st) => {
-        if (!st || id !== this.loadId || this.sheets.size) return;
-        for (const n of names) this.sheets.set(n, st);
-        onProvisional?.();
-      });
-    }
-    const got = await Promise.all(names.map((n) => animSheet(`${body}_${n}`)));
-    if (id !== this.loadId) return false;
+  /** Monsters drawn in code (mobs2d.ts): both sheets at once, synchronously. */
+  loadMob(def: Mob) {
+    ++this.loadId;
+    const m = mobLook(def);
     this.sheets.clear();
-    names.forEach((n, i) => this.sheets.set(n, got[i]));
-    if (!got.some(Boolean)) this.sheets.clear();
-    if (!got.some(Boolean) && fallback) { // monsters without animation art yet: their static 3-view sprite
-      const st = await viewSheet(fallback);
-      if (id !== this.loadId) return false;
-      if (st) for (const n of names) this.sheets.set(n, st);
-    }
-    if (!this.sheets.size && standin) { // W03: no art of its own at all yet: a look-alike species' sheets (shared/mobart.ts)
-      const alt = await Promise.all(names.map((n) => animSheet(`${standin}_${n}`)));
-      if (id !== this.loadId) return false;
-      if (alt.some(Boolean)) names.forEach((n, i) => this.sheets.set(n, alt[i]));
-      else {
-        const st = await viewSheet(standin);
-        if (id !== this.loadId) return false;
-        if (st) for (const n of names) this.sheets.set(n, st);
-      }
-    }
-    return true;
+    for (const n of ["move", "act"] as const) this.sheets.set(n, { img: m[n].img, meta: m[n].meta, feet: 3, horizontal: false, pixel: true });
   }
 
   /** A player's look (world, Select Character, Make Character): every part is loaded before anything is swapped in, so a look is
@@ -188,6 +141,7 @@ export class AnimSprite {
   private comp: Composer;
   private kind: Kind;
   private look?: Look;
+  private pixelMob = false;
   private lookKey = "";
   private yaw = 0;
   /** one-shot action; for attacks `impact` = seconds to the blow and `follow` = seconds the frames after it take */
@@ -205,24 +159,27 @@ export class AnimSprite {
   readonly height: number;
 
   /** body = "mob_1002" for monsters; players pass their look instead. height = world height of a standing actor. */
-  constructor(opts: { look?: Look; body?: string; height: number; fallback?: string; standin?: string; tint?: number }) {
+  constructor(opts: { look?: Look; mob?: Mob; body?: string; height: number; fallback?: string; standin?: string; tint?: number }) {
     this.height = opts.height;
     this.kind = opts.look ? PC : MOB;
     this.comp = new Composer(this.kind);
-    const cv = opts.look ? PIXEL_CANVAS : MOB_CANVAS;
+    this.pixelMob = !!opts.mob;
+    const mc = opts.mob ? mobLook(opts.mob).cell : 0;
+    const cv = opts.mob ? { w: mc, h: mc, feet: 3 } : opts.look ? PIXEL_CANVAS : MOB_CANVAS;
     this.cw = cv.w; this.ch = cv.h; this.fp = cv.feet;
     this.canvas.width = this.cw; this.canvas.height = this.ch;
     this.g = this.canvas.getContext("2d", { willReadFrequently: true })!;
     this.tex = new THREE.CanvasTexture(this.canvas);
     this.tex.colorSpace = THREE.SRGBColorSpace;
     this.tex.generateMipmaps = false;
-    this.tex.minFilter = opts.look ? THREE.NearestFilter : THREE.LinearFilter;
-    this.tex.magFilter = opts.look ? THREE.NearestFilter : THREE.LinearFilter;
+    const nearest = !!opts.look || !!opts.mob;
+    this.tex.minFilter = nearest ? THREE.NearestFilter : THREE.LinearFilter;
+    this.tex.magFilter = nearest ? THREE.NearestFilter : THREE.LinearFilter;
     this.object = new THREE.Sprite(flatDepth(new THREE.SpriteMaterial({ map: this.tex, alphaTest: 0.3, transparent: true })));
     this.object.center.set(0.5, this.fp / this.ch);
     if (opts.tint !== undefined && opts.tint !== 0xffffff) (this.object.material as THREE.SpriteMaterial).color.setHex(opts.tint); // 2.7.0 tower species: base sheets x colour
-    this.unitPx = opts.look ? PIXEL_UNIT_PX : 120;
-    this.worldPerPx = opts.height / this.unitPx;
+    this.unitPx = opts.mob ? mobPx(opts.mob) : opts.look ? PIXEL_UNIT_PX : 120;
+    this.worldPerPx = opts.mob ? 1 / TILE_PX : opts.height / this.unitPx;
     this.object.scale.set(this.cw * this.worldPerPx, this.ch * this.worldPerPx, 1);
     // the canvas is much larger than the actor: only count clicks/hover on (or right next to) drawn pixels
     const raycast = this.object.raycast.bind(this.object);
@@ -232,7 +189,7 @@ export class AnimSprite {
       for (let i = hits.length - 1; i >= n; i--) if (!hits[i].uv || !this.opaqueAt(hits[i].uv!.x, hits[i].uv!.y)) hits.splice(i, 1);
     };
     if (opts.look) this.setLook(opts.look);
-    else void this.comp.load(opts.body!, opts.fallback, () => { this.drawn = ""; }, opts.standin).then(() => { this.drawn = ""; });
+    else if (opts.mob) { this.comp.loadMob(opts.mob); this.drawn = ""; }
   }
 
   setLook(look: Look) {
@@ -380,7 +337,7 @@ export class AnimSprite {
     // a see-through actor must not hide what stands behind it in the depth buffer (the target ring is drawn later)
     mat.depthWrite = this.fade > 0.97;
     this.object.visible = mat.opacity > 0.01;
-    const crisp = !!this.look; // code-drawn pixel characters are never scaled by a fraction
+    const crisp = !!this.look || this.pixelMob; // code-drawn pixel characters are never scaled by a fraction
     const breathe = !crisp && !s.moving && !s.dead && !this.act ? 1 + Math.sin(performance.now() / 600) * 0.012 : 1;
     // flinch jolt: out in 50 ms, eased back over the rest of the hurt frame, with a slight squash
     const fl = this.flinch, jolt = fl ? (fl.t < 0.05 ? fl.t / 0.05 : Math.max(0, 1 - (fl.t - 0.05) / (fl.dur - 0.05))) : 0;
@@ -477,14 +434,9 @@ export class LivePreview {
   };
 }
 
-/** Warm the caches for monster species that are about to appear (a room join, or the next map at idle time): their anim
- *  sheets are fetched and decoded, so the first sprite of each species draws at once instead of popping in late. */
+/** Monster species about to appear: draw their sheets ahead (cached per species). */
 export function preloadMobs(ids: Iterable<number>) {
-  for (const id of ids) {
-    const body = `mob_${id}`;
-    void viewSheet(body);
-    for (const n of ["move", "act"]) void animSheet(`${body}_${n}`);
-  }
+  for (const id of ids) { const d = MOB_INDEX.get(id); if (d) mobLook(d); }
 }
 /** Draw a look's sheets ahead of time (character select knows the look before the room joins). */
 export function preloadLook(look: Look) {
