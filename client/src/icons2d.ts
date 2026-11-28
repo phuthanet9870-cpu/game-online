@@ -4,6 +4,7 @@ import type { Item } from "../../shared/rules/items.ts";
 import { MOB_BY_ID } from "../../shared/rules/data.ts";
 import { D, E, L, P, R, darker, hash, lighter, mixc, mk, outline, type Ctx } from "./pix.ts";
 import { mobLook } from "./mobs2d.ts";
+import { BEHAVIOR } from "../../shared/classx/engine.ts";
 
 const S = 16;
 const cache = new Map<string, string>();
@@ -180,6 +181,8 @@ const GLYPH: Record<string, G> = {
   hammer: (g, c) => { R(g, 3, 3, 10, 5, c); R(g, 3, 3, 10, 1, lighter(c, 0.4)); R(g, 7, 8, 2, 6, "#8a5d34"); },
 };
 function skillGlyph(s: SkillLike): string {
+  const hint = BEHAVIOR.get(s.key)?.ico;
+  if (hint && GLYPH[hint]) return hint;
   const k = s.key, n = s.name.toLowerCase(), t = `${k} ${n}`;
   if (k === "NV_BASIC") return "book";
   const test = (re: RegExp) => re.test(t);
