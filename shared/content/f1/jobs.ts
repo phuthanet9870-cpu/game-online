@@ -76,7 +76,7 @@ export const jobMaster = (m: Master): NpcScript => async (s: Script) => {
     s.mes(N, "I can see the road you walked in your past life, and it was not ours. Go to the master of that road.");
     return s.close();
   }
-  if (s.get("BaseJob") !== MAPID.Novice) { // BaseJob != Job_Novice
+  if (s.get("Class") !== MAPID.Novice && s.get("Class") !== MAPID.Novice_High) { // not a (High) Fledgling: a Wayfarer shares the Novice base class, so test the class itself
     if (s.get("BaseJob") === MAPID[m.job]) {
       s.mes(N, `You're already a ${title(m.job)}. Go and prove it in the fields.`);
     } else s.mes(N, "You've already chosen another path. A climber walks one road at a time.");

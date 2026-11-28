@@ -343,6 +343,7 @@ export const NPC_HOMES: Record<string, { map: MapName; name: string }> = {
   npc_job_archer: { map: TOWN, name: "Fletcher Master Kestrel" }, npc_job_acolyte: { map: TOWN, name: "Cleric Master Aurel" },
   npc_job_merchant: { map: TOWN, name: "Peddler Master Tobin" }, npc_job_thief: { map: TOWN, name: "Prowler Master Sable" },
   npc_job_grandmaster: { map: TOWN, name: "Guild Grandmaster Aldric" }, npc_rebirth: { map: TOWN, name: "Keeper of the Second Dawn" },
+  npc_job_paths: { map: TOWN, name: "Pathfinder Ines" }, npc_third_dawn: { map: TOWN, name: "Keeper of the Third Dawn" },
 };
 /** The monsters of each field and dungeon level (its `monster` spawn lines in shared/data/spawns.txt, not the boss_monster
  *  mini-bosses / MVP, which the auto-hunt must not walk into; shared/rules/spawn.test.ts keeps the two in step) and

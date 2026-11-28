@@ -12,8 +12,8 @@ import { outfitOf, outfitParts } from "../look.ts";
 const SECOND = ["Knight", "Crusader", "Wizard", "Sage", "Hunter", "Bard", "Dancer", "Priest", "Monk", "Blacksmith", "Alchemist", "Assassin", "Rogue"] as JobKey[];
 const TRANS2 = ["Lord_Knight", "Paladin", "High_Wizard", "Professor", "Sniper", "Clown", "Gypsy", "High_Priest", "Champion", "Whitesmith", "Creator", "Assassin_Cross", "Stalker"] as JobKey[];
 
-test("jobs: 40 imported (7 + 13 second + 20 transcendent), our names, max job levels 50 / 70 / High Novice 10", () => {
-  assert.equal(Object.keys(JOBS).length, 40);
+test("jobs: 40 imported (7 + 13 second + 20 transcendent) + 19 of the extended classes, our names, max job levels 50 / 70 / High Novice 10", () => {
+  assert.equal(Object.keys(JOBS).length, 59);
   for (const j of SECOND) { assert.equal(JOBS[j].maxJobLevel, 50, j); assert.equal(JOBS[j].jobExp.length, 50, j); assert.equal(isSecondJob(j), true); assert.equal(isTrans(j), false); }
   for (const j of TRANS2) { assert.equal(JOBS[j].maxJobLevel, 70, j); assert.equal(JOBS[j].jobExp.length, 70, j); assert.equal(isTrans(j), true); }
   assert.equal(JOBS.Novice_High.maxJobLevel, 10);

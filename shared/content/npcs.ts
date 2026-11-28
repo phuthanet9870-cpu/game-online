@@ -17,6 +17,7 @@ import { TOWN_NPC, TOWN_SPOT, armsStock, hearthkeeper, toolStock } from "./f1/to
 import { BRANN_ORE_SHOP, ORES, forgemasterBrann } from "./f1/smith.ts";
 import { sealedStair } from "./f1/stair.ts";
 import { CAMP, MASTERS, jobMaster } from "./f1/jobs.ts";
+import { PATHMASTER, THIRDDAWN, pathMaster, thirdDawn } from "./f1/jobsx.ts";
 import { CRYSTAL1, NPC2, SPOT2 } from "./f2/chapter2.ts";
 import { ascentStair, warpCrystal } from "./f2/ascent.ts";
 import { NPC3, gateToFloor4, sisterOdile, stairToFloor3 } from "./f3/witherwick.ts";
@@ -36,6 +37,8 @@ export const NPCS: NpcDef[] = [
   // the six first-job masters in Hearthmoor's guild row (f1/jobs.ts CAMP), the Guild Grandmaster (first job -> second job), rebirth
   ...MASTERS.map((m): NpcDef => ({ id: m.npc, map: TOWN, name: m.name, sprite: m.sprite, ...CAMP[m.job], kind: "script", script: jobMaster(m) })),
   { id: GRANDMASTER.npc, map: TOWN, name: GRANDMASTER.name, sprite: GRANDMASTER.sprite, ...TOWN_CELLS.grandmaster, kind: "script", script: grandmaster },
+  { id: PATHMASTER.npc, map: TOWN, name: PATHMASTER.name, sprite: PATHMASTER.sprite, ...TOWN_CELLS.paths, kind: "script", script: pathMaster },
+  { id: THIRDDAWN.npc, map: TOWN, name: THIRDDAWN.name, sprite: THIRDDAWN.sprite, ...TOWN_CELLS.third, kind: "script", script: thirdDawn },
   { id: REBIRTH.npc, map: TOWN, name: REBIRTH.name, sprite: REBIRTH.sprite, ...TOWN_CELLS.rebirth, kind: "script", script: rebirth },
   // the stair under the Sunken Mire's old keep (an invisible OnTouch area; shared/maps.ts WARPS lists it as a door) and the Ascent Stair
   { id: "f1_stair", map: MIRE, name: "The Stair Down", sprite: "", ...FIELD_THEMES[MIRE].stair!, kind: "script", script: sealedStair, trigger: { x: 1, y: 1 } },

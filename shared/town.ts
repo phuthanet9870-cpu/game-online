@@ -27,6 +27,7 @@ export const TOWN_CELLS = {
   tools: { x: 14, y: 26 }, arms: { x: 42, y: 26 }, refiner: { x: 44, y: 26 }, pella: { x: 33, y: 19 }, garr: { x: 31, y: 9 }, merrit: { x: 25, y: 23 },
   drillmaster: { x: 19, y: 34 }, warden: { x: 30, y: 48 },
   grandmaster: { x: 49, y: 40 }, // 2.5.0: the Guild Grandmaster at the east end of the guild row
+  paths: { x: 49, y: 38 }, third: { x: 49, y: 45 }, // the Pathfinder (expanded classes) and the Keeper of the Third Dawn
   rebirth: { x: 49, y: 43 }, // 2.5.0: the Keeper of the Second Dawn (rebirth)
   guild: {
     center: { x: 43, y: 40 },

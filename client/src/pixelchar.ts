@@ -68,7 +68,7 @@ function outfitOf(job: string): Outfit {
   if (OUTFITS[job]) return OUTFITS[job];
   const base = OUTFIT_BASE[job], o = OUTFITS[base ?? "Novice"] ?? OUTFITS.Novice;
   const plain = job.replace(/_High$/, "");
-  const deg = OUTFIT_TINT[plain] ?? OUTFIT_TINT[job] ?? 0, bright = job.endsWith("_High") || /^(Lord_Knight|Paladin|High_Wizard|Professor|Sniper|Clown|Gypsy|High_Priest|Champion|Whitesmith|Creator|Assassin_Cross|Stalker)$/.test(job);
+  const deg = OUTFIT_TINT[plain] ?? OUTFIT_TINT[job] ?? 0, bright = job.endsWith("_High") || /^(Lord_Knight|Paladin|High_Wizard|Professor|Sniper|Clown|Gypsy|High_Priest|Champion|Whitesmith|Creator|Assassin_Cross|Stalker|Rune_Knight|Royal_Guard|Warlock|Sorcerer|Ranger|Minstrel|Wanderer|Arch_Bishop|Sura|Mechanic|Genetic|Guillotine_Cross|Shadow_Chaser)$/.test(job);
   return { ...o, main: hueShift(o.main, deg, bright), sec: hueShift(o.sec, deg * 0.5, bright) };
 }
 
@@ -410,6 +410,13 @@ function weaponAt(g: Grid, kind: string, hand: { x: number; y: number }, deg: nu
   } else if (kind === "rod") {
     seg(-4, 12, WOOD); seg(-4, 12, light(WOOD, 0.25), 0.7);
     const [ox, oy] = at(13); g.disc(ox, oy, 2, "#62d6f2"); g.set(ox - 1, oy - 1, "#e6fbff");
+  } else if (kind === "gun") {
+    seg(-3, -1, WOOD, 0); seg(0, 7, "#4a4f5e"); seg(0, 7, "#6a7086", -0.6); seg(7, 8, STEEL);
+    const [gx, gy] = at(-1); g.set(gx - px, gy - py + 1, "#2b2e3a");
+  } else if (kind === "star") {
+    const [sx, sy] = at(3); g.disc(sx, sy, 1, STEEL);
+    for (const [ax, ay] of [[0, -3], [3, 0], [0, 3], [-3, 0]]) g.line(sx, sy, sx + ax, sy + ay, STEEL);
+    g.set(sx, sy, "#b9c4dd");
   } else if (kind === "bow") {
     // the bow stands upright in the hand, string toward the body
     const h = 8, dir = back ? -1 : 1;

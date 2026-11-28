@@ -4,11 +4,14 @@ import tablesJson from "../data/tables.json" with { type: "json" };
 import mobsJson from "../data/mobs.json" with { type: "json" };
 
 import { TOWER } from "../tower.ts";
+import { CLASSX_JOBS } from "../classx/engine.ts";
+import { buildJobRows } from "../classx/jobs.ts";
+import type { ClassxKey } from "../classx/keys.ts";
 import { F3_MOBS } from "../floor3.ts";
 import { MINI_MOBS } from "../minibosses.ts";
 
-export type JobKey = keyof typeof jobsJson;
-export type Job = (typeof jobsJson)[JobKey];
+export type JobKey = keyof typeof jobsJson | ClassxKey;
+export type Job = (typeof jobsJson)[keyof typeof jobsJson];
 /** The six first jobs (a Novice's choices, the 2nd jobs' base classes). */
 export type FirstJob = "Swordman" | "Mage" | "Archer" | "Acolyte" | "Merchant" | "Thief";
 export type Mob = (typeof mobsJson)[number];
@@ -34,7 +37,7 @@ export type EleKey = Element | "All";
 export type SizeKey = Size | "All";
 export type ClassKey = MobClass | "All";
 
-export const JOBS = jobsJson as Record<JobKey, Job & { aspdBase: Record<string, number>; bonusStats: ({ level: number } & Partial<Stats>)[] }>;
+export const JOBS = { ...jobsJson, ...buildJobRows(CLASSX_JOBS, jobsJson as never) } as unknown as Record<JobKey, Job & { aspdBase: Record<string, number>; bonusStats: ({ level: number } & Partial<Stats>)[] }>;
 export const MOBS: Mob[] = mobsJson;
 // 2.7.0 floor 3's species (shared/floor3.ts F3_MOBS): each is an existing row (modes, motions, non-card drops) under our own id, name and numbers
 /** The Tower's own species (not rAthena rows): in MOB_BY_ID like any monster, kept out of MOBS (the imported roster the card / album / art rules run over). */

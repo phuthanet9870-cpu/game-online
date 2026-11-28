@@ -98,7 +98,7 @@ export function normalizeJob(job: JobKey, learned: Learned, conf = SKILL_CONF, c
   points -= JOBS.Novice.maxJobLevel - 1;
   // 2.5.0, the 1st-class job level check (pc.cpp:2910-2928): a 2nd job that has spent fewer than change_level_2nd - 1 points past the
   // Novice's (the job level it changed at, the 1st job's max job level when unset) keeps its 1st job's tree; the Rebirth mask is kept
-  if (isSecondJob(job)) {
+  if (isSecondJob(job) && job !== "Super_Novice") { // (a Wayfarer shares the Novice base class: its own tree opens at once)
     const first = firstJobOf(job), lvl = change2nd || JOBS[first].maxJobLevel;
     if (points < lvl - 1) return isTrans(job) ? (`${first}_High` as JobKey) : first;
   }

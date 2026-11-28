@@ -351,6 +351,11 @@ export const MAPID: Record<JobKey, number> = {
   Novice_High: 0x100000, Swordman_High: 0x100001, Mage_High: 0x100002, Archer_High: 0x100003, Acolyte_High: 0x100004, Merchant_High: 0x100005, Thief_High: 0x100006,
   Lord_Knight: 0x100101, High_Wizard: 0x100102, Sniper: 0x100103, High_Priest: 0x100104, Whitesmith: 0x100105, Assassin_Cross: 0x100106,
   Paladin: 0x100201, Professor: 0x100202, Clown: 0x100203, Gypsy: 0x100203, Champion: 0x100204, Creator: 0x100205, Stalker: 0x100206,
+  // the expanded classes (shared/classx): Super Novice is 2-1 of the Novice line as in the original; the others have lines of their own
+  Super_Novice: 0x100, Gunslinger: 0x7, Ninja: 0x8, Taekwon: 0x9, Star_Gladiator: 0x109, Soul_Linker: 0x209,
+  // third jobs: the transcendent job's class id + JOBL_THIRD (0x4000); Wanderer shares the Dancer line so its id is nudged apart from the Minstrel's
+  Rune_Knight: 0x104101, Royal_Guard: 0x104201, Warlock: 0x104102, Sorcerer: 0x104202, Ranger: 0x104103, Minstrel: 0x104203, Wanderer: 0x105203,
+  Arch_Bishop: 0x104104, Sura: 0x104204, Mechanic: 0x104105, Genetic: 0x104205, Guillotine_Cross: 0x104106, Shadow_Chaser: 0x104206,
 };
 /** pc_mapid2jobid for the masks we use, per gender-free job: the imported job whose class id is `mapid` (Bard for MAPID_BARDDANCER
  *  unless `female`, then Dancer; Clown / Gypsy alike). */

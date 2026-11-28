@@ -7,12 +7,15 @@ import { noBonus, scriptBonus, type EquipBonus, type ItemBonus, type LrFlag } fr
 import { refineInfo } from "./refine.ts";
 import { BATTLE_CONF } from "./battle.ts";
 import { AMMO_USERS, AMMO_WEAPONS } from "./weapons.ts";
+import { CLASSX_JOBS } from "../classx/engine.ts";
+import { CLASSX_ITEMS, widenJobs } from "../classx/items.ts";
 
 export type Item = (typeof itemsJson)[number];
-export const ITEMS = new Map<number, Item>(itemsJson.map((i) => [i.id, i]));
-export const SHOP_ITEMS = itemsJson.filter((i) => i.shop).map((i) => i.id);
+const ALL_ITEMS = widenJobs([...itemsJson, ...(CLASSX_ITEMS as unknown as Item[])], CLASSX_JOBS);
+export const ITEMS = new Map<number, Item>(ALL_ITEMS.map((i) => [i.id, i]));
+export const SHOP_ITEMS = ALL_ITEMS.filter((i) => i.shop).map((i) => i.id);
 /** New characters: one of each starter equipment + 5 starter tonics (like the original novice kit). */
-export const STARTER_KIT = itemsJson.filter((i) => i.starter).map((i) => ({ id: i.id, amount: i.type === "Healing" ? 5 : 1 }));
+export const STARTER_KIT = ALL_ITEMS.filter((i) => i.starter).map((i) => ({ id: i.id, amount: i.type === "Healing" ? 5 : 1 }));
 
 export const NATURAL_HEAL_WEIGHT = 70; // % — Renewal natural_heal_weight_rate
 export const MAJOR_OVERWEIGHT = 90; // % — major_overweight_rate: no regen, no skills (normal attacks still work)

@@ -38,14 +38,23 @@ export const OUTFIT_BASE: Record<string, string> = {
   Priest: "Acolyte", Monk: "Acolyte", High_Priest: "Acolyte", Champion: "Acolyte", Acolyte_High: "Acolyte",
   Blacksmith: "Merchant", Alchemist: "Merchant", Whitesmith: "Merchant", Creator: "Merchant", Merchant_High: "Merchant",
   Assassin: "Thief", Rogue: "Thief", Assassin_Cross: "Thief", Stalker: "Thief", Thief_High: "Thief", Novice_High: "Novice",
+  // shared/classx: the expanded classes borrow a first job's body, recoloured
+  Super_Novice: "Novice", Gunslinger: "Archer", Ninja: "Thief", Taekwon: "Swordman", Star_Gladiator: "Swordman", Soul_Linker: "Mage",
+  Rune_Knight: "Swordman", Royal_Guard: "Swordman", Warlock: "Mage", Sorcerer: "Mage", Ranger: "Archer", Minstrel: "Archer", Wanderer: "Archer",
+  Arch_Bishop: "Acolyte", Sura: "Acolyte", Mechanic: "Merchant", Genetic: "Merchant", Guillotine_Cross: "Thief", Shadow_Chaser: "Thief",
 };
 export const OUTFIT_TINT: Record<string, number> = {
   Knight: 210, Crusader: 40, Wizard: 260, Sage: 150, Hunter: 100, Bard: 300, Dancer: 330, Priest: 180, Monk: 20,
   Blacksmith: 340, Alchemist: 120, Assassin: 270, Rogue: 160,
+  Super_Novice: 45, Gunslinger: 30, Ninja: 220, Taekwon: 90, Star_Gladiator: 55, Soul_Linker: 200,
+  Rune_Knight: 190, Royal_Guard: 25, Warlock: 285, Sorcerer: 235, Ranger: 85, Minstrel: 310, Wanderer: 345, Arch_Bishop: 165, Sura: 10,
+  Mechanic: 355, Genetic: 110, Guillotine_Cross: 255, Shadow_Chaser: 145,
 };
 const TRANS_OF: Record<string, string> = {
   Lord_Knight: "Knight", Paladin: "Crusader", High_Wizard: "Wizard", Professor: "Sage", Sniper: "Hunter", Clown: "Bard", Gypsy: "Dancer",
   High_Priest: "Priest", Champion: "Monk", Whitesmith: "Blacksmith", Creator: "Alchemist", Assassin_Cross: "Assassin", Stalker: "Rogue",
+  Rune_Knight: "Rune_Knight", Royal_Guard: "Royal_Guard", Warlock: "Warlock", Sorcerer: "Sorcerer", Ranger: "Ranger", Minstrel: "Minstrel", Wanderer: "Wanderer",
+  Arch_Bishop: "Arch_Bishop", Sura: "Sura", Mechanic: "Mechanic", Genetic: "Genetic", Guillotine_Cross: "Guillotine_Cross", Shadow_Chaser: "Shadow_Chaser",
 };
 export const outfitOf = (job: string): string => {
   const base = OUTFIT_BASE[job];
@@ -79,6 +88,7 @@ export function pdBodyOf(job: string): { body: string; hue: number; bright: bool
 const WEAPON_SPRITE: Record<string, string> = {
   Dagger: "dagger", "1hSword": "sword", "2hSword": "sword", "1hSpear": "sword", "2hSpear": "sword", "1hAxe": "axe", "2hAxe": "axe",
   Mace: "mace", Staff: "rod", "2hStaff": "rod", Bow: "bow", Book: "mace", Whip: "sword", Musical: "bow",
+  Revolver: "gun", Rifle: "gun", Shotgun: "gun", Gatling: "gun", Grenade: "gun", Huuma: "star",
 };
 const WEAPON_ITEM: Record<number, string> = { 1201: "knife" }; // the Fledgling's Knife
 /** 2.5.0: knuckles and katars are fought with bare hands (no weapon sprite). */
