@@ -64,3 +64,13 @@ html .label.v-ancient, html .label.v-golden { font-size: 12px; }
 @keyframes shiny-tag { 0%, 100% { filter: hue-rotate(0deg) brightness(1.1); } 50% { filter: hue-rotate(160deg) brightness(1.4); } }
 /* random equipment affixes in the item tooltip (shared/rules/affix.ts) */
 html .affixline { color: #7fd0ff; font-weight: 600; }
+/* combat meter (ui/dps.ts): under the character card */
+html #dps-meter { position: fixed; top: 196px; left: var(--hud-gap); width: 200px; padding: 8px 10px; border-radius: 12px; background: rgb(14 18 30 / 0.78);
+  color: #fff; font: 12px/1.35 var(--ui-font); box-shadow: 0 10px 30px rgba(8, 12, 24, 0.4); pointer-events: auto; cursor: default; }
+html #dps-meter.idle { opacity: 0.7; }
+html #dps-meter .big { display: block; font: 800 22px/1.1 var(--ui-font); color: #ffd34a; font-variant-numeric: tabular-nums; }
+html #dps-meter small { color: rgba(255, 255, 255, 0.6); }
+html #dps-meter .rows { display: grid; grid-template-columns: 1fr auto; gap: 1px 8px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+html #dps-meter .rows span { color: rgba(255, 255, 255, 0.7); }
+/* equipment sets in the tooltip (shared/rules/sets.ts) */
+html .setline { color: #8fe08f; } html .setline.off { color: rgba(200, 210, 230, 0.55); }

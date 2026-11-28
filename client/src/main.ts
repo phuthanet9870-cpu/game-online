@@ -24,6 +24,7 @@ import { makeDoorGlow, makePortal, tickPortals } from "./portal.ts";
 import { lookOf } from "./themes.ts";
 import { TILE_PX, paletteOf } from "./tiles.ts";
 import { mobPx } from "./mobs2d.ts";
+import { recordHit } from "./ui/dps.ts";
 import { VARIANT_BY_ID } from "../../shared/rules/variants.ts";
 import { resumeNavi, stopNavi, takeNavi } from "./navi.ts";
 import { autoOn, setAuto } from "./autoplay.ts";
@@ -511,6 +512,7 @@ initHud({
 function onHit(m: HitEvent) {
   const from = entities.get(m.from), to0 = entities.get(m.to);
   const mine = m.from === room?.sessionId, onMe = m.to === room?.sessionId;
+  if (mine) recordHit(m); // the combat meter (ui/dps.ts)
   if (mine || onMe) { play("sfx", "swing", mine ? 0.6 : 0.3); engage(mine ? m.to : m.from); }
   if (from && to0) {
     from.view.face(Math.atan2(to0.pos.x - from.pos.x, to0.pos.z - from.pos.z));

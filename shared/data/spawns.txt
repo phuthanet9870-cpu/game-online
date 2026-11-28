@@ -170,3 +170,5 @@ f2_field03,88,26,7,6	monster	Ashhound	1013,7,5000
 f2_field03,26,90,7,6	monster	Cairnshell	1391,8,5000
 f2_field03,88,94,7,6	monster	Kilnmite	1176,8,5000
 f2_field03,54,60,7,6	monster	Cinderbough	1033,7,5000
+// Hearthmoor training ground: three dummies by the south-west lane (shared/rules/data.ts DUMMY_ID), back 5 s after one falls
+f1_town01,20,36,3,1	monster	Training Dummy	4990,3,5000

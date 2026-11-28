@@ -86,6 +86,13 @@ export interface ScriptHost {
   jobChange(sid: string, job: JobKey): boolean;
   /** 2.5.0 pc_resetlvl(type 1) (resetlvl 1): the rebirth reset. */
   resetLevel(sid: string): void;
+  /** Salvage a bag piece (MapRoom.doSalvage) / the pieces that can be salvaged. */
+  salvage(sid: string, uid: number): { ok: boolean; text?: string; got?: { item: string; count: number }[] };
+  salvageable(sid: string): { uid: number; itemId: number; affixes: number }[];
+  /** pc_resetstate (resetstatus): stats back to 1, every point returned. */
+  resetStats(sid: string): void;
+  /** pc_resetskill (resetskill): skills forgotten but Basic Training; returns the points given back. */
+  resetSkills(sid: string): number;
   /** pc_setpos (buildin_warp): same map = a warp on this map, another map = save + clif_changemap. */
   warp(sid: string, map: string, x: number, y: number): void;
   /** pc_setsavepoint (buildin_savepoint). */
@@ -537,6 +544,10 @@ export class ScriptEngine {
       basicskillcheck() { alive(); return SKILL_CONF.basic_skill_check; },
       jobchange(job) { alive(); return host.jobChange(sid, job); },
       resetlvl(type) { alive(); if (type === 1) host.resetLevel(sid); },
+      resetstatus() { alive(); host.resetStats(sid); },
+      salvagelist() { alive(); return host.salvageable(sid).map((r) => ({ ...r, name: ITEMS.get(r.itemId)!.name })); },
+      salvage(uid) { alive(); return host.salvage(sid, uid); },
+      resetskill() { alive(); return host.resetSkills(sid); },
       // buildin_warp (script.cpp): pc_setpos(sd, map, x, y, CLR_TELEPORT); the player leaves the NPC, so the script is over
       warp(map, x, y) { alive(); host.warp(sid, String(map), Number(x), Number(y)); throw new ScriptEnd("warp"); },
       // buildin_savepoint (script.cpp) -> pc_setsavepoint: sd->status.save_point = map, x, y

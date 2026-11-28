@@ -128,6 +128,14 @@ export interface Script {
   /** resetlvl 1 (pc_resetlvl type 1, 2.5.0): base / job level 1, EXP 0, every skill and skill point gone, stats 1; a High Novice gets
    *  100 status points. Only type 1 is supported. */
   resetlvl(type: 1): void;
+  /** The bag pieces the forgemaster can salvage (not worn, no cards, fine grade or affixes). */
+  salvagelist(): { uid: number; itemId: number; name: string; affixes: number }[];
+  /** Break a bag piece into reforge materials (shared/rules/salvage.ts); the fee, checks and yield are the server's. */
+  salvage(uid: number): { ok: boolean; text?: string; got?: { item: string; count: number }[] };
+  /** resetstatus (pc_resetstate): every stat back to 1, all status points returned. */
+  resetstatus(): void;
+  /** resetskill (pc_resetskill): every skill but Basic Training forgotten; returns the skill points given back. */
+  resetskill(): number;
   // ---- moving the player (buildin_warp / buildin_savepoint) ----
   /** warp "<map>",<x>,<y>: pc_setpos there (another map = the client changes rooms). The dialog is over: the script ends. */
   warp(map: string, x: number, y: number): never;

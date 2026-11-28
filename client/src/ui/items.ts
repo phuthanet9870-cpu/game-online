@@ -2,6 +2,7 @@
 // The server is authoritative; these windows render the last `inv` snapshot and send intents.
 import { itemIconUrl } from "../icons2d.ts";
 import { affixText } from "../../../shared/rules/affix.ts";
+import { SET_OF_ITEM, setBonusText } from "../../../shared/rules/sets.ts";
 import { INVENTORY_SLOTS, ITEMS, SLOTS, SLOT_LABEL, isEquip, isUsable, weightPct, NATURAL_HEAL_WEIGHT, MAJOR_OVERWEIGHT, type EquipSlot, type Item } from "../../../shared/rules/items.ts";
 import type { HotkeysMsg, InvEvent, ShopEvent } from "../../../shared/protocol.ts";
 import {
@@ -85,6 +86,12 @@ function describe(it: Item, st?: Stack) {
     }
   }
   for (const a of st?.affixes ?? []) lines.push(`<span class="affixline">◆ ${affixText(a, getLang())}</span>`); // random affixes (shared/rules/affix.ts)
+  const set = SET_OF_ITEM.get(it.id); // equipment sets (shared/rules/sets.ts): how many pieces are worn, which bonuses are on
+  if (set) {
+    const worn = new Set(inv.items.filter((x) => x.equip).map((x) => x.itemId)), n = set.pieces.filter((p) => p.some((id) => worn.has(id))).length;
+    lines.push(`<span class="setline">${getLang() === "th" ? set.th : set.name} (${n}/${set.pieces.length})</span>`);
+    for (const [k, list] of Object.entries(set.at)) lines.push(`<span class="setline ${n >= Number(k) ? "on" : "off"}">${k}: ${list.map((x) => setBonusText(x, getLang())).join(", ")}</span>`);
+  }
   const eff = it.effect as { heal?: number[]; teleport?: string; album?: boolean } | null;
   if (eff?.album) lines.push(t("item.album"));
   if (eff?.heal) lines.push(`${t("item.restores")} ${eff.heal[0]}–${eff.heal[1]} HP${eff.heal[3] ? `, ${eff.heal[2]}–${eff.heal[3]} SP` : ""}`);

@@ -46,6 +46,7 @@ const SPECS: Record<number, Spec> = {
   1033: { a: "plant", pal: C.ember, o: { treant: true, fire: true } }, 1176: { a: "insect", pal: C.ember, o: { legs: 8 } }, 3810: { a: "slime", pal: C.green, o: { crown: true, spots: true } },
   1090: { a: "plant", pal: C.brown, o: { treant: true } }, 1250: { a: "biped", pal: C.ember, o: { armor: true } }, 1123: { a: "biped", pal: C.red, o: { imp: true } },
   1013: { a: "quad", pal: C.ash, o: { ears: "point", tail: "long", stripes: true } }, 1391: { a: "quad", pal: C.stone, o: { shell: true, tail: "short" } },
+  4990: { a: "biped", pal: C.tan, o: { armor: true } }, // the Training Dummy
   3999: { a: "quad", pal: C.red, o: { horns: "big", tail: "short", ears: "point" } }, 1091: { a: "winged", pal: C.sand }, 1155: { a: "dragon", pal: C.gold },
 };
 const RACE_FALLBACK: Record<string, Arche> = { Plant: "plant", Brute: "quad", Insect: "insect", Formless: "slime", Fish: "fish", Undead: "biped", Demihuman: "biped", Dragon: "dragon", Demon: "biped", Angel: "winged" };

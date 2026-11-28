@@ -9,6 +9,7 @@ import { BATTLE_CONF } from "./battle.ts";
 import { AMMO_USERS, AMMO_WEAPONS } from "./weapons.ts";
 import { CLASSX_JOBS } from "../classx/engine.ts";
 import { affixBonuses, type Affix } from "./affix.ts";
+import { setBonuses } from "./sets.ts";
 import { CLASSX_ITEMS, widenJobs } from "../classx/items.ts";
 
 export type Item = (typeof itemsJson)[number];
@@ -31,21 +32,24 @@ export const MAJOR_OVERWEIGHT = 90; // % — major_overweight_rate: no regen, no
 export const MAX_STACK = 30_000;
 export const INVENTORY_SLOTS = 100;
 
-export const SLOTS = ["headTop", "headMid", "headLow", "armor", "weapon", "shield", "garment", "shoes", "ammo"] as const;
+export const SLOTS = ["headTop", "headMid", "headLow", "armor", "weapon", "shield", "garment", "shoes", "accL", "accR", "ammo"] as const;
 export type EquipSlot = (typeof SLOTS)[number];
 const LOCATION_SLOT: Record<string, EquipSlot[]> = {
   Head_Top: ["headTop"], Head_Mid: ["headMid"], Head_Low: ["headLow"], Armor: ["armor"],
   Right_Hand: ["weapon"], Left_Hand: ["shield"], Both_Hand: ["weapon", "shield"], Garment: ["garment"], Shoes: ["shoes"],
   Ammo: ["ammo"], // EQP_AMMO -> EQI_AMMO
+  Left_Accessory: ["accL"], Right_Accessory: ["accR"], Both_Accessory: ["accR"], // a Both_Accessory piece takes the right side, or the left when that is the free one (Inventory.equip)
 };
 export const SLOT_LABEL: Record<EquipSlot, string> = {
   headTop: "Upper Head", headMid: "Middle Head", headLow: "Lower Head", armor: "Armor", weapon: "Weapon", shield: "Shield", garment: "Garment", shoes: "Shoes",
-  ammo: "Ammo",
+  ammo: "Ammo", accL: "Accessory", accR: "Accessory",
 };
 
 /** itemdb_isequip2 (itemdb.cpp): weapons, armor and ammo are worn (ammo stacks all the same: item_data::isStackable). */
 export const isEquip = (it: { type: string }) => it.type === "Weapon" || it.type === "Armor" || it.type === "Ammo";
 export const isAmmo = (it: { type: string }) => it.type === "Ammo";
+/** Worn in either accessory slot (item_db Both_Accessory). */
+export const isBothAccessory = (it: { locations: readonly string[] }) => it.locations.includes("Both_Accessory");
 export const isUsable = (it: Item) => it.effect !== null;
 export const slotsOf = (it: { locations: readonly string[] }): EquipSlot[] => it.locations.flatMap((l) => LOCATION_SLOT[l] ?? []);
 
@@ -117,7 +121,7 @@ export const EQI = { ACC_L: 0, ACC_R: 1, SHOES: 2, GARMENT: 3, HEAD_LOW: 4, HEAD
 /** item_db Location -> the equip_index position the item's script runs at. An item filling several positions runs once, at the
  *  first one the loop reaches (pc_is_same_equip_index, pc.cpp:15308): a two-hander at EQI_HAND_L, a Top+Mid headgear at
  *  EQI_HEAD_MID, a Top+Low one at EQI_HEAD_LOW. A Both_Accessory item fills one accessory position, EQI_ACC_R while that one
- *  is free (pc_equipitem, pc.cpp:12088-12091); this game has no accessory slots yet. */
+ *  is free (pc_equipitem, pc.cpp:12088-12091). */
 const EQI_OF_LOCATION: Readonly<Record<string, number>> = {
   Left_Accessory: EQI.ACC_L, Right_Accessory: EQI.ACC_R, Both_Accessory: EQI.ACC_R, Shoes: EQI.SHOES, Garment: EQI.GARMENT,
   Head_Low: EQI.HEAD_LOW, Head_Mid: EQI.HEAD_MID, Head_Top: EQI.HEAD_TOP, Armor: EQI.ARMOR,
@@ -161,6 +165,8 @@ export function gearOf(worn: Iterable<WornItem>): Gear {
     equip.arrowAtk += ammo.atk;
     for (const b of ammo.bonuses) scriptBonus(equip, b, "arrow", weapon.type);
   }
+  // equipment sets (sets.ts): the bonuses of every set threshold the worn pieces reach, like one more script
+  for (const sb of setBonuses(pieces.map((w) => (w.item as { id?: number }).id ?? -1))) scriptBonus(equip, sb, "none");
   equip.def += Math.trunc((refinedef + 50) / 100);
   // status.cpp:4092-4094: memcpy(param_equip, param_bonus) once the equipment loop is done and before the card loop below, so a card's
   // bStr..bLuk raises the stat (param_bonus feeds base_status) but not MaxHP / MaxSP's "+ param_equip[VIT / INT]" (3534, 3585).

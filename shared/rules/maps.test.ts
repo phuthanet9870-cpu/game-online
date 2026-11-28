@@ -114,7 +114,8 @@ test("fields: deterministic per name + seed, themed, 100-110 cells (W01 r2), eve
   }
   assert.equal(themes.size, 4, "four different themes");
   const spawns = readFileSync(new URL("../data/spawns.txt", import.meta.url), "utf8");
-  assert.ok(!spawns.includes(TOWN));
+  // the town spawns nothing but its training dummies (rules/data.ts DUMMY_ID)
+  for (const l of spawns.split("\n")) if (l.startsWith(TOWN)) assert.ok(l.includes("\tTraining Dummy\t"), l);
 });
 test("level bands: consecutive, and the auto-hunt's field follows the level", () => {
   assert.deepEqual(FIELDS.map((f) => MAP_INFO[f].band), [[1, 5], [5, 10], [10, 15], [15, 20]]);

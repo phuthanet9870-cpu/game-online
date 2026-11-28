@@ -25,6 +25,7 @@ import { distance, walkable } from "../../shared/map.ts";
 import { db } from "./db.ts";
 import type { MapRoom, Player } from "./rooms/MapRoom.ts";
 import { Skills2 } from "./skills2.ts";
+import { skillReset } from "../../shared/rules/reset.ts";
 import { NEEDS_SC, TRIPLE_RATE, defend, doubleRate, type SkillUse2 } from "../../shared/rules/skills2.ts";
 import type { ScKey } from "../../shared/rules/status_change.ts";
 
@@ -455,6 +456,21 @@ export class SkillSystem {
     this.room.flushStatus(sid);
     this.send(sid);
     this.room.save(p).catch((e) => console.error("[save]", e));
+  }
+  /** pc_resetskill (shared/rules/reset.ts): every skill but Basic Training forgotten, its levels back as skill points; saved at once. */
+  resetSkills(sid: string) {
+    const p = this.room.state.players.get(sid), b = this.room.brains.get(sid), s = this.pcs.get(sid);
+    if (!p || !b || !s) return 0;
+    this.cancel(sid);
+    const { refund, left } = skillReset(s.learned, new Set([SKILL_ID.NV_BASIC]));
+    s.learned = left;
+    p.skillPoints += refund;
+    b.inv?.persist("DELETE FROM skill WHERE char_id = $1 AND id <> $2", [s.charId, SKILL_ID.NV_BASIC]).catch(() => {});
+    b.inv?.persist("UPDATE characters SET skill_points = $2 WHERE id = $1", [s.charId, p.skillPoints]).catch(() => {});
+    this.room.refreshStatus(sid, p);
+    this.room.flushStatus(sid);
+    this.send(sid);
+    return refund;
   }
   /** Basic Training needed for the job change (F_CanChangeJob: basicskillcheck off, or Basic Skill > 8). */
   canChangeJob(sid: string) { return this.basicOk(sid, BASIC_SKILL_NEED.jobChange); }

@@ -10,6 +10,7 @@ import { CALLSHOP, ET } from "../../rules/script.ts";
 import { ITEMS, type EquipSlot } from "../../rules/items.ts";
 import { REFINE_COST, NPC_MAX_REFINE } from "../../rules/refine.ts";
 import { AFFIX_CONF, affixText } from "../../rules/affix.ts";
+import { SALVAGE_FEE, SALVAGE_YIELD } from "../../rules/salvage.ts";
 
 export const BRANN_ORE_SHOP = "town_ore_shop";
 export const ORES = ["Rough Ore", "Bright Ore", "Forgesteel", "Starsteel"] as const;
@@ -24,9 +25,10 @@ const comma = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); //
 export const forgemasterBrann: NpcScript = async (s) => {
   s.mes(N, "Welcome to the forge. Bring me a piece you're wearing and the right ore, and I'll temper it.", "Or tell me what else you need.");
   await s.next();
-  switch (await s.select("Refine my equipment", "Buy ore", "Purify rough stones", "Reforge affixes", "Cancel")) {
+  switch (await s.select("Refine my equipment", "Buy ore", "Purify rough stones", "Reforge affixes", "Salvage gear", "Cancel")) {
     case 1: return refine(s);
     case 4: return reforge(s);
+    case 5: return salvageGear(s);
     case 2:
       s.mes(N, "Good ore, honest prices.");
       await s.close2();
@@ -131,5 +133,22 @@ async function reforge(s: Script) {
   if (!r.ok) { s.mes(N, r.text ?? "That didn't work."); return s.close(); }
   s.emotion(ET.BEST);
   s.mes(N, "Done. Have a look:", ...(r.affixes ?? []).map((a, i) => `${i + 1}. ${affixText(a)}`));
+  return s.close();
+}
+
+// Salvage (shared/rules/salvage.ts): a bag piece becomes reforge materials, so a bad drop is still progress.
+async function salvageGear(s: Script) {
+  s.mes(N, `I can break down gear you don't wear into ${SALVAGE_YIELD.fine[0].item}s and better. ^4d4dff${SALVAGE_FEE} zeny^000000 a piece. Cards must come out first, and they can't, so carded pieces stay whole.`);
+  await s.next();
+  const list = s.salvagelist().slice(0, 18);
+  if (!list.length) { s.mes(N, "Nothing in your bag is worth breaking. Pieces that dropped from monsters are."); return s.close(); }
+  const pick = await s.select(...list.map((r) => `${r.name}${r.affixes ? ` (${r.affixes} traits)` : ""}`), "Cancel");
+  if (pick < 1 || pick > list.length) return s.close();
+  s.mes(N, `Break down the ^4d4dff${list[pick - 1].name}^000000? It's gone for good.`);
+  await s.next();
+  if (await s.select("Break it down.", "Keep it.") !== 1) return s.close();
+  const r = s.salvage(list[pick - 1].uid);
+  if (!r.ok) { s.mes(N, r.text ?? "That didn't work."); return s.close(); }
+  s.mes(N, "Here's what was in it:", ...(r.got ?? []).map((g) => `${g.count} × ${g.item}`));
   return s.close();
 }

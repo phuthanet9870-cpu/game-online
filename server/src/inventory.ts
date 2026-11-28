@@ -1,7 +1,7 @@
 // Per-character inventory, kept in memory while the character is online and written through to Postgres on every
 // change (one promise chain per character, so writes land in order and a crash loses nothing that was confirmed).
 // The same chain carries the character's status saves, and the next session of the character waits for it to drain.
-import { ITEMS, ammoOffForWeapon, ammoOffWithWeapon, gearOf, maxWeight, slotsOf, type EquipSlot, type Item, type WornItem } from "../../shared/rules/items.ts";
+import { ITEMS, ammoOffForWeapon, ammoOffWithWeapon, gearOf, isBothAccessory, maxWeight, slotsOf, type EquipSlot, type Item, type WornItem } from "../../shared/rules/items.ts";
 import { checkAddItem, getZeny, inventoryBlank, isStackable, slotsNeeded } from "../../shared/rules/shop.ts";
 import { compoundBlock, withCard, MAX_SLOTS } from "../../shared/rules/cards.ts";
 import type { JobKey } from "../../shared/rules/data.ts";
@@ -93,7 +93,9 @@ export class Inventory {
   equipped(slot: EquipSlot): Stack | undefined {
     for (const s of this.items.values()) {
       if (!s.equip) continue;
-      if (s.equip === slot || slotsOf(ITEMS.get(s.itemId)!).includes(slot)) return s;
+      if (s.equip === slot) return s;
+      const it = ITEMS.get(s.itemId)!;
+      if (!isBothAccessory(it) && slotsOf(it).includes(slot)) return s; // a two-hander also fills the shield slot; an accessory only its own side
     }
     return undefined;
   }
@@ -173,7 +175,8 @@ export class Inventory {
   equip(uid: number) {
     const s = this.items.get(uid)!;
     const it = ITEMS.get(s.itemId)!;
-    const slots = slotsOf(it);
+    // pc_equipitem (pc.cpp:12088): a Both_Accessory piece goes to the right side, or the left one when only that is free
+    const slots = isBothAccessory(it) ? [this.equipped("accR") && !this.equipped("accL") ? "accL" as EquipSlot : "accR" as EquipSlot] : slotsOf(it);
     for (const slot of slots) {
       const cur = this.equipped(slot);
       if (cur && cur.uid !== uid) this.unequip(cur.uid, true);

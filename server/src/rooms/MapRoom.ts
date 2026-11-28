@@ -78,6 +78,8 @@ import { MiniBossSystem } from "../minibosses.ts";
 import { StatusSystem } from "../status.ts";
 import { isScKey } from "../../../shared/rules/status_change.ts";
 import { VARIANT_BY_ID, rollVariant, variantHp, variantStatus } from "../../../shared/rules/variants.ts";
+import { statResetPoints } from "../../../shared/rules/reset.ts";
+import { SALVAGE_FEE, salvageBlock, salvageYield } from "../../../shared/rules/salvage.ts";
 import { AFFIX_CONF, gradeOf, poolFor, rollAffixes, type Affix } from "../../../shared/rules/affix.ts";
 
 export const Player = schema({
@@ -579,6 +581,8 @@ export class MapRoom extends Room<{ state: MapState }> {
       gainExp: (sid, base, job) => { const p = this.state.players.get(sid); if (p) this.reward(sid, p, base, job, true); },
       invChanged: (sid) => { const c = client(sid), p = this.state.players.get(sid); if (c && p) this.sendInv(c, p); },
       reforge: (sid, uid, lock) => this.doReforge(sid, uid, lock),
+      salvage: (sid, uid) => this.doSalvage(sid, uid),
+      salvageable: (sid) => this.salvageable(sid),
       gearChanged: (sid) => { const c = client(sid), p = this.state.players.get(sid); if (c && p) this.afterGearChange(c, p); },
       notice: (sid, text) => { const c = client(sid); if (c) this.notice(c, text); },
       setInterval: (fn, ms) => { this.clock.setInterval(fn, ms); },
@@ -598,6 +602,16 @@ export class MapRoom extends Room<{ state: MapState }> {
       skillLv: (sid, key) => this.skills.level(sid, key),
       jobChange: (sid, job) => this.skills.jobChange(sid, job),
       resetLevel: (sid) => this.skills.resetLevel(sid), // 2.5.0 rebirth (skills.ts)
+      resetSkills: (sid) => this.skills.resetSkills(sid),
+      resetStats: (sid) => { // pc_resetstate (shared/rules/reset.ts)
+        const p = this.state.players.get(sid);
+        if (!p) return;
+        p.str = 1; p.agi = 1; p.vit = 1; p.int = 1; p.dex = 1; p.luk = 1;
+        p.statPoints = statResetPoints(p.job as JobKey, p.level);
+        this.refreshStatus(sid, p);
+        this.flushStatus(sid);
+        this.save(p).catch((e) => console.error("[save]", e));
+      },
       warp: (sid, map, x, y) => {
         const p = this.state.players.get(sid), b = this.brains.get(sid);
         // buildin_warp (script.cpp:5628): "SavePoint" / "Save" = pc_setpos(save point)
@@ -814,6 +828,31 @@ export class MapRoom extends Room<{ state: MapState }> {
     if (client) this.sendInv(client, p);
     this.flushStatus(sid);
     return { ok: true, affixes: next };
+  }
+
+  /** Salvage (shared/rules/salvage.ts): at the forgemaster, a bag piece breaks into reforge materials for a small fee. */
+  doSalvage(sid: string, uid: number): { ok: boolean; text?: string; got?: { item: string; count: number }[] } {
+    const p = this.state.players.get(sid), b = this.brains.get(sid), client = this.clients.getById(sid);
+    if (!p || !b?.inv || p.dead) return { ok: false, text: "You can't do that now." };
+    if (!this.nearNpc(p, "npc_refiner")) return { ok: false, text: "Talk to the forgemaster to salvage." };
+    const st = b.inv.items.get(uid), it = st ? ITEMS.get(st.itemId) : undefined;
+    const why = salvageBlock(it, st);
+    if (why) return { ok: false, text: `Can't salvage that: ${why}.` };
+    if (b.inv.zeny < SALVAGE_FEE) return { ok: false, text: `Salvaging costs ${SALVAGE_FEE} zeny.` };
+    const got = salvageYield(it!, st!.affixes?.length ?? 0);
+    // room for the materials once the piece is gone: they are light and stack, so only weight could refuse
+    const w = got.reduce((n, y) => n + (itemNamed(y.item)?.weight ?? 0) * y.count, 0) - it!.weight;
+    if (b.inv.weight() + w > maxWeight(p.job as JobKey, p.str)) return { ok: false, text: "You are carrying too much." };
+    b.inv.payZeny(SALVAGE_FEE);
+    b.inv.remove(uid, 1);
+    for (const y of got) b.inv.add(itemNamed(y.item)!.id, y.count);
+    if (client) this.sendInv(client, p);
+    return { ok: true, got };
+  }
+  /** The bag pieces salvage would take, for the forgemaster's list. */
+  salvageable(sid: string) {
+    const b = this.brains.get(sid);
+    return (b?.inv?.rows() ?? []).filter((r) => !salvageBlock(ITEMS.get(r.itemId), r)).map((r) => ({ uid: r.uid, itemId: r.itemId, affixes: r.affixes?.length ?? 0 }));
   }
 
   /** floor item pickup (pc_takeitem): within PICKUP_RANGE cells, after this character's loot-priority wait
@@ -1086,7 +1125,7 @@ export class MapRoom extends Room<{ state: MapState }> {
     const mobId = slot.sd.mobId, def = MOB_BY_ID.get(mobId)!;
     const cell = mobSpawnCell(this.map, slot.sd, slot.center, rndValue);
     if (!cell) { this.clock.setTimeout(() => this.spawnMonster(id), SPAWN_CONF.mob_respawn_time); return; }
-    this.addMonster(id, mobId, cell.x, cell.y, rollVariant(def, Math.random()));
+    this.addMonster(id, mobId, cell.x, cell.y, def.baseExp > 0 ? rollVariant(def, Math.random()) : 0);
   }
 
   /** 2.9.0 the room closes: a roaming mini-boss standing here rises again when the map reopens (server/src/minibosses.ts). */
