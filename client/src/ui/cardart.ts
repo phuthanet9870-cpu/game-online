@@ -5,6 +5,7 @@ import "./cardart.css";
 import { ITEMS } from "../../../shared/rules/items.ts";
 import { cardEffectLines, cardGoesOn } from "../../../shared/rules/cards.ts";
 import { MOB_BY_ID } from "../../../shared/rules/data.ts";
+import { cardArt } from "../icons2d.ts";
 import { toggle } from "./windows.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -16,11 +17,9 @@ export function inspectCard(itemId: number) {
   const win = $("w-cardart");
   win.classList.toggle("legendary", legendary);
   $("ca-title").textContent = legendary ? "Legendary Card" : "Card";
-  const img = $<HTMLImageElement>("ca-img");
-  const fb = $("ca-fallback");
-  img.hidden = false; fb.hidden = true;
-  img.onerror = () => { img.hidden = true; fb.hidden = false; fb.textContent = it.name.replace(" Card", "").slice(0, 1); };
-  img.src = `/art/cards/${itemId}.webp`;
+  const cv = $<HTMLCanvasElement>("ca-img");
+  $("ca-fallback").hidden = true; cv.hidden = false;
+  cardArt(it, cv);
   const mob = it.mobId ? MOB_BY_ID.get(it.mobId) : undefined;
   const text = $("ca-text");
   text.innerHTML = "";

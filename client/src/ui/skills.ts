@@ -3,6 +3,7 @@
 // renders it, sends CZ_UPGRADE_SKILLLEVEL (+) and starts a use: self skills go at once, the others arm the targeting cursor
 // and the next click on a unit / cell sends CZ_USE_SKILL / CZ_USE_SKILL_TOGROUND (main.ts). Numbers in the tooltip come from
 // the same shared rules the server uses (shared/rules/skill.ts: cost, range, Renewal cast time with the owner's DEX / INT).
+import { skillIconUrl } from "../icons2d.ts";
 import { SKILLS, SKILL_ID, SKILL_USE, treeChain, castTime, skillCooldown, skillCost, skillLv, skillRange, skillTree, treeRows, type Learned, type Skill } from "../../../shared/rules/skill.ts";
 import { JOBS, type JobKey } from "../../../shared/rules/data.ts";
 import { SKILL_TEXT } from "../../../shared/content/skill_text.ts";
@@ -55,54 +56,7 @@ function glyphOf(s: Skill): string {
   if (s.type === "Magic") return "orb";
   return "star";
 }
-// painted icons: a 64 px atlas cut from Codex sheets by tools/art/build_ro.py skillicons(); skills missing from it keep the glyph
-let skillAtlas: { size: number; cols: number; keys: Record<string, number>; img: HTMLImageElement } | undefined;
-fetch("/icons/skills.json").then((r) => r.json()).then((a) => {
-  const img = new Image();
-  img.onload = () => { skillAtlas = { ...a, img }; iconCache.clear(); if (list.length) render(); };
-  img.src = "/icons/skills.png";
-}).catch(() => {});
-function iconUrl(s: Skill) {
-  const hit = iconCache.get(s.id);
-  if (hit) return hit;
-  const S = 48, cv = document.createElement("canvas");
-  cv.width = cv.height = S;
-  const g = cv.getContext("2d")!;
-  const cell = skillAtlas?.keys[s.key];
-  if (skillAtlas && cell !== undefined) {
-    const { size, cols, img } = skillAtlas;
-    g.imageSmoothingQuality = "high";
-    g.drawImage(img, (cell % cols) * size, Math.floor(cell / cols) * size, size, size, 0, 0, S, S);
-    const url = cv.toDataURL();
-    iconCache.set(s.id, url);
-    return url;
-  }
-  const ele = s.element[0] ?? "Neutral", [c1, c2] = ELE_COLOR[s.target === "Passive" ? "Neutral" : ele] ?? ELE_COLOR.Neutral;
-  const bg = g.createLinearGradient(0, 0, 0, S);
-  bg.addColorStop(0, c1); bg.addColorStop(1, c2);
-  g.fillStyle = bg;
-  g.beginPath(); g.roundRect(2, 2, S - 4, S - 4, 9); g.fill();
-  g.lineWidth = 2; g.strokeStyle = "rgba(30,34,52,0.65)"; g.stroke();
-  g.fillStyle = "#fff"; g.strokeStyle = "rgba(20,22,40,0.75)"; g.lineWidth = 2.2; g.lineJoin = "round"; g.lineCap = "round";
-  const path = (pts: number[][], close = true) => { g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); if (close) g.closePath(); g.stroke(); g.fill(); };
-  switch (glyphOf(s)) {
-    case "sword": path([[34, 9], [39, 9], [39, 14], [20, 33], [15, 28]]); path([[12, 27], [21, 36], [18, 39], [9, 30]]); path([[13, 35], [9, 39], [11, 41], [15, 37]]); break;
-    case "flame": path([[24, 8], [33, 21], [35, 30], [30, 39], [24, 41], [17, 38], [13, 30], [16, 21], [20, 26]]); break;
-    case "shard": path([[24, 7], [31, 22], [24, 41], [17, 22]]); path([[11, 18], [17, 24], [12, 33], [8, 25]]); path([[37, 18], [40, 25], [36, 33], [31, 24]]); break;
-    case "bolt": path([[28, 7], [15, 26], [23, 26], [19, 41], [34, 20], [26, 20], [31, 7]]); break;
-    case "orb": g.beginPath(); g.arc(24, 24, 11, 0, Math.PI * 2); g.stroke(); g.fill(); g.fillStyle = c2; g.beginPath(); g.arc(21, 21, 4, 0, Math.PI * 2); g.fill(); break;
-    case "cross": path([[20, 9], [28, 9], [28, 20], [39, 20], [39, 28], [28, 28], [28, 39], [20, 39], [20, 28], [9, 28], [9, 20], [20, 20]]); break;
-    case "coin": g.beginPath(); g.arc(24, 24, 13, 0, Math.PI * 2); g.stroke(); g.fill(); g.fillStyle = c2; g.font = "bold 16px Arial"; g.textAlign = "center"; g.fillText("Z", 24, 30); break;
-    case "drop": path([[24, 8], [33, 25], [33, 31], [28, 39], [20, 39], [15, 31], [15, 25]]); break;
-    case "arrow": path([[9, 39], [33, 15], [30, 12], [40, 8], [36, 18], [33, 15]], false); path([[12, 33], [15, 36], [10, 41], [7, 38]]); break;
-    case "rain": for (const x of [14, 24, 34]) path([[x, 10], [x + 2, 10], [x + 2, 32], [x + 5, 32], [x + 1, 39], [x - 3, 32], [x, 32]]); break;
-    case "book": path([[10, 13], [23, 16], [23, 38], [10, 35]]); path([[25, 16], [38, 13], [38, 35], [25, 38]]); break;
-    default: path(Array.from({ length: 10 }, (_, i) => { const a = -Math.PI / 2 + (i * Math.PI) / 5, r = i % 2 ? 7 : 15; return [24 + Math.cos(a) * r, 25 + Math.sin(a) * r]; }));
-  }
-  const url = cv.toDataURL();
-  iconCache.set(s.id, url);
-  return url;
-}
+function iconUrl(s: Skill) { return skillIconUrl(s as never); }
 /** A skill icon element at `px` (24 on the shortcut bar), with a level badge when `lv` is given. */
 export function skillIconEl(id: number, lv?: number, px = 32) {
   const s = SKILLS.get(id);

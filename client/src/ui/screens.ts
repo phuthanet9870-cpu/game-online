@@ -329,14 +329,10 @@ function buildCreate() {
     const b = Object.assign(document.createElement("button"), { type: "button", className: "cr-job", onclick: () => setJob(job) });
     b.dataset.job = job;
     b.onmouseenter = () => showRole(job); b.onmouseleave = () => showRole();
-    // a painted emblem per job (public/art/jobs); if one is missing, the job's own composited sprite stands in
-    const icon = Object.assign(document.createElement("img"), { className: "cr-icon", alt: "", draggable: false, src: `/art/jobs/${job}.png` });
-    icon.onerror = () => {
-      const cv = Object.assign(document.createElement("canvas"), { className: "cr-icon", width: 72, height: 72 });
-      icon.replaceWith(cv);
-      const look: Look = { gender: "M", hair: 0, style: 0, outfit: outfitOf(job), weapon: START_WEAPON[job], job }, body = bodyOf(look);
-      void body.loaded.then(() => { const f = body.comp.pick(body.comp.kind.idle, 0); if (f) body.comp.draw(cv.getContext("2d")!, f, 0, false, 0.62, 36, 96); });
-    };
+    // the job's own code-drawn chibi stands on its button
+    const icon = Object.assign(document.createElement("canvas"), { className: "cr-icon", width: 72, height: 72 });
+    const look: Look = { gender: "M", hair: 0, style: 0, outfit: outfitOf(job), weapon: START_WEAPON[job], job }, body = bodyOf(look);
+    void body.loaded.then(() => { const g = icon.getContext("2d")!; g.imageSmoothingEnabled = false; const f = body.comp.pick(body.comp.kind.idle, 0); if (f) body.comp.draw(g, f, 0, false, 2, 36, 66); });
     b.append(icon, Object.assign(document.createElement("b"), { textContent: JOBS[job as JobKey].name }));
     return b;
   }));

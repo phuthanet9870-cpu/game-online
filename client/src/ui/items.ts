@@ -1,5 +1,6 @@
 // Item windows: Inventory (Alt+E), Equipment (Alt+Q), NPC shop, the shortcut window (hotkeys, F1–F9), item tooltips.
 // The server is authoritative; these windows render the last `inv` snapshot and send intents.
+import { itemIconUrl } from "../icons2d.ts";
 import { INVENTORY_SLOTS, ITEMS, SLOTS, SLOT_LABEL, isEquip, isUsable, weightPct, NATURAL_HEAL_WEIGHT, MAJOR_OVERWEIGHT, type EquipSlot, type Item } from "../../../shared/rules/items.ts";
 import type { HotkeysMsg, InvEvent, ShopEvent } from "../../../shared/protocol.ts";
 import {
@@ -39,9 +40,6 @@ let rowShift = 0;
 let tab: "item" | "equip" | "etc" | "fav" = "item";
 
 // ---------- icons ----------
-let atlas: { size: number; cols: number; names: Record<string, number> } | null = null;
-fetch("/icons/items.json").then((r) => r.json()).then((a) => { atlas = a; renderAll(); }).catch(() => {});
-const TYPE_COLOR: Record<string, string> = { Healing: "#e2574c", Usable: "#e8a33d", DelayConsume: "#7cb7ff", Weapon: "#9aa3b5", Armor: "#8a6a4a", Ammo: "#c2a46a", Etc: "#a6b07a" };
 
 /** An item icon at `px` (32 in windows, 24 in the shortcut window like the original's icons), with an amount badge > 1. */
 export function iconEl(itemId: number, amount?: number, px = 32) {
@@ -50,17 +48,7 @@ export function iconEl(itemId: number, amount?: number, px = 32) {
   el.className = "icon";
   const grade = it ? itemGrade(it) : "common";
   if (grade !== "common") el.dataset.grade = grade; // frame colour (style.css .icon[data-grade])
-  const idx = it && atlas ? atlas.names[it.name] : undefined;
-  if (idx !== undefined && atlas) {
-    const s = px / atlas.size;
-    el.style.backgroundImage = "url(/icons/items.png)";
-    el.style.backgroundSize = `${atlas.cols * atlas.size * s}px auto`;
-    el.style.backgroundPosition = `-${(idx % atlas.cols) * px}px -${Math.floor(idx / atlas.cols) * px}px`;
-  } else { // placeholder until the icon sheet is generated
-    el.classList.add("ph");
-    el.style.background = TYPE_COLOR[it?.type ?? "Etc"] ?? "#999";
-    el.textContent = (it?.name ?? "?").slice(0, 2);
-  }
+  el.style.backgroundImage = `url(${itemIconUrl(it)})`;
   if (px !== 32) el.style.width = el.style.height = `${px}px`;
   if (amount !== undefined && amount > 1) {
     const n = document.createElement("b");

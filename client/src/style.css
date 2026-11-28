@@ -540,7 +540,7 @@ p.cr-role { margin: 6px 0 0; min-height: 14px; font: 11px/14px var(--win-font); 
 .slotgrid .slotcell .icon { position: relative; z-index: 1; margin-top: -2px; filter: drop-shadow(0 1px 1px rgba(30, 40, 80, 0.45)); }
 .slotcell.empty { background: transparent; }
 .slotcell:not(.empty):hover { border: 0; background: rgba(150, 175, 230, 0.28); box-shadow: inset 0 0 0 1px rgba(60, 100, 200, 0.6); border-radius: 3px; }
-.icon { position: relative; width: 32px; height: 32px; background-repeat: no-repeat; image-rendering: auto; }
+.icon { position: relative; width: 32px; height: 32px; background-repeat: no-repeat; background-size: 100% 100%; image-rendering: pixelated; }
 /* 2.5.0 item grades: a thin frame on the icon (common has none); epic / legendary add a soft glow */
 .icon[data-grade] { border-radius: 5px; }
 .icon[data-grade="fine"] { box-shadow: inset 0 0 0 1px rgba(63, 160, 84, 0.75); }

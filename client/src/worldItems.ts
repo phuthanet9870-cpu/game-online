@@ -1,6 +1,7 @@
 // Floor items (dropped loot) and NPCs in the 3D world: billboards + labels + click picking.
 import * as THREE from "three";
 import { ITEMS } from "../../shared/rules/items.ts";
+import { itemIconUrl } from "./icons2d.ts";
 import { MonsterSprite } from "./sprites.ts";
 import { AnimSprite } from "./animSprite.ts";
 import { npcLook } from "./pixelchar.ts";
@@ -27,27 +28,18 @@ type Thing = { id: string; kind: "floor" | "npc"; obj: THREE.Sprite; label: HTML
 const things = new Map<string, Thing>();
 const pickables: THREE.Object3D[] = [];
 
-let atlas: { img: HTMLImageElement; size: number; cols: number; names: Record<string, number> } | null = null;
-fetch("/icons/items.json").then((r) => r.json()).then((a) => {
-  const img = new Image();
-  img.onload = () => { atlas = { img, ...a }; };
-  img.src = "/icons/items.png";
-}).catch(() => {});
-
 function itemTexture(itemId: number) {
   const cv = document.createElement("canvas");
   cv.width = cv.height = 64;
   const g = cv.getContext("2d")!;
   const it = ITEMS.get(itemId);
-  const idx = it && atlas ? atlas.names[it.name] : undefined;
-  if (atlas && idx !== undefined) {
-    g.drawImage(atlas.img, (idx % atlas.cols) * atlas.size, Math.floor(idx / atlas.cols) * atlas.size, atlas.size, atlas.size, 0, 0, 64, 64);
-  } else {
-    g.fillStyle = "#f2d16b"; g.strokeStyle = "#5a4310"; g.lineWidth = 4;
-    g.beginPath(); g.arc(32, 36, 18, 0, Math.PI * 2); g.fill(); g.stroke();
-  }
+  g.imageSmoothingEnabled = false;
+  const url = itemIconUrl(it);
+  const img = new Image();
   const t = new THREE.CanvasTexture(cv);
-  t.colorSpace = THREE.SRGBColorSpace;
+  t.colorSpace = THREE.SRGBColorSpace; t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  img.onload = () => { g.clearRect(0, 0, 64, 64); g.imageSmoothingEnabled = false; g.drawImage(img, 0, 0, 64, 64); t.needsUpdate = true; };
+  img.src = url;
   return t;
 }
 
