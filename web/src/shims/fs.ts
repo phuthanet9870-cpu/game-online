@@ -1,8 +1,7 @@
-// node:fs for the in-page server: the only files it reads are two data files, bundled here as text.
-import pets from "../../../shared/data/pets.json?raw";
+// node:fs for the in-page server: the only file it reads is the spawn table, bundled here as text.
 import spawns from "../../../shared/data/spawns.txt?raw";
 
-const FILES: Record<string, string> = { "pets.json": pets, "spawns.txt": spawns };
+const FILES: Record<string, string> = { "spawns.txt": spawns };
 // the build turns new URL("…/spawns.txt", import.meta.url) into a hashed asset URL (spawns-<hash>.txt): match on the stem
 const lookup = (p: string | URL) => {
   const base = String(p).replace(/[?#].*$/, "").replace(/^.*\//, "");
