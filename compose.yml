@@ -21,5 +21,7 @@ services:
       DB_SCHEMA: ro
       REDIS_PREFIX: "ro:"
       MAP_SEED: "1337"
+      # the GM menu: type /gm<this passphrase> in chat. Leave empty to disable. Set it in a .env file next to this one.
+      GM_PASSPHRASE: ${GM_PASSPHRASE:-}
 volumes:
   pgdata:

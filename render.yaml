@@ -1,0 +1,30 @@
+# Render blueprint: a public, always-on game server.  https://render.com/docs/blueprint-spec
+# New > Blueprint > pick this repository. Render builds the Dockerfile, creates Postgres and Redis (Key Value), and wires them up.
+# After the first deploy, open the service's Environment tab and set GM_PASSPHRASE (a long secret phrase) to enable the GM menu.
+services:
+  - type: web
+    name: game-online
+    runtime: docker
+    plan: starter            # always on; the free plan sleeps after 15 min, which drops every player
+    healthCheckPath: /health
+    envVars:
+      - { key: GAME_NAME, value: ro }
+      - { key: DB_SCHEMA, value: ro }
+      - { key: REDIS_PREFIX, value: "ro:" }
+      - { key: MAP_SEED, value: "1337" }
+      - { key: PORT, value: "2567" }
+      - { key: GM_PASSPHRASE, sync: false }   # you type it in the dashboard, it never enters git
+      - { key: DATABASE_URL, fromDatabase: { name: game-db, property: connectionString } }
+      - { key: REDIS_URL, fromService: { type: keyvalue, name: game-redis, property: connectionString } }
+
+  - type: keyvalue
+    name: game-redis
+    plan: starter
+    ipAllowList: []          # private network only
+    maxmemoryPolicy: noeviction   # sessions must not be evicted
+
+databases:
+  - name: game-db
+    plan: basic-256mb
+    databaseName: game
+    user: game
