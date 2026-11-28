@@ -17,7 +17,8 @@ Stack: TypeScript, Three.js + Vite client, Colyseus authoritative server, Postgr
 ## What is in the game
 
 - The Tower, floors 1 and 2: rest town, hunting fields, a dungeon with a boss, a floor guardian.
-- Job tree: Novice, six first jobs, 2nd and transcendent jobs, with skills and stat/skill points.
+- Job tree: Novice, six first jobs, 2nd and transcendent jobs, plus the expanded classes (Wayfarer, Marksman, Shinobi, Striker → Starblade / Soulbinder) and thirteen third jobs, with skills and stat/skill points.
+  Every skill in every tree works; the generic skill engine is plain data in `shared/classx/` (add a skill = one line).
 - Quests with NPC scripted dialogs, a quest log and tracker with click-to-auto-walk.
 - Auto mode (hunt, loot, return to town), parties, friends, chat.
 - Pets, cards that slot into gear, refining and gear grades (common to legendary), shops and loot.

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { CLASSX_JOBS, BEHAVIOR, DROP, describeSkill, sumFx } from "../classx/engine.ts";
 import { CLASSX_KEYS } from "../classx/keys.ts";
 import { CLASSX_ITEMS } from "../classx/items.ts";
-import { JOBS } from "./data.ts";
+import { JOBS, type JobKey } from "./data.ts";
 import { MAPID, isSecondJob, isTrans } from "./status.ts";
 import { SKILLS, SKILL_ID, skillReady, skillTree, treeRows, normalizeJob } from "./skill.ts";
 import { ITEMS } from "./items.ts";
@@ -14,10 +14,10 @@ test("extended classes: keys, rows and class ids are consistent", () => {
   assert.deepEqual(CLASSX_JOBS.map((j) => j.key), [...CLASSX_KEYS]);
   const ids = new Set<number>();
   for (const j of CLASSX_JOBS) {
-    assert.ok(JOBS[j.key as never], j.key);
-    assert.equal(JOBS[j.key as never].baseHp.length, JOBS[j.key as never].maxBaseLevel);
-    assert.equal(JOBS[j.key as never].jobExp.length, JOBS[j.key as never].maxJobLevel);
-    const id = MAPID[j.key as never];
+    assert.ok(JOBS[j.key as JobKey], j.key);
+    assert.equal(JOBS[j.key as JobKey].baseHp.length, JOBS[j.key as JobKey].maxBaseLevel);
+    assert.equal(JOBS[j.key as JobKey].jobExp.length, JOBS[j.key as JobKey].maxJobLevel);
+    const id = MAPID[j.key as JobKey];
     assert.ok(!ids.has(id), `class id of ${j.key} is unique`); ids.add(id);
   }
   for (const j of Object.keys(JOBS)) assert.ok(j in MAPID, `${j} has a class id`);
@@ -51,18 +51,18 @@ test("each class opens its own skills as soon as it has points (no tree stuck on
   const learned: Record<number, number> = { [SKILL_ID.NV_BASIC]: 9 };
   for (const r of treeRows("Taekwon")) learned[r.id] = r.maxLevel; // the points a Striker spent before it became a second job
   for (const j of CLASSX_JOBS) {
-    const tree = skillTree(j.key as never, learned, 99, 50, undefined, 40);
+    const tree = skillTree(j.key as JobKey, learned, 99, 50, undefined, 40);
     const own = j.skills.filter((s) => !s.req?.length).map((s) => SKILL_ID[s.k]);
     assert.ok(own.every((id) => tree.known.has(id)), `${j.key}: its first skills are open (tree ${tree.job})`);
   }
-  assert.equal(normalizeJob("Super_Novice" as never, learned, undefined, 10), "Super_Novice");
+  assert.equal(normalizeJob("Super_Novice" as JobKey, learned, undefined, 10), "Super_Novice");
 });
 
 test("the third dawn maps every transcendent second job to its third job, one to one", () => {
   const thirds = new Set<string>();
   for (const [from, to] of Object.entries(THIRD_OF)) {
-    assert.ok(isTrans(from as never) && isSecondJob(from as never) && !isTrans(to as never) === false, `${from} -> ${to}`);
-    assert.ok(MAPID[to] & 0x4000, `${to} carries the third-class bit`); thirds.add(to);
+    assert.ok(isTrans(from as JobKey) && isSecondJob(from as JobKey), `${from} -> ${to}`);
+    assert.ok(MAPID[to as JobKey] & 0x4000, `${to} carries the third-class bit`); thirds.add(to);
   }
   assert.equal(thirds.size, 13);
   assert.ok(NPC_BY_ID.has("npc_job_paths") && NPC_BY_ID.has("npc_third_dawn"));
@@ -71,8 +71,8 @@ test("the third dawn maps every transcendent second job to its third job, one to
 test("the new gear is real: ids are free, guns shoot bullets, kunai is ammo, jobs widen to the new classes", () => {
   const ids = new Set<number>();
   for (const it of CLASSX_ITEMS) { assert.ok(!ids.has(it.id)); ids.add(it.id); assert.equal(ITEMS.get(it.id)!.name, it.name, `${it.name} was not overwritten`); }
-  assert.ok(ITEMS.get(3101)!.jobs.includes("Gunslinger"));
+  assert.ok((ITEMS.get(3101)!.jobs as string[]).includes("Gunslinger"));
   const dagger = [...ITEMS.values()].find((i) => i.name === "Knife")!;
-  assert.ok(dagger.jobs.includes("Ninja") && dagger.jobs.includes("Gunslinger"));
+  assert.ok((dagger.jobs as string[]).includes("Ninja") && (dagger.jobs as string[]).includes("Gunslinger"));
   assert.equal(sumFx([[{ atk: [5, 2] }, 3]]).atk, 11);
 });

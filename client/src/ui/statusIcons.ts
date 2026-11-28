@@ -5,6 +5,7 @@
 import "./status.css";
 import type { ScListEvent } from "../../../shared/protocol.ts";
 import { SKILLS, SKILL_ID } from "../../../shared/rules/skill.ts";
+import { BEHAVIOR } from "../../../shared/classx/engine.ts";
 
 type Look = { name: string; skill?: string; c1: string; c2: string; debuff?: true; glyph: string };
 const S = (d: string, fill = "#fff") => `<svg viewBox="0 0 24 24"><path d="${d}" fill="${fill}" stroke="rgba(0,0,0,.55)" stroke-width="1.1" stroke-linejoin="round"/></svg>`;
@@ -38,8 +39,16 @@ const LOOK: Record<string, Look> = {
   IncreaseAgi: { name: "Increase AGI", skill: "AL_INCAGI", c1: "#d0f4ff", c2: "#3a9ad0", glyph: ARROW_UP },
   DecreaseAgi: { name: "Decrease AGI", skill: "AL_DECAGI", c1: "#ffd4d0", c2: "#c4543c", debuff: true, glyph: ARROW_DOWN },
 };
+/** The generic statuses of shared/classx (`G_<skill key>`): the skill's own name, blue for a buff, red for a debuff. */
+function look(sc: string): Look | undefined {
+  if (LOOK[sc]) return LOOK[sc];
+  const key = sc.startsWith("G_") ? sc.slice(2) : sc, b = BEHAVIOR.get(key), s = SKILLS.get(SKILL_ID[key]);
+  if (!b && !s) return undefined;
+  const debuff = b?.t === "dbf" || sc.startsWith("G_") && !!b?.st;
+  return debuff ? { name: s?.name ?? key, skill: key, c1: "#ffd4d0", c2: "#c4543c", debuff: true, glyph: ARROW_DOWN } : { name: s?.name ?? key, skill: key, c1: "#d0f4ff", c2: "#3a9ad0", glyph: ARROW_UP };
+}
 const nameOf = (sc: string) => {
-  const l = LOOK[sc];
+  const l = look(sc);
   const s = l?.skill ? SKILLS.get(SKILL_ID[l.skill]) : undefined;
   return s?.name ?? l?.name ?? sc;
 };
@@ -70,7 +79,7 @@ function refresh() {
     const rest = left(s, now);
     s.el.classList.toggle("low", rest >= 0 && rest < 5000);
     if (tipFor === s.sc && tip && !tip.hidden) {
-      const lv = LOOK[s.sc]?.skill && s.lv > 0 && s.lv <= 10 ? ` Lv ${s.lv}` : "";
+      const lv = look(s.sc)?.skill && s.lv > 0 && s.lv <= 10 ? ` Lv ${s.lv}` : "";
       tip.textContent = `${nameOf(s.sc)}${lv}${rest >= 0 ? ` — ${clock(rest)}` : ""}`;
     }
   }
@@ -83,12 +92,12 @@ export function setStatusList(m: ScListEvent) {
   const now = performance.now();
   for (const s of shown) s.el.remove();
   shown = m.list.map((e) => {
-    const look = LOOK[e.sc] ?? { name: e.sc, c1: "#eee", c2: "#888", glyph: T("?") };
+    const lk = look(e.sc) ?? { name: e.sc, c1: "#eee", c2: "#888", glyph: T("?") };
     const el = document.createElement("button");
     el.type = "button";
-    el.className = `sicon sc${look.debuff ? " bad" : ""}`;
-    el.style.setProperty("--c1", look.c1); el.style.setProperty("--c2", look.c2);
-    el.innerHTML = look.glyph;
+    el.className = `sicon sc${lk.debuff ? " bad" : ""}`;
+    el.style.setProperty("--c1", lk.c1); el.style.setProperty("--c2", lk.c2);
+    el.innerHTML = lk.glyph;
     el.dataset.sc = e.sc;
     el.addEventListener("mouseenter", () => {
       tipFor = e.sc;
