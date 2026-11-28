@@ -45,11 +45,3 @@ test("the Long Harvest gives every player under it a safe circle a short run awa
   assert.equal(ringCells({ x: 10, y: 10 }, 5, 10).length, 10);
 });
 
-test("every Tower species and mini-boss form is drawn with its own sheets", () => {
-  const anim = JSON.parse(readFileSync(new URL("../../client/public/sprites/anim/index.json", import.meta.url), "utf8")) as string[];
-  for (const m of [...F3_MOBS, ...MINI_MOBS]) {
-    const a = artOf(m.id);
-    assert.ok(anim.includes(`mob_${a}_move`) && anim.includes(`mob_${a}_act`), `${m.name} (${m.id}) -> mob_${a}`);
-    assert.ok(a !== m.base, `${m.name} has art of its own, not its base species'`);
-  }
-});

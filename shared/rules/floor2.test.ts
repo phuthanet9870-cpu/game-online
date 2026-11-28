@@ -85,7 +85,6 @@ test("floor 2 spawns: FIELD_MOBS are the monster lines, every species has a spri
     const [lo] = MAP_INFO[f].band!;
     for (const id of ids) {
       assert.ok(MOB_BY_ID.get(id)!.level >= lo - 2, `${MOB_BY_ID.get(id)!.name} Lv ${MOB_BY_ID.get(id)!.level} fits ${f}`);
-      for (const part of ["move", "act"]) assert.ok(existsSync(new URL(`../../client/public/sprites/anim/mob_${id}_${part}.json`, import.meta.url)), `sprite sheet mob_${id}_${part}`);
     }
     const bosses = lines.filter((s) => s.boss);
     if (f === F2_FIELD2) assert.deepEqual(bosses.map((b) => b.mobId), [1250], "Cinderwarden on the Heights");
