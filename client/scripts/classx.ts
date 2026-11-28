@@ -57,7 +57,7 @@ for (const job of jobs) {
     if (!skillUse(sk)) continue;
     await gmDo({ op: "heal" });
     await gmDo({ op: "killmobs" }); await gmDo({ op: "spawn", mobId: 1002, count: 2 }); await wait(450);
-    const live = [...(r.state as any).monsters.entries()].filter(([, m]: any) => !m.dead)[0];
+    const live = [...(r.state as any).monsters.entries()].reverse().find(([k, m]: any) => !m.dead && String(k).startsWith("gm"));
     const target = live?.[0] as string | undefined, mx = Math.round(live?.[1].x ?? 40), my = Math.round(live?.[1].y ?? 40);
     const msg: Record<string, unknown> = { id: e.id, lv: e.lv };
     if (sk.target === "Attack") msg.target = target; else if (sk.target === "Ground") { msg.x = mx; msg.y = my; } else if (sk.target === "Support") msg.target = r.sessionId;

@@ -1,6 +1,7 @@
 // Item windows: Inventory (Alt+E), Equipment (Alt+Q), NPC shop, the shortcut window (hotkeys, F1–F9), item tooltips.
 // The server is authoritative; these windows render the last `inv` snapshot and send intents.
 import { itemIconUrl } from "../icons2d.ts";
+import { affixText } from "../../../shared/rules/affix.ts";
 import { INVENTORY_SLOTS, ITEMS, SLOTS, SLOT_LABEL, isEquip, isUsable, weightPct, NATURAL_HEAL_WEIGHT, MAJOR_OVERWEIGHT, type EquipSlot, type Item } from "../../../shared/rules/items.ts";
 import type { HotkeysMsg, InvEvent, ShopEvent } from "../../../shared/protocol.ts";
 import {
@@ -8,7 +9,7 @@ import {
 } from "../../../shared/rules/hotkey.ts";
 import { cardEffectLines, cardGoesOn, isCard, itemDisplayName } from "../../../shared/rules/cards.ts";
 import { GRADE_COLOR, GRADE_LABEL, itemGrade } from "../../../shared/rules/grade.ts";
-import { onLangChange, t } from "../i18n.ts";
+import { getLang, onLangChange, t } from "../i18n.ts";
 import { MOB_BY_ID } from "../../../shared/rules/data.ts";
 import { play } from "../audio.ts";
 import { toggle } from "./windows.ts";
@@ -83,6 +84,7 @@ function describe(it: Item, st?: Stack) {
       lines.push(c ? `<span class="cardline">${goldName(c)} · ${cardEffectLines(c).join(", ") || t("item.no_effect")}</span>` : `<span class="cardline empty">${t("item.slot_empty", { n: i + 1 })}</span>`);
     }
   }
+  for (const a of st?.affixes ?? []) lines.push(`<span class="affixline">◆ ${affixText(a, getLang())}</span>`); // random affixes (shared/rules/affix.ts)
   const eff = it.effect as { heal?: number[]; teleport?: string; album?: boolean } | null;
   if (eff?.album) lines.push(t("item.album"));
   if (eff?.heal) lines.push(`${t("item.restores")} ${eff.heal[0]}–${eff.heal[1]} HP${eff.heal[3] ? `, ${eff.heal[2]}–${eff.heal[3]} SP` : ""}`);

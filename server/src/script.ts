@@ -63,6 +63,8 @@ export interface ScriptHost {
   gainExp(sid: string, base: number, job: number): void;
   /** After an inventory / zeny change: send the snapshot (the room also re-checks questinfo there). */
   invChanged(sid: string): void;
+  /** Reforge a piece's random affixes (MapRoom.doReforge: the forgemaster's checks, price and roll). */
+  reforge(sid: string, uid: number, lock?: number): { ok: boolean; text?: string; affixes?: { k: string; v: number }[] };
   /** After a worn piece was removed (delitem on equipment): status + look + snapshot. */
   gearChanged(sid: string): void;
   notice(sid: string, text: string): void;
@@ -506,6 +508,8 @@ export class ScriptEngine {
       getequipweaponlv(part) { alive(); const w = engine.worn(sid, part); return w && ITEMS.get(w.itemId)!.type === "Weapon" ? ITEMS.get(w.itemId)!.weaponLevel : 0; },
       getequiparmorlv(part) { alive(); const w = engine.worn(sid, part); return w && ITEMS.get(w.itemId)!.type === "Armor" ? ITEMS.get(w.itemId)!.armorLevel : 0; },
       getequipid(part) { alive(); return engine.worn(sid, part)?.itemId ?? 0; },
+      getequipaffixes(part) { alive(); return (engine.worn(sid, part)?.affixes ?? []).map((a) => ({ ...a })); },
+      reforgeequip(part, lock) { alive(); const w = engine.worn(sid, part); return w ? host.reforge(sid, w.uid, lock) : { ok: false, text: "Nothing is worn there." }; },
       getequipname(part) { alive(); const w = engine.worn(sid, part); return w ? itemDisplayName(ITEMS.get(w.itemId)!, w.cards, w.refine) : ""; },
       getequippercentrefinery(part) { alive(); const w = engine.worn(sid, part); return w ? refinePercent(ITEMS.get(w.itemId)!, w.refine) : 0; },
       getequiprefinecost(part, info) {

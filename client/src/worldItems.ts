@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { ITEMS } from "../../shared/rules/items.ts";
 import { itemIconUrl } from "./icons2d.ts";
+import { GRADE_COLOR, itemGrade } from "../../shared/rules/grade.ts";
 import { MonsterSprite } from "./sprites.ts";
 import { AnimSprite } from "./animSprite.ts";
 import { npcLook } from "./pixelchar.ts";
@@ -43,11 +44,33 @@ function itemTexture(itemId: number) {
   return t;
 }
 
-export function addFloor(scene: THREE.Scene, labels: HTMLElement, id: string, itemId: number, x: number, y: number, z: number) {
+/** A soft beam under loot worth a look: the item's grade colour (shared/rules/grade.ts), brighter with random affixes. */
+const glowCache = new Map<string, THREE.CanvasTexture>();
+function lootGlow(colour: string) {
+  let tex = glowCache.get(colour);
+  if (!tex) {
+    const cv = document.createElement("canvas"); cv.width = 32; cv.height = 64;
+    const g = cv.getContext("2d")!, grad = g.createLinearGradient(0, 64, 0, 0);
+    grad.addColorStop(0, colour); grad.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = grad; g.globalAlpha = 0.75; g.fillRect(10, 0, 12, 64);
+    g.globalAlpha = 1; g.fillStyle = colour; g.beginPath(); g.ellipse(16, 60, 15, 4, 0, 0, Math.PI * 2); g.fill();
+    glowCache.set(colour, tex = new THREE.CanvasTexture(cv));
+  }
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.85 }));
+  sp.center.set(0.5, 0.06); sp.scale.set(0.7, 1.4, 1);
+  return sp;
+}
+
+export function addFloor(scene: THREE.Scene, labels: HTMLElement, id: string, itemId: number, x: number, y: number, z: number, affixes = 0) {
   const obj = new THREE.Sprite(new THREE.SpriteMaterial({ map: itemTexture(itemId), alphaTest: 0.3 }));
   obj.scale.set(0.55, 0.55, 1);
   obj.center.set(0.5, 0);
   obj.position.set(x, z + 0.05, y);
+  const it = ITEMS.get(itemId), grade = it ? itemGrade(it) : "common";
+  if (grade !== "common" || affixes > 0 || it?.type === "Card") {
+    const beam = lootGlow(it?.type === "Card" ? "#ffd34a" : GRADE_COLOR[grade === "common" ? "fine" : grade].light);
+    beam.position.set(0, 0, -0.01); obj.add(beam);
+  }
   obj.userData.thingId = id;
   scene.add(obj);
   pickables.push(obj);

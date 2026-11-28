@@ -16,6 +16,9 @@ export type EquipMsg = { uid: number };
 // answer picks one (CZ_REQ_ITEMCOMPOSITION: card index + equip index; clif_parse_InsertCard).
 export type UseCardMsg = { uid: number };
 export type InsertCardMsg = { card: number; equip: number };
+/** Reforge: reroll the random affixes of inventory row `uid`; `lock` = the index of one affix to keep (costs a lock material). */
+export type ReforgeMsg = { uid: number; lock?: number };
+export type ReforgeAckEvent = { uid: number; ok: boolean; text?: string; affixes?: { k: string; v: number }[] };
 export type NpcMsg = { id: string };
 export type ShopBuyMsg = { npc: string; items: { itemId: number; amount: number }[] };
 export type ShopSellMsg = { npc: string; items: { uid: number; amount: number }[] };
@@ -49,7 +52,7 @@ export type GmOp =
   | { op: "heal"; target?: string } | { op: "revive"; target?: string } | { op: "kill"; target: string }
   | { op: "kick"; target: string } | { op: "ban"; target: string; hours: number } | { op: "unban"; target: string }
   | { op: "mute"; target: string; minutes: number } | { op: "unmute"; target: string } | { op: "setgm"; target: string; on: boolean }
-  | { op: "spawn"; mobId: number; count?: number } | { op: "killmobs" };
+  | { op: "spawn"; mobId: number; count?: number; variant?: string } | { op: "killmobs" };
 export type GmStateEvent = { gm: boolean; rates: { exp: number; drop: number } };
 export type GmResultEvent = { ok: boolean; text: string };
 export type GmOnlineEvent = { players: { name: string; map: string; x: number; y: number; level: number; jobLevel: number; job: string; hp: number; maxHp: number; dead: boolean; gm: boolean; muted: boolean }[] };
@@ -82,7 +85,7 @@ export type StatusEvent = {
   weight: number; maxWeight: number;
 };
 export type TakeItemEvent = { id: string }; // clif_takeitem (area of the picker): the pickup motion of player `id`
-export type InvEvent = { items: { uid: number; itemId: number; amount: number; equip: string | null; refine: number; cards: number[] }[]; zeny: number; weight: number; maxWeight: number };
+export type InvEvent = { items: { uid: number; itemId: number; amount: number; equip: string | null; refine: number; cards: number[]; affixes?: { k: string; v: number }[] }[]; zeny: number; weight: number; maxWeight: number };
 export type ItemGetEvent = { itemId: number; amount: number; quest?: boolean }; // quest = NPC script / quest drop, not a pickup
 export type NoticeEvent = { text: string };
 // clif_mvp_effect (AREA of the winner): the MVP effect over `id` (a session id). Name = the boss that fell.
@@ -219,6 +222,8 @@ export const Msg = {
   unequip: "unequip",
   useCard: "useCard", // client -> server: CZ_REQ_ITEMCOMPOSITION_LIST
   insertCard: "insertCard", // client -> server: CZ_REQ_ITEMCOMPOSITION
+  reforge: "reforge", // client -> server: ReforgeMsg (reroll a piece's random affixes at the forgemaster)
+  reforgeAck: "reforgeAck", // server -> owner: ReforgeAckEvent
   cardList: "cardList", // server -> owner: CardListEvent
   cardAck: "cardAck", // server -> owner: CardAckEvent
   npc: "npc", // talk to / open an NPC

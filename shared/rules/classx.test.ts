@@ -76,3 +76,11 @@ test("the new gear is real: ids are free, guns shoot bullets, kunai is ammo, job
   assert.ok((dagger.jobs as string[]).includes("Ninja") && (dagger.jobs as string[]).includes("Gunslinger"));
   assert.equal(sumFx([[{ atk: [5, 2] }, 3]]).atk, 11);
 });
+
+test("retired pet items are dropped by no monster and sold by no shop", async () => {
+  const { RETIRED_ITEMS, SHOP_ITEMS } = await import("./items.ts");
+  const { MOB_BY_ID } = await import("./data.ts");
+  assert.equal(RETIRED_ITEMS.size, 18);
+  for (const m of MOB_BY_ID.values()) for (const d of [...m.drops, ...(m.mvpDrops ?? [])]) assert.ok(!RETIRED_ITEMS.has(d.item), `${m.name} drops ${d.item}`);
+  for (const id of SHOP_ITEMS) assert.ok(!RETIRED_ITEMS.has(id));
+});

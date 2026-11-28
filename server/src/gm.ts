@@ -6,6 +6,9 @@
 //
 // A GM can act on any online character in any map room (this process holds them all: `online`), on its own map, and on
 // the whole server (announcements, EXP / drop rates). Every GM action is logged with the GM's name.
+import { VARIANTS, VARIANT_BY_ID } from "../../shared/rules/variants.ts";
+import { rollAffixes } from "../../shared/rules/affix.ts";
+import { isStackable } from "../../shared/rules/shop.ts";
 import { timingSafeEqual } from "node:crypto";
 import type { Client } from "@colyseus/core";
 import { Msg, type GmAuthMsg, type GmOnlineEvent, type GmOp, type GmResultEvent, type GmStateEvent, type ItemGetEvent, type LevelUpEvent } from "../../shared/protocol.ts";
@@ -204,7 +207,8 @@ export class GmSystem {
         const b = f.room.brains.get(f.sid), p = f.room.state.players.get(f.sid)!;
         if (!item) return say(false, `No item with id ${m.itemId}.`);
         if (!b?.inv) return say(false, "That character's bag is not loaded yet.");
-        b.inv.add(item.id, amount);
+        if (isStackable(item)) b.inv.add(item.id, amount);
+        else for (let i = 0; i < Math.min(amount, 50); i++) b.inv.add(item.id, 1, rollAffixes(item)); // each piece rolls its affixes like a drop
         f.client.send(Msg.itemGet, { itemId: item.id, amount } satisfies ItemGetEvent);
         f.room.sendInv(f.client, p);
         f.room.flushStatus(f.sid);
@@ -268,15 +272,16 @@ export class GmSystem {
       case "spawn": {
         const def = MOB_BY_ID.get(Number(m.mobId)), count = num(m.count ?? 1, 1, 50)!;
         if (!def) return say(false, `No monster with id ${m.mobId}.`);
+        const variant = m.variant ? VARIANTS.find((v) => v.key === m.variant)?.id ?? 0 : 0;
         if (!me) return;
         const room = this.room;
         for (let i = 0; i < count; i++) {
           const a = (i / count) * Math.PI * 2, r = count === 1 ? 2 : 2 + (i % 3);
           let x = Math.round(me.x + Math.cos(a) * r), y = Math.round(me.y + Math.sin(a) * r);
           if (!walkable(room.map, x, y)) ({ x, y } = nearestWalkable(room.map, x, y));
-          room.addMonster(`gm${++spawnSeq}`, def.id, x, y); // no spawn line: it does not respawn
+          room.addMonster(`gm${++spawnSeq}`, def.id, x, y, variant); // no spawn line: it does not respawn
         }
-        return say(true, `Spawned ${count} × ${def.name}.`);
+        return say(true, `Spawned ${count} × ${variant ? VARIANT_BY_ID.get(variant)!.title + " " : ""}${def.name}.`);
       }
       case "killmobs": {
         let n = 0;

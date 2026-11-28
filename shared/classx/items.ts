@@ -12,6 +12,10 @@ const ammo = (id: number, name: string, sub: string, atk: number, buy: number, j
   id, name, type: "Ammo", subType: sub, buy, sell: 0, weight: 1, atk, matk: 0, def: 0, range: 0, slots: 0, weaponLevel: 0, armorLevel: 0, equipLevel: 1, equipLevelMax: 0,
   refineable: false, locations: ["Ammo"], jobs, affix: null, mobId: null, element, bonuses: [], unsupported: [], effect: null, shop: true, starter: false,
 });
+const material = (id: number, name: string, sell: number): Row => ({
+  id, name, type: "Etc", subType: null, buy: sell * 2, sell, weight: 1, atk: 0, matk: 0, def: 0, range: 0, slots: 0, weaponLevel: 0, armorLevel: 0, equipLevel: 0,
+  equipLevelMax: 0, refineable: false, locations: [], jobs: [], affix: null, mobId: null, element: "Neutral", bonuses: [], unsupported: [], effect: null, shop: false, starter: false,
+});
 const G = ["Gunslinger"], N = ["Ninja"];
 export const CLASSX_ITEMS: Row[] = [
   weapon(3101, "Six-Shooter", "Revolver", 40, 1, 1, 3000, 9, "Right_Hand", G), weapon(3102, "Peacemaker", "Revolver", 72, 2, 30, 9000, 9, "Right_Hand", G), weapon(3103, "Grand Revolver", "Revolver", 115, 3, 60, 26000, 9, "Right_Hand", G),
@@ -22,6 +26,8 @@ export const CLASSX_ITEMS: Row[] = [
   ammo(3111, "Iron Bullet", "Bullet", 15, 4, G), ammo(3112, "Silver Bullet", "Bullet", 28, 12, G, "Holy"),
   weapon(3113, "Windmill Star", "Huuma", 46, 1, 1, 3500, 5, "Right_Hand", N), weapon(3114, "Great Windmill", "Huuma", 90, 2, 40, 14000, 5, "Right_Hand", N),
   ammo(3115, "Kunai", "Kunai", 30, 5, N),
+  // materials of the monster variants (shared/rules/variants.ts), spent on equipment upgrades
+  material(3120, "Elite Essence", 120), material(3121, "Cursed Ember", 160), material(3122, "Ancient Fragment", 400),
 ];
 
 /** `jobs` of every item widened: a class that wears what the listed jobs wear. */

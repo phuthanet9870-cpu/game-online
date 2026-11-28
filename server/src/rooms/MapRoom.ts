@@ -65,7 +65,7 @@ import type { CallshopOption } from "../../../shared/rules/script.ts";
 import { ScriptEngine, type ScriptHost } from "../script.ts";
 import { SkillSystem } from "../skills.ts";
 import { BASIC_SKILL_NEED } from "../../../shared/rules/skill.ts";
-import type { SkillUpMsg, UseSkillMsg } from "../../../shared/protocol.ts";
+import type { SkillUpMsg, UseSkillMsg, ReforgeMsg, ReforgeAckEvent } from "../../../shared/protocol.ts";
 import { isInvincible, pcTargetable, setInvincibleTimer } from "../../../shared/rules/invincible.ts";
 import { config } from "../config.ts";
 import { getSession } from "../auth.ts";
@@ -77,6 +77,8 @@ import { TowerSystem } from "../tower.ts";
 import { MiniBossSystem } from "../minibosses.ts";
 import { StatusSystem } from "../status.ts";
 import { isScKey } from "../../../shared/rules/status_change.ts";
+import { VARIANT_BY_ID, rollVariant, variantHp, variantStatus } from "../../../shared/rules/variants.ts";
+import { AFFIX_CONF, gradeOf, poolFor, rollAffixes, type Affix } from "../../../shared/rules/affix.ts";
 
 export const Player = schema({
   name: t.string(),
@@ -117,6 +119,7 @@ export const Monster = schema({
   hp: t.int32(),
   maxHp: t.int32(),
   dead: t.boolean(),
+  variant: t.uint8().default(0), // shared/rules/variants.ts: 0 ordinary, 1 Elite, 2 Golden, 3 Cursed, 4 Ancient, 5 Shiny
   boss: t.uint8().default(0), // C07: 0 ordinary, 1 boss (Class Boss), 2 MVP (server/src/boss.ts BOSS_KIND): the client colours the name by it
   opt: t.string().default(""), // B14: visible status options, as Player.opt
 }, "Monster");
@@ -125,6 +128,7 @@ export type Monster = SchemaType<typeof Monster>;
 export const FloorItem = schema({
   itemId: t.uint16(),
   amount: t.uint16(),
+  ax: t.uint8().default(0), // how many random affixes the piece rolled (clients light rarer loot brighter)
   x: t.float32(),
   y: t.float32(),
 }, "FloorItem");
@@ -223,6 +227,7 @@ type Brain = {
   canUseItemAt?: number; // sd->canuseitem_tick (rules/itemuse.ts)
   invincibleUntil?: number; // sd->invincible_timer: spawn protection ends at this room-clock time (rules/invincible.ts); undefined = none
   // floor items
+  affixes?: Affix[]; // a floor item: the random affixes its piece rolled when it dropped (shared/rules/affix.ts)
   floorLoot?: FloorLoot; // flooritem_data first/second/third_get_charid + _tick (rules/drops.ts)
   expires?: number; // flooritem_lifetime clear timer
   // monsters: the mob_data / unit_data fields the AI uses (shared/rules/mobai.ts, mobAi below)
@@ -419,6 +424,7 @@ export class MapRoom extends Room<{ state: MapState }> {
     this.onGuarded("useItem", (client, m: UseItemMsg) => this.useItem(client, Number(m?.uid)));
     this.onGuarded("useCard", (client, m: UseCardMsg) => this.cardList(client, Number(m?.uid)));
     this.onGuarded("insertCard", (client, m: InsertCardMsg) => this.insertCard(client, Number(m?.card), Number(m?.equip)));
+    this.onGuarded("reforge", (client, m: ReforgeMsg) => this.reforge(client, Number(m?.uid), m?.lock === undefined ? undefined : Number(m.lock)));
     this.onGuarded("equip", (client, m: EquipMsg) => {
       const { p, b } = this.me(client);
       const st = b?.inv?.items.get(Number(m?.uid));
@@ -572,6 +578,7 @@ export class MapRoom extends Room<{ state: MapState }> {
       inv: (sid) => this.brains.get(sid)?.inv,
       gainExp: (sid, base, job) => { const p = this.state.players.get(sid); if (p) this.reward(sid, p, base, job, true); },
       invChanged: (sid) => { const c = client(sid), p = this.state.players.get(sid); if (c && p) this.sendInv(c, p); },
+      reforge: (sid, uid, lock) => this.doReforge(sid, uid, lock),
       gearChanged: (sid) => { const c = client(sid), p = this.state.players.get(sid); if (c && p) this.afterGearChange(c, p); },
       notice: (sid, text) => { const c = client(sid); if (c) this.notice(c, text); },
       setInterval: (fn, ms) => { this.clock.setInterval(fn, ms); },
@@ -774,6 +781,41 @@ export class MapRoom extends Room<{ state: MapState }> {
     if (why === null) this.sendInv(client, p);
   }
 
+  /** Reforge (shared/rules/affix.ts): at the forgemaster, pay zeny + materials to reroll a piece's random affixes; one affix may be locked
+   *  for a lock material. The roll is the server's; the answer carries the new affixes, then the bag (and status, if the piece is worn). */
+  reforge(client: Client, uid: number, lock?: number) {
+    const r = this.doReforge(client.sessionId, uid, lock);
+    client.send(Msg.reforgeAck, { uid, ...r } satisfies ReforgeAckEvent);
+  }
+  /** The reforge itself, for the message and for the forgemaster's script (ScriptHost.reforge). */
+  doReforge(sid: string, uid: number, lock?: number): { ok: boolean; text?: string; affixes?: Affix[] } {
+    const p = this.state.players.get(sid), b = this.brains.get(sid), client = this.clients.getById(sid);
+    if (!p || !b?.inv || p.dead) return { ok: false, text: "You can't do that now." };
+    if (!this.nearNpc(p, "npc_refiner")) return { ok: false, text: "Talk to the forgemaster to reforge." };
+    const st = b.inv.items.get(uid), it = st ? ITEMS.get(st.itemId) : undefined;
+    if (!st || !it || !poolFor(it).length) return { ok: false, text: "Only weapons and armour can be reforged." };
+    const count = Math.max(st.affixes?.length ?? 0, AFFIX_CONF.count[gradeOf(it)] ?? 0);
+    if (!count) return { ok: false, text: "This piece has no affixes to reforge." };
+    const c = AFFIX_CONF.reforge, mat = itemNamed(c.material)!, lockMat = itemNamed(c.lockMaterial)!;
+    const locked = lock !== undefined && Number.isInteger(lock) ? st.affixes?.[lock] : undefined;
+    if (lock !== undefined && !locked) return { ok: false, text: "That affix doesn't exist." };
+    const have = (id: number) => b.inv!.rows().filter((r) => r.itemId === id && !r.equip).reduce((n, r) => n + r.amount, 0);
+    if (b.inv.zeny < c.zeny) return { ok: false, text: `Reforging costs ${c.zeny} zeny.` };
+    if (have(mat.id) < c.materialCount) return { ok: false, text: `Reforging needs ${c.materialCount} × ${mat.name}.` };
+    if (locked && have(lockMat.id) < c.lockCount) return { ok: false, text: `Locking an affix needs ${c.lockCount} × ${lockMat.name}.` };
+    // pay (every check passed, so nothing is taken on a refusal), then roll on the server
+    b.inv.payZeny(c.zeny);
+    const take = (id: number, n: number) => { for (const r of b.inv!.rows()) { if (n <= 0) break; if (r.itemId !== id || r.equip) continue; const k = Math.min(n, r.amount); b.inv!.remove(r.uid, k); n -= k; } };
+    take(mat.id, c.materialCount);
+    if (locked) take(lockMat.id, c.lockCount);
+    const next = rollAffixes(it, Math.random, { count, keep: locked ? [locked] : [] });
+    b.inv.setAffixes(uid, next);
+    if (st.equip) this.refreshStatus(sid, p);
+    if (client) this.sendInv(client, p);
+    this.flushStatus(sid);
+    return { ok: true, affixes: next };
+  }
+
   /** floor item pickup (pc_takeitem): within PICKUP_RANGE cells, after this character's loot-priority wait
    *  (rules/drops.ts takeItemTick), then the weight/slot check. */
   pickup(id: string, p: Player, b: Brain, client: Client, range = PICKUP_RANGE, quiet = false) {
@@ -793,7 +835,7 @@ export class MapRoom extends Room<{ state: MapState }> {
     if (why) return quiet ? undefined : this.notice(client, `Can't pick up: ${why}.`);
     this.state.floor.delete(id);
     this.brains.delete(id);
-    ti.add(f.itemId, f.amount);
+    ti.add(f.itemId, f.amount, fb.affixes);
     tc?.send(Msg.itemGet, { itemId: f.itemId, amount: f.amount } satisfies ItemGetEvent);
     this.sendArea("AREA", client.sessionId, Msg.takeItem, { id: client.sessionId } satisfies TakeItemEvent); // pc_takeitem -> clif_takeitem (area)
     if (tc) this.sendInv(tc, tp);
@@ -807,26 +849,35 @@ export class MapRoom extends Room<{ state: MapState }> {
   dropMobItems(monsterId: string, mon: Monster, killerId: string, looted: readonly { itemId: number; amount: number }[]) {
     const def = MOB_BY_ID.get(mon.mobId)!, now = this.clock.currentTime;
     const owners = mobDeadLootOwners(lootOwners(this.dmgLogOf(monsterId), this.receiver), this.charIdOf(killerId));
-    const modifier = mobDropModifier(owners.map(this.receiver), def);
+    const v = VARIANT_BY_ID.get(mon.variant) ?? VARIANT_BY_ID.get(0)!;
+    const modifier = Math.round(mobDropModifier(owners.map(this.receiver), def) * v.drop);
     // mob_getdroprate's src = the killer (a monster killer only brings its LUK, no player bonuses)
     const ks = this.actor(killerId) ? this.brains.get(killerId)?.status : undefined;
     const src = ks ? { luk: ks.stats.luk, pc: this.state.players.has(killerId) ? {} : undefined } : undefined;
-    const drops = rollMobDrops(def, { modifier, src, conf: dropConf() }).filter((id) => ITEMS.get(id)?.type !== "Petegg"); // pets are gone: their eggs never drop
+    const drops = rollMobDrops(def, { modifier, src, conf: dropConf() });
+    // a variant's extras (shared/rules/variants.ts): another chance at the card, its material, a purse for the loot owner
+    if (v.card > 1) for (const d of def.drops) if (ITEMS.get(d.item)?.type === "Card" && !drops.includes(d.item) && Math.random() * 10000 < d.rate * (v.card - 1)) drops.push(d.item);
+    for (const x of v.extra ?? []) if (Math.random() * 10000 < x.rate) { const it = itemNamed(x.item); if (it) drops.push(it.id); }
+    if (v.zeny && owners.length) {
+      const sid = this.sessionOfChar(owners[0]), ob = sid ? this.brains.get(sid) : undefined, amount = v.zeny * def.level;
+      if (sid && ob?.inv) { ob.inv.gainZeny(amount); this.clients.getById(sid)?.send(Msg.zenyGet, { amount }); const op = this.state.players.get(sid); const oc = this.clients.getById(sid); if (op && oc) this.sendInv(oc, op); }
+    }
     const at = this.cell(mon), keep = looted.filter((l) => ITEMS.has(l.itemId));
     const regular = floorLoot(now, owners, def.bossType as BossType, false, DROPS), loot = floorLoot(now, owners, "None", false, DROPS);
-    dropDirections(drops.length).forEach((dir, i) => this.addFloorItem(drops[i], 1, at, dir, regular));
+    const tough = v.key === "elite" || v.key === "ancient" || def.bossType !== "None"; // a dangerous kill: a chance of one more affix
+    dropDirections(drops.length).forEach((dir, i) => this.addFloorItem(drops[i], 1, at, dir, regular, rollAffixes(ITEMS.get(drops[i])!, Math.random, { extra: tough })));
     dropDirections(keep.length, true).forEach((dir, i) => this.addFloorItem(keep[i].itemId, keep[i].amount, at, dir, loot));
   }
 
   /** map_addflooritem (map.cpp:2007) for a monster drop: cell from rules/drops.ts floorItemCell, where a cell is free per
    *  map_cell_free with type BL_CHAR|BL_PET (any player, dead or alive, or a live monster on it); clear timer
    *  flooritem_lifetime. */
-  addFloorItem(itemId: number, amount: number, at: { x: number; y: number }, dir: DropDir, loot: FloorLoot) {
+  addFloorItem(itemId: number, amount: number, at: { x: number; y: number }, dir: DropDir, loot: FloorLoot, affixes?: Affix[]) {
     const id = `f${this.nextFloorId++}`;
     const free = (x: number, y: number) => mapCellFree(this.map, x, y, (cx, cy) => walkable(this.map, cx, cy), (cx, cy) => this.charOnCell(cx, cy), DROPS);
     const { x, y } = floorItemCell(at.x, at.y, dir, free);
-    this.state.floor.set(id, new FloorItem({ itemId, amount, x, y }));
-    this.brains.set(id, { nextAttack: 0, repathAt: 0, status: undefined as never, floorLoot: loot, expires: this.clock.currentTime + DROPS.flooritem_lifetime });
+    this.state.floor.set(id, new FloorItem({ itemId, amount, x, y, ax: affixes?.length ?? 0 }));
+    this.brains.set(id, { nextAttack: 0, repathAt: 0, status: undefined as never, floorLoot: loot, expires: this.clock.currentTime + DROPS.flooritem_lifetime, ...(affixes?.length ? { affixes } : {}) });
   }
 
   /** map_count_oncell(BL_CHAR) > 0: a player (dead ones stay on the map) or a live monster stands on the cell. */
@@ -1035,7 +1086,7 @@ export class MapRoom extends Room<{ state: MapState }> {
     const mobId = slot.sd.mobId, def = MOB_BY_ID.get(mobId)!;
     const cell = mobSpawnCell(this.map, slot.sd, slot.center, rndValue);
     if (!cell) { this.clock.setTimeout(() => this.spawnMonster(id), SPAWN_CONF.mob_respawn_time); return; }
-    this.addMonster(id, mobId, cell.x, cell.y);
+    this.addMonster(id, mobId, cell.x, cell.y, rollVariant(def, Math.random()));
   }
 
   /** 2.9.0 the room closes: a roaming mini-boss standing here rises again when the map reopens (server/src/minibosses.ts). */
@@ -1051,13 +1102,13 @@ export class MapRoom extends Room<{ state: MapState }> {
 
   /** mob_spawn's body (mob.cpp:1175-1195) for monster `id` of species `mobId` standing on (x, y): idle, first random walk 4000-4999 ms
    *  after spawning. Also used for a boss's slaves (server/src/boss.ts), which have no spawn line. */
-  addMonster(id: string, mobId: number, x: number, y: number) {
-    const def = MOB_BY_ID.get(mobId)!;
-    const mon = new Monster({ mobId, x, y, dir: 0, moving: false, hp: def.hp, maxHp: def.hp, dead: false });
+  addMonster(id: string, mobId: number, x: number, y: number, variant = 0) {
+    const def = MOB_BY_ID.get(mobId)!, hp = variantHp(def.hp, variant);
+    const mon = new Monster({ mobId, x, y, dir: 0, moving: false, hp, maxHp: hp, dead: false, variant });
     this.state.monsters.set(id, mon);
     const now = this.clock.currentTime;
     this.brains.set(id, {
-      nextAttack: 0, repathAt: 0, status: mobStatus(def), dmglog: [],
+      nextAttack: 0, repathAt: 0, status: variantStatus(mobStatus(def), variant), dmglog: [],
       mobState: "idle", walkAt: nextWalkTime(now, rnd()), thinkAt: 0, lastLink: -Infinity, lastCanMove: now, loot: [],
     });
     this.boss.spawned(id, mon); // mvptomb_destroy + the MSC_SPAWN skills (a boss's first slaves)
@@ -1421,7 +1472,7 @@ export class MapRoom extends Room<{ state: MapState }> {
     if (pl && shootsAmmo(weapon.type)) this.consumeAmmo(id, pl, b); // battle.cpp:7382-7383: after the calculation, hit or miss
     const multi = pl ? this.skills.normalAttack(id, b.target!, res, weapon.type, now) : undefined; // 2.5.0 Triple / Double Attack (skills.ts)
     if (multi !== "replaced") this.delayDamage(id, b.target!, res, swingAt, now, multi);
-    if (pl && multi !== "replaced") this.status.afterHit(id, b.target!, res, undefined, 0, this.status.landAt(id, swingAt)); // bAddEff cards (skill_additional_effect)
+    if ((pl || (b.status as Status).addEff) && multi !== "replaced") this.status.afterHit(id, b.target!, res, undefined, 0, this.status.landAt(id, swingAt)); // bAddEff cards (skill_additional_effect)
     // "You can't move during your attack motion" (unit.cpp:3328-3330): attack_walk_delay -> unit_set_walkdelay(src, tick, amotion,
     // 1), never shortening a longer delay; a walk asked meanwhile starts at canmove_tick + 1 (walkToXY flag 4)
     const m = this.motions(id);
@@ -1695,15 +1746,16 @@ export class MapRoom extends Room<{ state: MapState }> {
   shareExp(monsterId: string, mobId: number) {
     const def = MOB_BY_ID.get(mobId)!;
     const { direct, parties } = partyExpAggregate(mobDeadShares(this.dmgLogOf(monsterId), def, this.receiver), party.evenExpParty);
+    const vx = VARIANT_BY_ID.get(this.state.monsters.get(monsterId)?.variant ?? 0)?.exp ?? 1; // a variant's EXP multiplier
     for (const s of direct) {
       const sid = this.sessionOfChar(s.id)!, p = this.state.players.get(sid)!, g = penalized(s, { baseLevel: p.level }, def);
-      this.reward(sid, p, g.base, g.job);
+      this.reward(sid, p, Math.round(g.base * vx), Math.round(g.job * vx));
     }
     for (const t of parties) {
       const sids = party.aliveMembersIn(this, t.partyId), each = partyExpSplit(t.base, t.job, sids.length);
       for (const sid of sids) {
         const p = this.state.players.get(sid)!, g = penalized(each, { baseLevel: p.level }, def);
-        if (g.base || g.job) this.reward(sid, p, g.base, g.job);
+        if (g.base || g.job) this.reward(sid, p, Math.round(g.base * vx), Math.round(g.job * vx));
       }
     }
   }

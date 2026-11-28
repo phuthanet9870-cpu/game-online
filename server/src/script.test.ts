@@ -29,6 +29,7 @@ function host() {
     now: () => now,
     send: (sid, type, msg) => calls.push(["send", sid, type, msg]),
     near: () => true,
+    reforge: () => ({ ok: false }),
     pc: (sid) => pcs.get(sid),
     inv: (sid) => invs.get(sid),
     gainExp: (sid, b, j) => calls.push(["gainExp", sid, b, j]),

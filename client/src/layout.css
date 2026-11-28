@@ -56,3 +56,11 @@ html #death { top: 30%; left: calc(50% - 110px); }
   html #hotbar { max-width: calc(100vw - 24px); bottom: calc(var(--dock-h) + var(--hud-gap) * 2 + 4px); }
   html #chat { bottom: var(--hud-gap); max-width: calc(100vw - 280px); }
 }
+
+/* monster variants (shared/rules/variants.ts): the name tag in the variant's colour, the rarer ones glowing */
+html .label.variant { font-weight: 800; text-shadow: 0 1px 2px #000, 0 0 6px currentColor; }
+html .label.v-shiny { animation: shiny-tag 1.6s linear infinite; }
+html .label.v-ancient, html .label.v-golden { font-size: 12px; }
+@keyframes shiny-tag { 0%, 100% { filter: hue-rotate(0deg) brightness(1.1); } 50% { filter: hue-rotate(160deg) brightness(1.4); } }
+/* random equipment affixes in the item tooltip (shared/rules/affix.ts) */
+html .affixline { color: #7fd0ff; font-weight: 600; }

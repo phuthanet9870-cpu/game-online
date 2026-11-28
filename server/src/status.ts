@@ -6,6 +6,7 @@
 //   skill.cpp   skill_additional_effect (bAddEff cards, the skills' own additional effects), skill_castend_nodamage_id (buffs, cures)
 //   mob.cpp     mobskill_use for the NPC_* attack skills (poison, blind, silence, sleep ... in mob_skill_db)
 // Statuses stay with a character across map changes (the room hands the list to the next one, in memory) and end with death (except Endure).
+import { variantStatus } from "../../shared/rules/variants.ts";
 import type { Client } from "@colyseus/core";
 import { Msg, type DevStatusMsg, type ScListEvent } from "../../shared/protocol.ts";
 import { MOB_BY_ID, type Mob, type Stats } from "../../shared/rules/data.ts";
@@ -97,7 +98,7 @@ export class StatusSystem {
     let base = this.base.get(id);
     if (!base) this.base.set(id, base = b.status);
     const def = MOB_BY_ID.get(m.mobId)!, st = scStats({ str: def.str, agi: def.agi, vit: def.vit, int: def.int, dex: def.dex, luk: def.luk }, sc);
-    const next = mobStatus({ ...def, ...st } as Mob);
+    const next = variantStatus(mobStatus({ ...def, ...st } as Mob), m.variant ?? 0); // a variant keeps its numbers under statuses
     next.walkMs = base.walkMs; // a slave keeps the speed it inherited from its master
     b.status = scApply(next, sc, false);
   }

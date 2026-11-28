@@ -6,9 +6,10 @@ import { checkAddItem, getZeny, inventoryBlank, isStackable, slotsNeeded } from 
 import { compoundBlock, withCard, MAX_SLOTS } from "../../shared/rules/cards.ts";
 import type { JobKey } from "../../shared/rules/data.ts";
 import { db } from "./db.ts";
+import { cleanAffixes, type Affix } from "../../shared/rules/affix.ts";
 
 /** One inventory row. cards = the item ids compounded into it, in slot order (inventory.card0..card3; shared/rules/cards.ts). */
-export type Stack = { uid: number; itemId: number; amount: number; equip: EquipSlot | null; refine: number; cards: number[]; petId?: number };
+export type Stack = { uid: number; itemId: number; amount: number; equip: EquipSlot | null; refine: number; cards: number[]; petId?: number; affixes?: Affix[] };
 export type InvMessage = { items: Stack[]; zeny: number; weight: number; maxWeight: number };
 
 /** One DB write chain per character, shared by every session of it (any room). Inventory rows, zeny and the status save
@@ -51,12 +52,12 @@ export class Inventory {
     await writesSettled(charId);
     const inv = new Inventory(charId);
     inv.zeny = Number(zeny);
-    const { rows } = await db.query("SELECT uid, item_id, amount, equip, refine, card0, card1, card2, card3, pet_id FROM inventory WHERE char_id = $1", [charId]);
+    const { rows } = await db.query("SELECT uid, item_id, amount, equip, refine, card0, card1, card2, card3, pet_id, affixes FROM inventory WHERE char_id = $1", [charId]);
     for (const r of rows) {
       const uid = Number(r.uid);
       inv.nextKey = Math.max(inv.nextKey, uid);
       if (!ITEMS.has(r.item_id)) continue; // item removed from the data set
-      inv.items.set(uid, { uid, itemId: r.item_id, amount: r.amount, equip: r.equip, refine: r.refine, cards: [r.card0, r.card1, r.card2, r.card3].filter((c) => c > 0), ...(r.pet_id ? { petId: Number(r.pet_id) } : {}) });
+      inv.items.set(uid, { uid, itemId: r.item_id, amount: r.amount, equip: r.equip, refine: r.refine, cards: [r.card0, r.card1, r.card2, r.card3].filter((c) => c > 0), ...(cleanAffixes(r.affixes).length ? { affixes: cleanAffixes(r.affixes) } : {}), ...(r.pet_id ? { petId: Number(r.pet_id) } : {}) });
       inv.dbUid.set(uid, uid);
     }
     return inv;
@@ -116,7 +117,7 @@ export class Inventory {
 
   /** pc_additem: merges into the existing stack or creates the row(s) now; the DB catches up on the chain.
    *  Callers check canAdd first. */
-  add(itemId: number, amount: number) {
+  add(itemId: number, amount: number, affixes?: Affix[]) {
     const item = ITEMS.get(itemId)!;
     if (isStackable(item)) {
       const s = this.findStack(itemId);
@@ -130,10 +131,11 @@ export class Inventory {
     const each = isStackable(item) ? amount : 1;
     for (let i = 0; i < slotsNeeded(item, amount); i++) {
       const key = ++this.nextKey;
-      this.items.set(key, { uid: key, itemId, amount: each, equip: null, refine: 0, cards: [] });
+      const ax = affixes?.length && !isStackable(item) ? cleanAffixes(affixes) : [];
+      this.items.set(key, { uid: key, itemId, amount: each, equip: null, refine: 0, cards: [], ...(ax.length ? { affixes: ax } : {}) });
       if (this.closed) { console.error(`[inventory] write after session end (char ${this.charId})`); continue; }
       enqueue(this.charId, async () => {
-        const res = await db.query("INSERT INTO inventory (char_id, item_id, amount) VALUES ($1, $2, $3) RETURNING uid", [this.charId, itemId, each]);
+        const res = await db.query("INSERT INTO inventory (char_id, item_id, amount, affixes) VALUES ($1, $2, $3, $4) RETURNING uid", [this.charId, itemId, each, JSON.stringify(ax)]);
         this.dbUid.set(key, Number(res.rows[0].uid));
       }).catch(() => {});
     }
@@ -211,6 +213,14 @@ export class Inventory {
     return null;
   }
 
+  /** Reforge: the row's affixes become `affixes`, written through at once. */
+  setAffixes(uid: number, affixes: Affix[]) {
+    const s = this.items.get(uid);
+    if (!s) return;
+    s.affixes = cleanAffixes(affixes);
+    this.writeRow(uid, "UPDATE inventory SET affixes = $2 WHERE uid = $1", [JSON.stringify(s.affixes)]);
+  }
+
   /** successrefitem: the row's refine becomes `level`, written through at once. */
   setRefine(uid: number, level: number) {
     const s = this.items.get(uid);
@@ -235,11 +245,11 @@ export class Inventory {
   /** Inputs for playerStatus from the worn stacks with their refine (shared/rules/items.ts gearOf: weapon, shield, DEF, refine + script bonuses). */
   gear() {
     const worn: WornItem[] = [];
-    for (const s of this.items.values()) if (s.equip) worn.push({ item: ITEMS.get(s.itemId)!, refine: s.refine, cards: s.cards });
+    for (const s of this.items.values()) if (s.equip) worn.push({ item: ITEMS.get(s.itemId)!, refine: s.refine, cards: s.cards, affixes: s.affixes });
     return gearOf(worn);
   }
 
   message(job: JobKey, str: number): InvMessage {
-    return { items: this.rows().map((s) => ({ ...s, cards: [...s.cards] })), zeny: this.zeny, weight: this.weight(), maxWeight: maxWeight(job, str) };
+    return { items: this.rows().map((s) => ({ ...s, cards: [...s.cards], ...(s.affixes ? { affixes: s.affixes.map((a) => ({ ...a })) } : {}) })), zeny: this.zeny, weight: this.weight(), maxWeight: maxWeight(job, str) };
   }
 }

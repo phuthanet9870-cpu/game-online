@@ -6,6 +6,7 @@
 //   mob.cpp  mob_ai_sub_hard_slavemob  (a slave dies with a missing master, follows it, takes the master's target)
 //   mob.cpp  mobskill_use / mob_summonslave / mobskill_delay  (NPC_SUMMONSLAVE: onspawn, then re-summon when the slaves are gone)
 //   npc.cpp  run_tomb           (the tomb's dialog: who, when, killed by)
+import { rollAffixes } from "../../shared/rules/affix.ts";
 import { Msg, type AnnounceEvent, type BossAggroEvent, type BossHopEvent, type BossImpactEvent, type BossShape, type BossTeleEvent, type BossChargeEvent, type BossFormEvent, type BossSlamEvent, type BossSpitEvent, type BossSplitEvent, type DevBossMsg, type HitEvent, type ItemGetEvent, type MvpEvent, type MvpRewardEvent } from "../../shared/protocol.ts";
 import type { Client, Delayed } from "@colyseus/core";
 import { MOB_BY_ID, type Mob } from "../../shared/rules/data.ts";
@@ -602,7 +603,7 @@ export class BossSystem {
       } else {
         // pc_additem failed: map_addflooritem under the MVP, owned by the MVP, then the 2nd and 3rd of the loot ranking
         onFloor = true;
-        room.addFloorItem(item.id, 1, room.cell(p), null, floorLoot(room.clock.currentTime, [charId, owners[1] ?? 0, owners[2] ?? 0].filter((c, i) => i === 0 || c), "Mvp", true));
+        room.addFloorItem(item.id, 1, room.cell(p), null, floorLoot(room.clock.currentTime, [charId, owners[1] ?? 0, owners[2] ?? 0].filter((c, i) => i === 0 || c), "Mvp", true), rollAffixes(item, Math.random, { extra: true }));
       }
     }
     client?.send(Msg.mvpReward, { boss: def.name, exp, itemId, floor: onFloor } satisfies MvpRewardEvent);

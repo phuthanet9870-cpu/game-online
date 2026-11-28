@@ -142,6 +142,8 @@ export class AnimSprite {
   private kind: Kind;
   private look?: Look;
   private pixelMob = false;
+  /** drawn size multiplier (an Elite / Ancient monster stands taller) */
+  size = 1;
   private lookKey = "";
   private yaw = 0;
   /** one-shot action; for attacks `impact` = seconds to the blow and `follow` = seconds the frames after it take */
@@ -341,7 +343,7 @@ export class AnimSprite {
     const breathe = !crisp && !s.moving && !s.dead && !this.act ? 1 + Math.sin(performance.now() / 600) * 0.012 : 1;
     // flinch jolt: out in 50 ms, eased back over the rest of the hurt frame, with a slight squash
     const fl = this.flinch, jolt = fl ? (fl.t < 0.05 ? fl.t / 0.05 : Math.max(0, 1 - (fl.t - 0.05) / (fl.dur - 0.05))) : 0;
-    const big = spot ? 1.15 : 1;
+    const big = (spot ? 1.15 : 1) * this.size;
     this.object.scale.set(this.cw * this.worldPerPx / breathe * (crisp ? 1 : 1 + 0.06 * jolt) * big, this.ch * this.worldPerPx * breathe * (crisp ? 1 : 1 - 0.05 * jolt) * big, 1);
     const hop = this.act?.kind === "cheer" ? Math.sin(Math.PI * Math.min(1, this.act.t / this.act.dur * 2)) * 0.35 : 0;
     this.object.center.x = 0.5 - (jolt * FLINCH_PUSH * (fl?.away?.x ?? 0)) / (this.cw * this.worldPerPx);

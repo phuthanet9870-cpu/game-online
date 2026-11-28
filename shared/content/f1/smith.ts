@@ -9,6 +9,7 @@ import type { NpcScript, Script } from "../api.ts";
 import { CALLSHOP, ET } from "../../rules/script.ts";
 import { ITEMS, type EquipSlot } from "../../rules/items.ts";
 import { REFINE_COST, NPC_MAX_REFINE } from "../../rules/refine.ts";
+import { AFFIX_CONF, affixText } from "../../rules/affix.ts";
 
 export const BRANN_ORE_SHOP = "town_ore_shop";
 export const ORES = ["Rough Ore", "Bright Ore", "Forgesteel", "Starsteel"] as const;
@@ -23,8 +24,9 @@ const comma = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); //
 export const forgemasterBrann: NpcScript = async (s) => {
   s.mes(N, "Welcome to the forge. Bring me a piece you're wearing and the right ore, and I'll temper it.", "Or tell me what else you need.");
   await s.next();
-  switch (await s.select("Refine my equipment", "Buy ore", "Purify rough stones", "Cancel")) {
+  switch (await s.select("Refine my equipment", "Buy ore", "Purify rough stones", "Reforge affixes", "Cancel")) {
     case 1: return refine(s);
+    case 4: return reforge(s);
     case 2:
       s.mes(N, "Good ore, honest prices.");
       await s.close2();
@@ -109,3 +111,25 @@ async function refine(s: Script) {
 
 /** The ore's item name for the dialog (the item id the refine table names). */
 const oreName = (id: number) => ITEMS.get(id)?.name ?? "ore";
+
+// Reforge (shared/rules/affix.ts): a worn piece's random affixes are rolled again for zeny and materials; one may be kept for a lock material.
+async function reforge(s: Script) {
+  const c = AFFIX_CONF.reforge;
+  s.mes(N, "Pieces that came off a monster carry a little of its strength. I can work that strength again, though I can't promise better.",
+    `It costs ^4d4dff${comma(c.zeny)} zeny^000000 and ^4d4dff${c.materialCount} ${c.material}^000000. To keep one trait as it is, add ^4d4dff${c.lockCount} ${c.lockMaterial}^000000.`);
+  await s.next();
+  const worn = PARTS.filter(([part]) => s.getequipisequiped(part) && s.getequipaffixes(part).length > 0 && !(part === "shield" && s.getequipid("weapon") === s.getequipid("shield")));
+  if (!worn.length) { s.mes(N, "Nothing you wear has any traits I can work. Wear the piece first."); return s.close(); }
+  const pick = await s.select(...worn.map(([part, label]) => `${label} - [${s.getequipname(part)}]`), "Cancel");
+  if (pick < 1 || pick > worn.length) return s.close();
+  const part = worn[pick - 1][0], now = s.getequipaffixes(part);
+  s.mes(N, "Its traits now:", ...now.map((a, i) => `${i + 1}. ${affixText(a)}`));
+  await s.next();
+  const choice = await s.select("Reforge everything", ...now.map((a) => `Keep ${affixText(a)}`), "Cancel");
+  if (choice < 1 || choice > now.length + 1) return s.close();
+  const r = s.reforgeequip(part, choice === 1 ? undefined : choice - 2);
+  if (!r.ok) { s.mes(N, r.text ?? "That didn't work."); return s.close(); }
+  s.emotion(ET.BEST);
+  s.mes(N, "Done. Have a look:", ...(r.affixes ?? []).map((a, i) => `${i + 1}. ${affixText(a)}`));
+  return s.close();
+}

@@ -1,19 +1,28 @@
 // Items, equipment, weight and drops — Renewal behaviour from rAthena (pc.cpp pc_additem/pc_equipitem/pc_isequip,
 // status.cpp max_weight) with default conf/battle (player.conf). Monster drops / floor items: rules/drops.ts.
 import itemsJson from "../data/items.json" with { type: "json" };
-import { JOBS, type JobKey } from "./data.ts";
+import { JOBS, MOB_BY_ID, type JobKey } from "./data.ts";
 import { FISTS, type Weapon } from "./status.ts";
 import { noBonus, scriptBonus, type EquipBonus, type ItemBonus, type LrFlag } from "./bonus.ts";
 import { refineInfo } from "./refine.ts";
 import { BATTLE_CONF } from "./battle.ts";
 import { AMMO_USERS, AMMO_WEAPONS } from "./weapons.ts";
 import { CLASSX_JOBS } from "../classx/engine.ts";
+import { affixBonuses, type Affix } from "./affix.ts";
 import { CLASSX_ITEMS, widenJobs } from "../classx/items.ts";
 
 export type Item = (typeof itemsJson)[number];
 const ALL_ITEMS = widenJobs([...itemsJson, ...(CLASSX_ITEMS as unknown as Item[])], CLASSX_JOBS);
 export const ITEMS = new Map<number, Item>(ALL_ITEMS.map((i) => [i.id, i]));
-export const SHOP_ITEMS = ALL_ITEMS.filter((i) => i.shop).map((i) => i.id);
+/** Items of systems that are not in the game (the pet system was cut): kept so characters that hold one load fine, but no monster drops
+ *  them any more and no shop sells them. */
+export const RETIRED_ITEMS: ReadonlySet<number> = new Set(ALL_ITEMS.filter((i) => i.type === "Petegg" || i.type === "Petarmor").map((i) => i.id));
+for (const m of MOB_BY_ID.values()) {
+  const mm = m as { drops: { item: number }[]; mvpDrops: { item: number }[] };
+  mm.drops = mm.drops.filter((d) => !RETIRED_ITEMS.has(d.item));
+  mm.mvpDrops = (mm.mvpDrops ?? []).filter((d) => !RETIRED_ITEMS.has(d.item));
+}
+export const SHOP_ITEMS = ALL_ITEMS.filter((i) => i.shop && !RETIRED_ITEMS.has(i.id)).map((i) => i.id);
 /** New characters: one of each starter equipment + 5 starter tonics (like the original novice kit). */
 export const STARTER_KIT = ALL_ITEMS.filter((i) => i.starter).map((i) => ({ id: i.id, amount: i.type === "Healing" ? 5 : 1 }));
 
@@ -80,7 +89,7 @@ export type GearItem = {
   refineable: boolean; element: string; locations: readonly string[]; bonuses: readonly ItemBonus[]; range?: number;
 };
 /** One worn stack: the item plus that stack's refine level (inventory.refine) and the cards compounded into it (item ids, shared/rules/cards.ts). */
-export type WornItem = { item: GearItem; refine: number; cards?: readonly number[] };
+export type WornItem = { item: GearItem; refine: number; cards?: readonly number[]; affixes?: readonly Affix[] };
 
 /** What the right-hand weapon item itself adds in status_calc_pc_sub's equipment loop, before its script runs (status.cpp:
  *  3939-3986, RENEWAL): wa->atk += item ATK; with a refine row (refine.ts refineInfo) wa->atk2 += Bonus / 100, wa->matk +=
@@ -134,7 +143,7 @@ export function gearOf(worn: Iterable<WornItem>): Gear {
   const equip = noBonus(), rhw = equip.rhw;
   let weapon = FISTS, shield = false, refinedef = 0, ammo: GearItem | undefined;
   const pieces = [...worn].map((w) => ({ ...w, eqi: eqiOf(w.item) })).filter((w) => isEquip(w.item) && w.eqi < Infinity);
-  for (const { item: it, refine, eqi } of pieces.sort((a, b) => a.eqi - b.eqi)) {
+  for (const { item: it, refine, eqi, affixes } of pieces.sort((a, b) => a.eqi - b.eqi)) {
     if (eqi === EQI.AMMO) { ammo = it; continue; }
     equip.def += it.def;
     let lr: LrFlag = "none";
@@ -146,6 +155,7 @@ export function gearOf(worn: Iterable<WornItem>): Gear {
       if (eqi === EQI.HAND_L) { shield = true; lr = "shield"; }
     }
     for (const b of it.bonuses) scriptBonus(equip, b, lr);
+    for (const b of affixBonuses(affixes)) scriptBonus(equip, b, lr); // the piece's random affixes (affix.ts), run like its own script
   }
   if (ammo) {
     equip.arrowAtk += ammo.atk;

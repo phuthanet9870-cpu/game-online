@@ -103,6 +103,10 @@ export interface Script {
   getequiparmorlv(part: EquipSlot): number;
   /** getequipid(<part>): the worn item's id, 0 when nothing is worn. */
   getequipid(part: EquipSlot): number;
+  /** The worn piece's random affixes (shared/rules/affix.ts), [] when none / nothing worn. */
+  getequipaffixes(part: EquipSlot): { k: string; v: number }[];
+  /** Reroll the worn piece's affixes (price, materials and roll are the server's); `lock` = index of one affix to keep. */
+  reforgeequip(part: EquipSlot, lock?: number): { ok: boolean; text?: string; affixes?: { k: string; v: number }[] };
   /** getequipname(<part>): the worn item's name as the bag shows it ("+4 Double Sturdy Knife [3]"), "" when nothing is worn. */
   getequipname(part: EquipSlot): string;
   /** getequippercentrefinery(<part>): the chance, in percent, that the next refine succeeds (0 = can't be refined). */

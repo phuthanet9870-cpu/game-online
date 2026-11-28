@@ -24,6 +24,7 @@ import { makeDoorGlow, makePortal, tickPortals } from "./portal.ts";
 import { lookOf } from "./themes.ts";
 import { TILE_PX, paletteOf } from "./tiles.ts";
 import { mobPx } from "./mobs2d.ts";
+import { VARIANT_BY_ID } from "../../shared/rules/variants.ts";
 import { resumeNavi, stopNavi, takeNavi } from "./navi.ts";
 import { autoOn, setAuto } from "./autoplay.ts";
 import { MOB_BY_ID, type JobKey, type Mob, type StatKey } from "../../shared/rules/data.ts";
@@ -186,7 +187,8 @@ const lookOfState = (s: any): Look => ({ gender: s.gender === "F" ? "F" : "M", h
 
 function addEntity(id: string, s: any, isMonster: boolean, isMe: boolean, isPet = false) {
   const def = isMonster || isPet ? MOB_BY_ID.get(s.mobId) : undefined;
-  const view = def ? new AnimSprite({ mob: MOB_BY_ID.get(artOf(def.id)) ?? def, tint: tintOf(def.id), height: mobPx(def) / TILE_PX })
+  const variant = isMonster ? VARIANT_BY_ID.get(s.variant ?? 0) : undefined, varied = !!variant && variant.id > 0; // shared/rules/variants.ts
+  const view = def ? new AnimSprite({ mob: MOB_BY_ID.get(artOf(def.id)) ?? def, tint: varied ? parseInt(variant!.colour.slice(1), 16) : tintOf(def.id), height: mobPx(def) / TILE_PX })
     : new AnimSprite({ look: lookOfState(s), height: 34 / TILE_PX });
   const obj: THREE.Object3D = view.object;
   obj.userData.entityId = id;
@@ -197,10 +199,12 @@ function addEntity(id: string, s: any, isMonster: boolean, isMe: boolean, isPet 
   scene.add(obj, shadow);
   let label: HTMLDivElement | undefined;
   const boss: number = isMonster ? s.boss ?? 0 : 0;
-  if (!isMonster || boss) { // RO shows monster names only on hover (tooltip); a boss / MVP keeps a coloured tag
+  if (varied) view.size = variant!.key === "ancient" ? 1.35 : variant!.key === "elite" ? 1.2 : 1;
+  if (!isMonster || boss || varied) { // RO shows monster names only on hover (tooltip); a boss / MVP keeps a coloured tag, so does a variant
     label = document.createElement("div");
-    label.className = isMe ? "label me" : boss ? `label ${boss === 2 ? "mvp" : "boss"}` : "label";
-    label.textContent = isPet ? s.name : def ? (boss ? bossTag(def.id, def.name, def.level) : def.name) : s.name; // a mini-boss's tag: floor, level, phase
+    label.className = isMe ? "label me" : boss ? `label ${boss === 2 ? "mvp" : "boss"}` : varied ? `label variant v-${variant!.key}` : "label";
+    if (varied && !boss) label.style.color = variant!.colour;
+    label.textContent = isPet ? s.name : def ? (boss ? bossTag(def.id, def.name, def.level) : varied ? `${variant!.title} ${def.name}` : def.name) : s.name; // a mini-boss's tag: floor, level, phase
     labels.append(label);
   }
   const bar = document.createElement("div");
@@ -210,7 +214,7 @@ function addEntity(id: string, s: any, isMonster: boolean, isMe: boolean, isPet 
   // HP: a monster's is in the synced state; a player's reaches only its owner (Msg.status, onStatus), so others' stay 0
   const hp = isMonster ? s.hp : isMe ? own?.hp ?? 0 : 0, maxHp = isMonster ? s.maxHp : isMe ? own?.maxHp ?? 0 : 0;
   const e: Entity = {
-    id, isMonster, pet: isPet, mob: def, name: isPet ? s.name : def ? def.name : s.name, obj, view, speed: 0, shadow, pos: obj.position.clone(), target: new THREE.Vector2(at.x, at.y), motion: newMotion(at.x, at.y, performance.now()),
+    id, isMonster, pet: isPet, mob: def, name: isPet ? s.name : def ? (varied ? `${variant!.title} ${def.name}` : def.name) : s.name, obj, view, speed: 0, shadow, pos: obj.position.clone(), target: new THREE.Vector2(at.x, at.y), motion: newMotion(at.x, at.y, performance.now()),
     dir: s.dir, moving: s.moving, dead: s.dead, sitting: !!s.sitting, hp, maxHp, label, bar, boss,
   };
   entities.set(id, e);
@@ -359,7 +363,7 @@ function enterWorld(r: Room) {
   // clif_statusupack: Msg.status already re-synced the window; a refusal says why (the classic client's "Insufficient status points" line)
   r.onMessage(Msg.statUpAck, (m: StatUpAck) => { if (!m.ok) log("system", tr("game.stat_fail")); });
   r.onMessage(Msg.takeItem, (m: TakeItemEvent) => entities.get(m.id)?.view.action("pickup")); // clif_takeitem: someone nearby (or I) picks up
-  cb.onAdd("floor", (f: any, key: unknown) => addFloor(scene, labels, String(key), f.itemId, f.x, f.y, map ? heightAt(map, f.x, f.y) : 0));
+  cb.onAdd("floor", (f: any, key: unknown) => addFloor(scene, labels, String(key), f.itemId, f.x, f.y, map ? heightAt(map, f.x, f.y) : 0, f.ax ?? 0));
   cb.onRemove("floor", (_f: any, key: unknown) => removeThing(scene, String(key)));
   cb.onAdd("npcs", (n: any, key: unknown) => { if (n.kind === "tomb" && performance.now() - joinedAt > 1500) play("sfx", "tomb_appear", 0.6); }); // C07: a tomb shows up
   cb.onAdd("npcs", (n: any, key: unknown) => addNpc(scene, labels, String(key), n.name, n.sprite, n.x, n.y, map ? heightAt(map, n.x, n.y) : 0));
