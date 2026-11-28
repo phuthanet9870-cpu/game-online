@@ -293,7 +293,7 @@ export class SkillSystem {
         if (!this.room.status.skillStatus(sid, r.target!, sk, lv)) this.fail(sid, sk.id, "failed");
         break;
       }
-      case "targetSplash": case "selfMagic": case "groundMagic": case "unit": case "trap": case "misc": case "aura": case "spheres": case "turnUndead": case "resurrect": case "pitcher": {
+      case "targetSplash": case "selfMagic": case "groundMagic": case "unit": case "trap": case "misc": case "aura": case "spheres": case "turnUndead": case "resurrect": case "pitcher": case "tp": {
         const charId = s.charId, lvOf = (k: string) => this.level(sid, k);
         this.s2.fire(use as SkillUse2, {
           sid, sk, lv, target: r.target, at, here, now, charId, learned: lvOf, enemies,
@@ -372,6 +372,10 @@ export class SkillSystem {
   /** 2.5.0, battle_calc_damage's statuses on the target (Kyrie Eleison, Lex Aeterna, Guard) before the hit is shown and lands. */
   defend(tid: string, res: { dmg: number; dmgLv: number; miss: boolean; flag: number }) {
     const st = this.room.status, k = st.entry(tid, "Kyrie"), a = st.has(tid, "Aeterna"), g = st.entry(tid, "AutoGuard"), as = st.has(tid, "Assumptio");
+    const gd = st.genericDefense(tid);
+    if (!k && !a && !g && !as && !gd?.red && !gd?.block) return;
+    if (gd?.block && (res.flag & 0x1) !== 0 && Math.random() * 100 < Math.min(100, gd.block)) { res.dmg = 0; res.miss = true; res.dmgLv = 4; return; } // a generic block
+    if (gd?.red) res.dmg = Math.max(0, res.dmg - Math.trunc((res.dmg * Math.min(90, gd.red)) / 100));
     if (!k && !a && !g && !as) return;
     const out = defend(res.dmg, (res.flag & 0x1) !== 0, { kyrie: k, aeterna: a, guard: g?.val2, assumptio: as }, Math.random() * 100);
     for (const e of out.ended) st.end(tid, e as ScKey);

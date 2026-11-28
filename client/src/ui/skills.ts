@@ -3,6 +3,7 @@
 // renders it, sends CZ_UPGRADE_SKILLLEVEL (+) and starts a use: self skills go at once, the others arm the targeting cursor
 // and the next click on a unit / cell sends CZ_USE_SKILL / CZ_USE_SKILL_TOGROUND (main.ts). Numbers in the tooltip come from
 // the same shared rules the server uses (shared/rules/skill.ts: cost, range, Renewal cast time with the owner's DEX / INT).
+import { describeSkill } from "../../../shared/classx/engine.ts";
 import { skillIconUrl } from "../icons2d.ts";
 import { SKILLS, SKILL_ID, SKILL_USE, treeChain, castTime, skillCooldown, skillCost, skillLv, skillRange, skillTree, treeRows, type Learned, type Skill } from "../../../shared/rules/skill.ts";
 import { JOBS, type JobKey } from "../../../shared/rules/data.ts";
@@ -76,7 +77,7 @@ function describe(id: number, useLv?: number): string {
   const s = SKILLS.get(id);
   if (!s) return "";
   const lv = useLv ?? learnedLv(id), shown = Math.max(1, lv), max = list.find((r) => r.id === id)?.maxLevel ?? s.maxLevel;
-  const lines = [`<b>${s.name}</b> <span class="muted">Lv ${lv} / ${max}</span>`, SKILL_TEXT[s.key] ?? ""];
+  const lines = [`<b>${s.name}</b> <span class="muted">Lv ${lv} / ${max}</span>`, SKILL_TEXT[s.key] ?? describeSkill(s.key) ?? ""];
   const kind = s.target === "Passive" ? t("skill.passive") : !SKILL_USE[s.key] ? t("ui.not_available_yet") : s.target === "Self" ? t("skill.self") : s.target === "Support" ? t("skill.ally") : s.target === "Ground" ? t("skill.ground") : t("skill.enemy");
   if (s.target === "Passive" || !SKILL_USE[s.key]) lines.push(`<span class="muted">${kind}</span>`);
   else {

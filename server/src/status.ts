@@ -16,7 +16,7 @@ import { skillCheckDue, skillRateRoll, skillStateMatches } from "../../shared/ru
 import { USW } from "../../shared/rules/walk.ts";
 import { mobStatus, type MobStatus, type Status } from "../../shared/rules/status.ts";
 import {
-  NPC_SC_SKILLS, SKILL_ON_HIT, SC_DB, SC_INTERVAL, SC_KEYS, SCSTART, SKILL_CURE, SKILL_SC, ScData, bleedingDamage, endureHit, intervalNext, isEndure, isScKey, npcSkillRate,
+  NPC_SC_SKILLS, SKILL_ON_HIT, skillOnHit, skillSc, scFx, SC_DB, SC_INTERVAL, SC_KEYS, SCSTART, SKILL_CURE, SKILL_SC, ScData, bleedingDamage, endureHit, intervalNext, isEndure, isScKey, npcSkillRate,
   poisonDamage, scApply, scAspdBonus, scOption, scRemaining, scStats, startSc, stoneDamage, undeadFlag, type ScEntry, type ScKey, type ScUnit,
 } from "../../shared/rules/status_change.ts";
 import { skillLv, type Skill } from "../../shared/rules/skill.ts";
@@ -78,6 +78,8 @@ export class StatusSystem {
     const sc = this.scs.get(id);
     return sc && sc.size ? { stats: (s: Stats) => scStats(s, sc), aspd: scAspdBonus(sc) } : undefined;
   }
+  /** What a unit's generic statuses do to damage it takes: percent ignored and chance to stop a weapon hit (shared/classx Fx red / block). */
+  genericDefense(id: string) { const f = scFx(this.scs.get(id)); return f ? { red: f.red, block: f.block } : undefined; }
   /** The calc flags that are not stats (hit, flee, DEF, MDEF, speed, element, max HP, ATK percent) on a player's status. */
   apply<S extends Status>(id: string, s: S): S { return scApply(s, this.scs.get(id), true); }
   /** Recompute a unit's status after its statuses changed (status_calc_bl). */
@@ -254,14 +256,14 @@ export class StatusSystem {
       for (const k of cure) this.end(tid, k);
       return true;
     }
-    const def = SKILL_SC[sk.key], u = this.unit(tid), sb = this.room.brains.get(sid);
+    const def = skillSc(sk.key), u = this.unit(tid), sb = this.room.brains.get(sid);
     if (!def || !u || !sb) return false;
     const isMob = this.room.state.monsters.has(tid);
     if (sk.key === "SM_PROVOKE" && (statusImmune(u) || undeadFlag(u))) return false; // provoke.cpp: boss and undead are immune
     if (sk.key === "MG_STONECURSE" && statusImmune(u)) return false;
     const pct = Math.max(0, def.rate(lv, { srcLv: this.level(sid), tgtLv: u.level, srcInt: sb.status.stats.int, srcDex: sb.status.stats.dex, tgtDex: u.stats.dex }));
     const dur1 = skillLv(sk.duration1, lv), dur2 = skillLv(sk.duration2, lv);
-    const duration = def.time === "dur1" ? dur1 : dur2;
+    const duration = def.ms ? def.ms(lv) : def.time === "dur1" ? dur1 : dur2;
     // Kyrie: val2 = the HP it absorbs, MaxHP x (lv x 2 + 10) % of the target (status.cpp SC_KYRIE)
     const val2 = def.sc === "StoneWait" ? this.srcNum(sid) : def.sc === "Kyrie" ? Math.trunc(((this.room.state.players.get(tid)?.maxHp ?? 0) * (lv * 2 + 10)) / 100) : undefined;
     const r = this.start(sid, tid, def.sc, { rate: pct * 100, val1: lv, val2, duration, delay: def.delay ? dur1 : undefined });
@@ -288,10 +290,10 @@ export class StatusSystem {
     // bAddEff: pc_bonus_addeff defaults (weapon attacks of either range at the enemy), the rate is the card's value (1/10000)
     const addEff = (sb.status as Status).addEff;
     if (addEff && (!sk || sk.type === "Weapon")) for (const [k, rate] of Object.entries(addEff)) if (rate && isScKey(k)) todo.push({ sc: k, rate, val1: 7, duration: SC_DB[k].lookup, delay: k === "StoneWait" ? 100 : undefined });
-    const sdef = sk ? SKILL_SC[sk.key] : undefined;
-    if (sk && sdef && SKILL_ON_HIT.has(sk.key)) { // Envenom, Frost Diver + the 2.5.0 on-hit statuses (status_change.ts SKILL_ON_HIT)
+    const sdef = sk ? skillSc(sk.key) : undefined;
+    if (sk && sdef && skillOnHit(sk.key)) { // Envenom, Frost Diver + the 2.5.0 on-hit statuses (status_change.ts SKILL_ON_HIT)
       const sctx = { srcLv: this.level(src), tgtLv: this.level(tgt), srcInt: sb.status.stats.int };
-      todo.push({ sc: sdef.sc, rate: sdef.rate(lv, sctx) * 100, val1: lv, duration: skillLv(sk.duration2, lv), skill: true });
+      todo.push({ sc: sdef.sc, rate: sdef.rate(lv, sctx) * 100, val1: lv, duration: sdef.ms ? sdef.ms(lv) : skillLv(sk.duration2, lv), skill: true });
     }
     if (!todo.length) return;
     this.room.timeline.add(at + 1, () => {

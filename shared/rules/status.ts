@@ -5,6 +5,7 @@ import { copyIndexed, noBonus, type EquipBonus, type HandWeapon, type IndexedBon
 import { PC_MODE } from "./mode.ts";
 import { DEX_WEAPONS } from "./weapons.ts";
 import { masteryAtk2, passive2 } from "./skills2.ts";
+import { passiveFx } from "../classx/engine.ts";
 export type { HandWeapon } from "./bonus.ts";
 
 export const MAX_ASPD = 190; // conf/battle/player.conf max_aspd
@@ -157,7 +158,8 @@ export function playerStatus(p: PlayerBase): Status {
   const jb = jobBonus(p.job, p.jobLevel);
   // status.cpp:4290-4302: base_status->str = job bonus + status.str + param_bonus + param_equip, capped to [0, USHRT_MAX]
   // status.cpp:4283 absolute modifiers from passive skills join base_status before the sum: AC_OWL +DEX
-  const sk: Stats = { str: 0, agi: 0, vit: 0, int: 0, dex: p.passives?.owl ?? 0, luk: 0 };
+  const px = passiveFx(p.passives?.extra ?? {}); // the generic passives (shared/classx)
+  const sk: Stats = { str: px.str, agi: px.agi, vit: px.vit, int: px.int, dex: (p.passives?.owl ?? 0) + px.dex, luk: px.luk };
   let s = Object.fromEntries(STAT_KEYS.map((k) => [k, cap(sk[k] + p.stats[k] + jb[k] + e.param[k], 0, USHRT_MAX)])) as Stats;
   if (p.sc?.stats) s = p.sc.stats(s); // status_calc_str / agi / int / dex / luk: status changes act on the summed stat
   const bonus = Object.fromEntries(STAT_KEYS.map((k) => [k, s[k] - p.stats[k]])) as Stats;
@@ -185,8 +187,9 @@ export function playerStatus(p: PlayerBase): Status {
   // status.cpp:4517 TF_MISS, after flee_rate: 3 per level, 4 for the Assassin line ((class_ & MAPID_UPPERMASK) == MAPID_ASSASSIN)
   flee += ((MAPID[p.job] & 0xfff) === 0x106 ? 4 : 3) * (p.passives?.miss ?? 0);
   const p2 = passive2((k) => p.passives?.extra?.[k] ?? 0); // 2.5.0: Dodge (flee), Weaponry Research (hit), Faith (max HP)
-  flee += p2.flee;
-  hit += p2.hit;
+  flee += p2.flee + px.flee;
+  hit += p2.hit + px.hit;
+  cri += px.cri * 10;
   def2 = rate(def2, e.def2Rate);
   mdef2 = rate(mdef2, e.mdef2Rate);
   cri = cap(rate(cri, e.criticalRate), SHRT_MIN, SHRT_MAX);
@@ -202,10 +205,10 @@ export function playerStatus(p: PlayerBase): Status {
   mdef2 = cap(mdef2, SHRT_MIN, SHRT_MAX);
   // e.def already holds item DEF + bDef + the refine DEF (refinedef + 50) / 100 (status.cpp:4096, items.ts gearOf);
   // 4576-4601 def_rate / mdef_rate, capped to DEFTYPE (short)
-  const def = cap(rate(e.def, e.defRate), SHRT_MIN, SHRT_MAX);
-  const mdef = cap(rate(e.mdef, e.mdefRate), SHRT_MIN, SHRT_MAX);
+  const def = cap(rate(e.def, e.defRate) + t((e.def * px.def) / 100), SHRT_MIN, SHRT_MAX);
+  const mdef = cap(rate(e.mdef, e.mdefRate) + px.mdef, SHRT_MIN, SHRT_MAX);
 
-  const amotion = pcCalcAmotion(pcBaseAspd(p.job, s, weapon, p.shield ?? false), e.aspdRate2 + (p.sc?.aspd ?? 0), e.aspdAdd);
+  const amotion = pcCalcAmotion(pcBaseAspd(p.job, s, weapon, p.shield ?? false), e.aspdRate2 + (p.sc?.aspd ?? 0) + px.aspd, e.aspdAdd);
 
   // status_calc_bl_main SCB_MATK (RENEWAL, status.cpp:6283-6359): StatusMATK + WeaponMATK -/+ variance (matk * wlv / 10; the
   // refine MATK is part of rhw.matk), overrefine min +1 / max +(overrefine - 1) (6325-6328), + EquipMATK (bMatk), then
@@ -219,14 +222,17 @@ export function playerStatus(p: PlayerBase): Status {
   const matkRate = Math.max(0, e.matkRate);
   if (matkRate !== 100) { matkMin = t((matkMin * matkRate) / 100); matkMax = t((matkMax * matkRate) / 100); }
 
+  if (px.matk) { matkMin += t((matkMin * px.matk) / 100); matkMax += t((matkMax * px.matk) / 100); }
   const trans = isTrans(p.job); // status_calc_maxhp_pc / _maxsp_pc: JOBL_UPPER x 1.25 after the VIT / INT factor
-  const maxHpV = pcMaxHpSp(job.baseHp[lv - 1], s.vit, e.paramEquip.vit, e.hp + p2.maxHp, e.hpRate, trans), maxSpV = pcMaxHpSp(job.baseSp[lv - 1], s.int, e.paramEquip.int, e.sp, e.spRate, trans);
+  let maxHpV = pcMaxHpSp(job.baseHp[lv - 1], s.vit, e.paramEquip.vit, e.hp + p2.maxHp, e.hpRate, trans), maxSpV = pcMaxHpSp(job.baseSp[lv - 1], s.int, e.paramEquip.int, e.sp, e.spRate, trans);
+  if (px.hp) maxHpV += t((maxHpV * px.hp) / 100);
+  if (px.sp) maxSpV += t((maxSpV * px.sp) / 100);
   return {
     stats: s, bonus,
     maxHp: maxHpV,
     maxSp: maxSpV,
     batk: pcBaseAtk(s, lv, DEX_WEAPONS.has(weapon.type)),
-    watk: rhw.atk + rhw.atk2, eatk: e.eatk, atkRate: e.atkRate, rhw, overrefine,
+    watk: rhw.atk + rhw.atk2, eatk: e.eatk + px.weapon, atkRate: e.atkRate + px.atk, rhw, overrefine,
     arrow: { atk: e.arrowAtk, hit: e.arrowHit, cri: e.arrowCri, ele: e.arrowEle },
     matkMin: cap(matkMin, 0, USHRT_MAX), matkMax: cap(matkMax, 0, USHRT_MAX),
     matkStatus, matkEquip: rhw.matk + e.ematk,
@@ -236,7 +242,7 @@ export function playerStatus(p: PlayerBase): Status {
     element: e.defEle, elementLevel: 1, size: "Medium", race: "Player_Human", class_: "Normal", mode: PC_MODE,
     masteryAtk: weaponMastery(weapon.type, p.passives), demonBane: p.passives?.demonbane ?? 0, beastBane: p.passives?.extra?.HT_BEASTBANE ?? 0, dpLv: p.passives?.dp ?? 0, baseLv: lv,
     sregenHp: skillRegen(p.passives?.recovery ?? 0, 5, maxHpV), sregenSp: skillRegen(p.passives?.srecovery ?? 0, 3, maxSpV),
-    hpRecovRate: Math.max(0, e.hpRecovRate), spRecovRate: Math.max(0, e.spRecovRate), // status.cpp:4670-4673: never below 0
+    hpRecovRate: Math.max(0, e.hpRecovRate + px.hpr), spRecovRate: Math.max(0, e.spRecovRate + px.spr), // status.cpp:4670-4673: never below 0
     ...battleBonus(e),
   };
 }

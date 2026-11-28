@@ -10,6 +10,8 @@ import treeJson from "../data/skill_tree.json" with { type: "json" };
 import { JOBS, type Element, type JobKey } from "./data.ts";
 import { firstJobOf, isNoviceClass, isSecondJob, isTrans } from "./status.ts";
 import { BF, type MagicSkillHit, type WeaponSkillHit } from "./battle.ts";
+import { BEHAVIOR, DROP, KIND, PASSIVE_KEYS, ratioOf } from "../classx/engine.ts";
+import { CLASSX_ROWS, CLASSX_TREES } from "../classx/build.ts";
 import { NEVER_MISS_2, PASSIVE_IMPL_2, SKILL_USE_2, hits2, ratio2, type Ctx2, type SkillUse2 } from "./skills2.ts";
 
 /** One skills.json row (tools/rathena/import.ts writes it; per-level arrays are 1..maxLevel). */
@@ -21,12 +23,18 @@ export type Skill = {
   sp: number[]; hp: number[]; zeny: number[]; hpRateCost: number[]; spRateCost: number[];
   weapons: string[] | null; ammo: string[] | null; ammoAmount: number[]; status: string | null;
 };
-const ROWS = skillsJson as unknown as Skill[];
+const ROWS = [...(skillsJson as unknown as Skill[]), ...CLASSX_ROWS];
 export const SKILLS = new Map<number, Skill>(ROWS.map((s) => [s.id, s]));
 /** rAthena's internal skill names (SM_BASH ...) -> id: code reads skills by these keys, players only ever see `name`. */
 export const SKILL_ID: Record<string, number> = Object.fromEntries(ROWS.map((s) => [s.key, s.id]));
 type TreeRow = { id: number; maxLevel: number; requires: { id: number; level: number }[]; baseLevel: number; jobLevel: number };
-const TREES = treeJson as Record<string, { inherit: string[]; tree: TreeRow[] }>;
+const TREES = { ...(treeJson as Record<string, { inherit: string[]; tree: TreeRow[] }>), ...CLASSX_TREES };
+/** Skills cut from the game (classx/existing.ts DROP): out of every tree, and a prerequisite on one no longer counts. */
+const DROP_IDS = new Set(ROWS.filter((r) => DROP.has(r.key)).map((r) => r.id));
+for (const t of Object.values(TREES)) {
+  t.tree = t.tree.filter((r) => !DROP_IDS.has(r.id));
+  for (const r of t.tree) r.requires = r.requires.filter((q) => !DROP_IDS.has(q.id));
+}
 
 /** conf/battle/skill.conf + player.conf defaults (battle.cpp battle_data[]). */
 export const SKILL_CONF = {
@@ -278,17 +286,27 @@ export const SKILL_USE: Record<string, SkillUse> = {
   MG_FROSTDIVER: { kind: "magic" },
   ...SKILL_USE_2, // 2.5.0: the 2nd-job and transcendent skills (shared/rules/skills2.ts)
 };
-export const skillUse = (s: Skill): SkillUse | undefined => SKILL_USE[s.key];
+/** The generic engine's use of a skill (classx/engine.ts): one of the kinds above by the behaviour type. */
+function genericUse(s: Skill): SkillUse | undefined {
+  const b = BEHAVIOR.get(s.key);
+  if (!b || b.t === "pas") return undefined;
+  switch (b.t) {
+    case "magTgt": return { kind: "targetSplash", magic: true };
+    case "buff": case "dbf": return { kind: "status" };
+    default: return { kind: KIND[b.t] } as SkillUse;
+  }
+}
+export const skillUse = (s: Skill): SkillUse | undefined => SKILL_USE[s.key] ?? genericUse(s);
 
 /** Passive skills whose effect is wired (status.ts Passives / battle.ts passiveMastery + passiveDefense / items.ts weight + heal):
  *  every other passive is "coming later" like an unimplemented active skill. Our own gate (rAthena has every skill working). */
 export const PASSIVE_IMPL: ReadonlySet<string> = new Set([
   "NV_BASIC", "AC_OWL", "AC_VULTURE", "TF_MISS", "SM_SWORD", "SM_TWOHAND", "SM_RECOVERY", "MG_SRECOVERY", "AL_DP", "AL_DEMONBANE",
-  ...PASSIVE_IMPL_2,
+  ...PASSIVE_IMPL_2, ...PASSIVE_KEYS,
 ]);
 /** A skill that does something now: one the server can run, or a passive with its hook. Anything else is locked in the window,
  *  takes no skill points and has its spent points refunded at login (refundUnready). */
-export const skillReady = (id: number) => { const s = SKILLS.get(id); return !!s && (s.key in SKILL_USE || PASSIVE_IMPL.has(s.key)); };
+export const skillReady = (id: number) => { const s = SKILLS.get(id); return !!s && !DROP_IDS.has(id) && (!!skillUse(s) || PASSIVE_IMPL.has(s.key)); };
 /** 2.5.0: skills whose effect isn't modelled yet but that some working skill needs as a prerequisite (skill_tree.yml Requires, any
  *  job): they take points like rAthena (so the tree stays the original one), stay flagged "later" and can't be used. */
 export const PREREQ_ONLY: ReadonlySet<number> = (() => {
@@ -304,7 +322,7 @@ export const PREREQ_ONLY: ReadonlySet<number> = (() => {
  *  skill point spent and pc_calc_skilltree_normalize_job keeps the first job's tree until change_level_2nd - 1 points are in it, which a
  *  Peddler (most of its tree not modelled yet) could never reach otherwise. A skill whose effect isn't modelled stays flagged "later"
  *  (the window says "Effect later") and can't be used; PREREQ_ONLY lists the ones a working skill needs. */
-export const skillLearnable = (id: number) => SKILLS.has(id);
+export const skillLearnable = (id: number) => SKILLS.has(id) && !DROP_IDS.has(id);
 /** Levels spent in skills that can't take points (pc_resetskill for those ids only): id -> points to hand back. */
 export function refundUnready(learned: Learned): Record<number, number> {
   const out: Record<number, number> = {};
@@ -316,7 +334,7 @@ export function passivesOf(lv: (key: string) => number) {
   return {
     owl: lv("AC_OWL"), vulture: lv("AC_VULTURE"), miss: lv("TF_MISS"), sword: lv("SM_SWORD"), twohand: lv("SM_TWOHAND"),
     recovery: lv("SM_RECOVERY"), srecovery: lv("MG_SRECOVERY"), dp: lv("AL_DP"), demonbane: lv("AL_DEMONBANE"),
-    extra: Object.fromEntries(PASSIVE_IMPL_2.map((k) => [k, lv(k)]).filter(([, v]) => (v as number) > 0)) as Record<string, number>, // 2.5.0 passives
+    extra: Object.fromEntries([...PASSIVE_IMPL_2, ...PASSIVE_KEYS].map((k) => [k, lv(k)]).filter(([, v]) => (v as number) > 0)) as Record<string, number>, // 2.5.0 passives
   };
 }
 /** status.cpp:3678: MC_INCCARRY adds 2000 max weight per level. */
@@ -343,7 +361,7 @@ export function skillRatio(key: string, lv: number, ctx: RatioCtx = {}) {
     case "AC_DOUBLE": return 100 + 10 * (lv - 1);
     case "AC_SHOWER": return 100 + 50 + 10 * lv;
     case "MC_MAMMONITE": return 100 + 50 * lv;
-    default: return ratio2(key, lv, ctx) ?? 100;
+    default: return ratio2(key, lv, ctx) ?? ratioOf(key, lv) ?? 100;
   }
 }
 /** modifyHitRate of the skill (applied to the final hitrate before the cap): SM_BASH +5 % x lv (bash.cpp), SM_MAGNUM +10 % x lv

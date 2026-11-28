@@ -203,18 +203,16 @@ test("passive skills: Blade/Greatblade Practice, Fiendbane, Sacred Ward, Second 
   assert.equal(skillRegen(0, 5, 1000), 0);
 });
 
-test("skills that do nothing yet are flagged later but take points like rAthena (2.5.0); only unknown ids are refunded", () => {
+test("every skill of every tree works; cut skills take no points and are refunded", () => {
   assert.equal(skillReady(SKILL_ID.SM_BASH), true);
-  assert.equal(skillReady(SKILL_ID.SM_SWORD), true);
-  assert.equal(skillReady(SKILL_ID.MG_FIREWALL), false); // B14 unlocked Provoke / Endure / Blessing ... (status_change.ts); Fire Wall, Warp ... later
-  assert.equal(skillReady(SKILL_ID.SM_PROVOKE), true);
-  assert.equal(skillReady(SKILL_ID.AL_WARP), false);
-  // 2.5.0: a prerequisite of a working skill takes points (Ruwach -> Lex Divina) but stays "later"
-  assert.equal(skillReady(SKILL_ID.AL_RUWACH), false); assert.equal(skillLearnable(SKILL_ID.AL_RUWACH), true); assert.equal(skillLearnable(SKILL_ID.MG_FIREWALL), true);
+  assert.equal(skillReady(SKILL_ID.MG_FIREWALL), true);
+  assert.equal(skillReady(SKILL_ID.AL_RUWACH), true);
+  assert.equal(skillReady(SKILL_ID.AL_WARP), false); // cut from the game
+  assert.equal(skillLearnable(SKILL_ID.AL_WARP), false);
   const learned = { [SKILL_ID.NV_BASIC]: 9 };
-  assert.equal(skillUpBlock("Merchant", learned, 10, 10, 3, SKILL_ID.MC_INCCARRY), null); // 2.5.0: every tree skill takes points (effect later)
+  assert.equal(skillUpBlock("Merchant", learned, 10, 10, 3, SKILL_ID.MC_INCCARRY), null);
   assert.equal(skillUpBlock("Swordman", learned, 10, 10, 3, SKILL_ID.SM_SWORD), null);
   const e = skillList("Merchant", learned, 10, 10, 3).find((x) => x.id === SKILL_ID.MC_INCCARRY)!;
-  assert.equal(e.later, true); assert.equal(e.upgradable, true);
-  assert.deepEqual(refundUnready({ ...learned, [SKILL_ID.MG_FIREWALL]: 3, [SKILL_ID.AL_WARP]: 2, [SKILL_ID.AL_RUWACH]: 1, [SKILL_ID.SM_BASH]: 5, 99999: 2 }), { 99999: 2 }); // only unknown ids
+  assert.equal(e.later, undefined); assert.equal(e.upgradable, true);
+  assert.deepEqual(refundUnready({ ...learned, [SKILL_ID.MG_FIREWALL]: 3, [SKILL_ID.AL_WARP]: 2, [SKILL_ID.SM_BASH]: 5, 99999: 2 }), { [SKILL_ID.AL_WARP]: 2, 99999: 2 });
 });

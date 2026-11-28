@@ -8,7 +8,8 @@ import { ATK, BF, type AttackResult } from "../../shared/rules/battle.ts";
 import { inSplash, skillLv, type Skill } from "../../shared/rules/skill.ts";
 import { ITEMS } from "../../shared/rules/items.ts";
 import { MAX_SPHERES, PITCHER_POTION, SPHERE_COST, pitcherHeal, resurrectPercent, blitzDamage, sanctuaryHeal, trapDamage, turnUndeadChance, turnUndeadDamage, type SkillUse2 } from "../../shared/rules/skills2.ts";
-import { SKILL_SC } from "../../shared/rules/status_change.ts";
+import { skillSc } from "../../shared/rules/status_change.ts";
+import { walkable } from "../../shared/map.ts";
 import { MD } from "../../shared/rules/mode.ts";
 import * as party from "./party.ts";
 import type { MapRoom } from "./rooms/MapRoom.ts";
@@ -82,16 +83,26 @@ export class Skills2 {
       }
       case "aura": { // a self / party buff: the caster, then the party members within the splash range (-1: anyone of the party on screen)
         room.sendArea("AREA", sid, Msg.skillUse, ev);
-        const def = SKILL_SC[sk.key];
+        const def = skillSc(sk.key);
         if (!def) break;
         const r = skillLv(sk.splash, lv) < 0 ? 14 : Math.max(1, skillLv(sk.splash, lv));
         const pid = party.partyIdOf(f.charId);
-        const dur = def.time === "dur1" ? skillLv(sk.duration1, lv) : skillLv(sk.duration2, lv);
+        const dur = def.ms ? def.ms(lv) : def.time === "dur1" ? skillLv(sk.duration1, lv) : skillLv(sk.duration2, lv);
         const mates = pid === undefined ? [] : party.aliveMembersIn(room, pid).filter((m) => m !== sid);
         room.status.start(sid, sid, def.sc, { rate: 10000, val1: lv, val2: 1, duration: dur });
         for (const m of mates) {
           const p = room.state.players.get(m);
           if (p && inSplash(f.here.x, f.here.y, r, Math.round(p.x), Math.round(p.y))) room.status.start(sid, m, def.sc, { rate: 10000, val1: lv, val2: 0, duration: dur });
+        }
+        break;
+      }
+      case "tp": { // a hop to a random walkable cell within 9 cells of the caster (Shadow Leap and kin)
+        room.sendArea("AREA", sid, Msg.skillUse, ev);
+        const p = room.state.players.get(sid), b = room.brains.get(sid);
+        if (!p || !b) break;
+        for (let i = 0; i < 40; i++) {
+          const c = { x: f.here.x + Math.floor(Math.random() * 19) - 9, y: f.here.y + Math.floor(Math.random() * 19) - 9 };
+          if (walkable(room.map, c.x, c.y)) { room.setPos(sid, p, b, { map: room.mapName, ...c }); break; }
         }
         break;
       }

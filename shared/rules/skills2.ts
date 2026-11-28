@@ -16,7 +16,8 @@ export type SkillUse2 =
   | { kind: "spheres" } // MO_CALLSPIRITS: one more spirit sphere (up to the skill level)
   | { kind: "turnUndead" } // PR_TURNUNDEAD: instant kill chance on an Undead, else holy damage
   | { kind: "resurrect" } // ALL_RESURRECTION: a dead player stands up again (status_revive)
-  | { kind: "pitcher" }; // AM_POTIONPITCHER: throws a potion of the skill level at an ally (aidpotion.cpp)
+  | { kind: "pitcher" }
+  | { kind: "tp" }; // a short hop to a random cell of the map // AM_POTIONPITCHER: throws a potion of the skill level at an ally (aidpotion.cpp)
 
 export const SKILL_USE_2: Record<string, SkillUse2 | { kind: "weapon" } | { kind: "magic" } | { kind: "selfSplash" } | { kind: "status" }> = {
   // Lancer (Knight)

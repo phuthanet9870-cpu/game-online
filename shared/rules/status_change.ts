@@ -11,8 +11,10 @@
 import { STAT_KEYS, type Element, type Stats } from "./data.ts";
 import { MD } from "./mode.ts";
 import type { Status } from "./status.ts";
+import { BEHAVIOR, GFX, GENERIC_PREFIX, sumFx, type FxSum } from "../classx/engine.ts";
+import { val, type Fx } from "../classx/types.ts";
 
-export const SC_KEYS = [
+const BASE_SC = [
   "Stone", "StoneWait", "Freeze", "Stun", "Sleep", "Poison", "Curse", "Silence", "Blind", "Bleeding",
   "Provoke", "Endure", "Concentrate", "Angelus", "Blessing", "IncreaseAgi", "DecreaseAgi",
   // 2.5.0: the 2nd-job and transcendent buffs / debuffs (status.yml names)
@@ -21,7 +23,9 @@ export const SC_KEYS = [
   "WindWalk", "Concentration", "AuraBlade", "StripWeapon", "StripArmor", "Ankle", "Kyrie", "Aeterna", "AutoGuard", "Sight",
   "Whistle", "Fortune", "AppleIdun", "MagicPower", "Assumptio",
 ] as const;
-export type ScKey = (typeof SC_KEYS)[number];
+/** The statuses of the table below, plus one generic status per buff / debuff skill of the generic engine (shared/classx): `G_<skill key>`. */
+export type ScKey = (typeof BASE_SC)[number] | `G_${string}`;
+export const SC_KEYS: readonly ScKey[] = [...BASE_SC, ...([...GFX.keys()] as ScKey[])];
 export const isScKey = (k: string): k is ScKey => (SC_KEYS as readonly string[]).includes(k);
 
 /** e_status_change_start_flags (status.hpp), the ones used here. */
@@ -37,7 +41,7 @@ type ScDef = {
   debuff?: true; // Flags: Debuff
   fail?: readonly ScKey[]; endOnStart?: readonly ScKey[]; endReturn?: readonly ScKey[];
 };
-export const SC_DB: Readonly<Record<ScKey, ScDef>> = {
+const BASE_DB: Readonly<Record<(typeof BASE_SC)[number], ScDef>> = {
   Stone: { lookup: 17000, opt1: true, noMove: true, noCast: true, noAttack: true, bossResist: true, removeOnDamaged: true, stopAttacking: true, stopCasting: true,
     fail: ["Freeze", "Stun", "Sleep"], endReturn: ["StoneWait", "Stone"] },
   StoneWait: { lookup: 17000, opt1: true, noCast: true, noAttack: true, bossResist: true, stopAttacking: true,
@@ -75,6 +79,14 @@ export const SC_DB: Readonly<Record<ScKey, ScDef>> = {
   Kyrie: { lookup: 0 }, Aeterna: { lookup: 0, debuff: true }, AutoGuard: { lookup: 0 }, Sight: { lookup: 0 },
   Whistle: { lookup: 0 }, Fortune: { lookup: 0 }, AppleIdun: { lookup: 0 }, MagicPower: { lookup: 0 }, Assumptio: { lookup: 0 },
 };
+export const SC_DB: Readonly<Record<string, ScDef>> = { ...BASE_DB, ...Object.fromEntries([...GFX].map(([k, g]) => [k, g.debuff ? { lookup: 0, debuff: true as const } : { lookup: 0 }])) };
+/** The numbers a unit's generic statuses add up to (a status entry's val1 is the skill level). */
+export function scFx(sc: ScData | undefined): FxSum | undefined {
+  if (!sc || sc.size === 0) return undefined;
+  const list: [Fx, number][] = [];
+  for (const e of sc.map.values()) { const g = GFX.get(e.type); if (g) list.push([g.fx, e.val1]); }
+  return list.length ? sumFx(list) : undefined;
+}
 /** The endow statuses -> the weapon element they give (status_calc_attack_element: SC_FIREWEAPON .. SC_ENCPOISON, status.cpp). */
 export const ENDOW_ELEMENT: Partial<Record<ScKey, Element>> = {
   FireWeapon: "Fire", WaterWeapon: "Water", WindWeapon: "Wind", EarthWeapon: "Earth", Aspersio: "Holy", EncPoison: "Poison",
@@ -83,7 +95,7 @@ const OPT1: readonly ScKey[] = SC_KEYS.filter((k) => SC_DB[k].opt1);
 /** status_get_sc_interval (status.cpp:9585): statuses that act every N ms for their whole duration. */
 export const SC_INTERVAL: Partial<Record<ScKey, number>> = { Poison: 1000, Stone: 5000, Bleeding: 10000 };
 /** Statuses that are bad for their carrier (the client draws them red). */
-export const isDebuff = (k: ScKey) => !!SC_DB[k].opt1 || !!SC_DB[k].debuff || ["Poison", "Curse", "Silence", "Blind", "Bleeding", "Provoke", "DecreaseAgi"].includes(k);
+export const isDebuff = (k: ScKey) => !!SC_DB[k]?.opt1 || !!SC_DB[k]?.debuff || ["Poison", "Curse", "Silence", "Blind", "Bleeding", "Provoke", "DecreaseAgi"].includes(k);
 
 /** struct status_change_entry: val1 is the skill level (or 7 for an item / card), val2..val4 per status; `due` = when its timer fires
  *  (the end for a plain status, the next interval step for Poison / Stone / Bleeding), Infinity = no timer. */
@@ -309,6 +321,8 @@ export function scStats(s: Stats, sc: ScData | undefined): Stats {
   if (dec) o.agi -= dec.val2;
   if (sc.has("Curse")) o.luk = 0;
   if (sc.has("Gloria")) o.luk += 30; // status_calc_luk
+  const gx = scFx(sc);
+  if (gx) for (const k of STAT_KEYS) o[k] += gx[k];
   const sa = sc.get("StripArmor");
   if (sa?.val2) o.vit -= t((o.vit * sa.val2) / 100); // status_calc_vit (non-players)
   for (const k of STAT_KEYS) o[k] = Math.min(65535, Math.max(0, o[k]));
@@ -323,7 +337,7 @@ export function scAspdBonus(sc: ScData | undefined) {
   if (sc.has("TwoHandQuicken") || sc.has("SpearQuicken") || sc.has("Adrenaline")) fixed = 7;
   const ac = sc.get("AssnCros");
   if (ac && fixed < ac.val2) fixed = ac.val2;
-  return (sc.get("IncreaseAgi")?.val1 ?? 0) + fixed;
+  return (sc.get("IncreaseAgi")?.val1 ?? 0) + fixed + (scFx(sc)?.aspd ?? 0);
 }
 /** The attack percent of battle_get_atkpercent (battle.cpp:4355): 100, Curse -25, Provoke + val2. Renewal: the base of the skill ratio. */
 export function scAtkPercent(sc: ScData | undefined): number {
@@ -336,6 +350,7 @@ export function scAtkPercent(sc: ScData | undefined): number {
   if (ot) p += ot.val3; // battle_get_atkpercent: SC_OVERTHRUST val3
   const lc = sc.get("Concentration");
   if (lc) p += lc.val2; // SC_CONCENTRATION val2 (Renewal: 5 + 2 x lv)
+  p += scFx(sc)?.atk ?? 0;
   return Math.min(65535, Math.max(0, p));
 }
 const SHRT_MAX = 32767, MIN_WALK_SPEED = 20, MAX_WALK_SPEED = 1000;
@@ -404,6 +419,20 @@ export function scApply<S extends Status>(s: S, sc: ScData | undefined, isPlayer
   const ab = sc.get("AuraBlade");
   if (ab) o.auraBlade = ab.val2;
   if (sc.has("WindWalk")) { const rate = 100 - 2 * ww!.val1; o.walkMs = Math.max(MIN_WALK_SPEED, t((o.walkMs * rate) / 100)); } // status_calc_speed haste
+  const gx = scFx(sc);
+  if (gx) { // the generic buffs / debuffs of shared/classx
+    const pc = (v: number, p: number) => t((v * p) / 100);
+    o.hit = cap1(o.hit + gx.hit); o.flee = cap1(o.flee + gx.flee); o.cri = Math.max(0, o.cri + gx.cri * 10);
+    o.def = Math.max(0, o.def + pc(o.def, gx.def)); o.def2 = Math.max(0, o.def2 + pc(o.def2, gx.def)); o.mdef = Math.max(0, o.mdef + gx.mdef);
+    if (gx.hp) o.maxHp = Math.max(1, o.maxHp + pc(o.maxHp, gx.hp));
+    if (gx.sp) o.maxSp = Math.max(1, o.maxSp + pc(o.maxSp, gx.sp));
+    if (gx.matk) { o.matkMin += pc(o.matkMin, gx.matk); o.matkMax += pc(o.matkMax, gx.matk); }
+    if (gx.weapon) o.eatk += gx.weapon;
+    if (gx.ms) o.walkMs = Math.min(MAX_WALK_SPEED, Math.max(MIN_WALK_SPEED, t((o.walkMs * (100 - Math.max(-60, Math.min(60, gx.ms)))) / 100)));
+    if (gx.hpr) o.hpRecovRate = (o.hpRecovRate ?? 100) + gx.hpr;
+    if (gx.spr) o.spRecovRate = (o.spRecovRate ?? 100) + gx.spr;
+    if (gx.ele) o.rhw = { ...o.rhw, ele: gx.ele };
+  }
   const o1 = sc.opt1();
   if (o1 && o1 !== "StoneWait") o.noFlee = true;
   return o;
@@ -438,6 +467,8 @@ export type SkillSc = {
   rate: (lv: number, a: { srcLv: number; tgtLv: number; srcInt: number; srcDex?: number; tgtDex?: number }) => number;
   /** the duration source: skill_get_time (Duration1) or skill_get_time2 (Duration2); `delay` = Duration1 as StoneWait's delay. */
   time: "dur1" | "dur2"; delay?: "dur1";
+  /** a duration of our own (ms) for statuses whose skill row has none */
+  ms?: (lv: number) => number;
 };
 export const SKILL_SC: Readonly<Record<string, SkillSc>> = {
   SM_PROVOKE: { sc: "Provoke", time: "dur1", rate: (lv, a) => 70 + 3 * lv + a.srcLv - a.tgtLv }, // provoke.cpp: 70% + 3% x lv + src level - target level
@@ -479,6 +510,18 @@ export const SKILL_SC: Readonly<Record<string, SkillSc>> = {
   WZ_FROSTNOVA: { sc: "Freeze", time: "dur2", rate: (lv) => 5 * lv + 33 }, WZ_METEOR: { sc: "Stun", time: "dur2", rate: (lv) => 3 * lv },
   BS_HAMMERFALL: { sc: "Stun", time: "dur2", rate: (lv) => 20 + 10 * lv }, WZ_STORMGUST: { sc: "Freeze", time: "dur2", rate: (lv) => 65 - 5 * lv },
 };
+/** The status row of a skill: the hand-written ones above, else the generic engine's (a buff / aura / debuff, or the status a hit leaves). */
+export function skillSc(key: string): SkillSc | undefined {
+  const hand = SKILL_SC[key];
+  if (hand) return hand;
+  const b = BEHAVIOR.get(key);
+  if (!b) return undefined;
+  if (b.st) { const [sc, a, per, ms] = b.st; return { sc: sc as ScKey, time: "dur2", ms: () => ms, rate: (lv) => a + per * lv }; }
+  if (b.t === "buff" || b.t === "aura" || b.t === "dbf") return { sc: (GENERIC_PREFIX + key) as ScKey, time: "dur1", ms: b.d ? (lv) => val(b.d, lv) : undefined, rate: () => 100 };
+  return undefined;
+}
+/** Does a hit of this skill roll its status (a damage skill with a status, as opposed to a cast that applies one)? */
+export const skillOnHit = (key: string) => SKILL_ON_HIT.has(key) || (() => { const b = BEHAVIOR.get(key); return !!b && !!b.st && b.t !== "dbf"; })();
 /** The damage skills whose SKILL_SC row is rolled when the hit connects (skill_additional_effect), not cast as a status. */
 export const SKILL_ON_HIT: ReadonlySet<string> = new Set(["TF_POISON", "MG_FROSTDIVER", "CR_SHIELDCHARGE", "CR_HOLYCROSS", "AS_SONICBLOW", "RG_RAID",
   "WZ_FROSTNOVA", "WZ_METEOR", "BS_HAMMERFALL", "WZ_STORMGUST"]);
