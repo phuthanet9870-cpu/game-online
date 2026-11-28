@@ -25,6 +25,7 @@ import { lookOf } from "./themes.ts";
 import { TILE_PX, paletteOf } from "./tiles.ts";
 import { mobPx } from "./mobs2d.ts";
 import { recordHit } from "./ui/dps.ts";
+import { bindBook } from "./ui/book.ts";
 import { VARIANT_BY_ID } from "../../shared/rules/variants.ts";
 import { resumeNavi, stopNavi, takeNavi } from "./navi.ts";
 import { autoOn, setAuto } from "./autoplay.ts";
@@ -400,6 +401,7 @@ function enterWorld(r: Room) {
   bindDialog(r, camera); // NPC dialog / menu / cutin (ui/dialog.ts); the camera lets a new dialog stay off the player and the NPC
   bindAutoUi(r); // C12 auto quest / auto battle (autoplay.ts): ordinary intents only
   bindParty(r); // party / friends / whispers (ui/party.ts)
+  bindBook(r); // the Adventure Book (ui/book.ts)
   setPartyMap(mapName);
   bindEmotions(r); // NPC scripts in the world: emotion bubbles and npctalk lines (ui/emotion.ts)
   bindTower(r); // 2.7.0 floor guardian hint panel (ui/tower.ts)

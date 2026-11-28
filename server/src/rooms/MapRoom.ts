@@ -76,6 +76,7 @@ import { BossSystem } from "../boss.ts";
 import { TowerSystem } from "../tower.ts";
 import { MiniBossSystem } from "../minibosses.ts";
 import { StatusSystem } from "../status.ts";
+import { CollectionSystem } from "../collection.ts";
 import { isScKey } from "../../../shared/rules/status_change.ts";
 import { VARIANT_BY_ID, rollVariant, variantHp, variantStatus } from "../../../shared/rules/variants.ts";
 import { statResetPoints } from "../../../shared/rules/reset.ts";
@@ -302,6 +303,7 @@ export class MapRoom extends Room<{ state: MapState }> {
   npcEngine!: ScriptEngine;
   /** Skills: learning, casting, delays, the job change (server/src/skills.ts). */
   skills: SkillSystem = new SkillSystem(this);
+  collection = new CollectionSystem(this); // the Adventure Book (server/src/collection.ts)
   /** Bosses: MVP rewards, tombs, slaves (server/src/boss.ts). */
   boss: BossSystem = new BossSystem(this);
   /** 2.7.0 the Tower rule on a floor guardian's map (server/src/tower.ts); it reads the room's map when asked. */
@@ -426,6 +428,7 @@ export class MapRoom extends Room<{ state: MapState }> {
     this.onGuarded("useItem", (client, m: UseItemMsg) => this.useItem(client, Number(m?.uid)));
     this.onGuarded("useCard", (client, m: UseCardMsg) => this.cardList(client, Number(m?.uid)));
     this.onGuarded("insertCard", (client, m: InsertCardMsg) => this.insertCard(client, Number(m?.card), Number(m?.equip)));
+    this.onGuarded("bookClaim", (client, m: { id?: string }) => this.collection.claim(client, String(m?.id ?? "")));
     this.onGuarded("reforge", (client, m: ReforgeMsg) => this.reforge(client, Number(m?.uid), m?.lock === undefined ? undefined : Number(m.lock)));
     this.onGuarded("equip", (client, m: EquipMsg) => {
       const { p, b } = this.me(client);
@@ -875,6 +878,7 @@ export class MapRoom extends Room<{ state: MapState }> {
     this.state.floor.delete(id);
     this.brains.delete(id);
     ti.add(f.itemId, f.amount, fb.affixes);
+    if (item.type === "Card") this.collection.record(to, "card", f.itemId); // the Adventure Book
     tc?.send(Msg.itemGet, { itemId: f.itemId, amount: f.amount } satisfies ItemGetEvent);
     this.sendArea("AREA", client.sessionId, Msg.takeItem, { id: client.sessionId } satisfies TakeItemEvent); // pc_takeitem -> clif_takeitem (area)
     if (tc) this.sendInv(tc, tp);
@@ -1004,6 +1008,7 @@ export class MapRoom extends Room<{ state: MapState }> {
       await inv.persist("UPDATE characters SET hotkeys = $2, hotkeys_seeded = true WHERE id = $1", [row.id, JSON.stringify(hotkeys)]);
     }
     await this.npcEngine.load(client.sessionId, inv); // quest log + character variables
+    await this.collection.load(client.sessionId, row.id);
     p.skillPoints += await this.skills.load(client.sessionId, row.id); // sd->status.skill (the `skill` table); points of not-yet-working skills come back
     this.state.players.set(client.sessionId, p);
     this.brains.set(client.sessionId, { nextAttack: 0, repathAt: 0, status: playerStatus({ job, level: row.level, jobLevel: row.job_level, stats: statsOf(p) }), inv, hotkeys, hotkeyRowShift: isRowShift(row.hotkey_rowshift) ? row.hotkey_rowshift : 0,
@@ -1021,6 +1026,7 @@ export class MapRoom extends Room<{ state: MapState }> {
     p.sp = row.sp == null ? p.maxSp : Math.min(row.sp, p.maxSp);
     this.flushStatus(client.sessionId); // clif_initialstatus + clif_updatestatus at map entry: the owner's own numbers
     this.skills.send(client.sessionId); // clif_skillinfoblock at map entry
+    this.collection.send(client.sessionId); // the Adventure Book
     await redis.sadd("online", row.name);
     await party.enter(this, client.sessionId, row.id, accountId).catch((e) => console.error("[party] enter", e)); // party_member_joined
     friends.friendsEnter(charId, row.name, client); // list to the owner, online friends told
@@ -1031,6 +1037,7 @@ export class MapRoom extends Room<{ state: MapState }> {
     // map_quit (map.cpp:2294-2299): worn gear that fails pc_isequip comes off before the final save (B11 sweep)
     if (this.state.players.has(sessionId)) { this.skills.cancel(sessionId); this.skills.sweep(sessionId); } // unit_remove_map / map_quit leave the duel
     this.skills.leave(sessionId);
+    this.collection.leave(sessionId);
     this.status.leave(sessionId, this.brains.get(sessionId)?.inv?.charId); // map_quit: sc_data is kept for the next map
     const p = this.state.players.get(sessionId);
     const acc = this.accountOf.get(sessionId);
@@ -1785,16 +1792,19 @@ export class MapRoom extends Room<{ state: MapState }> {
   shareExp(monsterId: string, mobId: number) {
     const def = MOB_BY_ID.get(mobId)!;
     const { direct, parties } = partyExpAggregate(mobDeadShares(this.dmgLogOf(monsterId), def, this.receiver), party.evenExpParty);
-    const vx = VARIANT_BY_ID.get(this.state.monsters.get(monsterId)?.variant ?? 0)?.exp ?? 1; // a variant's EXP multiplier
+    const variantId = this.state.monsters.get(monsterId)?.variant ?? 0, vx = VARIANT_BY_ID.get(variantId)?.exp ?? 1; // a variant's EXP multiplier
+    const book = (sid: string) => { this.collection.record(sid, "mob", mobId); if (variantId) this.collection.record(sid, "variant", variantId); }; // the Adventure Book
     for (const s of direct) {
       const sid = this.sessionOfChar(s.id)!, p = this.state.players.get(sid)!, g = penalized(s, { baseLevel: p.level }, def);
       this.reward(sid, p, Math.round(g.base * vx), Math.round(g.job * vx));
+      book(sid);
     }
     for (const t of parties) {
       const sids = party.aliveMembersIn(this, t.partyId), each = partyExpSplit(t.base, t.job, sids.length);
       for (const sid of sids) {
         const p = this.state.players.get(sid)!, g = penalized(each, { baseLevel: p.level }, def);
         if (g.base || g.job) this.reward(sid, p, Math.round(g.base * vx), Math.round(g.job * vx));
+        book(sid);
       }
     }
   }

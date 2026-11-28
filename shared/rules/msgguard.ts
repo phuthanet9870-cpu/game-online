@@ -65,6 +65,7 @@ export const CLIENT_MSGS = {
   // clif_parse_UseCard / clif_parse_InsertCard (clif.cpp:13490 / 13525): only pc_istrading is checked, no death or NPC lock
   useCard: { dead: "allow", invincible: "keep", lock: "free" },
   insertCard: { dead: "allow", invincible: "keep", lock: "free" },
+  bookClaim: { dead: "allow", invincible: "keep", lock: "free" }, // Adventure Book milestone (server/src/collection.ts)
   reforge: { dead: "deny", invincible: "keep", lock: "free" }, // affix reroll at the forgemaster (shared/rules/affix.ts)
   shopBuy: { dead: "deny", invincible: "keep", lock: "free", shop: true },
   shopSell: { dead: "deny", invincible: "keep", lock: "free", shop: true },

@@ -17,6 +17,10 @@ export type EquipMsg = { uid: number };
 export type UseCardMsg = { uid: number };
 export type InsertCardMsg = { card: number; equip: number };
 /** Reforge: reroll the random affixes of inventory row `uid`; `lock` = the index of one affix to keep (costs a lock material). */
+/** The Adventure Book (shared/rules/collection.ts): entries are [`kind:ref`, count]. */
+export type BookEvent = { entries: [string, number][]; claimed: string[] };
+export type BookEntryEvent = { kind: string; ref: number; count: number };
+export type BookClaimMsg = { id: string };
 export type ReforgeMsg = { uid: number; lock?: number };
 export type ReforgeAckEvent = { uid: number; ok: boolean; text?: string; affixes?: { k: string; v: number }[] };
 export type NpcMsg = { id: string };
@@ -222,6 +226,9 @@ export const Msg = {
   unequip: "unequip",
   useCard: "useCard", // client -> server: CZ_REQ_ITEMCOMPOSITION_LIST
   insertCard: "insertCard", // client -> server: CZ_REQ_ITEMCOMPOSITION
+  book: "book", // server -> owner: BookEvent (the Adventure Book at map entry and after a claim)
+  bookEntry: "bookEntry", // server -> owner: BookEntryEvent (one entry changed)
+  bookClaim: "bookClaim", // client -> server: BookClaimMsg
   reforge: "reforge", // client -> server: ReforgeMsg (reroll a piece's random affixes at the forgemaster)
   reforgeAck: "reforgeAck", // server -> owner: ReforgeAckEvent
   cardList: "cardList", // server -> owner: CardListEvent

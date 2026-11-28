@@ -4,7 +4,7 @@ The single place that says what exists, what works, and what is still to do. Upd
 Statuses: **WORKING** (checked by a test or a bot run), **PARTIAL** (some of it exists), **BROKEN**, **MISSING**, **UNTESTED**
 (exists, not exercised here), **OPTIONAL** (not approved). "Evidence" names the test or bot that checked it.
 
-Last update: master-prompt batch 1 (Phase 1 foundation + first Phase 2 systems).
+Last update: master-prompt batch 3 (Phase 2: reset, salvage, accessories, dummies, combat meter, sets, Adventure Book).
 
 ## Counts (from the code, `node /tmp/cnt.ts`-style queries on `shared/`)
 
@@ -39,6 +39,12 @@ Last update: master-prompt batch 1 (Phase 1 foundation + first Phase 2 systems).
 | **Random equipment affixes** | WORKING | `affix.test.ts`; `client/scripts/affix.ts`: roll by grade, worn (status), reforge refused without materials (nothing taken), lock kept, saved across relog |
 | **Reforge** at Forgemaster Brann (dialog + `Msg.reforge`) | WORKING (message path) / UNTESTED (dialog path) | the dialog calls the same `MapRoom.doReforge` |
 | Loot beam by grade / affixes | UNTESTED | client only, not seen on screen yet |
+| Stat / skill reset (Hearthkeeper) | WORKING | `batch2.test.ts`; `client/scripts/services.ts` through the real dialog |
+| Salvage (Forgemaster) | WORKING | `batch2.test.ts`; services bot through the dialog |
+| Accessory slots (left / right) | WORKING | services bot: two rings worn, one per side (before this, the 13 accessories could not be worn) |
+| Training dummies + combat meter | WORKING | services bot (hits land, never die, never hit back); meter seen on screen |
+| Equipment sets (6 sets, 2/3 pieces) | WORKING | `batch2.test.ts` (status changes); tooltip lines not seen on screen yet |
+| Adventure Book (monsters, variants, cards, milestones) | WORKING | `collection.test.ts`; `client/scripts/book.ts`: kill recorded, unreached claim refused, saved across relog; window seen on screen |
 | Monster AI, bosses, MVP, tombs | WORKING | `mobai.test.ts`, `mvp.test.ts`, boss bot; minibosses/devo/bossfeel bots need a Postgres dev schema |
 | Tower | PARTIAL | 3 floors of a 100-floor goal; floor data model exists (`shared/tower.ts`) |
 | Auto-hunt | WORKING (basic) | auto bot removed earlier; `autoplay.ts` in client; settings UI is minimal |
@@ -51,7 +57,7 @@ Last update: master-prompt batch 1 (Phase 1 foundation + first Phase 2 systems).
 
 ## Not started (from the master prompt), in the order planned
 
-1. Phase 2 rest: combat feedback/VFX pass, equipment set bonus, salvage, stat/skill reset, build presets, training dummy + DPS meter, auto-hunt settings, adventure book, beginner flow.
+1. Phase 2 rest: combat feedback/VFX pass, build / equipment presets, auto-hunt settings window, beginner flow, achievements and titles.
 2. Phase 3 PvP: duel, arena, PvP ruleset, ranked, matchmaking.
 3. Phase 4 guilds and guild war.
 4. Phase 5 quests, world events, raids, roguelike dungeon, runes, Tower data framework to 100 floors.

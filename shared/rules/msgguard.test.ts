@@ -4,7 +4,7 @@ import { gearUseVerdict, CLIENT_MSGS, endsInvincible, guardRequest, msgAllowed, 
 import { Msg } from "../protocol.ts";
 
 const SENT: ClientMsgKey[] = ["move", "attack", "sit", "pickup", "npc", "useItem", "equip", "unequip", "shopBuy", "shopSell", "shopQuit",
-  "chat", "statUp", "hotkeys", "respawn", "npcNext", "npcMenu", "npcClose", "useCard", "insertCard", "reforge", "skillUp", "useSkill",
+  "chat", "statUp", "hotkeys", "respawn", "npcNext", "npcMenu", "npcClose", "useCard", "insertCard", "reforge", "bookClaim", "skillUp", "useSkill",
   "partyCreate", "partyInvite", "partyReply", "partyLeave", "partyKick", "partyLeader", "partyOption", "partyChat",
   "friendAdd", "friendReply", "friendRemove", "whisper"];
 

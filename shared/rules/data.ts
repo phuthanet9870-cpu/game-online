@@ -62,7 +62,7 @@ export const DUMMY_ID = 4990;
 {
   const base = MOBS.find((m) => m.id === 1002)!;
   TOWER_MOBS.push({
-    ...base, id: DUMMY_ID, name: "Training Dummy", level: 50, hp: 2_000_000_000, sp: 0, atk: 1, matk: 1, def: 0, mdef: 0, str: 1, agi: 1, vit: 1, int: 1, dex: 1, luk: 1,
+    ...base, id: DUMMY_ID, name: "Training Dummy", level: 1, hp: 2_000_000_000, sp: 0, atk: 1, matk: 1, def: 0, mdef: 0, str: 1, agi: 1, vit: 1, int: 1, dex: 1, luk: 1,
     baseExp: 0, jobExp: 0, mvpExp: 0, race: "Formless", element: "Neutral", size: "Medium", mode: 0x20 | 0x200000, // NORANDOMWALK, KNOCKBACKIMMUNE (statuses still land: debuffs can be tested on it)
     bossType: "None", class: "Normal", drops: [], mvpDrops: [], slaves: [], statusSkills: [],
   } as Mob);
