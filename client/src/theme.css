@@ -1,0 +1,192 @@
+/* Game Online UI theme: minimal and clean. Loaded after every other stylesheet (main.ts imports it last), it keeps the
+   layout of style.css and the ui/*.css windows and replaces their look: light frosted panels, flat controls, one accent.
+   Layout concept: game first; quiet floating panels with generous radius, hairline edges, tabular numbers. */
+:root {
+  --ui-font: "Inter", "Noto Sans Thai", "Sukhumvit Set", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --win-font: var(--ui-font);
+  --title-font: var(--ui-font);
+  --ui-surface: rgba(250, 251, 253, 0.94);
+  --ui-solid: #fbfcfe;
+  --ui-field: #ffffff;
+  --ui-sunken: #eef1f6;
+  --ui-line: #e1e6ef;
+  --ui-text: #1d2433;
+  --ui-muted: #6b7487;
+  --ui-accent: #3b6ff5;
+  --ui-accent-soft: #e8efff;
+  --ui-accent-ring: rgba(59, 111, 245, 0.22);
+  --ui-hp: #2fbf71;
+  --ui-sp: #3b8cf5;
+  --ui-warn: #e5484d;
+  --ui-shadow: 0 10px 30px rgba(10, 16, 32, 0.22), 0 0 0 1px rgba(20, 30, 50, 0.06);
+  --win-text: var(--ui-text);
+  --accent: var(--ui-accent);
+  --ico-glyph-min: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath d='M2.5 6h7' stroke='%236b7487' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+  --ico-glyph-close: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Cpath d='M3 3l6 6M9 3l-6 6' stroke='%236b7487' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+html, body { font: 12px/1.4 var(--ui-font); font-feature-settings: "cv11", "ss01"; }
+
+/* ---------- windows ---------- */
+html .win {
+  background: var(--ui-surface); color: var(--ui-text); border: 0; border-radius: 12px; box-shadow: var(--ui-shadow);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2); backdrop-filter: blur(12px) saturate(1.2); font-family: var(--ui-font);
+}
+html .win-title {
+  height: 30px; padding: 0 8px 0 12px; gap: 6px; background: none; border-bottom: 1px solid var(--ui-line); border-radius: 12px 12px 0 0;
+  color: var(--ui-text); text-shadow: none; font: 600 12px/30px var(--ui-font); letter-spacing: -0.005em;
+}
+html .win-title::before { display: none; }
+html .win-title button {
+  width: 22px; height: 22px; border-radius: 6px; background: var(--ico-glyph-min) center / 12px 12px no-repeat; filter: none;
+}
+html .win-title button[data-close] { background-image: var(--ico-glyph-close); }
+html .win-title button:hover { background-color: var(--ui-sunken); filter: none; }
+html .win-body { padding: 10px 12px; }
+html .win-foot { gap: 6px; padding: 8px 10px; border-top: 1px solid var(--ui-line); background: none; border-radius: 0 0 12px 12px; }
+
+/* ---------- controls ---------- */
+html .btn, html #w-select .btn, html #w-create .btn {
+  height: 28px; min-width: 0; padding: 0 12px; border: 0; border-radius: 8px; background: var(--ui-sunken); color: var(--ui-text);
+  font: 600 12px/28px var(--ui-font); text-shadow: none; box-shadow: none;
+}
+html .btn:hover:not(:disabled), html #w-select .btn:hover:not(:disabled), html #w-create .btn:hover:not(:disabled) { background: #e3e8f1; border: 0; }
+html .btn:active:not(:disabled), html #w-select .btn:active:not(:disabled), html #w-create .btn:active:not(:disabled) { background: #d8dfeb; box-shadow: none; }
+html .btn:disabled, html #w-select .btn:disabled { background: var(--ui-sunken); color: #a9b0bf; }
+html .btn.primary, html #w-create .win-foot #cr-ok, html #w-create .btn.on, html #w-create .btn.on:hover:not(:disabled) {
+  background: var(--ui-accent); color: #fff; border: 0;
+}
+html .btn.primary:hover, html #w-create .win-foot #cr-ok:hover:not(:disabled) { background: #2f5fe0; }
+html .btn:focus-visible, html button:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 1px; }
+html .win input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), html .win select, html #login input {
+  height: 32px; padding: 0 10px; border: 1px solid var(--ui-line); border-radius: 8px; background: var(--ui-field); color: var(--ui-text);
+  font: 400 13px var(--ui-font);
+}
+html .win input:focus, html .win select:focus, html #login input:focus { outline: none; border-color: var(--ui-accent); box-shadow: 0 0 0 3px var(--ui-accent-ring); }
+
+/* ---------- Basic Info ---------- */
+html #w-basic { top: 10px; left: 10px; width: 232px; background: var(--ui-surface); color: var(--ui-muted); }
+html #w-basic .win-title { border-bottom: 0; }
+html #bi-name { color: var(--ui-text); font: 700 13px/18px var(--ui-font); height: auto; }
+html #bi-job { color: var(--ui-muted); font: 500 11px/15px var(--ui-font); height: auto; }
+html .gauge-row { height: 18px; padding-left: 12px; font-weight: 600; color: var(--ui-muted); }
+html .gauge-row .pct { font-variant-numeric: tabular-nums; }
+html .gauge { height: 12px; border-radius: 6px; background: var(--ui-sunken); }
+html .gauge::after { display: none; }
+html .gauge i { border-radius: 6px; background: var(--ui-hp); box-shadow: none; }
+html #bi-sp i { background: var(--ui-sp); }
+html .gauge.low i { background: var(--ui-warn); }
+html .gauge em { top: 0; font: 600 9.5px/12px var(--ui-font); color: #13233a; text-shadow: 0 0 2px rgba(255, 255, 255, 0.9); font-variant-numeric: tabular-nums; }
+html .bi-levels { background: var(--ui-sunken); border: 0; border-radius: 8px; margin: 6px 10px 4px; }
+html .expbar { border-radius: 3px; background: #dde3ec; border: 0; box-shadow: none; }
+html .expbar i { border-radius: 3px; background: var(--ui-accent); }
+
+/* ---------- shortcut bar ---------- */
+html #hotbar {
+  top: 10px; left: 250px; border: 0; border-radius: 12px; background: var(--ui-surface); box-shadow: var(--ui-shadow); padding: 4px;
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+html #hotbar .slotcell { width: 26px; height: 26px; border-radius: 7px; background: var(--ui-sunken); box-shadow: none; }
+html #hotbar .slotcell:hover { background: var(--ui-accent-soft); box-shadow: inset 0 0 0 1px var(--ui-accent); }
+html #hotbar .slotcell[data-key]::before { color: var(--ui-muted); font: 600 7.5px/9px var(--ui-font); left: 3px; top: 2px; }
+
+/* ---------- minimap + side menu ---------- */
+html #w-minimap { top: 10px; right: 10px; }
+html #mm-canvas { border-radius: 12px; box-shadow: var(--ui-shadow); }
+html #side-col { top: 160px; right: 10px; gap: 8px; }
+html .mico {
+  width: 34px; height: 34px; border-radius: 10px; border: 0; background: var(--ui-surface); box-shadow: 0 4px 14px rgba(10, 16, 32, 0.2), 0 0 0 1px rgba(20, 30, 50, 0.06);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+html .mico svg { fill: var(--ic, #2b3a5c); }
+html .mico:hover { background: #fff; transform: translateY(-1px); }
+
+/* ---------- chat ---------- */
+html #chat {
+  --chat-a: 0.62; left: 10px; bottom: 10px; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(10, 16, 32, 0.3);
+  background: rgb(14 18 30 / var(--chat-a)); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+html #chat-tabs { height: 30px; padding: 4px 6px 0; gap: 2px; align-items: center; }
+html #chat-tabs button[data-tab] {
+  flex: 0 1 auto; height: 22px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: rgba(255, 255, 255, 0.6);
+  font: 600 11px var(--ui-font); margin: 0;
+}
+html #chat-tabs button[data-tab].on { height: 22px; background: rgba(255, 255, 255, 0.14); color: #fff; }
+html #chat-log { font: 12px/1.45 var(--ui-font); padding: 4px 10px; }
+html #chat-form input { height: 30px; padding: 0 10px; border: 0; border-top: 1px solid rgba(255, 255, 255, 0.08); background: rgba(0, 0, 0, 0.2); color: #fff; font: 12px var(--ui-font); }
+html #chat-form input:focus { box-shadow: inset 0 0 0 1px rgba(110, 150, 255, 0.6); }
+
+/* ---------- names, tooltips, banner ---------- */
+html .label { font: 600 11px var(--ui-font); letter-spacing: 0.01em; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85), 0 0 1px #000; }
+html #tooltip, html #item-tip { border: 0; border-radius: 8px; background: rgba(16, 20, 32, 0.92); padding: 5px 9px; font: 500 12px var(--ui-font); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3); }
+html #banner { font-family: var(--ui-font); }
+html #banner div { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
+
+/* ---------- login / select / create ---------- */
+html #login-screen, html #select-screen, html #create-screen { background: var(--backdrop, linear-gradient(#9fd3ff, #d8efff 60%, #b8e2a0 60%, #8cc277)) center bottom / cover no-repeat #5ea65a; image-rendering: pixelated; }
+html #select-screen, html #create-screen { background-color: #5ea65a; }
+html #login-screen > *, html #select-screen > *, html #create-screen > * { image-rendering: auto; }
+html #select-screen::before, html #select-screen::after, html #create-screen::before, html #create-screen::after { display: none; }
+html #w-select::before { display: none; }
+html #login { width: min(320px, calc(100vw - 32px)); box-shadow: 0 24px 60px rgba(10, 16, 32, 0.3), 0 0 0 1px rgba(20, 30, 50, 0.06); }
+html #login .win-title { height: 40px; font-size: 14px; line-height: 40px; padding-left: 16px; }
+html #login .win-body { padding: 14px 16px 6px; }
+html #login label { color: var(--ui-muted); font: 600 11px var(--ui-font); gap: 6px; margin-bottom: 10px; }
+html #login .win-foot { padding: 10px 16px 14px; border-top: 0; }
+html #login .win-foot .btn { flex: 1; height: 34px; line-height: 34px; }
+html #login-error { color: var(--ui-warn); font-weight: 600; }
+html #login-foot { background: rgba(255, 255, 255, 0.72); color: var(--ui-muted); font: 500 11px var(--ui-font); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+html #w-select, html #w-create { box-shadow: 0 24px 60px rgba(10, 16, 32, 0.3), 0 0 0 1px rgba(20, 30, 50, 0.06); }
+html #w-create .win-title, html #w-select .win-title { height: 40px; font-size: 14px; line-height: 40px; padding-left: 16px; }
+html #w-create .win-body { background: none; }
+html #w-create .win-foot { background: none; border-top: 1px solid var(--ui-line); }
+html #w-create .win-foot .btn { height: 34px; line-height: 34px; min-width: 104px; }
+
+/* the logo: a clean wordmark (index.html) */
+html #logo { width: auto; animation: logo-in 0.6s ease-out; }
+html #logo::before { display: none; }
+.wordmark { display: flex; flex-direction: column; align-items: center; gap: 2px; color: #fff; text-shadow: 0 2px 0 rgba(20, 40, 90, 0.25), 0 8px 30px rgba(20, 40, 90, 0.35); }
+.wordmark b { font: 800 clamp(44px, 8vw, 84px)/0.95 var(--ui-font); letter-spacing: -0.045em; }
+.wordmark b span { color: #ffd54a; }
+.wordmark small { font: 700 12px var(--ui-font); letter-spacing: 0.42em; text-transform: uppercase; opacity: 0.9; padding-left: 0.42em; }
+@keyframes logo-in { from { opacity: 0; transform: translateY(-8px); } }
+@media (prefers-reduced-motion: reduce) { html #logo { animation: none; } }
+
+/* ---------- item / equipment windows ---------- */
+html .rowin { border: 0; border-radius: 12px; background: var(--ui-surface); }
+html .rowin .win-title { height: 30px; background: none; border-bottom: 1px solid var(--ui-line); color: var(--ui-text); text-shadow: none; }
+html .inv-pane { background: none; }
+html .vtabs { width: 28px; gap: 2px; padding: 6px 3px; border-right: 1px solid var(--ui-line); background: none; }
+html .vtabs button { border: 0; border-radius: 7px; background: none; color: var(--ui-muted); font: 600 10px var(--ui-font); }
+html .vtabs button:hover { background: var(--ui-sunken); }
+html .vtabs button.on { background: var(--ui-accent-soft); color: var(--ui-accent); box-shadow: none; margin-right: 0; border-right: 0; }
+html .slotcell::before { left: 3px; right: 3px; top: 3px; bottom: 3px; height: auto; border-radius: 8px; background: var(--ui-sunken); }
+html .slotgrid { gap: 2px; }
+html .slotcell:not(.empty):hover { background: none; box-shadow: none; }
+html .slotcell:not(.empty):hover::before { background: var(--ui-accent-soft); box-shadow: inset 0 0 0 1px var(--ui-accent); }
+html .slotgrid .slotcell .icon { filter: none; }
+html .htabs, html .tabs { gap: 2px; padding: 4px; border-bottom: 1px solid var(--ui-line); background: none; }
+html .htabs button, html .tabs button {
+  height: 26px; border: 0; border-radius: 7px; background: none; color: var(--ui-muted); font: 600 11px var(--ui-font); top: 0;
+}
+html .htabs button.on, html .tabs button.on { background: var(--ui-accent-soft); color: var(--ui-accent); }
+html #hotbar .slotcell::before { display: none; }
+
+/* ---------- character select ---------- */
+html .slot { border: 0; border-radius: 12px; background: #fff; box-shadow: 0 0 0 1px var(--ui-line); overflow: hidden; }
+html .slot.on { box-shadow: 0 0 0 2px var(--ui-accent), 0 10px 24px rgba(59, 111, 245, 0.18); }
+html .slot.on::before { content: "Selected"; left: 8px; top: 8px; height: 20px; padding: 0 8px; border-radius: 10px; background: var(--ui-accent); color: #fff; font: 600 10px/20px var(--ui-font); box-shadow: none; clip-path: none; }
+html #sel-info { gap: 2px; background: none; grid-auto-rows: 20px; line-height: 20px; }
+html #sel-info b { border-radius: 5px 0 0 5px; background: var(--ui-sunken); color: var(--ui-muted); font: 600 11px/20px var(--ui-font); }
+html #sel-info span { border-radius: 0 5px 5px 0; background: #fff; color: var(--ui-text); box-shadow: inset 0 0 0 1px var(--ui-sunken); font: 500 12px/20px var(--ui-font); font-variant-numeric: tabular-nums; }
+html #sel-count { border: 0; border-radius: 10px; background: var(--ui-sunken); color: var(--ui-muted); font: 500 11px/22px var(--ui-font); padding: 0 10px; }
+html #sel-count b { color: var(--ui-text); }
+html .sel-logo { display: flex; flex-direction: column; align-items: flex-end; color: var(--ui-text); line-height: 1; }
+html .sel-logo small { font: 600 13px var(--ui-font); color: var(--ui-muted); letter-spacing: 0.02em; }
+html .sel-logo b { font: 800 46px/1 var(--ui-font); letter-spacing: -0.04em; }
+html #sel-start { background: var(--ui-accent); color: #fff; }
+html #sel-start:hover:not(:disabled) { background: #2f5fe0; }
+html #sel-delete { color: var(--ui-warn); }
+
+/* ---------- Make Character ---------- */
+html #cr-jobs button, html #cr-styles > *, html #cr-colors button { border-radius: 10px; }
+html #cr-preview { border-radius: 12px; }

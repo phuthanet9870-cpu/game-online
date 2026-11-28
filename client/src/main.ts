@@ -1,5 +1,10 @@
 import "@fontsource/cinzel/700.css";
 import "./style.css";
+import "@fontsource/inter/400.css";
+import "@fontsource/inter/500.css";
+import "@fontsource/inter/600.css";
+import "@fontsource/inter/700.css";
+import "@fontsource/inter/800.css";
 import * as THREE from "three";
 import { Callbacks, Client, type Room } from "@colyseus/sdk";
 import {
@@ -54,6 +59,8 @@ import { bindPetUi, resetPetUi, petCatchActive, petCatchCancel, petCatchPick } f
 import { bindDuel, duelFoe, handleDuelInput, resetDuel } from "./ui/duel.ts"; // 1v1 duel (2.4.0)
 import { bindParty, handleChatInput, openMenu, partyDots, partyMemberByName, resetParty, setPartyMap, unbindParty } from "./ui/party.ts";
 import { bindEmotions, resetEmotions, updateEmotions } from "./ui/emotion.ts";
+import { applyBackdrop } from "./ui/backdrop.ts";
+import "./theme.css"; // the UI theme: last, so it wins over every window stylesheet
 
 const BACKDROP_SEED = 1337; // login-screen world; replaced if the server's seed differs
 
@@ -1050,6 +1057,7 @@ initWorldMap({
 });
 
 // ---------- boot: saved session -> character select, otherwise login ----------
+applyBackdrop(); // the login / character screens' code-drawn backdrop (ui/backdrop.ts)
 initScreens({ onStart: startGame });
 if (session.token) openSelect().catch(() => openLogin("Server unreachable — try again in a moment."));
 else openLogin();
