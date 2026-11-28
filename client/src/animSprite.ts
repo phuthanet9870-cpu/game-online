@@ -64,7 +64,10 @@ const SEE_THROUGH_ALPHA = 0.5;
 /** How far (world units) a struck actor jolts away from the blow while its hurt frame shows (see action "hit"). */
 const FLINCH_PUSH = 0.16;
 
-const CW = 320, CH = 300, FEET = 14; // composite canvas; feet at (CW/2, CH-FEET)
+// composite canvas of one actor; its feet are at (width / 2, height - feet). Code-drawn characters are drawn 1:1 on a small canvas and
+// shown with nearest-neighbour filtering; the painted monster sheets still use the big one until they are redrawn in code too.
+const MOB_CANVAS = { w: 320, h: 300, feet: 14 }, PIXEL_CANVAS = { w: 64, h: 64, feet: 6 };
+const PIXEL_UNIT_PX = 34; // standing height of a code-drawn character in art pixels (pixelchar.ts UNIT)
 // Walk cycle length in world units. Frames advance with distance walked, so the cadence follows the server walk speed
 // the way RO scales its walk delay by speed (roBrowser EntityRender getAnimationDelay: act.delay / 150 * walk.speed).
 // A sheet with a measured stride covers 2 steps per cycle times WALK_SLIDE: 1 would plant the feet exactly, but chibi
@@ -179,6 +182,7 @@ export class Composer {
 export class AnimSprite {
   readonly object: THREE.Sprite;
   private canvas = document.createElement("canvas");
+  private cw = 0; private ch = 0; private fp = 0; // canvas size and the feet margin (see MOB_CANVAS / PIXEL_CANVAS)
   private g: CanvasRenderingContext2D;
   private tex: THREE.CanvasTexture;
   private comp: Composer;
@@ -205,18 +209,21 @@ export class AnimSprite {
     this.height = opts.height;
     this.kind = opts.look ? PC : MOB;
     this.comp = new Composer(this.kind);
-    this.canvas.width = CW; this.canvas.height = CH;
+    const cv = opts.look ? PIXEL_CANVAS : MOB_CANVAS;
+    this.cw = cv.w; this.ch = cv.h; this.fp = cv.feet;
+    this.canvas.width = this.cw; this.canvas.height = this.ch;
     this.g = this.canvas.getContext("2d", { willReadFrequently: true })!;
     this.tex = new THREE.CanvasTexture(this.canvas);
     this.tex.colorSpace = THREE.SRGBColorSpace;
     this.tex.generateMipmaps = false;
-    this.tex.minFilter = THREE.LinearFilter;
+    this.tex.minFilter = opts.look ? THREE.NearestFilter : THREE.LinearFilter;
+    this.tex.magFilter = opts.look ? THREE.NearestFilter : THREE.LinearFilter;
     this.object = new THREE.Sprite(flatDepth(new THREE.SpriteMaterial({ map: this.tex, alphaTest: 0.3, transparent: true })));
-    this.object.center.set(0.5, FEET / CH);
+    this.object.center.set(0.5, this.fp / this.ch);
     if (opts.tint !== undefined && opts.tint !== 0xffffff) (this.object.material as THREE.SpriteMaterial).color.setHex(opts.tint); // 2.7.0 tower species: base sheets x colour
-    this.unitPx = opts.look ? 160 : 120;
+    this.unitPx = opts.look ? PIXEL_UNIT_PX : 120;
     this.worldPerPx = opts.height / this.unitPx;
-    this.object.scale.set(CW * this.worldPerPx, CH * this.worldPerPx, 1);
+    this.object.scale.set(this.cw * this.worldPerPx, this.ch * this.worldPerPx, 1);
     // the canvas is much larger than the actor: only count clicks/hover on (or right next to) drawn pixels
     const raycast = this.object.raycast.bind(this.object);
     this.object.raycast = (rc, hits) => {
@@ -284,13 +291,13 @@ export class AnimSprite {
     const key = `${f.s.meta.cellW}|${f.s.meta.cellH}|${f.col}`;
     if (this.stand?.key !== key) {
       const cv = document.createElement("canvas");
-      cv.width = CW; cv.height = CH;
+      cv.width = this.cw; cv.height = this.ch;
       const g = cv.getContext("2d", { willReadFrequently: true })!;
-      this.comp.draw(g, f, 0, false, this.unitPx / f.s.meta.unit, CW / 2, CH - FEET);
-      const d = g.getImageData(0, 0, CW, CH).data;
+      this.comp.draw(g, f, 0, false, this.unitPx / f.s.meta.unit, this.cw / 2, this.ch - this.fp);
+      const d = g.getImageData(0, 0, this.cw, this.ch).data;
       let y = 0;
-      search: for (; y < CH; y++) for (let x = 0; x < CW; x += 2) if (d[(y * CW + x) * 4 + 3] >= 80) break search;
-      this.stand = { key, top: y < CH ? (CH - FEET - y) * this.worldPerPx : this.height };
+      search: for (; y < this.ch; y++) for (let x = 0; x < this.cw; x += 2) if (d[(y * this.cw + x) * 4 + 3] >= 80) break search;
+      this.stand = { key, top: y < this.ch ? (this.ch - this.fp - y) * this.worldPerPx : this.height };
     }
     return this.stand.top;
   }
@@ -298,10 +305,10 @@ export class AnimSprite {
   /** The drawn frame's pixels (alpha) and their bounding box, scanned once per drawn frame, on demand. */
   private scan() {
     if (this.box?.sig !== this.drawn) {
-      const d = this.g.getImageData(0, 0, CW, CH).data;
-      let x0 = CW, x1 = -1, y0 = CH, y1 = -1;
-      for (let y = 0; y < CH; y += 2) for (let x = 0; x < CW; x += 2) {
-        if (d[(y * CW + x) * 4 + 3] < 80) continue;
+      const d = this.g.getImageData(0, 0, this.cw, this.ch).data;
+      let x0 = this.cw, x1 = -1, y0 = this.ch, y1 = -1;
+      for (let y = 0; y < this.ch; y += 2) for (let x = 0; x < this.cw; x += 2) {
+        if (d[(y * this.cw + x) * 4 + 3] < 80) continue;
         if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
       }
       this.box = { sig: this.drawn, x0, x1: x1 + 2, y0, y1: y1 + 2, alpha: d };
@@ -317,8 +324,8 @@ export class AnimSprite {
   bounds(): { l: number; r: number; b: number; t: number } | null {
     const box = this.scan();
     if (!box) return null;
-    const sx = this.object.scale.x / CW, sy = this.object.scale.y / CH;
-    const ax = this.object.center.x * CW, ay = (1 - this.object.center.y) * CH; // feet anchor in canvas px
+    const sx = this.object.scale.x / this.cw, sy = this.object.scale.y / this.ch;
+    const ax = this.object.center.x * this.cw, ay = (1 - this.object.center.y) * this.ch; // feet anchor in canvas px
     return { l: (box.x0 - ax) * sx, r: (box.x1 - ax) * sx, t: (ay - box.y0) * sy, b: (ay - box.y1) * sy };
   }
 
@@ -326,9 +333,9 @@ export class AnimSprite {
   solidAt(x: number, y: number) {
     const box = this.scan();
     if (!box) return false;
-    const cx = Math.round(this.object.center.x * CW + (x * CW) / this.object.scale.x);
-    const cy = Math.round((1 - this.object.center.y) * CH - (y * CH) / this.object.scale.y);
-    return cx >= 0 && cy >= 0 && cx < CW && cy < CH && box.alpha[(cy * CW + cx) * 4 + 3] >= 80;
+    const cx = Math.round(this.object.center.x * this.cw + (x * this.cw) / this.object.scale.x);
+    const cy = Math.round((1 - this.object.center.y) * this.ch - (y * this.ch) / this.object.scale.y);
+    return cx >= 0 && cy >= 0 && cx < this.cw && cy < this.ch && box.alpha[(cy * this.cw + cx) * 4 + 3] >= 80;
   }
 
   update(dt: number, camYaw: number, s: ActorState) {
@@ -358,8 +365,8 @@ export class AnimSprite {
     const sig = f ? `${f.s.meta.cellW}|${want[0]}|${f.col}|${row}|${mirror}` : "";
     if (sig !== this.drawn) {
       this.drawn = sig;
-      this.g.clearRect(0, 0, CW, CH);
-      if (f) this.comp.draw(this.g, f, row, mirror, this.unitPx / f.s.meta.unit, CW / 2, CH - FEET);
+      this.g.clearRect(0, 0, this.cw, this.ch);
+      if (f) this.comp.draw(this.g, f, row, mirror, this.unitPx / f.s.meta.unit, this.cw / 2, this.ch - this.fp);
       this.tex.needsUpdate = true;
     }
     // procedural touches: breathing while idle, a hop for level-up, monsters fade out after the death pose
@@ -373,14 +380,15 @@ export class AnimSprite {
     // a see-through actor must not hide what stands behind it in the depth buffer (the target ring is drawn later)
     mat.depthWrite = this.fade > 0.97;
     this.object.visible = mat.opacity > 0.01;
-    const breathe = !s.moving && !s.dead && !this.act ? 1 + Math.sin(performance.now() / 600) * 0.012 : 1;
+    const crisp = !!this.look; // code-drawn pixel characters are never scaled by a fraction
+    const breathe = !crisp && !s.moving && !s.dead && !this.act ? 1 + Math.sin(performance.now() / 600) * 0.012 : 1;
     // flinch jolt: out in 50 ms, eased back over the rest of the hurt frame, with a slight squash
     const fl = this.flinch, jolt = fl ? (fl.t < 0.05 ? fl.t / 0.05 : Math.max(0, 1 - (fl.t - 0.05) / (fl.dur - 0.05))) : 0;
     const big = spot ? 1.15 : 1;
-    this.object.scale.set(CW * this.worldPerPx / breathe * (1 + 0.06 * jolt) * big, CH * this.worldPerPx * breathe * (1 - 0.05 * jolt) * big, 1);
+    this.object.scale.set(this.cw * this.worldPerPx / breathe * (crisp ? 1 : 1 + 0.06 * jolt) * big, this.ch * this.worldPerPx * breathe * (crisp ? 1 : 1 - 0.05 * jolt) * big, 1);
     const hop = this.act?.kind === "cheer" ? Math.sin(Math.PI * Math.min(1, this.act.t / this.act.dur * 2)) * 0.35 : 0;
-    this.object.center.x = 0.5 - (jolt * FLINCH_PUSH * (fl?.away?.x ?? 0)) / (CW * this.worldPerPx);
-    this.object.center.y = FEET / CH - (hop + jolt * FLINCH_PUSH * (fl?.away?.y ?? 0)) / (CH * this.worldPerPx);
+    this.object.center.x = 0.5 - (jolt * FLINCH_PUSH * (fl?.away?.x ?? 0)) / (this.cw * this.worldPerPx);
+    this.object.center.y = this.fp / this.ch - (hop + jolt * FLINCH_PUSH * (fl?.away?.y ?? 0)) / (this.ch * this.worldPerPx);
   }
 
   /** world units per walk cycle: two measured steps (sheet px -> world via the standing height) times WALK_SLIDE */
@@ -390,7 +398,7 @@ export class AnimSprite {
   }
 
   private opaqueAt(u: number, v: number) {
-    const x = Math.round(u * CW) - 6, y = Math.round((1 - v) * CH) - 6;
+    const x = Math.round(u * this.cw) - 6, y = Math.round((1 - v) * this.ch) - 6;
     const d = this.g.getImageData(Math.max(0, x), Math.max(0, y), 13, 13).data;
     for (let i = 3; i < d.length; i += 4) if (d[i] > 60) return true;
     return false;

@@ -426,7 +426,8 @@ function onCutin(m: CutinEvent) {
   cutinBox.className = `pos-${m.type}`;
   // NPC portraits are drawn in code like the NPC itself (pixelchar.ts); the illustrated tutorial cards stay pictures
   const drawn = cutinPortrait(m.image);
-  cutinImg.src = drawn ?? `/art/cutin/${m.image}.png`;
+  if (!drawn) return hideCutin(); // no painted illustrations any more: only the code-drawn NPC portraits
+  cutinImg.src = drawn;
   cutinImg.classList.toggle("pixel", !!drawn);
   cutinName.textContent = npc ? npcName(npc) : "";
   cutinBox.hidden = false;

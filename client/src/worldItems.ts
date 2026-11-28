@@ -4,6 +4,7 @@ import { ITEMS } from "../../shared/rules/items.ts";
 import { MonsterSprite } from "./sprites.ts";
 import { AnimSprite } from "./animSprite.ts";
 import { npcLook } from "./pixelchar.ts";
+import { TILE_PX } from "./tiles.ts";
 
 /** A townsperson drawn like a player (pixelchar.ts), standing and breathing; same interface as MonsterSprite. */
 class NpcActor {
@@ -11,7 +12,7 @@ class NpcActor {
   private last = -1;
   get sprite() { return this.anim.object; }
   constructor(look: NonNullable<ReturnType<typeof npcLook>>) {
-    this.anim = new AnimSprite({ look, height: 1.5 });
+    this.anim = new AnimSprite({ look, height: 34 / TILE_PX });
     this.anim.faceDir(0); // facing the plaza's default camera
   }
   update(_dir: number, camYaw: number, _moving: boolean, t: number) {

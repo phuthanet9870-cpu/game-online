@@ -22,7 +22,7 @@ import { FIELD, MAP_INFO, WARPS, buildMap, isMapName, roomOf, type MapName } fro
 import { ART_STANDIN, artOf, tintOf, scaleOf } from "../../shared/mobart.ts";
 import { makeDoorGlow, makePortal, tickPortals } from "./portal.ts";
 import { lookOf } from "./themes.ts";
-import { setWeather, tickWeather } from "./weather.ts";
+import { TILE_PX, paletteOf } from "./tiles.ts";
 import { resumeNavi, stopNavi, takeNavi } from "./navi.ts";
 import { autoOn, setAuto } from "./autoplay.ts";
 import { MOB_BY_ID, type JobKey, type Mob, type StatKey } from "../../shared/rules/data.ts";
@@ -68,44 +68,39 @@ applyI18n(); bindLangSelects(); // static markup (data-i18n) + the language sele
 // ---------- renderer / scene ----------
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color("#9fc7e8");
-scene.fog = new THREE.Fog("#9fc7e8", 30, 60);
-const hemi = new THREE.HemisphereLight("#ffffff", "#5a6b3a", 1.6);
-scene.add(hemi);
-const sun = new THREE.DirectionalLight("#fff4dc", 1.6);
-sun.position.set(-20, 40, 10);
-sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = sun.shadow.camera.bottom = -24;
-sun.shadow.camera.right = sun.shadow.camera.top = 24;
-sun.shadow.camera.far = 120;
-sun.shadow.bias = -0.0008;
-scene.add(sun, sun.target);
+scene.background = new THREE.Color("#2b3a2a");
 const fx = new Fx(scene);
 initPixelFx(scene, (x, z) => map ? heightAt(map, x, z) : 0); // PixelFX sheets, boss telegraphs, shake / hit-stop (pixelFx.ts)
 const skillFx = new SkillFx(scene); // casting circles and skill effects (skillFx.ts)
 const statusFx = new StatusFx(scene); // what a unit's synced status options (opt1 / opt2) look like: tints, stars, Z's ... (statusFx.ts)
 
-// RO camera: fixed pitch, right-drag rotates yaw, wheel zooms.
-const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 200);
-const CAM_DEFAULT = { yaw: 0, pitch: 0.85, dist: 22 };
+// Top-down camera: straight down, map-north up, no rotation. Zoom is a whole number of screen pixels per art pixel, so the
+// pixel art stays sharp: 1 world unit (one map cell) is zoom * TILE_PX css pixels.
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
+camera.up.set(0, 0, -1);
+const ZOOMS = [1, 2, 3, 4];
+const CAM_DEFAULT = { yaw: 0, zoom: 2 };
 const cam = { ...CAM_DEFAULT, target: new THREE.Vector3(32, 0, 32) };
+const ppu = () => cam.zoom * TILE_PX;
+function fitCamera() {
+  const hw = innerWidth / ppu() / 2, hh = innerHeight / ppu() / 2;
+  camera.left = -hw; camera.right = hw; camera.top = hh; camera.bottom = -hh;
+  camera.updateProjectionMatrix();
+}
 function placeCamera() {
-  const { yaw, pitch, dist, target } = cam;
-  camera.position.set(
-    target.x + Math.sin(yaw) * Math.cos(pitch) * dist,
-    target.y + Math.sin(pitch) * dist,
-    target.z + Math.cos(yaw) * Math.cos(pitch) * dist,
-  );
-  camera.lookAt(target);
+  const u = ppu() * renderer.getPixelRatio(); // device pixels per world unit: snap to them so nothing shimmers
+  const x = Math.round(cam.target.x * u) / u, z = Math.round(cam.target.z * u) / u;
+  camera.position.set(x, 100, z);
+  camera.lookAt(x, 0, z);
+}
+function setZoom(dir: number) {
+  const i = Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(cam.zoom) + dir));
+  if (ZOOMS[i] !== cam.zoom) { cam.zoom = ZOOMS[i]; fitCamera(); }
 }
 function resize() {
   renderer.setSize(innerWidth, innerHeight, false);
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
+  fitCamera();
 }
 addEventListener("resize", resize);
 resize();
@@ -140,12 +135,8 @@ function loadMap(seed: number, name: MapName = FIELD) {
   for (const old of world.children.filter((c) => c.name === "warp")) world.remove(old); // portals are rebuilt below (portal.ts drops motes of unloaded maps)
   // the theme's sky, fog and light (themes.ts): the woods are dim and green, the highlands bright, the mire murky
   const look = lookOf(map.theme);
-  (scene.background as THREE.Color).set(look.sky);
-  (scene.fog as THREE.Fog).color.set(look.fog); (scene.fog as THREE.Fog).near = look.fogNear; (scene.fog as THREE.Fog).far = look.fogFar;
-  hemi.color.set(look.hemiSky); hemi.groundColor.set(look.hemiGround); hemi.intensity = look.hemi;
-  setWeather(scene, map.theme ?? null);
+  (scene.background as THREE.Color).set(paletteOf(map).bg);
   setAmbience(({ blight: "ambience_blight", desert: "ambience_sandstorm", meadow: "ambience_meadow" } as Record<string, string>)[map.theme ?? ""] ?? null);
-  sun.color.set(look.sunColor); sun.intensity = look.sun;
   // warp portals (npc/re/warps): a light column on each warp cell of this map (portal.ts); a scripted door (the sealed stair) is
   // drawn by its own prop instead
   for (const p of WARPS.filter((wp) => wp.map === name && !wp.npc)) world.add(makePortal(p.x, p.y, heightAt(map, p.x, p.y)));
@@ -197,7 +188,7 @@ const lookOfState = (s: any): Look => ({ gender: s.gender === "F" ? "F" : "M", h
 function addEntity(id: string, s: any, isMonster: boolean, isMe: boolean, isPet = false) {
   const def = isMonster || isPet ? MOB_BY_ID.get(s.mobId) : undefined;
   const view = def ? new AnimSprite({ body: `mob_${artOf(def.id)}`, fallback: `mob_${artOf(def.id)}`, standin: def.id in ART_STANDIN ? `mob_${ART_STANDIN[def.id]}` : undefined, tint: tintOf(def.id), height: (MOB_HEIGHT[def.size] ?? 1.1) * (BOSS_SCALE[def.bossType] ?? 1) * scaleOf(def.id) })
-    : new AnimSprite({ look: lookOfState(s), height: 1.5 });
+    : new AnimSprite({ look: lookOfState(s), height: 34 / TILE_PX });
   const obj: THREE.Object3D = view.object;
   obj.userData.entityId = id;
   const at = drawnAt(s);
@@ -594,9 +585,8 @@ const camFwd = new THREE.Vector3();
 function screenBox(e: Entity, out: ScreenBox) {
   const b = e.view.bounds();
   if (!b || !e.obj.visible) return false;
-  out.depth = tmp.copy(e.obj.position).sub(camera.position).dot(camFwd);
-  if (out.depth <= 0.1) return false;
-  out.ppu = innerHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * out.depth); // sprites face the camera
+  out.depth = 1;
+  out.ppu = ppu(); // top-down: the same scale everywhere
   tmp.copy(e.obj.position).project(camera);
   out.fx = (tmp.x * 0.5 + 0.5) * innerWidth; out.fy = (-tmp.y * 0.5 + 0.5) * innerHeight;
   out.x0 = out.fx + b.l * out.ppu; out.x1 = out.fx + b.r * out.ppu; out.y0 = out.fy - b.t * out.ppu; out.y1 = out.fy - b.b * out.ppu;
@@ -871,7 +861,7 @@ canvas.addEventListener("pointerdown", (e) => {
   fx.markClick(new THREE.Vector3(x, heightAt(map, x, y), y));
 });
 canvas.addEventListener("pointermove", (e) => {
-  if (dragging) { cam.yaw -= e.movementX * 0.008; return; }
+  if (dragging) return; // the camera does not rotate
   hovered = room ? pickMonster(e.clientX, e.clientY) : undefined;
   hoveredThing = !hovered && room ? pickThing(ray)?.id : undefined;
   document.body.classList.toggle("attack-cursor", !!hovered);
@@ -894,7 +884,7 @@ canvas.addEventListener("pointerup", (e) => {
   rightDown = undefined;
 });
 canvas.addEventListener("pointerleave", () => { hovered = undefined; tooltip(null); document.body.classList.remove("attack-cursor"); });
-canvas.addEventListener("wheel", (e) => { cam.dist = THREE.MathUtils.clamp(cam.dist + e.deltaY * 0.02, 10, 40); }, { passive: true });
+canvas.addEventListener("wheel", (e) => { setZoom(e.deltaY > 0 ? -1 : 1); }, { passive: true });
 
 // ---------- frame loop ----------
 const tmp = new THREE.Vector3();
@@ -907,16 +897,12 @@ function place(el: HTMLElement, v: THREE.Vector3, dy = 0) {
 }
 function ringAt(ring: THREE.Mesh, e: Entity | undefined) {
   ring.visible = !!e && !e.dead;
-  if (e) ring.position.set(e.obj.position.x, e.pos.y + 0.04, e.obj.position.z);
+  if (e) ring.position.set(e.obj.position.x, e.pos.y - 0.008, e.obj.position.z);
 }
 let minimapAt = 0;
 renderer.setAnimationLoop(() => {
   const dt = clock.getDelta(), t = clock.elapsedTime, now = performance.now(), held = frozen(now); // held: a heavy impact's hit-stop
-  if (!room) { // login screen: slow orbit over the backdrop world
-    cam.yaw += dt * 0.08;
-    cam.target.set(32, 1, 32);
-    cam.dist = 30;
-  }
+  if (!room) cam.target.set(32, 0, 32); // login screen: the picture behind the window is drawn in CSS
   for (const [id, e] of entities) {
     // between the 20 Hz patches: dead reckoning along the step with corrections blended in (motion.ts)
     const lx = e.pos.x, lz = e.pos.z, mo = stepMotion(e.motion, dt, now);
@@ -926,10 +912,10 @@ renderer.setAnimationLoop(() => {
     // the sprite moves with e.pos; only an offset of its own (a monster's lunge) eases back
     e.obj.position.x += e.pos.x - lx; e.obj.position.z += e.pos.z - lz;
     e.obj.position.lerp(e.pos, 1 - Math.exp(-dt * 20));
-    e.obj.position.y = e.pos.y + (e.boss ? bossLift(id, now) : 0); // a boss's leap / hop arc (ui/boss.ts)
+    e.obj.position.y = e.pos.y; // (the leap of a boss is drawn as a vertical offset in its sprite, not as height)
     e.speed += ((dt > 0 ? Math.hypot(e.obj.position.x - px, e.obj.position.z - pz) / dt : 0) - e.speed) * Math.min(1, dt * 10);
     // a small tight ellipse right under the drawn feet (the sprite lags e.pos by the easing, so follow obj, not pos)
-    e.shadow.position.set(e.obj.position.x, e.pos.y + 0.02, e.obj.position.z);
+    e.shadow.position.set(e.obj.position.x, e.pos.y - 0.012, e.obj.position.z);
     e.shadow.scale.setScalar(THREE.MathUtils.clamp(e.view.height / 1.5, 0.6, 2)).multiply(SHADOW_SQUASH);
     if (e.moving) e.view.faceDir(e.dir);
     e.view.update(held ? 0 : dt, cam.yaw, { moving: e.moving && e.speed > 0.3, dead: e.dead, sitting: e.sitting, speed: e.speed });
@@ -984,7 +970,6 @@ renderer.setAnimationLoop(() => {
   updateSkillShades(now);
   setSkillOwner(own, me?.job);
   tickWorld(t, camera, renderer.domElement.height);
-  tickWeather(t, cam.target);
   tickPortals(t);
   if (now >= musicCheckAt) { // W03: the boss track while a living MVP is near (within 16 cells), the map's own track otherwise
     musicCheckAt = now + 1000;
@@ -995,9 +980,6 @@ renderer.setAnimationLoop(() => {
   updateThings(camera, cam.yaw, t, hoveredThing, altDown);
   
   updateEmotions(camera, now); // emotion / npctalk bubbles follow their unit
-  // keep the shadow camera centred on the player
-  sun.position.set(cam.target.x - 20, 40, cam.target.z + 10);
-  sun.target.position.copy(cam.target);
   const view = myView();
   if (view) {
     updateBasicInfo(view);

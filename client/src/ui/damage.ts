@@ -225,9 +225,12 @@ function paint(p: Pop, capCss: number) {
 
 const fwd = new THREE.Vector3(), at = new THREE.Vector3();
 
-export function updatePops(camera: THREE.PerspectiveCamera, now: number) {
+export function updatePops(camera: THREE.Camera, now: number) {
   camera.getWorldDirection(fwd);
-  const pxAt1 = innerHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)); // css px per world unit at depth 1
+  const ortho = (camera as THREE.OrthographicCamera).isOrthographicCamera ? (camera as THREE.OrthographicCamera) : undefined;
+  // css px per world unit at depth 1 (a top-down orthographic camera has one scale everywhere: its depth is always 1)
+  const pxAt1 = ortho ? innerHeight / (ortho.top - ortho.bottom) : innerHeight / (2 * Math.tan(THREE.MathUtils.degToRad((camera as THREE.PerspectiveCamera).fov) / 2));
+  const depthTo = (v: THREE.Vector3) => (ortho ? 1 : at.copy(v).sub(camera.position).dot(fwd));
   for (let i = pops.length - 1; i >= 0; i--) {
     const p = pops[i], age = now - p.t0;
     p.on = false;
@@ -236,7 +239,7 @@ export function updatePops(camera: THREE.PerspectiveCamera, now: number) {
     if (k >= 1) { p.el.remove(); pops.splice(i, 1); continue; }
     // the unit's drawn feet on screen and its pixels per world unit there (sprites face the camera, so its head is
     // straight above its feet, height * ppu px up)
-    const depth = at.copy(p.unit.at).sub(camera.position).dot(fwd);
+    const depth = depthTo(p.unit.at);
     at.copy(p.unit.at).project(camera);
     if (depth <= 0.1 || at.z > 1) { p.el.style.opacity = "0"; continue; }
     const ppu = pxAt1 / depth, fx = (at.x * 0.5 + 0.5) * innerWidth, fy = (-at.y * 0.5 + 0.5) * innerHeight;
@@ -251,7 +254,7 @@ export function updatePops(camera: THREE.PerspectiveCamera, now: number) {
       const halfW = capPx * 0.7 + 0.35 * ppu;
       for (const q of obstacles()) {
         if (q.id === p.unit.id) continue;
-        const qd = at.copy(q.at).sub(camera.position).dot(fwd);
+        const qd = depthTo(q.at);
         if (qd <= 0.1) continue;
         const qp = at.copy(q.at).project(camera), qppu = pxAt1 / qd;
         const qx = (qp.x * 0.5 + 0.5) * innerWidth, qy = (-qp.y * 0.5 + 0.5) * innerHeight, qTop = qy - q.height * qppu;
