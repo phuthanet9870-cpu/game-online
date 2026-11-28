@@ -16,11 +16,10 @@
 // Rules of the road (same as rAthena): a dialog needs a button before it can end (`close` / `close2` / `close3`; a script
 // that just returns closes the window for you); `close`, `close3`, `end`, a cancelled `select` and anything that ends the
 // session (death, logout, the 60 s idle timeout) unwind the script by throwing — never catch errors inside a script.
-// Game-state commands (getitem, setquest, getexp ...) apply at once and are saved through the character's write chain.
-import type { QuestCheckType } from "../rules/quest.ts";
+// Game-state commands (getitem, getexp ...) apply at once and are saved through the character's write chain.
 import type { JobKey } from "../rules/data.ts";
 import type { EquipSlot } from "../rules/items.ts";
-import type { CallshopOption, CutinType, QMark, QType } from "../rules/script.ts";
+import type { CallshopOption, CutinType } from "../rules/script.ts";
 
 /** An item by id or by our item name (shared/data/items.json; a name shared by two rows means the lower id). */
 export type ItemRef = number | string;
@@ -136,26 +135,7 @@ export interface Script {
    *  sell, BUY = the buy list, SELL = the sell list). The shop is usually a floating one (map "-"), usable from anywhere once
    *  opened. false (and a script warning) when it is not a shop. */
   callshop(name: string, option?: CallshopOption): boolean;
-
-  // ---- quests (rules/quest.ts; quest ids from shared/content/quest_db.ts) ----
-  setquest(id: number): void;
-  completequest(id: number): void;
-  erasequest(id: number): void;
-  changequest(id: number, id2: number): void;
-  /** -1 not held; HAVEQUEST: state; PLAYTIME / HUNTING: see rules/quest.ts questCheck. */
-  checkquest(id: number, type?: QuestCheckType): number;
-  /** 0 not started, 1 held, 2 completed. */
-  isbegin_quest(id: number): number;
-  /** Put an icon over this NPC for this player (QTYPE.*, QMARK.* minimap colour). */
-  showevent(icon: QType, color?: QMark): void;
 }
-
-/** What a questinfo condition may read (rAthena evaluates the condition as a script expression for the player). */
-export type QuestInfoView = Pick<Script, "countitem" | "get" | "checkquest" | "isbegin_quest" | "strcharinfo" | "isequipped" | "getskilllv">;
-
-/** questinfo (doc/script_commands.txt): the first entry whose condition holds is shown over the NPC (re-checked on quest,
- *  item, level and map changes, pc_show_questinfo); none = no icon. */
-export type QuestInfo = { icon: QType; color?: QMark; condition?: (v: QuestInfoView) => boolean };
 
 export type NpcScript = (s: Script) => Promise<void>;
 
@@ -178,5 +158,4 @@ export type NpcDef = {
   trigger?: { x: number; y: number };
   /** The OnTouch label: runs for the player who walked in, like a click (a dialog may open; npctalk / emotion need none). */
   onTouch?: NpcScript;
-  questinfo?: QuestInfo[];
 };

@@ -32,7 +32,7 @@ async function enter(name: string) {
 const A = await enter("boss_bot_a"), B = await enter("boss_bot_b");
 const bots = [A, B];
 const S = (A.room.state as any);
-const quiet = [Msg.hit, Msg.chat, Msg.exp, Msg.levelUp, Msg.hotkeys, Msg.heal, Msg.status, Msg.takeItem, Msg.inv, Msg.quests, Msg.questMark, Msg.emotion, Msg.npcTalk,
+const quiet = [Msg.hit, Msg.chat, Msg.exp, Msg.levelUp, Msg.hotkeys, Msg.heal, Msg.status, Msg.takeItem, Msg.inv, Msg.emotion, Msg.npcTalk,
   Msg.skills, Msg.cutin, Msg.npcNextBtn, Msg.npcClear, Msg.npcEnd, Msg.announce];
 for (const b of bots) {
   for (const t of quiet) b.room.onMessage(t, () => {});

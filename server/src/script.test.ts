@@ -9,7 +9,7 @@ process.env.GAME_NAME ??= "ro";
 process.env.DATABASE_URL ??= "postgres://unused/unused";
 process.env.REDIS_URL ??= "redis://unused";
 const { ScriptEngine } = await import("./script.ts");
-const { QuestStore } = await import("./quests.ts");
+const { CharVars } = await import("./charvars.ts");
 const { BC, CALLSHOP, ET, EVENTQUEUE_DELAY } = await import("../../shared/rules/script.ts");
 const { Msg } = await import("../../shared/protocol.ts");
 import type { NpcDef, NpcScript } from "../../shared/content/api.ts";
@@ -91,7 +91,7 @@ async function setup(items: { itemId: number; amount: number; equip: string | nu
   const inv = inventory(items);
   t.pcs.set("p1", pcView());
   t.invs.set("p1", inv);
-  await engine.load("p1", inv, QuestStore.fromRows(inv, []));
+  await engine.load("p1", inv, CharVars.of(inv));
   return { ...t, engine, log, list };
 }
 
@@ -182,7 +182,7 @@ test("heal shows its numbers, isequipped reads the worn rows, callshop opens a f
   const inv = inventory([{ itemId: 2220, amount: 1, equip: "head_top" }, { itemId: 2101, amount: 1, equip: null }]); // Hat worn, Guard in the bag
   t.pcs.set("p1", pcView({ hp: 60, sp: 5 }));
   t.invs.set("p1", inv);
-  await engine.load("p1", inv, QuestStore.fromRows(inv, []));
+  await engine.load("p1", inv, CharVars.of(inv));
   const warn = console.warn;
   console.warn = () => {};
   try { engine.click("p1", npc); await tick(); } finally { console.warn = warn; }

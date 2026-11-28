@@ -76,7 +76,6 @@ export const CLIENT_MSGS = {
   npcNext: { dead: "allow", invincible: "keep", lock: "reply" },
   npcMenu: { dead: "allow", invincible: "keep", lock: "reply" },
   npcClose: { dead: "allow", invincible: "keep", lock: "reply" },
-  questActive: { dead: "allow", invincible: "keep", lock: "free" }, // CZ_ACTIVE_QUEST (clif_parse_questStateAck): no checks
   // clif_parse_SkillUp -> pc_skillup: no death / NPC check. clif_parse_UseSkillToId / ToPos (clif.cpp:12940-13080): pc_isdead and
   // pc_cant_act refuse; an accepted request calls pc_delinvincibletimer (12982 / 13077) before unit_skilluse_* checks the rest
   skillUp: { dead: "allow", invincible: "keep", lock: "free" },
@@ -91,23 +90,11 @@ export const CLIENT_MSGS = {
   partyLeader: { dead: "allow", invincible: "keep", lock: "free" },
   partyOption: { dead: "allow", invincible: "keep", lock: "free" },
   partyChat: { dead: "allow", invincible: "keep", lock: "free" },
-  // duel (2.4.0): @duel / @accept / @reject / @leave are atcommands (atcommand.cpp:9260-9380): no pc_isdead and no NPC-session check in
-  // the command path itself (the server adds its own refusals for a dead or talking challenger); chat-like requests never end spawn protection
-  duelInvite: { dead: "allow", invincible: "keep", lock: "free" },
-  duelReply: { dead: "allow", invincible: "keep", lock: "free" },
-  duelLeave: { dead: "allow", invincible: "keep", lock: "free" },
   // friends + whisper (2.3.0): clif_parse_FriendsListAdd / Reply / Remove and clif_parse_WisMessage have no death or NPC check
   friendAdd: { dead: "allow", invincible: "keep", lock: "free" },
   friendReply: { dead: "allow", invincible: "keep", lock: "free" },
   friendRemove: { dead: "allow", invincible: "keep", lock: "free" },
   whisper: { dead: "allow", invincible: "keep", lock: "free" },
-  // pets (2.4.0): clif_parse_CatchPet / clif_parse_SelectEgg run after an item use (dead + dialog refuse it like pc_useitem);
-  // clif_parse_PetMenu / ChangePetName / pet autofeed have no death or NPC check
-  petCatch: { dead: "deny", invincible: "keep", lock: "useitem" },
-  petHatch: { dead: "deny", invincible: "keep", lock: "useitem" },
-  petCommand: { dead: "allow", invincible: "keep", lock: "free" },
-  petRename: { dead: "allow", invincible: "keep", lock: "free" },
-  petAutoFeed: { dead: "allow", invincible: "keep", lock: "free" },
 } as const satisfies Record<string, ClientMsgGuard>;
 
 export type ClientMsgKey = keyof typeof CLIENT_MSGS;

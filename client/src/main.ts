@@ -10,7 +10,7 @@ import { Callbacks, Client, type Room } from "@colyseus/sdk";
 import {
   Msg, type ChangeMapEvent, type ChatEvent, type DieEvent, type ExpEvent, type HealEvent, type HitEvent, type HotkeysEvent, type InvEvent,
   type CardAckEvent, type CardListEvent, type ItemGetEvent, type LevelUpEvent, type NoticeEvent, type ShopEvent, type StatUpAck, type StatusEvent, type TakeItemEvent,
-  type ScListEvent, type SkillCancelEvent, type SkillCastEvent, type SkillDelayEvent, type SkillFailEvent, type SkillUseEvent, type SkillsEvent, PET_SCALE,
+  type ScListEvent, type SkillCancelEvent, type SkillCastEvent, type SkillDelayEvent, type SkillFailEvent, type SkillUseEvent, type SkillsEvent,
 } from "../../shared/protocol.ts";
 import { SKILLS, SKILL_USE, skillElement, skillHits, skillLv } from "../../shared/rules/skill.ts";
 import { clearPending, initSkills, pendingSkill, skillState, resetSkills, setSkillOwner, setSkills, skillDelay, updateSkillShades } from "./ui/skills.ts";
@@ -21,10 +21,9 @@ import { newMotion, patchMotion, setWalkGoal, stepMotion, walkGoal, type Motion 
 import { FIELD, MAP_INFO, WARPS, buildMap, isMapName, roomOf, type MapName } from "../../shared/maps.ts";
 import { ART_STANDIN, artOf, tintOf, scaleOf } from "../../shared/mobart.ts";
 import { makeDoorGlow, makePortal, tickPortals } from "./portal.ts";
-import { SEAL } from "../../shared/content/f1/stair.ts";
 import { lookOf } from "./themes.ts";
 import { setWeather, tickWeather } from "./weather.ts";
-import { resumeNavi, takeNavi } from "./navi.ts";
+import { resumeNavi, stopNavi, takeNavi } from "./navi.ts";
 import { autoOn, setAuto } from "./autoplay.ts";
 import { MOB_BY_ID, type JobKey, type Mob, type StatKey } from "../../shared/rules/data.ts";
 import { playerStatus } from "../../shared/rules/status.ts";
@@ -52,11 +51,7 @@ import { applyShake, clearPixelFx, frozen, initPixelFx, shake, spawn as pfx, upd
 import { applyI18n, bindLangSelects, t as tr } from "./i18n.ts"; // aliased: `t` is a local name in places
 import { banner, drawMinimap, initHud, log, logExpLoss, setMinimapMap, settings, showDeath, tooltip, updateBasicInfo, updateStatusWindow, type Dot, type MeView } from "./ui/hud.ts";
 import { bindDialog, dialogOpen, resetDialog } from "./ui/dialog.ts";
-import { bindQuests, onQuestLog, questStateOf, resetQuests, stopNavi, updateQuestUi } from "./ui/quests.ts";
 import { bindAutoUi, stopAuto } from "./ui/auto.ts";
-import { bindPets, resetPets, isLegendaryPet, petAura } from "./pets.ts";
-import { bindPetUi, resetPetUi, petCatchActive, petCatchCancel, petCatchPick } from "./ui/pet.ts";
-import { bindDuel, duelFoe, handleDuelInput, resetDuel } from "./ui/duel.ts"; // 1v1 duel (2.4.0)
 import { bindParty, handleChatInput, openMenu, partyDots, partyMemberByName, resetParty, setPartyMap, unbindParty } from "./ui/party.ts";
 import { bindEmotions, resetEmotions, updateEmotions } from "./ui/emotion.ts";
 import { applyBackdrop } from "./ui/backdrop.ts";
@@ -160,20 +155,19 @@ function loadMap(seed: number, name: MapName = FIELD) {
   setMinimapMap(map, MAP_INFO[name].title, WARPS.filter((wp) => wp.map === name));
   setWorldMapMap(map, name);
 }
-/** W01 r2: a scripted door (the sealed stair) glows faintly once it is open for this character (quest 1018 done, f1_seal). */
+/** A scripted door (the stair down into the catacombs) glows faintly. */
 let doorMap: MapName | undefined;
 function refreshDoors() {
   const w = world, m = map;
   if (!w || !m) return;
   for (const old of w.children.filter((c) => c.name === "door")) w.remove(old);
-  if (!doorMap || questStateOf(SEAL) !== 2) return;
+  if (!doorMap) return;
   for (const p of WARPS.filter((wp) => wp.map === doorMap && wp.npc)) {
     const g = makeDoorGlow(p.x, p.y, heightAt(m, p.x, p.y));
     g.name = "door";
     w.add(g);
   }
 }
-onQuestLog(refreshDoors);
 loadMap(BACKDROP_SEED);
 
 // ---------- entities (players + monsters share one shape) ----------
@@ -202,7 +196,7 @@ const lookOfState = (s: any): Look => ({ gender: s.gender === "F" ? "F" : "M", h
 
 function addEntity(id: string, s: any, isMonster: boolean, isMe: boolean, isPet = false) {
   const def = isMonster || isPet ? MOB_BY_ID.get(s.mobId) : undefined;
-  const view = def ? new AnimSprite({ body: `mob_${artOf(def.id)}`, fallback: `mob_${artOf(def.id)}`, standin: def.id in ART_STANDIN ? `mob_${ART_STANDIN[def.id]}` : undefined, tint: tintOf(def.id), height: (MOB_HEIGHT[def.size] ?? 1.1) * (BOSS_SCALE[def.bossType] ?? 1) * scaleOf(def.id) * (isPet ? PET_SCALE : 1) })
+  const view = def ? new AnimSprite({ body: `mob_${artOf(def.id)}`, fallback: `mob_${artOf(def.id)}`, standin: def.id in ART_STANDIN ? `mob_${ART_STANDIN[def.id]}` : undefined, tint: tintOf(def.id), height: (MOB_HEIGHT[def.size] ?? 1.1) * (BOSS_SCALE[def.bossType] ?? 1) * scaleOf(def.id) })
     : new AnimSprite({ look: lookOfState(s), height: 1.5 });
   const obj: THREE.Object3D = view.object;
   obj.userData.entityId = id;
@@ -211,12 +205,11 @@ function addEntity(id: string, s: any, isMonster: boolean, isMe: boolean, isPet 
   if (isMonster) pickables.push(obj);
   const shadow = new THREE.Mesh(shadowGeo, shadowMat);
   scene.add(obj, shadow);
-  if (isPet && def && isLegendaryPet(def.id)) shadow.add(petAura()); // 2.4.0 legendary pet: a gold glow rides under it (pets.ts)
   let label: HTMLDivElement | undefined;
   const boss: number = isMonster ? s.boss ?? 0 : 0;
   if (!isMonster || boss) { // RO shows monster names only on hover (tooltip); a boss / MVP keeps a coloured tag
     label = document.createElement("div");
-    label.className = isPet ? (def && isLegendaryPet(def.id) ? "label pet legendary" : "label pet") : isMe ? "label me" : boss ? `label ${boss === 2 ? "mvp" : "boss"}` : "label";
+    label.className = isMe ? "label me" : boss ? `label ${boss === 2 ? "mvp" : "boss"}` : "label";
     label.textContent = isPet ? s.name : def ? (boss ? bossTag(def.id, def.name, def.level) : def.name) : s.name; // a mini-boss's tag: floor, level, phase
     labels.append(label);
   }
@@ -410,12 +403,8 @@ function enterWorld(r: Room) {
   r.onMessage(Msg.skillCancel, (m: SkillCancelEvent) => { endCastBar(m.src); skillFx.stopCast(m.src); });
   r.onMessage(Msg.skillUse, (m: SkillUseEvent) => onSkillUse(m));
   bindDialog(r, camera); // NPC dialog / menu / cutin (ui/dialog.ts); the camera lets a new dialog stay off the player and the NPC
-  bindQuests(r); // quest log, tracker, NPC marks, reward feed, auto-navigation (ui/quests.ts)
   bindAutoUi(r); // C12 auto quest / auto battle (autoplay.ts): ordinary intents only
   bindParty(r); // party / friends / whispers (ui/party.ts)
-  bindDuel(r); // duel challenge popup / strip / commands (ui/duel.ts)
-  bindPetUi(r); // 2.4.0 pet window, egg list, taming cursor (ui/pet.ts)
-  bindPets(r, { entity: (id) => { const e = entities.get(id); return e && { pos: e.pos, name: e.name }; }, camera, fx }); // pet emotions, notices, taming result (pets.ts)
   setPartyMap(mapName);
   bindEmotions(r); // NPC scripts in the world: emotion bubbles and npctalk lines (ui/emotion.ts)
   bindTower(r); // 2.7.0 floor guardian hint panel (ui/tower.ts)
@@ -436,10 +425,8 @@ function enterWorld(r: Room) {
 
 function leaveWorld() {
   room = undefined; me = undefined; own = undefined; attackTarget = undefined;
-  resetDuel(); // the duel ends with the room
   if (leaving) unbindParty(); else resetParty(); // a map change keeps the party list, logout / char select forgets it
-  resetPetUi(); resetPets();
-  bindAutoUi(undefined); resetDialog(); resetQuests(); resetEmotions(); resetSkills(); clearSkillOverlays(); clearStatusList(); clearPixelFx();
+  bindAutoUi(undefined); resetDialog(); resetEmotions(); resetSkills(); clearSkillOverlays(); clearStatusList(); clearPixelFx();
   $("w-options").hidden = true;
   clearEntities();
   clearThings(scene);
@@ -779,8 +766,7 @@ function useArmedSkill(cx: number, cy: number) {
   }
   const mob = pickMonster(cx, cy) ?? (g ? nearestMonster(g.point.x, g.point.z, 1.0) : undefined);
   const pc = s.target === "Support" ? pickPlayer(cx, cy, s.key === "ALL_RESURRECTION") : undefined;
-  const foeHit = s.target === "Attack" && duelFoe() ? pickPlayer(cx, cy) : undefined; // duel: the opponent is a valid enemy
-  const t = s.target === "Support" ? pc ?? mob : foeHit && foeHit.id === duelFoe() ? foeHit : mob; // no duel: foeHit and duelFoe() are both undefined
+  const t = s.target === "Support" ? pc ?? mob : mob;
   if (!t) { log("system", tr(s.target === "Support" ? "game.click_player" : "game.click_monster")); return; }
   clearPending();
   room.send(Msg.useSkill, { id: p.id, lv: p.lv, target: t.id });
@@ -806,7 +792,7 @@ const chatInput = $<HTMLInputElement>("chat-input");
 $<HTMLFormElement>("chat-form").addEventListener("submit", (ev) => {
   ev.preventDefault();
   const text = chatInput.value.trim();
-  if (text && !handleGmInput(text) && !handleDuelInput(text) && !handleChatInput(text)) room?.send(Msg.chat, { text });
+  if (text && !handleGmInput(text) && !handleChatInput(text)) room?.send(Msg.chat, { text });
   chatInput.value = "";
   chatInput.blur();
 });
@@ -850,19 +836,13 @@ const hitG = (e: PointerEvent) => (ray.setFromCamera(ndc.set((e.clientX / innerW
 let rightDown: { x: number; y: number; t: number } | undefined;
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 canvas.addEventListener("pointerdown", (e) => {
-  if (e.button === 2) { if (pendingSkill()) clearPending(); petCatchCancel(); dragging = true; rightDown = { x: e.clientX, y: e.clientY, t: performance.now() }; canvas.setPointerCapture(e.pointerId); return; }
+  if (e.button === 2) { if (pendingSkill()) clearPending(); dragging = true; rightDown = { x: e.clientX, y: e.clientY, t: performance.now() }; canvas.setPointerCapture(e.pointerId); return; }
   if (e.button !== 0 || !room || !ground || !map || me?.dead) return;
   if (e.shiftKey) { const p = pickPlayer(e.clientX, e.clientY); if (p && p.id !== room.sessionId) { openMenu(p.name, e.clientX, e.clientY); return; } } // Shift+click on a player: the same menu as a right-click
-  if (petCatchActive()) { const t = pickMonster(e.clientX, e.clientY) ?? (hitG(e) ? nearestMonster(hitG(e)!.point.x, hitG(e)!.point.z, 1.0) : undefined); if (t) petCatchPick(t.id); else petCatchCancel(); return; } // 2.4.0: the taming cursor (ui/pet.ts)
   if (dialogOpen()) return; // an NPC window is open: no world clicks (the original disables mouse targeting)
   stopAuto("Auto off: you took over."); // a manual click ends auto-play (C12)
   if (pendingSkill()) { stopNavi(); useArmedSkill(e.clientX, e.clientY); return; } // a skill waits for its target (ui/skills.ts)
   stopNavi(); // any click takes over from auto-navigation
-  const foeId = duelFoe(); // duel (2.4.0): clicking the opponent attacks it, nobody else is attackable
-  if (foeId) {
-    const f = pickPlayer(e.clientX, e.clientY);
-    if (f && f.id === foeId) { attackTarget = f.id; setWalkGoal(); room.send(Msg.attack, { id: f.id }); return; }
-  }
   const hit = (() => { const t = pickMonster(e.clientX, e.clientY); return { t, g: ray.intersectObject(ground)[0] }; })();
   // forgiving click: wandering monsters are small moving targets, so a ground click within
   // ~1 tile of a live monster counts as clicking it
@@ -965,8 +945,7 @@ renderer.setAnimationLoop(() => {
     if (isMe) cam.target.lerp(tmp.set(e.pos.x, e.pos.y + 0.6, e.pos.z), 1 - Math.exp(-dt * 8));
     if (e.label) {
       // a boss keeps its tag, so does the duel opponent; a dead monster's name goes with its gauge (the corpse fades a moment later)
-      e.label.hidden = (e.dead && e.isMonster) || (!settings.showNames && !isMe && !e.boss && e.id !== duelFoe());
-      e.label.classList.toggle("duel-foe", e.id === duelFoe());
+      e.label.hidden = (e.dead && e.isMonster) || (!settings.showNames && !isMe && !e.boss);
       if (!e.label.hidden) place(e.label, e.pos, 6);
     }
     // HP bars: my own always; a monster's once hurt (monster_hp_bars_info); another player's only for a party member (partyHp)
@@ -1014,7 +993,7 @@ renderer.setAnimationLoop(() => {
     setMusicMap(mvp ? "boss" : MAP_INFO[mapName].music);
   }
   updateThings(camera, cam.yaw, t, hoveredThing, altDown);
-  updateQuestUi(camera, now); // quest marks over NPCs + auto-navigation steps
+  
   updateEmotions(camera, now); // emotion / npctalk bubbles follow their unit
   // keep the shadow camera centred on the player
   sun.position.set(cam.target.x - 20, 40, cam.target.z + 10);

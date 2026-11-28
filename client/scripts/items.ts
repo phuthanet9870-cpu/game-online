@@ -26,7 +26,7 @@ r.onMessage(Msg.shopClose, () => { shopClosed++; });
 let menu: NpcMenuEvent | undefined, closeBtn = false;
 r.onMessage(Msg.npcMenuList, (m: NpcMenuEvent) => { menu = m; });
 r.onMessage(Msg.npcCloseBtn, () => { closeBtn = true; });
-for (const t of [Msg.quests, Msg.questMark, Msg.npcMes, Msg.npcNextBtn, Msg.npcEnd, Msg.npcClear, Msg.cutin, Msg.emotion, Msg.npcTalk]) r.onMessage(t, () => {});
+for (const t of [Msg.npcMes, Msg.npcNextBtn, Msg.npcEnd, Msg.npcClear, Msg.cutin, Msg.emotion, Msg.npcTalk]) r.onMessage(t, () => {});
 for (const t of [Msg.hit, Msg.chat, Msg.exp, Msg.levelUp, Msg.hotkeys, Msg.heal, Msg.notice, Msg.status, Msg.takeItem]) r.onMessage(t, () => {});
 r.onMessage(Msg.die, (m: { id: string }) => { if (m.id === r.sessionId) r.send(Msg.respawn); });
 const me = () => (r.state as any).players.get(r.sessionId);
@@ -67,16 +67,16 @@ clearInterval(loop);
 const loot = got[got.length - 1];
 console.log(`OK: looted ${ITEMS.get(loot.itemId)!.name}`);
 
-// 5) NPC shop: back to Hearthmoor, where Mira keeps her stall. A click never walks (npc_click); it opens only within
+// 5) NPC shop: back to Hearthmoor, where Tilda keeps her stall. A click never walks (npc_click); it opens only within
 //    npc_checknear range (15 cells). So walk into range with ordinary move requests first (each within max_walk_path), then click.
 await r.travel(TOWN);
 await wait(500);
-const npc = (r.state as any).npcs.get("npc_merchant");
-if (!npc) fail("Mira is not in Hearthmoor's room state");
+const npc = (r.state as any).npcs.get("town_tools");
+if (!npc) fail("Tilda is not in Hearthmoor's room state");
 const map = mapOfState(r.state as any);
 const cell = () => ({ x: Math.round(me().x), y: Math.round(me().y) });
 if (!npcCheckNear(cell(), npc)) {
-  r.send(Msg.npc, { id: "npc_merchant" }); // out of range: nothing happens, no walking
+  r.send(Msg.npc, { id: "town_tools" }); // out of range: nothing happens, no walking
   const c0 = cell();
   await wait(800);
   if (shop) fail("merchant opened from out of range");
@@ -94,23 +94,16 @@ for (let hop = 0; hop < 30 && !npcCheckNear(cell(), npc); hop++) {
   r.send(Msg.move, best!);
   await until(() => !me().moving && cell().x === best!.x && cell().y === best!.y, 8000, "hop toward the merchant did not finish");
 }
-/** Click Mira, pick Buy (1) or Sell (2) in her menu, press Close: her script runs callshop, the list opens. */
-async function viaMira(choice: 1 | 2) {
+/** Click Tilda: a plain shop NPC opens its window at once (kind "shop"; the client then buys or sells). */
+async function viaMira(_choice: 1 | 2) {
   menu = undefined; closeBtn = false; shop = undefined;
-  r.send(Msg.npc, { id: "npc_merchant" });
-  await until(() => !!menu, 2000, "Mira did not answer the click with her menu");
-  if (menu!.options.join("/") !== "Buy/Sell/Cancel") fail(`Mira's menu: ${menu!.options.join("/")}`);
-  if (shop) fail("the shop opened before the menu was answered");
-  r.send(Msg.npcMenu, { npc: "npc_merchant", choice });
-  await until(() => closeBtn, 2000, "no Close button after the menu (close2)");
-  r.send(Msg.npcClose, { npc: "npc_merchant" });
-  await until(() => !!shop, 2000, "callshop did not open the shop");
-  if (shop!.type !== choice) fail(`shop window type ${shop!.type}, expected ${choice}`);
+  r.send(Msg.npc, { id: "town_tools" });
+  await until(() => !!shop, 2000, "the shop did not open on the click");
 }
 const c1 = cell();
 await viaMira(2);
 if (cell().x !== c1.x || cell().y !== c1.y || me().moving) fail("talking to the merchant moved the character");
-console.log(`OK: Mira talked at once from ${Math.max(Math.abs(npc.x - c1.x), Math.abs(npc.y - c1.y))} cells (Buy/Sell/Cancel), then callshop opened her sell list (${shop!.npc}), no walk`);
+console.log(`OK: Tilda opened her shop from ${Math.max(Math.abs(npc.x - c1.x), Math.abs(npc.y - c1.y))} cells (${shop!.npc}), no walk`);
 await wait(300);
 const sellable = inv!.items.find((s) => s.itemId === loot.itemId && !s.equip)!;
 const zeny0 = inv!.zeny;
@@ -121,7 +114,7 @@ console.log(`OK: sold ${ITEMS.get(loot.itemId)!.name} for ${inv!.zeny - zeny0} z
 // says so with shopClose, and a second deal needs a new click on the merchant
 await until(() => shopClosed > 0, 2000, "the sell did not end the shop session (no shopClose)");
 const zBefore = inv!.zeny;
-r.send(Msg.shopBuy, { npc: "npc_merchant", items: [{ itemId: 501, amount: 1 }] });
+r.send(Msg.shopBuy, { npc: "town_tools", items: [{ itemId: 501, amount: 1 }] });
 await wait(500);
 if (inv!.zeny !== zBefore) fail("bought without an open shop session");
 console.log("OK: the sell closed the shop; a buy without a new click is refused");

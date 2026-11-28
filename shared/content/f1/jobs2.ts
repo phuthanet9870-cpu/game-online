@@ -3,12 +3,12 @@
 // (BaseClass = the first job, Class = that first job itself, not yet a 2nd job), the requirement every one of them shares (JobLevel >= 40;
 // the remaining skill points must be spent: "SkillPoint > 0 -> come back after using them"), Bard / Dancer by gender (Sex), then
 // `jobchange` (pc_jobchange: job level 1, skills kept, change_level_2nd stored) and a small gift. The quests of the original
-// (item turn-ins, tests, mazes) are cut down to a question, like our first-job masters (f1/jobs.ts).
-import type { NpcScript, QuestInfo, Script } from "../api.ts";
+// (item turn-ins, tests, mazes) are cut out: the Grandmaster changes the job once the level and skill points allow it.
+import type { NpcScript, Script } from "../api.ts";
 import type { FirstJob, JobKey } from "../../rules/data.ts";
 import { JOBS } from "../../rules/data.ts";
 import { JOBL_UPPER, MAPID, isSecondJob, isTrans, jobOfMapid } from "../../rules/status.ts";
-import { ET, QMARK, QTYPE } from "../../rules/script.ts";
+import { ET } from "../../rules/script.ts";
 
 export const GRANDMASTER = { npc: "npc_job_grandmaster", name: "Guild Grandmaster Aldric", sprite: "npc_warden" } as const;
 /** rAthena's 2nd-job NPCs: Job Level 40 at least (50 = the "full" path, more skill points kept for the 2nd job). */
@@ -100,11 +100,6 @@ export const grandmaster: NpcScript = async (s: Script) => {
   s.mes(N, `From today you are a ^4d4dff${title(path.job)}^000000. Your new skills are waiting in the Skill window.`);
   return s.close();
 };
-
-/** A green "!" over the Grandmaster while a first job is at Job Lv 40+ (QTYPE.JOB). */
-export const GRANDMASTER_QUESTINFO: QuestInfo[] = [
-  { icon: QTYPE.JOB, color: QMARK.GREEN, condition: (v) => firstOf(v.get("Class")) !== undefined && v.get("JobLevel") >= SECOND_JOB_MIN_JOBLV },
-];
 
 // ---------- the rebirth (npc/jobs/valkyrie.txt + the Juno library fee) ----------
 export const REBIRTH = { npc: "npc_rebirth", name: "Keeper of the Second Dawn", sprite: "npc_guide" } as const;

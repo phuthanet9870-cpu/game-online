@@ -11,7 +11,6 @@ import { MAP_INFO, type MapName } from "../../../shared/maps.ts";
 import { toggle } from "./windows.ts";
 import { log } from "./hud.ts";
 import { play } from "../audio.ts";
-import { challenge as challengeDuel, duelFoe } from "./duel.ts"; // 2.4.0: "Duel" in the player menu
 
 type PartyData = NonNullable<PartyEvent["party"]>;
 type Friend = FriendsEvent["list"][number];
@@ -273,7 +272,6 @@ export function openMenu(name: string, x: number, y: number, friend?: Friend) {
   add(t("party.whisper"), () => whisperTo(name));
   if (party && iLead() && !party.members.some((m) => m.name === name)) add(t("party.invite_to"), () => invite(name));
   else if (!party) add(t("party.create_to_invite"), () => { toggleWindow(true); setTab("party"); createName.focus(); });
-  if (!friend && !duelFoe()) add(t("party.duel"), () => challengeDuel(name));
   const isFriend = friend ?? friends.find((f) => f.name === name);
   if (isFriend) add(t("party.remove_friend"), () => room?.send(Msg.friendRemove, { charId: isFriend.charId }));
   else add(t("party.add_friend"), () => addFriend(name));

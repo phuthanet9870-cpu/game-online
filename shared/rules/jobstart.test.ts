@@ -9,7 +9,7 @@ import { JOB_START, startHotkeys, startSkillRows } from "./jobstart.ts";
 import { START_JOBS, createRequest } from "../look.ts";
 import { SKILL_ID, skillReady, skillUpBlock } from "./skill.ts";
 import { ITEMS, equipBlock } from "./items.ts";
-import { itemNamed } from "./quest.ts";
+import { itemNamed } from "./lookup.ts";
 
 test("every first job has a start, and 3 starter skill levels", () => {
   assert.deepEqual(Object.keys(JOB_START).sort(), START_JOBS.filter((j) => j !== "Novice").sort());

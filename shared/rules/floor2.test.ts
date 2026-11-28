@@ -100,7 +100,7 @@ test("floor 2 spawns: FIELD_MOBS are the monster lines, every species has a spri
 });
 
 test("every floor 2 NPC is listed in NPC_HOMES and stands on its own map", () => {
-  for (const id of ["npc_f2_keeper", "npc_f2_sentinel", "f2_shop", "f2_crystal", "f1_crystal"]) {
+  for (const id of ["npc_f2_keeper", "f2_shop", "f2_crystal", "f1_crystal"]) {
     const n = NPCS.find((n) => n.id === id)!;
     assert.deepEqual(NPC_HOMES[id], { map: n.map, name: n.name });
   }

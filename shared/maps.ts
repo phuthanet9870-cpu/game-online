@@ -329,27 +329,20 @@ export const TOWN_SAVE: MapPos = { map: TOWN, ...TOWN_CELLS.save };
 export const TOWN_START: MapPos = { map: TOWN, ...TOWN_CELLS.start };
 
 // ---------- what the client knows about places it is not on ----------
-/** The map and display name of every NPC a quest or a dialog can send a player to (the client only receives the NPCs of its
- *  own room; navigation needs to know which map to head for). shared/rules/content.test.ts checks this against
- *  shared/content/npcs.ts. */
+/** The map and display name of every NPC the client may need to point a player at (the client only receives the NPCs of its own
+ *  room; the map window needs to know which map an NPC is on). */
 export const NPC_HOMES: Record<string, { map: MapName; name: string }> = {
-  npc_guide: { map: TOWN, name: "Guide Lio" }, npc_merchant: { map: TOWN, name: "Mira the Merchant" },
-  npc_warden: { map: TOWN, name: "Warden Orrin" }, npc_hearthkeeper: { map: TOWN, name: "Hearthkeeper Bren" },
-  npc_drillmaster: { map: TOWN, name: "Drillmaster Kessa" }, npc_pella: { map: TOWN, name: "Pella the Cook" },
-  npc_garr: { map: TOWN, name: "Woodcutter Garr" }, npc_merrit: { map: TOWN, name: "Old Merrit" },
+  npc_hearthkeeper: { map: TOWN, name: "Hearthkeeper Bren" },
   town_tools: { map: TOWN, name: "Tilda's Sundries" }, town_arms: { map: TOWN, name: "Garrow's Arms" },
   npc_refiner: { map: TOWN, name: "Forgemaster Brann" },
-  npc_beastkeeper: { map: TOWN, name: "Keeper Wren" }, // 2.4.0 pets
-  npc_ranger: { map: FIELD, name: "Ranger Vessa" }, npc_herbalist: { map: FIELD, name: "Herbalist Tamsin" },
-  // 2.5.0 floor 2 (shared/content/f2/*) and the warp crystal of Hearthmoor
-  npc_f2_keeper: { map: F2_TOWN, name: "Lamplighter Isolde" }, npc_f2_sentinel: { map: F2_TOWN, name: "Sentinel Corwin" },
+  npc_f2_keeper: { map: F2_TOWN, name: "Lamplighter Isolde" },
   f2_shop: { map: F2_TOWN, name: "Marrow's Provisions" }, f2_crystal: { map: F2_TOWN, name: "Warp Crystal" },
   f1_crystal: { map: TOWN, name: "Warp Crystal" },
-  npc_f3_keeper: { map: F3_MAP, name: "Sister Odile" }, // 2.7.0 floor 3 (shared/content/f3/witherwick.ts)
+  npc_f3_keeper: { map: F3_MAP, name: "Sister Odile" },
   npc_job_swordman: { map: TOWN, name: "Vanguard Master Brannoc" }, npc_job_mage: { map: TOWN, name: "Arcanist Master Ysolde" },
   npc_job_archer: { map: TOWN, name: "Fletcher Master Kestrel" }, npc_job_acolyte: { map: TOWN, name: "Cleric Master Aurel" },
   npc_job_merchant: { map: TOWN, name: "Peddler Master Tobin" }, npc_job_thief: { map: TOWN, name: "Prowler Master Sable" },
-  npc_job_grandmaster: { map: TOWN, name: "Guild Grandmaster Aldric" }, npc_rebirth: { map: TOWN, name: "Keeper of the Second Dawn" }, // 2.5.0 (f1/jobs2.ts)
+  npc_job_grandmaster: { map: TOWN, name: "Guild Grandmaster Aldric" }, npc_rebirth: { map: TOWN, name: "Keeper of the Second Dawn" },
 };
 /** The monsters of each field and dungeon level (its `monster` spawn lines in shared/data/spawns.txt, not the boss_monster
  *  mini-bosses / MVP, which the auto-hunt must not walk into; shared/rules/spawn.test.ts keeps the two in step) and

@@ -25,7 +25,7 @@ r.onMessage(Msg.cardList, (m: CardListEvent) => { list = m; });
 r.onMessage(Msg.cardAck, (m: CardAckEvent) => { ack = m; });
 r.onMessage(Msg.status, (m: StatusEvent) => { st = m; });
 r.onMessage(Msg.notice, (m: { text: string }) => notices.push(m.text));
-for (const t of [Msg.quests, Msg.questMark, Msg.npcMes, Msg.npcNextBtn, Msg.npcEnd, Msg.npcClear, Msg.cutin, Msg.emotion, Msg.npcTalk, Msg.hit, Msg.chat, Msg.exp, Msg.levelUp, Msg.hotkeys, Msg.heal, Msg.takeItem, Msg.itemGet]) r.onMessage(t, () => {});
+for (const t of [Msg.npcMes, Msg.npcNextBtn, Msg.npcEnd, Msg.npcClear, Msg.cutin, Msg.emotion, Msg.npcTalk, Msg.hit, Msg.chat, Msg.exp, Msg.levelUp, Msg.hotkeys, Msg.heal, Msg.takeItem, Msg.itemGet]) r.onMessage(t, () => {});
 r.onMessage(Msg.die, (m: { id: string }) => { if (m.id === r.sessionId) r.send(Msg.respawn); });
 const me = () => (r.state as any).players.get(r.sessionId);
 await until(() => !!inv, 3000, "no inventory snapshot");
@@ -104,7 +104,7 @@ await db.query("INSERT INTO inventory (char_id, item_id, amount) VALUES ($1, $2,
 const again = await joinAs(url, "card_bot", "card_bot");
 let inv2: InvEvent | undefined;
 again.room.onMessage(Msg.inv, (m: InvEvent) => { inv2 = m; });
-for (const t of [Msg.quests, Msg.questMark, Msg.status, Msg.hotkeys, Msg.chat, Msg.hit, Msg.npcMes]) again.room.onMessage(t, () => {});
+for (const t of [Msg.status, Msg.hotkeys, Msg.chat, Msg.hit, Msg.npcMes]) again.room.onMessage(t, () => {});
 await until(() => !!inv2, 5000, "no inventory after relogin");
 const k2 = inv2!.items.find((s) => s.itemId === 1201);
 if (k2?.cards.length !== 1 || k2.cards[0] !== c.itemId) fail("the card was not saved");

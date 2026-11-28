@@ -379,21 +379,6 @@ export function aliveMembersIn(room: MapRoom, partyId: number): string[] {
   return out;
 }
 
-/** mob_dead quest credit (mob.cpp:3575-3578): a killer in a party credits every member of that party within AREA_SIZE of the
- *  monster (map_foreachinallrange(quest_update_objective_sub, md, AREA_SIZE, BL_PC, party_id)); without a party, the killer. */
-export function questKillers(room: MapRoom, killerSid: string, at: { x: number; y: number }): string[] {
-  const charId = charIdOf(room, killerSid);
-  const p = charId === undefined ? undefined : parties.get(partyOfChar.get(charId) ?? -1);
-  if (!p) return [killerSid];
-  const out: string[] = [];
-  for (const m of p.members) {
-    if (!m.sd || m.sd.room !== room) continue;
-    const pc = room.state.players.get(m.sd.sid);
-    if (pc && distance(Math.round(pc.x) - at.x, Math.round(pc.y) - at.y) <= BATTLE_CONF.area_size) out.push(m.sd.sid);
-  }
-  return out;
-}
-
 /** party_share_loot (party.cpp:1298) with item share "even" (party.item & 2, party_item_share_type 0 = random pick): who gets an
  *  item the session `sid` picks up. undefined = no sharing (the picker takes it as usual). */
 export function lootReceiver(room: MapRoom, sid: string, canTake: (sid: string) => boolean): string | undefined {

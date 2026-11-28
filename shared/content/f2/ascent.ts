@@ -1,30 +1,18 @@
 // Floor 2 — the Ascent Stair and the warp crystals.
-// The Ascent Stair: a pale spiral stair in the Sunken Mire's drowned chapel, an invisible NPC on its cell with a 3x3 OnTouch area (like
-// the sealed stair, f1/stair.ts, which it sits beside): a climber the wardens vouched for (f1_seal, Warden Orrin's seal quest) who is
-// Base Lv F2_GATE_LEVEL or more goes up to Lanternrest; anyone else is told what is missing. Arriving sets f2_visit (the crystals work)
-// and starts "A Light on the Landing".
+// The Ascent Stair: a pale spiral stair in the Sunken Mire's drowned chapel, an invisible NPC on its cell with a 3x3 OnTouch area: a climber
+// of Base Lv F2_GATE_LEVEL or more whose party felled floor 1's guardian goes up to Lanternrest; anyone else is told what is missing.
+// Arriving sets f2_visit (the crystals work).
 // The warp crystals (one in each town, rAthena's Kafra warp service without the fee): a floor's town can be reached from any other
 // floor's town the climber has already stood in.
 import type { NpcScript } from "../api.ts";
 import { F2_ARRIVAL, TOWN } from "../../maps.ts";
 import { F2_TOWN } from "../../floor2.ts";
-import { SEAL_VAR } from "../f1/stair.ts";
-import { SPOT, naviTo } from "../f1/chapter1.ts";
-import { CRYSTAL_LANDING, F2_GATE_LEVEL, F2_VAR, Q2 } from "./chapter2.ts";
+import { CRYSTAL_LANDING, F2_GATE_LEVEL, F2_VAR } from "./chapter2.ts";
 import { towerFloor } from "../../tower.ts";
-import { F1_WILD, WILD_MOBS } from "../../wilds.ts";
 
 const N = "-! The Ascent Stair !-";
 
 export const ascentStair: NpcScript = async (s) => {
-  if (s.get(SEAL_VAR) < 1) {
-    s.mes(N, "A spiral of pale stone climbs out of the drowned chapel and into the dark above.",
-      "A bar of rune-light lies across its first step, and it will not lift for you.");
-    await s.next();
-    s.mes(N, "^4d4dffThe way up is not open yet.^000000",
-      `Only climbers the wardens vouch for may pass. ${naviTo("Warden Orrin", SPOT.warden)} keeps Hearthmoor's south gate.`);
-    return s.close();
-  }
   if (s.get("BaseLevel") < F2_GATE_LEVEL) {
     s.mes(N, "The rune-light across the first step reads your measure and finds it short.",
       `The upper floor asks ^4d4dffBase Lv ${F2_GATE_LEVEL}^000000. You are Base Lv ^4d4dff${s.get("BaseLevel")}^000000.`,
@@ -35,11 +23,10 @@ export const ascentStair: NpcScript = async (s) => {
   if (s.get(towerFloor(1)!.clearVar) < 1) {
     s.mes(N, "The rune-light lifts a little, then settles again. A second seal glows on the step: a slime's crown in green light.",
       "^4d4dffThe floor's guardian still stands.^000000",
-      `Fell ${naviTo("Gloopking", { map: F1_WILD, ...WILD_MOBS[F1_WILD].hunt })} in the Greenhollow Wilds (the ring stones west of this Mire); it rises somewhere different every time.`);
+      "Fell ^ff4d4dGloopking^000000 in the Greenhollow Wilds (the ring stones west of this Mire); it rises somewhere different every time.");
     return s.close();
   }
   s.set(F2_VAR, 1);
-  if (s.isbegin_quest(Q2.ARRIVE) === 0) s.setquest(Q2.ARRIVE);
   return s.warp(F2_ARRIVAL.map, F2_ARRIVAL.x, F2_ARRIVAL.y);
 };
 

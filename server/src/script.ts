@@ -13,7 +13,7 @@
 // The client only renders (npcMes / npcNextBtn / npcCloseBtn / npcMenuList / cutin / emotion / npcTalk) and answers (npcNext /
 // npcMenu / npcClose); while a script runs the character can't act (shared/rules/msgguard.ts lock "talking").
 import {
-  Msg, type CutinEvent, type ItemGetEvent, type NpcButtonEvent, type NpcMenuEvent, type NpcMesEvent, type QuestLogEvent, type QuestMarkEvent, type ZenyEvent,
+  Msg, type CutinEvent, type ItemGetEvent, type NpcButtonEvent, type NpcMenuEvent, type NpcMesEvent, type ZenyEvent,
 } from "../../shared/protocol.ts";
 import type { Mob } from "../../shared/rules/data.ts";
 import { ITEMS, maxWeight, type EquipSlot, type Item } from "../../shared/rules/items.ts";
@@ -22,21 +22,17 @@ import { REFINE_COST, MAX_REFINE, refineCost, refinePercent } from "../../shared
 import { itemDisplayName } from "../../shared/rules/cards.ts";
 import { MAPID } from "../../shared/rules/status.ts";
 import { SKILL_CONF } from "../../shared/rules/skill.ts";
+import { itemNamed } from "../../shared/rules/lookup.ts";
 import { checkAddItem, inventoryBlank, slotsNeeded } from "../../shared/rules/shop.ts";
 import {
-  Q_ACTIVE, Q_COMPLETE, Q_INACTIVE, isbeginQuest, itemNamed, questAdd, questChange, questCheck, questDelete, questKillOf,
-  questUpdateObjective, questUpdateStatus, type QuestCheckType,
-} from "../../shared/rules/quest.ts";
-import {
-  CHAT_SIZE_MAX, CUTIN, EVENTQUEUE_DELAY, MAX_EVENTQUEUE, MENU_CANCEL, NPCTALK_COLOR, NPC_SECURE_TIMEOUT_MENU, NPC_SECURE_TIMEOUT_NEXT, QMARK, QTYPE,
+  CHAT_SIZE_MAX, CUTIN, EVENTQUEUE_DELAY, MAX_EVENTQUEUE, MENU_CANCEL, NPCTALK_COLOR, NPC_SECURE_TIMEOUT_MENU, NPC_SECURE_TIMEOUT_NEXT,
   SECURE_NPCTIMEOUT_INTERVAL, callshopOption, cutinNameValid, emotionValid, inTouchArea, isequippedIds, menuBuild, menuChoiceValid, menuSelect,
-  npctalkTarget, percentHeal, scriptCont, scriptHeal, showeventArgs, touchAreas, varScope, type CallshopOption, type HpSpChange, type ScriptState,
+  npctalkTarget, percentHeal, scriptCont, scriptHeal, touchAreas, varScope, type CallshopOption, type HpSpChange, type ScriptState,
   type TouchArea,
 } from "../../shared/rules/script.ts";
-import type { ItemRef, NpcDef, NpcScript, QuestInfoView, Script } from "../../shared/content/api.ts";
-import { QUEST_DB } from "../../shared/content/quest_db.ts";
+import type { ItemRef, NpcDef, NpcScript, Script } from "../../shared/content/api.ts";
 import { NPC_BY_ID } from "../../shared/content/npcs.ts";
-import { QuestStore } from "./quests.ts";
+import { CharVars } from "./charvars.ts";
 import type { Inventory } from "./inventory.ts";
 
 /** Thrown into a script to unwind it: close / close3 clicked, end, a cancelled select, or the session ended (death, logout,
@@ -56,8 +52,6 @@ export type PcView = {
 /** What the engine needs from its room (MapRoom implements it). */
 export interface ScriptHost {
   readonly mapName: string;
-  /** 2.4.0 buildin_getitem on a pet egg -> pet_create_egg: a new pet row + its egg (server/src/pets.ts). False = no room. */
-  makeEgg?(sid: string, itemId: number): boolean;
   /** Room clock (ms), for the idle timeout. */
   now(): number;
   send(sid: string, type: string, msg: unknown): void;
@@ -112,13 +106,12 @@ type Session = {
 /** Per-player state: quests + variables, temporary @vars, questinfo display, the running script, the OnTouch areas the player
  *  stands in (sd->areanpc) and its queued OnTouch events (sd->eventqueue). */
 type Pc = {
-  store: QuestStore; temp: Map<string, number>; qi: Map<string, { icon: number; color: number }>; st?: Session;
+  store: CharVars; temp: Map<string, number>; st?: Session;
   areanpc: Set<string>; queue: string[]; at?: { x: number; y: number };
 };
 
 const PARAMS = ["Zeny", "BaseLevel", "JobLevel", "BaseExp", "JobExp", "StatusPoint", "SkillPoint", "Hp", "MaxHp", "Sp", "MaxSp", "Weight", "MaxWeight", "Class", "BaseJob", "Sex"] as const;
 const BUSY_LIST = "You can't carry any more items."; // clif_additem fail (ADDITEM_OVERITEM / OVERWEIGHT): the item is not given
-const nowSec = () => Math.floor(Date.now() / 1000);
 
 export class ScriptEngine {
   private readonly pcs = new Map<string, Pc>();
@@ -143,16 +136,8 @@ export class ScriptEngine {
   /** 2.5.0: a permanent character variable outside a script (pc_readglobalreg / pc_setglobalreg), e.g. jobchange_level. */
   charVar(sid: string, key: string) { return this.pcs.get(sid)?.store.vars.get(key) ?? 0; }
   setCharVar(sid: string, key: string, value: number) { this.pcs.get(sid)?.store.setVar(key, value); }
-  async load(sid: string, inv: Inventory, store?: QuestStore) {
-    this.pcs.set(sid, { store: store ?? await QuestStore.load(inv), temp: new Map(), qi: new Map(), areanpc: new Set(), queue: [] });
-  }
-  /** Map entry (clif_parse_LoadEndAck): the quest list (quest_pc_login) and the questinfo icons from scratch. */
-  enter(sid: string) {
-    const pc = this.pcs.get(sid);
-    if (!pc) return;
-    this.sendQuests(sid);
-    pc.qi.clear(); // pc_show_questinfo_reinit
-    this.questinfo(sid);
+  async load(sid: string, inv: Inventory, store?: CharVars) {
+    this.pcs.set(sid, { store: store ?? await CharVars.load(inv), temp: new Map(), areanpc: new Set(), queue: [] });
   }
   /** The session is gone (logout / eviction): the script is freed without telling anyone. */
   leave(sid: string) {
@@ -307,65 +292,9 @@ export class ScriptEngine {
     }
   }
 
-  // ---------- kills, quest toggle ----------
-  /** mob_dead -> quest_update_objective for the killer (solo path). Party sharing (quest_update_objective_sub over the
-   *  killer's party members within AREA_SIZE of the monster) belongs here once parties exist (C09). */
-  mobDead(killerSid: string, mob: Mob) {
-    const pc = this.pcs.get(killerSid);
-    if (!pc || !pc.store.log.avail) return; // not a player of this room, or sd->avail_quests == 0
-    const { updated, drops } = questUpdateObjective(pc.store.log, QUEST_DB, questKillOf(mob), this.host.mapName);
-    for (const id of updated) pc.store.save(pc.store.log.entries.find((e) => e.questId === id)!);
-    let got = false;
-    for (const d of drops) got = this.giveItem(killerSid, ITEMS.get(d.itemId)!, d.count) || got; // pc_additem(LOG_TYPE_QUEST)
-    if (got) this.host.invChanged(killerSid);
-    if (updated.length) this.sendQuests(killerSid);
-    this.questinfo(killerSid);
-  }
-
-  /** CZ_ACTIVE_QUEST -> quest_update_status(Q_ACTIVE / Q_INACTIVE): show / hide a quest in the tracker. */
-  setActive(sid: string, questId: number, active: boolean) {
-    const pc = this.pcs.get(sid);
-    if (!pc || !Number.isInteger(questId)) return;
-    if (!questUpdateStatus(pc.store.log, questId, active ? Q_ACTIVE : Q_INACTIVE)) return;
-    pc.store.save(pc.store.log.entries.find((e) => e.questId === questId)!);
-    this.sendQuests(sid);
-  }
-
-  // ---------- questinfo (pc_show_questinfo) ----------
-  /** Re-check every questinfo NPC of the map for the player and send only the icons that changed. */
-  questinfo(sid: string) {
-    const pc = this.pcs.get(sid);
-    if (!pc) return;
-    const view = this.reader(sid, pc);
-    for (const n of this.npcs) {
-      if (!n.questinfo?.length) continue;
-      const hit = n.questinfo.find((q) => {
-        try { return !q.condition || q.condition(view); } catch (e) { console.error(`[questinfo ${n.id}]`, e); return false; }
-      });
-      const cur = pc.qi.get(n.id);
-      if (hit) {
-        const color = hit.color ?? QMARK.NONE;
-        if (cur && cur.icon === hit.icon && cur.color === color) continue;
-        pc.qi.set(n.id, { icon: hit.icon, color });
-        this.host.send(sid, Msg.questMark, { npc: n.id, icon: hit.icon, color } satisfies QuestMarkEvent);
-      } else if (cur) {
-        pc.qi.delete(n.id);
-        this.host.send(sid, Msg.questMark, { npc: n.id, icon: QTYPE.NONE, color: QMARK.NONE } satisfies QuestMarkEvent);
-      }
-    }
-  }
-
-  private sendQuests(sid: string) {
-    const pc = this.pcs.get(sid);
-    if (!pc) return;
-    const quests = pc.store.log.entries.slice(0, pc.store.log.avail).map((e) => ({ id: e.questId, state: e.state, time: e.time, count: [...e.count] }));
-    const done = pc.store.log.entries.slice(pc.store.log.avail).map((e) => e.questId);
-    this.host.send(sid, Msg.quests, { quests, done } satisfies QuestLogEvent);
-  }
-
   // ---------- the commands ----------
-  /** Read-only part shared by scripts and questinfo conditions. */
-  private reader(sid: string, pc: Pc): QuestInfoView {
+  /** Read-only part of the script API. */
+  private reader(sid: string, pc: Pc) {
     const host = this.host;
     return {
       strcharinfo: () => host.pc(sid)?.name ?? "",
@@ -404,8 +333,6 @@ export class ScriptEngine {
         if (inv) for (const s of inv.items.values()) if (s.itemId === it.id) n += s.amount;
         return n;
       },
-      checkquest: (id: number, type: QuestCheckType = "HAVEQUEST") => questCheck(pc.store.log, QUEST_DB, id, type, nowSec()),
-      isbegin_quest: (id: number) => isbeginQuest(pc.store.log, QUEST_DB, id, nowSec()),
       getskilllv: (skill: string) => host.skillLv(sid, skill),
       isequipped: (...items: ItemRef[]) => {
         const inv = host.inv(sid);
@@ -425,7 +352,6 @@ export class ScriptEngine {
       return new Promise<Reply>((resolve, reject) => { st.waiting = { resolve, reject }; });
     };
     const read = this.reader(sid, pc);
-    const questChanged = () => { engine.sendQuests(sid); engine.questinfo(sid); };
     const menu = async (args: string[], prompt: boolean) => {
       alive();
       const m = menuBuild(args);
@@ -505,7 +431,7 @@ export class ScriptEngine {
         if (!cutinNameValid(image) || ![0, 1, 2, 3, 4, 255].includes(type)) throw new Error(`bad cutin ${image}, ${type}`);
         send(Msg.cutin, { image, type } satisfies CutinEvent);
       },
-      strcharinfo(type) { alive(); return type === 0 ? read.strcharinfo(0) : ""; },
+      strcharinfo(type) { alive(); return type === 0 ? read.strcharinfo() : ""; },
       get(name) { alive(); return read.get(name); },
       set(name, value) {
         alive();
@@ -545,39 +471,6 @@ export class ScriptEngine {
         const b = Math.trunc(Number(base)), j = Math.trunc(Number(job));
         if (!(b >= 0) || !(j >= 0) || (b === 0 && j === 0)) { console.warn(`[script ${npcId}] getexp ${base}, ${job} ignored`); return; }
         host.gainExp(sid, Math.trunc((b * QUEST_EXP_RATE) / 100), Math.trunc((j * QUEST_EXP_RATE) / 100));
-      },
-      setquest(id) {
-        alive();
-        const e = questAdd(pc.store.log, QUEST_DB, id, nowSec());
-        if (e === -1) console.warn(`[script ${npcId}] setquest ${id}: unknown or already held`);
-        else pc.store.save(e);
-        questChanged();
-      },
-      completequest(id) {
-        alive();
-        if (questUpdateStatus(pc.store.log, id, Q_COMPLETE)) pc.store.save(pc.store.log.entries.find((e) => e.questId === id)!);
-        else console.warn(`[script ${npcId}] completequest ${id}: not held`);
-        questChanged();
-      },
-      erasequest(id) {
-        alive();
-        if (questDelete(pc.store.log, id)) pc.store.remove(id);
-        else console.warn(`[script ${npcId}] erasequest ${id}: not held`);
-        questChanged();
-      },
-      changequest(id, id2) {
-        alive();
-        const e = questChange(pc.store.log, QUEST_DB, id, id2, nowSec());
-        if (e === -1) console.warn(`[script ${npcId}] changequest ${id} -> ${id2} refused`);
-        else { pc.store.remove(id); pc.store.save(e); }
-        questChanged();
-      },
-      checkquest(id, type = "HAVEQUEST") { alive(); return read.checkquest(id, type); },
-      isbegin_quest(id) { alive(); return read.isbegin_quest(id); },
-      showevent(icon, color = QMARK.NONE) {
-        alive();
-        const a = showeventArgs(icon, color);
-        send(Msg.questMark, { npc: npcId, icon: a.icon, color: a.color } satisfies QuestMarkEvent);
       },
       emotion(type, target) {
         alive();
@@ -667,11 +560,6 @@ export class ScriptEngine {
     if (!p || !inv) return false;
     const why = inv.canAdd(it, amount, p.job as JobKey, p.str);
     if (why) { this.host.notice(sid, `${BUSY_LIST} (${it.name}: ${why})`); return false; }
-    if (/^petegg$/i.test(it.type) && this.host.makeEgg) { // buildin_getitem: IT_PETEGG -> pet_create_egg per egg
-      let ok = false;
-      for (let i = 0; i < amount; i++) ok = this.host.makeEgg(sid, it.id) || ok;
-      return ok;
-    }
     inv.add(it.id, amount);
     this.host.send(sid, Msg.itemGet, { itemId: it.id, amount, quest: true } satisfies ItemGetEvent);
     return true;

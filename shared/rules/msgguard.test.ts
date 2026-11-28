@@ -4,10 +4,9 @@ import { gearUseVerdict, CLIENT_MSGS, endsInvincible, guardRequest, msgAllowed, 
 import { Msg } from "../protocol.ts";
 
 const SENT: ClientMsgKey[] = ["move", "attack", "sit", "pickup", "npc", "useItem", "equip", "unequip", "shopBuy", "shopSell", "shopQuit",
-  "chat", "statUp", "hotkeys", "respawn", "npcNext", "npcMenu", "npcClose", "questActive", "useCard", "insertCard", "skillUp", "useSkill",
+  "chat", "statUp", "hotkeys", "respawn", "npcNext", "npcMenu", "npcClose", "useCard", "insertCard", "skillUp", "useSkill",
   "partyCreate", "partyInvite", "partyReply", "partyLeave", "partyKick", "partyLeader", "partyOption", "partyChat",
-  "friendAdd", "friendReply", "friendRemove", "whisper", "duelInvite", "duelReply", "duelLeave",
-  "petCatch", "petHatch", "petCommand", "petRename", "petAutoFeed"];
+  "friendAdd", "friendReply", "friendRemove", "whisper"];
 
 test("every client request has a guard row", () => {
   assert.deepEqual(Object.keys(CLIENT_MSGS).sort(), [...SENT].sort());
@@ -18,7 +17,7 @@ test("dead rules follow clif.cpp parse functions", () => {
   const dead = (k: ClientMsgKey) => msgAllowed(CLIENT_MSGS[k], true, true);
   for (const k of ["move", "attack", "sit", "pickup", "npc", "useItem", "equip", "unequip", "shopBuy", "shopSell", "useSkill"] as const) assert.equal(dead(k), false, k);
   // NpcNextClicked / NpcSelectMenu / NpcCloseClicked / NPCShopClosed / questStateAck have no pc_isdead check
-  for (const k of ["chat", "statUp", "hotkeys", "respawn", "npcNext", "npcMenu", "npcClose", "shopQuit", "questActive", "useCard", "insertCard", "skillUp", "friendAdd", "friendReply", "friendRemove", "whisper", "duelInvite", "duelReply", "duelLeave"] as const) assert.equal(dead(k), true, k); // + clif_parse_UseCard / InsertCard: no death check
+  for (const k of ["chat", "statUp", "hotkeys", "respawn", "npcNext", "npcMenu", "npcClose", "shopQuit", "useCard", "insertCard", "skillUp", "friendAdd", "friendReply", "friendRemove", "whisper", ] as const) assert.equal(dead(k), true, k); // + clif_parse_UseCard / InsertCard: no death check
 });
 
 test("respawn only while dead; shop needs an open session", () => {
@@ -71,7 +70,7 @@ test("gear through useItem obeys the equip lock, a shop list included (pc_isUsei
 
 test("dialog answers need sd->npc_id; chat, stats, hotkeys, sit, shop deals, shop quit and quest toggle are never locked", () => {
   for (const k of ["npcNext", "npcMenu", "npcClose"] as const) assert.deepEqual(verdicts(k), ["deny", "ok", "deny"], k);
-  for (const k of ["chat", "statUp", "hotkeys", "sit", "respawn", "shopBuy", "shopSell", "shopQuit", "questActive"] as const) {
+  for (const k of ["chat", "statUp", "hotkeys", "sit", "respawn", "shopBuy", "shopSell", "shopQuit"] as const) {
     assert.deepEqual(verdicts(k), ["ok", "ok", "ok"], k);
   }
   // both sessions at once (a shop opened by a script, callshop): still locked

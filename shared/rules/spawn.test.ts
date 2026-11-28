@@ -230,17 +230,15 @@ test("mob_setdelayspawn: delay1 + rnd%delay2, rate per type (divide by 100 first
   assert.equal(respawnDelay({ delay1: 3600000, delay2: 0 }, MD.STATUSIMMUNE | plant, 0, rates), 1800000); // boss first
 });
 
-test("passive ground: no aggressive spawn area near a warp, an arrival cell, any NPC or quest navi cell, on any field", async () => {
+test("passive ground: no aggressive spawn area near a warp, an arrival cell, any NPC cell, on any field", async () => {
   const { NPCS } = await import("../content/npcs.ts");
-  const { QUEST_INFO } = await import("../content/quest_db.ts");
-  const MARGIN = 8; // cells between an aggressive area's edge and any place a quest, a gate or an NPC sends a climber to
+  const MARGIN = 8; // cells between an aggressive area's edge and any place a gate or an NPC sends a climber to
   const text = readFileSync(new URL("../data/spawns.txt", import.meta.url), "utf8");
   let checked = 0, collected = 0;
   for (const f of HUNT_MAPS) {
   const places: [string, number, number][] = [];
   for (const w of WARPS) { if (w.map === f) places.push([`warp ${w.name}`, w.x, w.y]); if (w.to.map === f) places.push([`arrival of ${w.name}`, w.to.x, w.to.y]); }
   for (const n of NPCS) if (n.map === f) places.push([n.name, n.x, n.y]);
-  for (const [id, info] of QUEST_INFO) if (info.Navi?.map === f) places.push([`quest ${id} navi`, info.Navi.x, info.Navi.y]);
   collected += places.length;
   const sd = parseSpawns(text, f, buildMap(f, 1337), exists);
   for (const s of sd) {

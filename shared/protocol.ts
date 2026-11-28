@@ -31,7 +31,6 @@ export type ChangeMapEvent = { map: string; x: number; y: number };
 // choice: 1..n = the n-th option shown, 255 = cancel (clif_parse_NpcSelectMenu).
 export type NpcReplyMsg = { npc: string };
 export type NpcMenuMsg = { npc: string; choice: number };
-export type QuestActiveMsg = { id: number; active: boolean }; // CZ_ACTIVE_QUEST: show / hide a quest (Q_ACTIVE / Q_INACTIVE)
 // Skills (shared/rules/skill.ts): CZ_UPGRADE_SKILLLEVEL (one point into skill `id`), CZ_USE_SKILL (on unit `target`; a self skill
 // with no target = the caster) and CZ_USE_SKILL_TOGROUND (on cell x, y). lv = the level to use (1..learned), default the learned one.
 export type SkillUpMsg = { id: number };
@@ -145,14 +144,6 @@ export type NpcMesEvent = { npc: string; text: string };
 export type NpcButtonEvent = { npc: string }; // npcNextBtn (ZC_WAIT_DIALOG) / npcCloseBtn (ZC_CLOSE_DIALOG) / npcClear / npcEnd
 export type NpcMenuEvent = { npc: string; options: string[] }; // ZC_MENU_LIST, the options actually shown (empty ones left out)
 export type CutinEvent = { image: string; type: number }; // ZC_SHOW_IMAGE: 0-2 bottom left/middle/right, 3-4 centre, 255 clear
-// Quest log (owner only): every held quest that is not completed, like the client's quest list (ZC_ALL_QUEST_LIST).
-export type QuestLogEvent = {
-  quests: { id: number; state: number; time: number; count: number[] }[];
-  /** W01 r2: the ids of the completed quests (rAthena's log keeps them after avail_quests; the window lists only the others).
-   *  The client reads it for world cues that follow a finished quest (the sealed stair's glow). */
-  done?: number[];
-};
-export type QuestMarkEvent = { npc: string; icon: number; color: number }; // ZC_QUEST_NOTIFY_EFFECT over an NPC (QTYPE_*, QMARK_*)
 export type ZenyEvent = { amount: number }; // zeny received from an NPC script (reward feed)
 // NPC scripts in the world: an emotion bubble over a unit (clif_emotion, AREA of the unit; id = player session id or NPC id, type =
 // ET_*), and an NPC's line over its head + in the chat log (npctalk -> ZC_NPC_CHAT; color 0xRRGGBB).
@@ -208,42 +199,6 @@ export type WhisperMsg = { to: string; text: string }; // CZ_WHISPER
 // chat lines from other channels reuse Msg.chat with a channel: party chat and whispers (WhisperEvent `from` / `to` = names)
 export type ChannelChatEvent = { channel: "party" | "whisper"; from: string; to?: string; text: string };
 
-// ---- Pets (2.4.0; rAthena pet.cpp / clif pet packets, data shared/data/pets.json imported from db/re/pet_db.yml with our names).
-// A hatched pet is a unit in the room state (MapState.pets, key "pet<petId>"; schema Pet in MapRoom.ts: mobId, owner = the owner's
-// session id, name, x/y/sx/sy/dir/moving like Monster, hungry: boolean (hunger <= PET_HUNGRY), accessory: item id 0 = none).
-// The client draws it with the monster's sprite (mobId) at PET_SCALE and follows the same motion code as monsters.
-// Kinds (our extension, derived from pet_db by tools/rathena/import.ts): "companion" (Script bonus + loyal bonus only), "battle"
-// (AttackRate / RetaliateRate: hits its owner's target, petskillattack), "support" (SupportScript petheal / petskillsupport).
-// Hunger 0 -> intimacy keeps dropping (IntimacyHungry); intimacy 0 -> the pet runs away for good (pet_return_egg is NOT
-// done: the egg is deleted, like rAthena's pet_hungry -> pet_remove_map + intimacy 0). Owner's decision 2026-10-24.
-export const PET_SCALE = 0.8;
-export const PET_HUNGRY = 25; // rAthena PET_HUNGRY_HUNGRY..: 0-10 very hungry, 11-25 hungry, 26-75 neutral, 76-90 satisfied, 91-100 stuffed
-export type PetKind = "companion" | "battle" | "support";
-// Client -> server
-export type PetCatchMsg = { id: string }; // CZ_TRYCAPTURE_MONSTER: the monster picked after a taming item was used (Msg.petCatchStart)
-export type PetHatchMsg = { uid: number }; // CZ_SELECT_PETEGG: the egg (inventory uid) to hatch (only when no pet is out)
-export type PetCommandMsg = { op: "info" | "feed" | "perform" | "return" | "unequip" }; // CZ_COMMAND_PET 0..4
-export type PetRenameMsg = { name: string }; // CZ_RENAME_PET (once, 1-23 chars)
-export type PetAutoFeedMsg = { on: boolean }; // CZ_PET_AUTOFEED (only when pets.json allowAutoFeed)
-// Server -> client
-export type PetCatchStartEvent = { itemId: number }; // ZC_START_CAPTURE (owner): pick a monster with the target cursor
-export type PetCatchResultEvent = { ok: boolean; mobId: number }; // ZC_TRYCAPTURE_MONSTER (area of the catcher)
-export type PetEggsEvent = { uids: number[] }; // ZC_PETEGG_LIST (owner): the eggs that can hatch now
-// ZC_PROPERTY_PET (owner, on hatch / any change; pet null = no pet out). intimacy 0-1000, hunger 0-100 (rAthena units).
-export type PetInfo = { petId: number; mobId: number; name: string; renamed: boolean; level: number; hunger: number; intimacy: number;
-  accessory: number; kind: PetKind; autoFeed: boolean };
-export type PetInfoEvent = { pet: PetInfo | null };
-export type PetEmoteEvent = { id: string; emote: number }; // ZC_PET_ACT / clif_pet_emotion (area of the pet): performance, hungry ...
-export type PetNoticeEvent = { text: string }; // "Your pet ran away", "Taming failed" ...: a system line (owner)
-
-// ---- Duel (2.4.0; rAthena duel.cpp, @duel / @invite / @accept / @reject / @leave). 1-vs-1 challenge on any map (rAthena only
-// refuses maps with mapflag noduel; we have none). Damage between the two follows the normal player-vs-player battle path.
-export type DuelInviteMsg = { name: string }; // @duel <name> / right-click "Duel": challenge an online character on the same map
-export type DuelReplyMsg = { accept: boolean }; // @accept / @reject (the pending invitation)
-// Msg.duelLeave: @leave (the duel ends; the other side wins)
-export type DuelInvitedEvent = { from: string; fromId: string }; // the challenged player (fromId = challenger's session id)
-export type DuelEvent = { duel: null | { with: string; withId: string; since: number } }; // owner: the current duel (null = none)
-// AttackMsg.id / UseSkillMsg.target may be a player session id while both are in the same duel; otherwise the server refuses.
 
 export const Msg = {
   changeMap: "changeMap", // C08: pc_setpos to another map -> clif_changemap: the client leaves this room and joins the map's room
@@ -290,10 +245,6 @@ export const Msg = {
   npcClear: "npcClear",
   npcEnd: "npcEnd", // server -> client: the dialog session ended without a close click (death, timeout, script end)
   cutin: "cutin",
-  // quests (shared/rules/quest.ts, shared/content/quest_db.ts)
-  quests: "quests",
-  questMark: "questMark",
-  questActive: "questActive",
   zenyGet: "zenyGet",
   emotion: "emotion", // server -> area: EmotionEvent
   npcTalk: "npcTalk", // server -> area / owner: NpcTalkEvent
@@ -331,16 +282,8 @@ export const Msg = {
   // friends + whisper (server/src/friends.ts)
   friendAdd: "friendAdd", friendReply: "friendReply", friendRemove: "friendRemove", whisper: "whisper", // client -> server
   friendReq: "friendReq", friends: "friends", channelChat: "channelChat", // server -> client (channelChat: ChannelChatEvent)
-  // pets (server/src/pets.ts)
-  petCatch: "petCatch", petHatch: "petHatch", petCommand: "petCommand", petRename: "petRename", petAutoFeed: "petAutoFeed", // client -> server
-  petCatchStart: "petCatchStart", petCatchResult: "petCatchResult", petEggs: "petEggs", petInfo: "petInfo", petEmote: "petEmote",
-  petNotice: "petNotice", // server -> client
-  devPet: "devPet", // DEV ONLY (pets bot, never in production): { op: "hunger" | "intimacy", value } | { op: "starve" | "catch" } | { op: "give", itemId, amount } | { op: "floor", itemId, value: 0 free | 1 held by another character } | { op: "ownerHp", value: % }
   // GM (server/src/gm.ts): gmAuth / gm client -> server, gmState / gmResult / gmOnline server -> the GM only
   gmAuth: "gmAuth", gm: "gm", gmState: "gmState", gmResult: "gmResult", gmOnline: "gmOnline",
-  // duel (server/src/duel.ts)
-  duelInvite: "duelInvite", duelReply: "duelReply", duelLeave: "duelLeave", // client -> server
-  duelInvited: "duelInvited", duel: "duel", // server -> client
 } as const;
 
 // 8 facing directions, RO order: 0 = south (toward camera), clockwise.

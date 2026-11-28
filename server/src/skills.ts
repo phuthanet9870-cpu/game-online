@@ -23,7 +23,6 @@ import { USW, searchPath } from "../../shared/rules/walk.ts";
 import { FISTS, isSecondJob, type Status } from "../../shared/rules/status.ts";
 import { distance, walkable } from "../../shared/map.ts";
 import { db } from "./db.ts";
-import * as duel from "./duel.ts";
 import type { MapRoom, Player } from "./rooms/MapRoom.ts";
 import { Skills2 } from "./skills2.ts";
 import { NEEDS_SC, TRIPLE_RATE, defend, doubleRate, type SkillUse2 } from "../../shared/rules/skills2.ts";
@@ -105,7 +104,6 @@ export class SkillSystem {
     if (sk_isPassive(id)) this.room.refreshStatus(sid, p); // pc_skillup: status_calc_pc for a passive skill (!skill_get_inf)
     this.room.flushStatus(sid); // clif_updatestatus(SP_SKILLPOINT)
     this.send(sid); // clif_skillup + clif_skillinfoblock (new rows may have unlocked)
-    this.room.npcEngine.questinfo(sid);
   }
 
   // ---------- using a skill ----------
@@ -134,7 +132,7 @@ export class SkillSystem {
       const t = tid ? this.room.actor(tid) : undefined;
       const res = sk.key === "ALL_RESURRECTION"; // 2.5.0: Resurrection aims at a dead player (and only at one)
       if (!tid || !t || (res ? !t.dead || !this.room.state.players.has(tid) : t.dead)) return this.fail(sid, sk.id, "target");
-      if (sk.target === "Attack" && !(duel.dueling(this.room, sid) ? duel.canTarget(this.room, sid, tid) : this.room.state.monsters.has(tid))) return this.fail(sid, sk.id, "target"); // battle_check_target: PvP only against the duel mate, a duelist hits nothing else
+      if (sk.target === "Attack" && !this.room.state.monsters.has(tid)) return this.fail(sid, sk.id, "target"); // attack skills hit monsters only
       if (skillUse(sk)?.kind === "status" && sk.target === "Support" && !this.room.state.players.has(tid)) return this.fail(sid, sk.id, "target"); // buffs and cures go to players
       req.target = tid;
     }
@@ -232,7 +230,7 @@ export class SkillSystem {
     const sk = SKILLS.get(cast.id)!, lv = cast.lv;
     const to = this.aim(cast);
     if (!to) return this.fail(sid, sk.id, "target");
-    if (sk.target === "Attack" && cast.target && this.room.state.players.has(cast.target) && !duel.canTarget(this.room, sid, cast.target)) return this.fail(sid, sk.id, "target"); // the duel ended during the cast
+    if (sk.target === "Attack" && cast.target && this.room.state.players.has(cast.target)) return this.fail(sid, sk.id, "target"); // no player-versus-player combat
     if (cast.target !== sid && !battleCheckRange(this.room.map, this.room.cell(p), to, skillRange(sk, lv, s.learned) + 1)) return this.fail(sid, sk.id, "range");
     const why = this.condition(sid, p, sk, lv);
     if (why) return this.fail(sid, sk.id, why);
@@ -263,9 +261,8 @@ export class SkillSystem {
   private fire(sid: string, p: Player, s: PcSkills, sk: Skill, lv: number, r: Req, at: Cell, now: number, extra: { sp?: number; div?: number } = {}) {
     const use = skillUse(sk)!, b = this.room.brains.get(sid)!;
     const ev: SkillUseEvent = { src: sid, id: sk.id, lv, target: r.target, x: r.x, y: r.y };
-    const mate = duel.foe(this.room, sid), mp = mate ? this.room.state.players.get(mate) : undefined;
-    const enemies = (c: Cell, rad: number): string[] => mate ? (mp && !mp.dead && inSplash(c.x, c.y, rad, Math.round(mp.x), Math.round(mp.y)) ? [mate] : []) // a duelist's splash hits only its duel mate
-      : [...this.room.state.monsters].filter(([, m]) => !m.dead && inSplash(c.x, c.y, rad, Math.round(m.x), Math.round(m.y))).map(([id]) => id);
+    const enemies = (c: Cell, rad: number): string[] =>
+      [...this.room.state.monsters].filter(([, m]) => !m.dead && inSplash(c.x, c.y, rad, Math.round(m.x), Math.round(m.y))).map(([id]) => id);
     const here = this.room.cell(p);
     switch (use.kind) {
       case "weapon": {

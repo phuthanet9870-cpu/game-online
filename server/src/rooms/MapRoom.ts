@@ -11,8 +11,6 @@ import {
 } from "../../../shared/protocol.ts";
 import type { FriendAddMsg, FriendRemoveMsg, FriendReplyMsg, WhisperMsg } from "../../../shared/protocol.ts";
 import * as friends from "../friends.ts";
-import * as duel from "../duel.ts";
-import type { DuelInviteMsg, DuelReplyMsg } from "../../../shared/protocol.ts";
 import { cardTargets, isCard } from "../../../shared/rules/cards.ts";
 import { pickAlbumCard } from "../../../shared/rules/album.ts";
 import { areaReceivers, type SendTarget } from "../area.ts";
@@ -59,10 +57,10 @@ import {
 import { SPAWN_CONF, mobSpawnCell, parseSpawns, respawnDelay, spawnCenter, type SpawnData } from "../../../shared/rules/spawn.ts";
 import { readFileSync } from "node:fs";
 import { CLIENT_MSGS, gearUseVerdict, guardRequest, type ClientMsgGuard, type ClientMsgKey } from "../../../shared/rules/msgguard.ts";
-import type { NpcMenuMsg, NpcReplyMsg, QuestActiveMsg } from "../../../shared/protocol.ts";
+import type { NpcMenuMsg, NpcReplyMsg } from "../../../shared/protocol.ts";
 import { NPC_BY_ID, npcClassless, npcsOn } from "../../../shared/content/npcs.ts";
 import type { NpcDef } from "../../../shared/content/api.ts";
-import { itemNamed } from "../../../shared/rules/quest.ts";
+import { itemNamed } from "../../../shared/rules/lookup.ts";
 import type { CallshopOption } from "../../../shared/rules/script.ts";
 import { ScriptEngine, type ScriptHost } from "../script.ts";
 import { SkillSystem } from "../skills.ts";
@@ -79,7 +77,6 @@ import { TowerSystem } from "../tower.ts";
 import { MiniBossSystem } from "../minibosses.ts";
 import { StatusSystem } from "../status.ts";
 import { isScKey } from "../../../shared/rules/status_change.ts";
-import { PetSystem } from "../pets.ts";
 
 export const Player = schema({
   name: t.string(),
@@ -142,15 +139,6 @@ export const Npc = schema({
 }, "Npc");
 export type Npc = SchemaType<typeof Npc>;
 
-// ---- Pets (2.4.0, server/src/pets.ts): a hatched pet, key "pet<petId>". Moves like a Monster (x / y = its cell, sx / sy the drawn
-// offset); owner = the owner's session id; hungry = hunger <= PET_HUNGRY; accessory = the worn accessory item id (0 = none).
-export const Pet = schema({
-  mobId: t.uint16(), owner: t.string(), name: t.string(),
-  x: t.float32(), y: t.float32(), sx: t.float32().default(0), sy: t.float32().default(0),
-  dir: t.uint8(), moving: t.boolean(), hungry: t.boolean(), accessory: t.uint16().default(0),
-}, "Pet");
-export type Pet = SchemaType<typeof Pet>;
-
 export const MapState = schema({
   seed: t.uint32(),
   map: t.string(), // C08: the map this room runs (shared/maps.ts); the client builds it from map + seed
@@ -158,7 +146,6 @@ export const MapState = schema({
   monsters: t.map(Monster),
   floor: t.map(FloorItem),
   npcs: t.map(Npc),
-  pets: t.map(Pet), // 2.4.0
 }, "MapState");
 export type MapState = SchemaType<typeof MapState>;
 
@@ -258,7 +245,6 @@ type Brain = {
   mode?: number; // monsters: a mode that replaces mob_db's (a slave's CANMOVE|NORANDOMWALK|CANATTACK, status_calc_slave_mode); undefined = def.mode
   dmglog?: DmgLog; // mob_log_damage: who hit it / was hit by it, keyed by character id (rules/dmglog.ts); new brain = fresh log
   statusSent?: string; // players: the last Msg.status sent to the owner (flushStatus sends again only when it changed)
-  hpFull?: boolean; // players: HP was at max on the last tick (questinfo conditions on Hp are re-checked when it flips)
 };
 
 /** Who is in game, per account, across every map room: one character per account, the newest login wins. */
@@ -318,8 +304,6 @@ export class MapRoom extends Room<{ state: MapState }> {
   get mapTitle() { return MAP_INFO[this.mapName].title; }
   /** Status changes: sc_data of every unit, timers, effects, skills / cards / monster skills that apply them (server/src/status.ts). */
   status: StatusSystem = new StatusSystem(this);
-  /** Pets: catching, eggs, the pet units, hunger, battle / support pets (server/src/pets.ts). */
-  pets: PetSystem = new PetSystem(this);
 
   onCreate(options?: { map?: string }) {
     this.state = new MapState();
@@ -351,9 +335,7 @@ export class MapRoom extends Room<{ state: MapState }> {
 
     this.onGuarded("attack", (client, m: AttackMsg) => {
       const p = this.state.players.get(client.sessionId);
-      // duel (2.4.0): a duelist hits only its duel mate (battle_check_target), nobody else can hit a duelist
-      const foeId = duel.foe(this, client.sessionId), want = String(m?.id);
-      const mon = foeId !== undefined ? (want === foeId ? this.state.players.get(foeId) : undefined) : this.state.monsters.get(want);
+      const mon = this.state.monsters.get(String(m?.id)); // players fight monsters only: there is no player-versus-player combat
       if (!p || p.dead || !mon || mon.dead || this.skills.casting(client.sessionId)) return; // unit_attack: refused during a cast
       const b = this.brains.get(client.sessionId)!;
       p.sitting = false;
@@ -390,7 +372,6 @@ export class MapRoom extends Room<{ state: MapState }> {
         p[k] += plan.amount;
         this.refreshStatus(client.sessionId, p);
         // our addition to pc_show_questinfo's triggers: a questinfo condition may read StatusPoint (a quest task, tasks.ts)
-        this.npcEngine.questinfo(client.sessionId);
       }
       this.flushStatus(client.sessionId); // pc_statusup: clif_updatestatus(SP_<stat>, SP_STATUSPOINT ...) before clif_statusupack
       client.send(Msg.statUpAck, { stat: k, ok: plan.amount > 0, amount: plan.amount, value: p[k] } satisfies StatUpAck);
@@ -429,7 +410,6 @@ export class MapRoom extends Room<{ state: MapState }> {
     this.gm.register(); // GM menu (server/src/gm.ts): unlocked with the GM_PASSPHRASE
     this.boss.register(); // dev-only GM shortcuts of the boss bot (never in production)
     this.status.register(); // dev-only GM shortcut of the status bot (never in production)
-    this.pets.register(); // pet requests (+ the pets bot's dev-only shortcuts)
     // skills: CZ_UPGRADE_SKILLLEVEL (pc_skillup), CZ_USE_SKILL / CZ_USE_SKILL_TOGROUND (unit_skilluse_id / _pos)
     this.onGuarded("skillUp", (client, m: SkillUpMsg) => this.skills.skillUp(client, Number(m?.id)));
     this.onGuarded("useSkill", (client, m: UseSkillMsg) => this.skills.use(client, m));
@@ -507,7 +487,6 @@ export class MapRoom extends Room<{ state: MapState }> {
     this.onGuarded("npcNext", (client, m: NpcReplyMsg) => this.npcEngine.reply(client.sessionId, String(m?.npc), { kind: "next" }));
     this.onGuarded("npcMenu", (client, m: NpcMenuMsg) => this.npcEngine.reply(client.sessionId, String(m?.npc), { kind: "menu", choice: m?.choice }));
     this.onGuarded("npcClose", (client, m: NpcReplyMsg) => this.npcEngine.reply(client.sessionId, String(m?.npc), { kind: "close" }));
-    this.onGuarded("questActive", (client, m: QuestActiveMsg) => this.npcEngine.setActive(client.sessionId, Number(m?.id), !!m?.active));
     this.onGuarded("shopQuit", (client) => { const { b } = this.me(client); if (b) b.shopNpc = undefined; });
     // party (server/src/party.ts; rAthena party.cpp)
     this.onGuarded("partyCreate", (client, m: PartyCreateMsg) => party.create(this, client, m));
@@ -518,10 +497,6 @@ export class MapRoom extends Room<{ state: MapState }> {
     this.onGuarded("partyLeader", (client, m: PartyLeaderMsg) => party.changeLeader(this, client, m));
     this.onGuarded("partyOption", (client, m: PartyOptionMsg) => party.option(this, client, m));
     this.onGuarded("partyChat", (client, m: PartyChatMsg) => party.chat(this, client, m));
-    // duel (server/src/duel.ts; rAthena duel.cpp)
-    this.onGuarded("duelInvite", (client, m: DuelInviteMsg) => duel.invite(this, client, m));
-    this.onGuarded("duelReply", (client, m: DuelReplyMsg) => duel.reply(this, client, m));
-    this.onGuarded("duelLeave", (client) => duel.leave(this, client));
     // friends + whisper (server/src/friends.ts)
     this.onGuarded("friendAdd", (client, m: FriendAddMsg) => friends.friendAdd(client, this.charIdOf(client.sessionId)!, m));
     this.onGuarded("friendReply", (client, m: FriendReplyMsg) => friends.friendReply(client, this.charIdOf(client.sessionId)!, m));
@@ -623,7 +598,6 @@ export class MapRoom extends Room<{ state: MapState }> {
         else if (p && b && isMapName(map)) this.setPos(sid, p, b, { map, x, y });
         else console.warn(`[script] warp: unknown map ${map}`);
       },
-      makeEgg: (sid, itemId) => this.pets.makeEgg(sid, itemId), // buildin_getitem on an egg -> pet_create_egg
       savepoint: (sid, map, x, y) => { const b = this.brains.get(sid); if (b && isMapName(map)) b.savePoint = { map, x, y }; },
     };
   }
@@ -684,7 +658,6 @@ export class MapRoom extends Room<{ state: MapState }> {
   sendInv(client: Client, p: Player) {
     const b = this.brains.get(client.sessionId);
     if (b?.inv) client.send(Msg.inv, b.inv.message(p.job as JobKey, p.str));
-    this.npcEngine?.questinfo(client.sessionId); // pc_additem / pc_delitem -> pc_show_questinfo
   }
   afterGearChange(client: Client, p: Player) {
     this.refreshStatus(client.sessionId, p);
@@ -731,7 +704,6 @@ export class MapRoom extends Room<{ state: MapState }> {
     const st = b?.inv?.items.get(uid);
     if (!p || !b?.inv || !st || p.dead) return;
     const it = ITEMS.get(st.itemId)!;
-    if (this.pets.useItem(client.sessionId, uid, it.id)) return; // taming item / egg / pet accessory (server/src/pets.ts)
     if (isCard(it)) return this.cardList(client, uid); // a hotkeyed / double-clicked card opens the compound list
     if (isEquip(it)) { // hotkeyed equipment toggles: gear only changes through the equip / unequip request, so it obeys their lock
       const lv = gearUseVerdict({ talking: this.npcEngine.talking(client.sessionId), shopping: b.shopNpc !== undefined });
@@ -804,7 +776,7 @@ export class MapRoom extends Room<{ state: MapState }> {
 
   /** floor item pickup (pc_takeitem): within PICKUP_RANGE cells, after this character's loot-priority wait
    *  (rules/drops.ts takeItemTick), then the weight/slot check. */
-  pickup(id: string, p: Player, b: Brain, client: Client, range = PICKUP_RANGE, quiet = false) { // range/quiet: a companion pet's petloot (pets.ts)
+  pickup(id: string, p: Player, b: Brain, client: Client, range = PICKUP_RANGE, quiet = false) {
     const f = this.state.floor.get(id), fb = this.brains.get(id);
     if (!f || !fb || !b.inv) return;
     const now = this.clock.currentTime, c = this.cell(p);
@@ -839,9 +811,7 @@ export class MapRoom extends Room<{ state: MapState }> {
     // mob_getdroprate's src = the killer (a monster killer only brings its LUK, no player bonuses)
     const ks = this.actor(killerId) ? this.brains.get(killerId)?.status : undefined;
     const src = ks ? { luk: ks.stats.luk, pc: this.state.players.has(killerId) ? {} : undefined } : undefined;
-    // 2.4.0 pets (mob_dead: first_sd + IT_PETEGG -> pet_create_egg): an egg drop (the legendary egg) is first_sd's egg at once, never a floor item
-    const firstSid = owners.length ? this.sessionOfChar(owners[0]) : undefined;
-    const drops = rollMobDrops(def, { modifier, src, conf: dropConf() }).filter((id) => !(firstSid && ITEMS.get(id)?.type === "Petegg" && (this.pets.makeEgg(firstSid, id), true)));
+    const drops = rollMobDrops(def, { modifier, src, conf: dropConf() }).filter((id) => ITEMS.get(id)?.type !== "Petegg"); // pets are gone: their eggs never drop
     const at = this.cell(mon), keep = looted.filter((l) => ITEMS.has(l.itemId));
     const regular = floorLoot(now, owners, def.bossType as BossType, false, DROPS), loot = floorLoot(now, owners, "None", false, DROPS);
     dropDirections(drops.length).forEach((dir, i) => this.addFloorItem(drops[i], 1, at, dir, regular));
@@ -944,7 +914,6 @@ export class MapRoom extends Room<{ state: MapState }> {
       await inv.persist("UPDATE characters SET hotkeys = $2, hotkeys_seeded = true WHERE id = $1", [row.id, JSON.stringify(hotkeys)]);
     }
     await this.npcEngine.load(client.sessionId, inv); // quest log + character variables
-    await this.pets.load(client.sessionId, row.id); // 2.4.0: the character's pets (eggs + the one out)
     p.skillPoints += await this.skills.load(client.sessionId, row.id); // sd->status.skill (the `skill` table); points of not-yet-working skills come back
     this.state.players.set(client.sessionId, p);
     this.brains.set(client.sessionId, { nextAttack: 0, repathAt: 0, status: playerStatus({ job, level: row.level, jobLevel: row.job_level, stats: statsOf(p) }), inv, hotkeys, hotkeyRowShift: isRowShift(row.hotkey_rowshift) ? row.hotkey_rowshift : 0,
@@ -955,7 +924,6 @@ export class MapRoom extends Room<{ state: MapState }> {
     this.applyLook(p, inv);
     this.sendInv(client, p);
     this.status.sendList(client.sessionId);
-    this.npcEngine.enter(client.sessionId); // quest_pc_login + pc_show_questinfo (LoadEndAck)
     this.npcEngine.touch(client.sessionId, Math.round(p.x), Math.round(p.y)); // LoadEndAck: the OnTouch areas of the arrival cell (clif.cpp:11152)
     const hk = this.brains.get(client.sessionId)!;
     client.send(Msg.hotkeys, { keys: hk.hotkeys!, rowShift: hk.hotkeyRowShift! }); // clif_hotkeys_send (+ rotate)
@@ -963,7 +931,6 @@ export class MapRoom extends Room<{ state: MapState }> {
     p.sp = row.sp == null ? p.maxSp : Math.min(row.sp, p.maxSp);
     this.flushStatus(client.sessionId); // clif_initialstatus + clif_updatestatus at map entry: the owner's own numbers
     this.skills.send(client.sessionId); // clif_skillinfoblock at map entry
-    this.pets.enter(client.sessionId); // the pet that was out comes out again (pet_load), pet info + eggs to the owner
     await redis.sadd("online", row.name);
     await party.enter(this, client.sessionId, row.id, accountId).catch((e) => console.error("[party] enter", e)); // party_member_joined
     friends.friendsEnter(charId, row.name, client); // list to the owner, online friends told
@@ -972,9 +939,8 @@ export class MapRoom extends Room<{ state: MapState }> {
   /** Save and remove a player's world state (leave or double-login eviction). Idempotent. */
   async evict(sessionId: string) {
     // map_quit (map.cpp:2294-2299): worn gear that fails pc_isequip comes off before the final save (B11 sweep)
-    if (this.state.players.has(sessionId)) { this.skills.cancel(sessionId); this.skills.sweep(sessionId); duel.onGone(this, sessionId); } // unit_remove_map / map_quit leave the duel
+    if (this.state.players.has(sessionId)) { this.skills.cancel(sessionId); this.skills.sweep(sessionId); } // unit_remove_map / map_quit leave the duel
     this.skills.leave(sessionId);
-    this.pets.leave(sessionId); // the pet leaves with its master, its row saved on the write chain
     this.status.leave(sessionId, this.brains.get(sessionId)?.inv?.charId); // map_quit: sc_data is kept for the next map
     const p = this.state.players.get(sessionId);
     const acc = this.accountOf.get(sessionId);
@@ -1028,7 +994,6 @@ export class MapRoom extends Room<{ state: MapState }> {
   refreshStatus(id: string, p: Player) {
     const b = this.brains.get(id)!;
     const base = { ...this.base(p, b.inv), passives: this.skills.passives(id), sc: this.status.hooks(id) }; // learned passive skills (status_calc_pc), status changes (status_calc_str ...)
-    this.pets?.bonus(id, (base as { equip?: Parameters<PetSystem["bonus"]>[1] }).equip); // status_calc_pc "Pet Bonus" (after the cards)
     const s = this.status.apply(id, playerStatus(base)); // the non-stat calc flags of the statuses (hit, flee, DEF, speed, element ...)
     b.status = s;
     b.weapon = base.weapon;
@@ -1416,7 +1381,7 @@ export class MapRoom extends Room<{ state: MapState }> {
   fight(id: string, a: Actor, b: Brain, now: number, range: number) {
     const tgt = b.target ? this.actor(b.target) : undefined;
     if (!tgt || tgt.dead) { b.target = undefined; return; }
-    if (this.state.players.has(id) && this.state.players.has(b.target!) && !duel.canTarget(this, id, b.target!)) { b.target = undefined; return; } // the duel ended
+    if (this.state.players.has(id) && this.state.players.has(b.target!)) { b.target = undefined; return; } // no player-versus-player combat
     if (this.status.cant(id, "attack")) return; // sc->cant.attack: Stone, Freeze, Stun, Sleep, the petrify wait
     const pl = this.state.players.get(id);
     const from = this.cell(a), to = this.cell(tgt);
@@ -1454,7 +1419,6 @@ export class MapRoom extends Room<{ state: MapState }> {
       ? playerAttack(b.status, weapon, tb.status, t)
       : mobAttack(b.status as MobStatus, tb.status, t);
     if (pl && shootsAmmo(weapon.type)) this.consumeAmmo(id, pl, b); // battle.cpp:7382-7383: after the calculation, hit or miss
-    this.pets.weaponAttack(id, b.target!); // battle_weapon_attack -> pet_target_check (a battle pet joins its master's fight)
     const multi = pl ? this.skills.normalAttack(id, b.target!, res, weapon.type, now) : undefined; // 2.5.0 Triple / Double Attack (skills.ts)
     if (multi !== "replaced") this.delayDamage(id, b.target!, res, swingAt, now, multi);
     if (pl && multi !== "replaced") this.status.afterHit(id, b.target!, res, undefined, 0, this.status.landAt(id, swingAt)); // bAddEff cards (skill_additional_effect)
@@ -1591,7 +1555,7 @@ export class MapRoom extends Room<{ state: MapState }> {
     // ours, not rAthena (its dead mob is still found by map_id2bl, so the swing lands): a monster's swing in flight dies with it,
     // a slave's too when it goes with its master (BossSystem.killSlave), so nothing hits after the kill / the MVP line
     if (src.dead && this.state.monsters.has(ev.src)) return;
-    if (!duel.pairAllowed(this, ev.src, ev.target)) return; // player vs player only inside a duel (the duel may have ended mid-swing)
+    if (this.state.players.has(ev.src) && this.state.players.has(ev.target)) return; // no player-versus-player combat
     const a = this.cell(src), t = this.cell(tgt);
     if (distance(t.x - a.x, t.y - a.y) > ev.reach) return;
     this.applyDamage(ev.src, ev.target, ev.res.dmg, at, ev.res.dmgLv);
@@ -1631,7 +1595,6 @@ export class MapRoom extends Room<{ state: MapState }> {
    *  (a script's percentheal -100 / heal below 0), which only a player can die of. */
   unitDied(to: string, tgt: Actor, tb: Brain, from: string | undefined) {
     tgt.dead = true;
-    if (this.state.players.has(to)) duel.onDeath(this, to, from); // pc_dead: duel_leave (duel_autoleave_when_die)
     this.status.died(to); // status_change_clear: everything but Endure ends with the unit
     this.haltWalk(tgt, this.walkOf(tb, tgt)); // a dead unit stops where it is
     tb.target = undefined;
@@ -1644,8 +1607,6 @@ export class MapRoom extends Room<{ state: MapState }> {
     if (mon && from !== undefined) {
       this.shareExp(to, mon.mobId);
       this.dropMobItems(to, mon, from, tb.loot ?? []);
-      // mob_dead -> quest_update_objective: the killer, or every member of its party within AREA_SIZE of the monster
-      for (const sid of party.questKillers(this, from, this.cell(mon))) this.npcEngine.mobDead(sid, MOB_BY_ID.get(mon.mobId)!);
       // mob_dead -> mob_setdelayspawn (mob.cpp:3652, 1064): the respawn timer starts at death, delay from the spawn line
       const slot = this.mobSpawns.get(to);
       this.boss.dead(to, mon, from, !!slot?.sd.boss); // MVP reward, slaves die with their master, the tomb of a boss_monster line
@@ -1666,7 +1627,6 @@ export class MapRoom extends Room<{ state: MapState }> {
       if (pen.job > 0) dc?.send(Msg.exp, { base: 0, job: pen.job, lost: true } satisfies ExpEvent);
       tb.nextHp = tb.nextSp = undefined; // status_natural_heal keeps resetting tick.hp/sp while dead (status.cpp:15569): first heal a full interval after respawn
       this.skills.cancel(to, "death"); // pc_dead -> unit_skillcastcancel
-      this.pets.ownerDied(to); // pc_dead: the pet loses IntimacyOwnerDie
       this.closeNpc(this.clients.getById(to), tb); // pc_dead -> pc_close_npc(sd,2): shop session ends, no walking back to an old pickup/NPC after respawn
       this.save(dp).catch((e) => console.error("[save]", e));
     }
@@ -1772,7 +1732,6 @@ export class MapRoom extends Room<{ state: MapState }> {
     if (sent.base || sent.job) this.clients.getById(id)?.send(Msg.exp, (quest ? { ...gain, quest } : gain) satisfies ExpEvent);
     if (!baseUps && !jobUps) return;
     this.skills.send(id); // clif_skillinfoblock after pc_checkjoblevelup (new points) / a base level (tree requirements)
-    this.npcEngine.questinfo(id); // pc_checkbaselevelup / pc_checkjoblevelup -> pc_show_questinfo
     this.save(p).catch((e) => console.error("[save]", e));
   }
 
@@ -2103,21 +2062,11 @@ export class MapRoom extends Room<{ state: MapState }> {
     this.tower.tick(now); // 2.7.0: the floor guardian's direction hint
     this.minis.tick(Date.now()); // 2.9.0: a roaming mini-boss due on this map rises
     this.boss.tick(now); // bosses re-check their summon skill once a second
-    this.pets.tick(now); // pet_ai_sub_hard: follow / fight, and where clients draw the walking pets
     // where clients draw walking units between cells (the cells themselves change in the step events above)
     for (const [id, p] of this.state.players) this.drawOffset(p, this.brains.get(id), now);
     for (const [id, m] of this.state.monsters) this.drawOffset(m, this.brains.get(id), now);
     // our addition to pc_show_questinfo's triggers: a questinfo condition may read Hp / MaxHp (the "sit until HP is full" quest
     // task, shared/content/tasks.ts), so the icons are re-checked whenever a player's HP reaches or leaves the max
-    for (const [id, p] of this.state.players) {
-      const b = this.brains.get(id);
-      if (!b) continue;
-      const full = !p.dead && p.hp >= p.maxHp;
-      if (b.hpFull === full) continue;
-      const known = b.hpFull !== undefined;
-      b.hpFull = full;
-      if (known) this.npcEngine.questinfo(id);
-    }
     for (const c of this.clients) this.flushStatus(c.sessionId, c); // owners see this tick's HP / SP / EXP / stat changes
   }
 }
